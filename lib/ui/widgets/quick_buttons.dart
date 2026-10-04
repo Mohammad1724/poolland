@@ -7,10 +7,42 @@ import '../../data/models.dart';
 import '../../data/repository.dart';
 import 'widgets.dart';
 
-/// تبدیل کدِ ذخیره‌شده به آیکون
-IconData materialIcon(int codePoint) =>
-    // ignore: non_const_argument_for_const_parameter
-    IconData(codePoint, fontFamily: 'MaterialIcons');
+/// آیکون‌های مجاز برای دکمه‌های سریع.
+///
+/// این فهرست باید `const` باشد تا «تکان‌دادنِ درختِ آیکون‌ها» در نسخه‌ی
+/// انتشار (release) بتواند آیکون‌های استفاده‌شده را تشخیص بدهد؛
+/// ساختنِ پویای IconData با سازنده باعث خطای ساخت می‌شود.
+const List<IconData> quickIcons = <IconData>[
+  Icons.restaurant_outlined,
+  Icons.directions_bus_outlined,
+  Icons.shopping_bag_outlined,
+  Icons.receipt_outlined,
+  Icons.local_cafe_outlined,
+  Icons.local_hospital_outlined,
+  Icons.home_outlined,
+  Icons.wifi_rounded,
+  Icons.bolt_rounded,
+  Icons.school_outlined,
+  Icons.fitness_center_rounded,
+  Icons.card_giftcard_rounded,
+  Icons.flight_takeoff_rounded,
+  Icons.sports_soccer_outlined,
+  Icons.movie_outlined,
+  Icons.payments_outlined,
+  Icons.medical_services_outlined,
+  Icons.account_balance_wallet_outlined,
+];
+
+/// تبدیل کدِ ذخیره‌شده به یکی از آیکون‌های [quickIcons]
+/// (اگر کد ناشناس بود، آیکونِ پیش‌فرض برگردانده می‌شود)
+IconData materialIcon(int? codePoint) {
+  if (codePoint != null) {
+    for (final ic in quickIcons) {
+      if (ic.codePoint == codePoint) return ic;
+    }
+  }
+  return Icons.receipt_long_outlined;
+}
 
 /// ردیفِ دکمه‌های ثبت سریع (یک لمس = یک هزینه/درآمد)
 class QuickButtonsRow extends StatelessWidget {

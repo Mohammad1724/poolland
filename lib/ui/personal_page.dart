@@ -927,26 +927,8 @@ class _QuickEditPageState extends State<_QuickEditPage> {
   String? _categoryId;
   int _iconCodePoint = 0xe15b;
 
-  static const _icons = <IconData>[
-    Icons.restaurant_outlined,
-    Icons.directions_bus_outlined,
-    Icons.shopping_bag_outlined,
-    Icons.receipt_outlined,
-    Icons.local_cafe_outlined,
-    Icons.local_hospital_outlined,
-    Icons.home_outlined,
-    Icons.wifi_rounded,
-    Icons.bolt_rounded,
-    Icons.school_outlined,
-    Icons.fitness_center_rounded,
-    Icons.card_giftcard_rounded,
-    Icons.flight_takeoff_rounded,
-    Icons.sports_soccer_outlined,
-    Icons.movie_outlined,
-    Icons.payments_outlined,
-    Icons.medical_services_outlined,
-    Icons.account_balance_wallet_outlined,
-  ];
+  // همان فهرستِ سراسری (const) در quick_buttons.dart
+  static const List<IconData> _icons = quickIcons;
 
   @override
   void initState() {
