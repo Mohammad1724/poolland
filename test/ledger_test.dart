@@ -292,10 +292,15 @@ void main() {
     });
 
     test('parseAmount با چند نقطه صفر نمی‌شود', () {
-      expect(parseAmount('1.234.567'), 1234567);
+      expect(parseAmount('1.234.567'), 1234567, reason: 'نقطه = جداکننده هزارگان');
+      expect(parseAmount('12.500.000'), 12500000);
+      expect(parseAmount('1.2.3'), 1.23, reason: 'سه‌رقمی نیست → اعشار');
       expect(parseAmount('۱۲٬۵۰۰'), 12500);
+      expect(parseAmount('۱۲٫۵'), 12.5);
       expect(parseAmount('10.5'), 10.5);
+      expect(parseAmount('10.500'), 10.5);
       expect(parseAmount(''), 0);
+      expect(parseAmount('  '), 0);
     });
   });
 

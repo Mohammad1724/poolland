@@ -48,39 +48,39 @@ void main() {
     expect(restored.first.durationValue, 2);
   });
 
-  test('باگ: تمدید زودهنگام نباید اشتراک را در آینده بیندازد', () async {
+  test('باگ: تمدید اشتراک منقضی نباید در گذشته ساخته شود', () async {
     final customer = await repo.addCustomer(name: 'زهرا');
-    // اشتراکی که هنوز تمام نشده (۲۰ روز دیگر)
-    final first = await repo.sellSubscription(
+    // اشتراکی که ۴۰ روز است تمدید نشده و منقضی شده
+    final old = await repo.sellSubscription(
       customer: customer,
       title: 'یک ماهه',
       price: 300000,
       currencyCode: 'IRT',
-      start: J.addDays(J.today, -10),
-      end: J.addDays(J.today, 20),
+      start: J.addDays(J.today, -70),
+      end: J.addDays(J.today, -40),
     );
-    expect(first.endDate.isAfter(J.today), isTrue);
-
-    final renewed = await repo.renewSubscription(first, price: 300000, received: 300000);
-    expect(renewed.startDate.isAfter(J.today), isTrue,
-        reason: 'تمدید زودهنگام باید از فردا شروع شود، نه ماه بعد');
-    expect(renewed.startDate.isAfter(first.endDate), isFalse,
-        reason: 'نباید بعد از پایان اشتراک قبلی بیفتد (جلوگیری از پارگی پوشش)');
-    expect(renewed.endDate.isAfter(renewed.startDate), isTrue);
+    final renewed = await repo.renewSubscription(old, price: 300000, received: 300000);
+    expect(renewed.startDate.isBefore(J.dateOnly(DateTime.now())), isFalse,
+        reason: 'سرویس تمدیدشده نباید از گذشته شروع شود');
+    expect(renewed.startDate, J.dateOnly(DateTime.now()));
+    expect(renewed.endDate.isAfter(DateTime.now()), isTrue,
+        reason: 'سرویس تازه باید فعال باشد، نه بلافاصله منقضی');
   });
 
-  test('باگ: تمدید عادی از فردای تاریخ پایان شروع می‌شود', () async {
+  test('تمدید اشتراک فعال از فردای تاریخ پایان شروع می‌شود', () async {
     final customer = await repo.addCustomer(name: 'امیر');
     final first = await repo.sellSubscription(
       customer: customer,
       title: 'یک ماهه',
       price: 300000,
       currencyCode: 'IRT',
-      start: J.addDays(J.today, -40),
-      end: J.addDays(J.today, -10), // تمام شده
+      start: J.addDays(J.today, -10),
+      end: J.addDays(J.today, 20), // هنوز فعال است
     );
     final renewed = await repo.renewSubscription(first, price: 300000, received: 300000);
+    // تمدید زودهنگام نباید روزهای پرداخت‌شده را هدر بدهد
     expect(renewed.startDate, J.addDays(J.dateOnly(first.endDate), 1));
+    expect(renewed.endDate.isAfter(renewed.startDate), isTrue);
   });
 
   test('ثبت فروش: درآمد + بدهی مشتری + دریافت نقدی', () async {

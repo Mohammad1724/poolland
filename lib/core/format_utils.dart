@@ -180,13 +180,17 @@ double parseAmount(String input) {
       .replaceAll('\u200c', '')
       .replaceAll('٫', '.');
   s = s.replaceAll(RegExp(r'[^0-9.\-]'), '');
-  // کاربر ممکن است چند نقطه وارد کند («۱۰.۵۰.۰۰» یا «1.2.3»).
-  // به‌جای اینکه کل مبلغ صفر شود، فقط اولین نقطه نقش اعشار دارد.
+  // چند نقطه: «1.234.567» جداکننده‌ی هزارگان است، «1.2.3» اعشاری.
+  // اگر همه‌ی بخش‌ها بعد از نقطه‌ی اول دقیقاً ۳ رقم باشند، هزارگان است.
   if ('.'.allMatches(s).length > 1) {
-    final first = s.indexOf('.');
-    final head = s.substring(0, first).replaceAll('.', '');
-    final tail = s.substring(first + 1).replaceAll('.', '');
-    s = '$head.$tail';
+    final parts = s.split('.');
+    final isThousands = parts.skip(1).every((p) => p.length == 3);
+    if (isThousands) {
+      s = parts.join('');
+    } else {
+      // فقط اولین نقطه اعشار است، بقیه حذف می‌شوند
+      s = '${parts.first}.${parts.skip(1).join()}';
+    }
   }
   return double.tryParse(s) ?? 0;
 }

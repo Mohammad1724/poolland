@@ -317,10 +317,12 @@ class AppRepository extends ChangeNotifier {
     return s;
   }
 
-  /// تمدید اشتراک: اشتراک جدید از فردای تاریخ پایان قبلی
+  /// تمدید اشتراک
   ///
-  /// اگر سرویس قبلی هنوز تمام نشده باشد (تمدید زودهنگام)، تمدید از **فردا** شروع
-  /// می‌شود تا روزهای پرداخت‌شده‌ی مشتری هدر نرود و بین دو اشتراک شکاف نیفتد.
+  /// تاریخ شروع = فردای پایان اشتراک قبلی، ولی **هرگز در گذشته نیست**:
+  /// اگر سرویس قبلی مدتی است تمام شده، تمدید از امروز شروع می‌شود.
+  /// بدون این کار، تمدیدِ یک سرویسِ ۴۰ روزه‌ی منقضی، سرویسی می‌ساخت که
+  /// تاریخ پایانش گذشته بود و بلافاصله «منقضی» نشان داده می‌شد.
   Future<Subscription> renewSubscription(
     Subscription old, {
     int? months,
@@ -335,11 +337,8 @@ class AppRepository extends ChangeNotifier {
     final plan = planById(old.planId);
     final today = J.dateOnly(DateTime.now());
     final dayAfterOldEnd = J.addDays(J.dateOnly(old.endDate), 1);
-    // تمدید زودهنگام: از فردا شروع شود، نه از فردای تاریخ پایان قبلی
-    final startDate = start ??
-        (dayAfterOldEnd.isAfter(today)
-            ? dayAfterOldEnd
-            : J.addDays(today, 1));
+    final startDate =
+        start ?? (dayAfterOldEnd.isAfter(today) ? dayAfterOldEnd : today);
     final end = plan != null
         ? plan.endFrom(startDate)
         : J.addDays(J.addMonths(startDate, months ?? 1), -1);
