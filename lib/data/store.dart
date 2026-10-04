@@ -236,6 +236,10 @@ class LocalStore {
       final m = Map<String, dynamic>.from(raw as Map);
       await categories.put('${m['id']}', m);
     }
+    for (final raw in (data['plans'] as List? ?? const [])) {
+      final m = Map<String, dynamic>.from(raw as Map);
+      await plans.put('${m['id']}', m);
+    }
     await ensureSeeded();
   }
 

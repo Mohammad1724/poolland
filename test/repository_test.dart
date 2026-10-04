@@ -32,6 +32,57 @@ void main() {
     expect(repo.settings.baseCurrency, 'IRT');
   });
 
+  test('باگ: پلن‌های سفارشی با بازگردانی پشتیبان از بین می‌رفتند', () async {
+    final plan = await repo.addPlan(const Plan(
+        id: 'p-special', name: 'پلن ویژه', price: 777000, durationValue: 2));
+    expect(repo.plans.any((p) => p.name == 'پلن ویژه'), isTrue);
+    expect(plan.name, 'پلن ویژه');
+
+    final backup = repo.exportData();
+    await repo.wipeAll();
+    await repo.importData(backup);
+
+    final restored = repo.plans.where((p) => p.name == 'پلن ویژه');
+    expect(restored, hasLength(1), reason: 'پلن‌ها باید همراه پشتیبان بازگردند');
+    expect(restored.first.price, 777000);
+    expect(restored.first.durationValue, 2);
+  });
+
+  test('باگ: تمدید زودهنگام نباید اشتراک را در آینده بیندازد', () async {
+    final customer = await repo.addCustomer(name: 'زهرا');
+    // اشتراکی که هنوز تمام نشده (۲۰ روز دیگر)
+    final first = await repo.sellSubscription(
+      customer: customer,
+      title: 'یک ماهه',
+      price: 300000,
+      currencyCode: 'IRT',
+      start: J.addDays(J.today, -10),
+      end: J.addDays(J.today, 20),
+    );
+    expect(first.endDate.isAfter(J.today), isTrue);
+
+    final renewed = await repo.renewSubscription(first, price: 300000, received: 300000);
+    expect(renewed.startDate.isAfter(J.today), isTrue,
+        reason: 'تمدید زودهنگام باید از فردا شروع شود، نه ماه بعد');
+    expect(renewed.startDate.isAfter(first.endDate), isFalse,
+        reason: 'نباید بعد از پایان اشتراک قبلی بیفتد (جلوگیری از پارگی پوشش)');
+    expect(renewed.endDate.isAfter(renewed.startDate), isTrue);
+  });
+
+  test('باگ: تمدید عادی از فردای تاریخ پایان شروع می‌شود', () async {
+    final customer = await repo.addCustomer(name: 'امیر');
+    final first = await repo.sellSubscription(
+      customer: customer,
+      title: 'یک ماهه',
+      price: 300000,
+      currencyCode: 'IRT',
+      start: J.addDays(J.today, -40),
+      end: J.addDays(J.today, -10), // تمام شده
+    );
+    final renewed = await repo.renewSubscription(first, price: 300000, received: 300000);
+    expect(renewed.startDate, J.addDays(J.dateOnly(first.endDate), 1));
+  });
+
   test('ثبت فروش: درآمد + بدهی مشتری + دریافت نقدی', () async {
     final customer = await repo.addCustomer(name: 'رضا');
     await repo.sellSubscription(

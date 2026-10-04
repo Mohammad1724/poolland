@@ -21,6 +21,17 @@ class Fmt {
     return sb.toString();
   }
 
+  /// تبدیل ارقام فارسی/عربی به لاتین (برای جست‌وجو)
+  static String toLatinDigits(String input) {
+    const fa = '۰۱۲۳۴۵۶۷۸۹';
+    const ar = '٠١٢٣٤٥٦٧٨٩';
+    var s = input;
+    for (var i = 0; i < 10; i++) {
+      s = s.replaceAll(fa[i], '$i').replaceAll(ar[i], '$i');
+    }
+    return s.replaceAll('٬', ',').replaceAll('٫', '.');
+  }
+
   /// جداکننده هزارگان فارسی + اعشار فارسی
   static String _localize(String s, bool persian) {
     if (!persian) return s;
@@ -169,6 +180,14 @@ double parseAmount(String input) {
       .replaceAll('\u200c', '')
       .replaceAll('٫', '.');
   s = s.replaceAll(RegExp(r'[^0-9.\-]'), '');
+  // کاربر ممکن است چند نقطه وارد کند («۱۰.۵۰.۰۰» یا «1.2.3»).
+  // به‌جای اینکه کل مبلغ صفر شود، فقط اولین نقطه نقش اعشار دارد.
+  if ('.'.allMatches(s).length > 1) {
+    final first = s.indexOf('.');
+    final head = s.substring(0, first).replaceAll('.', '');
+    final tail = s.substring(first + 1).replaceAll('.', '');
+    s = '$head.$tail';
+  }
   return double.tryParse(s) ?? 0;
 }
 

@@ -1,3 +1,4 @@
+import '../core/format_utils.dart';
 import '../core/jalali_utils.dart';
 import 'models.dart';
 
@@ -28,7 +29,8 @@ class MonthPoint {
 class Summary {
   final double income; // فروش/درآمد (تعهدی)
   final double expense; // هزینه
-  final double refunds; // برگشت وجه به مشتری
+  final double refunds; // برگشت وجه به مشتری (کل)
+  final double refundsCash; // فقط بخش نقدی برگشت وجه (که واقعاً از صندوق خارج شده)
   final double received; // وصولی از مشتری‌ها
   final double incomeCash; // فروش‌های نقدی
   final double expenseCash; // هزینه‌های نقدی
@@ -38,6 +40,7 @@ class Summary {
     this.income = 0,
     this.expense = 0,
     this.refunds = 0,
+    this.refundsCash = 0,
     this.received = 0,
     this.incomeCash = 0,
     this.expenseCash = 0,
@@ -46,7 +49,7 @@ class Summary {
 
   double get profit => income - expense - refunds;
   double get cashIn => incomeCash + received;
-  double get cashOut => expenseCash + refunds;
+  double get cashOut => expenseCash + refundsCash;
   double get netCash => cashIn - cashOut;
 
   static const empty = Summary();
@@ -108,10 +111,17 @@ class Ledger {
       if (bookId != null && t.bookId != bookId) return false;
       if (search != null && search.trim().isNotEmpty) {
         final q = search.trim().toLowerCase();
-        if (!t.note.toLowerCase().contains(q) &&
-            !t.amount.toStringAsFixed(0).contains(q)) {
-          return false;
-        }
+        // ارقام فارسی/عربی را به لاتین برمی‌گردانیم تا جست‌وجوی «۲۵۰٬۰۰۰» کار کند
+        final qDigits = Fmt.toLatinDigits(q);
+        final note = t.note.toLowerCase();
+        final amounts = <String>[
+          t.amount.toStringAsFixed(0),
+          t.amount.toStringAsFixed(2),
+          Fmt.number(t.amount, decimals: 0, persian: false),
+        ];
+        final hitNote = note.contains(q) || note.contains(qDigits);
+        final hitAmount = amounts.any((a) => a.contains(q) || a.contains(qDigits));
+        if (!hitNote && !hitAmount) return false;
       }
       return true;
     });
@@ -122,6 +132,7 @@ class Ledger {
     double income = 0,
         expense = 0,
         refunds = 0,
+        refundsCash = 0,
         received = 0,
         incomeCash = 0,
         expenseCash = 0;
@@ -144,6 +155,8 @@ class Ledger {
           break;
         case TxnKind.refund:
           refunds += v;
+          // فقط پولی که واقعاً از صندوق خارج شده روی جریان نقدی اثر دارد
+          if (!t.credit) refundsCash += v;
           break;
       }
     }
@@ -151,6 +164,7 @@ class Ledger {
       income: income,
       expense: expense,
       refunds: refunds,
+      refundsCash: refundsCash,
       received: received,
       incomeCash: incomeCash,
       expenseCash: expenseCash,
@@ -218,8 +232,16 @@ class Ledger {
   }
 
   /// خالص حساب هر طرف حساب به تفکیک ارز (بدون تبدیل)
-  static Map<String, double> customerCurrencyTotals(Customer c, Iterable<Txn> txns) {
+  ///
+  /// بدهی اولیه در ارز پایه لحاظ می‌شود تا جمع این تفکیک با مانده‌ی کل بخواند.
+  static Map<String, double> customerCurrencyTotals(
+      Customer c, Iterable<Txn> txns, {
+      String baseCurrency = 'IRT',
+    }) {
     final map = <String, double>{};
+    if (c.openingBalance != 0) {
+      map[baseCurrency] = c.openingBalance;
+    }
     for (final t in txns) {
       if (t.customerId != c.id) continue;
       final delta = switch (t.kind) {
@@ -230,6 +252,8 @@ class Ledger {
       };
       if (delta != 0) map[t.currency] = (map[t.currency] ?? 0) + delta;
     }
+    // صفرهای بی‌معنا را حذف کن
+    map.removeWhere((_, v) => v.abs() < 0.01);
     return map;
   }
 

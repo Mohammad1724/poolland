@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:poolland/core/format_utils.dart';
 import 'package:poolland/core/jalali_utils.dart';
 import 'package:poolland/data/ledger.dart';
 import 'package:poolland/data/models.dart';
@@ -244,6 +245,55 @@ void main() {
       final byCat = Ledger.byCategory(withCat, cats);
       expect(byCat['سرور'], 400000);
       expect(byCat['بدون دسته'], 100000);
+    });
+  });
+
+  group('رفع اشکالات', () {
+    test('برگشت وجه نسیه نباید موجودی صندوق را کم کند', () {
+      final cash = Ledger.summarize([
+        txn(kind: TxnKind.income, amount: 1000000),
+        txn(kind: TxnKind.refund, amount: 400000), // نقدی: از صندوق خارج شده
+      ]);
+      expect(cash.cashOut, 400000);
+
+      final credit = Ledger.summarize([
+        txn(kind: TxnKind.income, amount: 1000000, credit: true),
+        txn(kind: TxnKind.refund, amount: 400000, credit: true), // نسیه: پولی جابه‌جا نشده
+      ]);
+      expect(credit.refunds, 400000, reason: 'سود از برگشت وجه کم می‌شود');
+      expect(credit.cashOut, 0, reason: 'ولی از صندوق کم نمی‌شود');
+      expect(credit.netCash, 0);
+    });
+
+    test('جست‌وجو با ارقام فارسی و گروه‌بندی کار می‌کند', () {
+      final txns = [txn(kind: TxnKind.income, amount: 250000, note: 'فروش اشتراک')];
+      expect(Ledger.filter(txns, search: '۲۵۰'), hasLength(1));
+      expect(Ledger.filter(txns, search: '250'), hasLength(1));
+      expect(Ledger.filter(txns, search: 'اشتراک'), hasLength(1));
+      expect(Ledger.filter(txns, search: 'ناموجود'), isEmpty);
+    });
+
+    test('جست‌وجوی مبلغ اعشاری ارز', () {
+      final txns = [txn(kind: TxnKind.income, amount: 15.5, currency: 'USDT', rate: 130000)];
+      expect(Ledger.filter(txns, search: '15.5'), hasLength(1));
+      expect(Ledger.filter(txns, search: '15'), hasLength(1));
+    });
+
+    test('بدهی اولیه در تفکیک ارز دیده می‌شود', () {
+      final c = customer(opening: 100000);
+      final txns = [
+        txn(kind: TxnKind.income, amount: 20, currency: 'USD', rate: 130000, credit: true),
+      ];
+      final map = Ledger.customerCurrencyTotals(c, txns);
+      expect(map['IRT'], 100000, reason: 'بدهی اولیه به تومان');
+      expect(map['USD'], 20);
+    });
+
+    test('parseAmount با چند نقطه صفر نمی‌شود', () {
+      expect(parseAmount('1.234.567'), 1234567);
+      expect(parseAmount('۱۲٬۵۰۰'), 12500);
+      expect(parseAmount('10.5'), 10.5);
+      expect(parseAmount(''), 0);
     });
   });
 

@@ -318,6 +318,9 @@ class AppRepository extends ChangeNotifier {
   }
 
   /// تمدید اشتراک: اشتراک جدید از فردای تاریخ پایان قبلی
+  ///
+  /// اگر سرویس قبلی هنوز تمام نشده باشد (تمدید زودهنگام)، تمدید از **فردا** شروع
+  /// می‌شود تا روزهای پرداخت‌شده‌ی مشتری هدر نرود و بین دو اشتراک شکاف نیفتد.
   Future<Subscription> renewSubscription(
     Subscription old, {
     int? months,
@@ -330,7 +333,13 @@ class AppRepository extends ChangeNotifier {
     final customer = customerById(old.customerId);
     if (customer == null) throw StateError('مشتری پیدا نشد');
     final plan = planById(old.planId);
-    final startDate = start ?? J.addDays(old.endDate, 1);
+    final today = J.dateOnly(DateTime.now());
+    final dayAfterOldEnd = J.addDays(J.dateOnly(old.endDate), 1);
+    // تمدید زودهنگام: از فردا شروع شود، نه از فردای تاریخ پایان قبلی
+    final startDate = start ??
+        (dayAfterOldEnd.isAfter(today)
+            ? dayAfterOldEnd
+            : J.addDays(today, 1));
     final end = plan != null
         ? plan.endFrom(startDate)
         : J.addDays(J.addMonths(startDate, months ?? 1), -1);
