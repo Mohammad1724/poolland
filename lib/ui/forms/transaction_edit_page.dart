@@ -41,6 +41,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
   Subscription? _subscription;
   Category? _category;
   bool _credit = false;
+  late Book _book;
 
   bool get isEdit => widget.existing != null;
 
@@ -67,7 +68,9 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
       _subscription = repo.subscriptionById(t.subscriptionId);
       _category = repo.categoryById(t.categoryId);
       _credit = t.credit;
+      _book = repo.bookById(t.bookId);
     } else {
+      _book = repo.bookById(repo.newTxnBookId);
       _customer = widget.customer;
       _category = repo.categoryById(widget.categoryId) ??
           (widget.initialKind == TxnKind.expense
@@ -106,6 +109,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
         clearSubscription: _subscription == null,
         credit: _credit,
         note: _note.text.trim(),
+        bookId: _book.id,
       ));
     } else {
       final base = repo.buildTxn(
@@ -118,6 +122,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
         subscriptionId: _subscription?.id,
         credit: _needsCategory && _customer != null ? _credit : false,
         note: _note.text.trim(),
+        bookId: _book.id,
       );
       await repo.addTxn(base);
 
@@ -131,6 +136,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
           customerId: _customer!.id,
           subscriptionId: _subscription?.id,
           note: _kind == TxnKind.income ? 'دریافت نقدی' : 'پرداخت نقدی',
+          bookId: _book.id,
         ));
       }
     }
@@ -222,6 +228,18 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
             JalaliDateField(label: 'تاریخ', value: _date, onChanged: (d) => setState(() => _date = d)),
             const SizedBox(height: 14),
 
+            // دفتر (شخصی / کسب‌وکار)
+            SelectField<Book>(
+              label: 'دفتر',
+              icon: Icons.menu_book_outlined,
+              value: _book,
+              items: repo.settings.books,
+              labelOf: (b) => b.name,
+              subOf: (b) => b.id == repo.settings.defaultBookId ? 'پیش‌فرض' : null,
+              onChanged: (b) => setState(() => _book = b ?? _book),
+            ),
+            const SizedBox(height: 14),
+
             // طرف حساب
             Row(
               children: [
@@ -236,7 +254,13 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                     subOf: (c) => c.phone,
                     searchHint: 'نام مشتری…',
                     sheetTitle: 'انتخاب طرف حساب',
-                    onChanged: (c) => setState(() => _customer = c),
+                    onChanged: (c) => setState(() {
+                      _customer = c;
+                      // مشتری متعلق به کسب‌وکار است؛ حسابش همیشه در دفتر کسب‌وکار می‌ماند
+                      if (c != null && _book.id != BookIds.business) {
+                        _book = repo.bookById(BookIds.business);
+                      }
+                    }),
                   ),
                 ),
                 const SizedBox(width: 8),

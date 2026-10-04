@@ -29,7 +29,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
     final monthEnd = J.endOfMonth(monthStart);
     final summary = repo.summary(from: monthStart, to: monthEnd);
 
-    var list = repo.transactions
+    var list = repo.visibleTxns
         .where((t) => Ledger.inRange(t.date, monthStart, monthEnd))
         .toList();
     if (_kind != null) list = list.where((t) => t.kind == _kind).toList();
@@ -38,7 +38,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
           .where((t) =>
               t.note.contains(_q) ||
               repo.customerName(t.customerId).contains(_q) ||
-              repo.categoryName(t.categoryId).contains(_q))
+              repo.categoryName(t.categoryId).contains(_q) ||
+              repo.bookName(t.bookId).contains(_q))
           .toList();
     }
 
@@ -129,9 +130,11 @@ class _TransactionsPageState extends State<TransactionsPage> {
         const SizedBox(height: 8),
         Expanded(
           child: list.isEmpty
-              ? const EmptyState(
+              ? EmptyState(
                   icon: Icons.receipt_long_outlined,
-                  title: 'تراکنشی در این ماه نیست',
+                  title: repo.isBookFiltered
+                      ? 'در دفتر «${repo.bookName(repo.bookFilter)}» تراکنشی در این ماه نیست'
+                      : 'تراکنشی در این ماه نیست',
                   text: 'با دکمه‌ی + یک فروش، دریافت یا هزینه ثبت کنید.',
                 )
               : ListView(
@@ -176,6 +179,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                 txn: entry.value[i],
                                 categoryName: repo.categoryName(entry.value[i].categoryId),
                                 customerName: repo.customerName(entry.value[i].customerId),
+                                showBook: !repo.isBookFiltered,
+                                bookName: repo.bookName(entry.value[i].bookId),
                                 onTap: () => Navigator.push(
                                     context,
                                     MaterialPageRoute(

@@ -52,11 +52,53 @@ class CurrencyDef {
       );
 }
 
+/// شناسه‌های ثابت دفترهای پیش‌فرض.
+/// ثابت‌اند تا داده‌های قدیمی (که فیلد bookId ندارند) به «کسب‌وکار» نسبت داده شوند.
+class BookIds {
+  BookIds._();
+  static const business = 'biz';
+  static const personal = 'personal';
+}
+
+/// ----- دفتر (تفکیک شخصی از کسب‌وکار) -----
+class Book {
+  final String id;
+  final String name; // کسب‌وکار، شخصی، خانه و…
+  final int color; // ARGB
+  final int sortOrder;
+
+  const Book({
+    required this.id,
+    required this.name,
+    this.color = 0xFF0F766E,
+    this.sortOrder = 0,
+  });
+
+  Book copyWith({String? name, int? color, int? sortOrder}) => Book(
+        id: id,
+        name: name ?? this.name,
+        color: color ?? this.color,
+        sortOrder: sortOrder ?? this.sortOrder,
+      );
+
+  Map<String, dynamic> toMap() =>
+      {'id': id, 'name': name, 'color': color, 'sortOrder': sortOrder};
+
+  factory Book.fromMap(Map map) => Book(
+        id: '${map['id']}',
+        name: '${map['name'] ?? map['id']}',
+        color: (map['color'] as num?)?.toInt() ?? 0xFF0F766E,
+        sortOrder: (map['sortOrder'] as num?)?.toInt() ?? 0,
+      );
+}
+
 /// ----- تنظیمات برنامه -----
 class AppSettings {
   final String businessName;
   final String baseCurrency; // کد ارز پایه (پیش‌فرض IRT = تومان)
   final List<CurrencyDef> currencies;
+  final List<Book> books; // دفترهای حساب (کسب‌وکار / شخصی / …)
+  final String defaultBookId; // دفتر پیش‌فرض تراکنش‌های جدید
   final bool persianDigits;
   final int reminderDays; // چند روز قبل از انقضا هشدار بده
   final String? pinHash; // قفل برنامه (اختیاری)
@@ -68,6 +110,8 @@ class AppSettings {
     this.businessName = 'فروش وی‌پی‌ان من',
     this.baseCurrency = 'IRT',
     this.currencies = defaultCurrencies,
+    this.books = defaultBooks,
+    this.defaultBookId = BookIds.business,
     this.persianDigits = true,
     this.reminderDays = 3,
     this.pinHash,
@@ -75,6 +119,12 @@ class AppSettings {
     this.openingCash = 0,
     this.setupDone = false,
   });
+
+  /// دفترهای پیش‌فرض: کسب‌وکار (VPN) و شخصی (خرج روزانه)
+  static const defaultBooks = <Book>[
+    Book(id: BookIds.business, name: 'کسب‌وکار', color: 0xFF0F766E, sortOrder: 0),
+    Book(id: BookIds.personal, name: 'شخصی', color: 0xFF7C3AED, sortOrder: 1),
+  ];
 
   /// ارزهای پیش‌فرض: تومان (پایه) + ارزهای رایج برای فروشنده‌ی VPN
   static const defaultCurrencies = <CurrencyDef>[
@@ -95,10 +145,24 @@ class AppSettings {
 
   String symbolOf(String code) => currency(code).symbol;
 
+  Book book(String? id) => books.firstWhere(
+        (b) => b.id == id,
+        orElse: () => books.firstWhere(
+          (b) => b.id == defaultBookId,
+          orElse: () => defaultBooks.first,
+        ),
+      );
+
+  Book get defaultBook => book(defaultBookId);
+
+  bool isKnownBook(String? id) => books.any((b) => b.id == id);
+
   AppSettings copyWith({
     String? businessName,
     String? baseCurrency,
     List<CurrencyDef>? currencies,
+    List<Book>? books,
+    String? defaultBookId,
     bool? persianDigits,
     int? reminderDays,
     String? pinHash,
@@ -111,6 +175,8 @@ class AppSettings {
         businessName: businessName ?? this.businessName,
         baseCurrency: baseCurrency ?? this.baseCurrency,
         currencies: currencies ?? this.currencies,
+        books: books ?? this.books,
+        defaultBookId: defaultBookId ?? this.defaultBookId,
         persianDigits: persianDigits ?? this.persianDigits,
         reminderDays: reminderDays ?? this.reminderDays,
         pinHash: clearPin ? null : (pinHash ?? this.pinHash),
@@ -123,6 +189,8 @@ class AppSettings {
         'businessName': businessName,
         'baseCurrency': baseCurrency,
         'currencies': currencies.map((e) => e.toMap()).toList(),
+        'books': books.map((e) => e.toMap()).toList(),
+        'defaultBookId': defaultBookId,
         'persianDigits': persianDigits,
         'reminderDays': reminderDays,
         'pinHash': pinHash,
@@ -131,20 +199,32 @@ class AppSettings {
         'setupDone': setupDone,
       };
 
-  factory AppSettings.fromMap(Map map) => AppSettings(
-        businessName: '${map['businessName'] ?? 'فروش وی‌پی‌ان من'}',
-        baseCurrency: '${map['baseCurrency'] ?? 'IRT'}',
-        currencies: (map['currencies'] as List?)
-                ?.map((e) => CurrencyDef.fromMap(Map.from(e as Map)))
-                .toList() ??
-            defaultCurrencies,
-        persianDigits: map['persianDigits'] as bool? ?? true,
-        reminderDays: (map['reminderDays'] as num?)?.toInt() ?? 3,
-        pinHash: map['pinHash'] as String?,
-        themeMode: '${map['themeMode'] ?? 'system'}',
-        openingCash: (map['openingCash'] as num?)?.toDouble() ?? 0,
-        setupDone: map['setupDone'] as bool? ?? false,
-      );
+  factory AppSettings.fromMap(Map map) {
+    final books = (map['books'] as List?)
+            ?.map((e) => Book.fromMap(Map.from(e as Map)))
+            .toList() ??
+        defaultBooks;
+    final wanted = '${map['defaultBookId'] ?? BookIds.business}';
+    return AppSettings(
+      businessName: '${map['businessName'] ?? 'فروش وی‌پی‌ان من'}',
+      baseCurrency: '${map['baseCurrency'] ?? 'IRT'}',
+      currencies: (map['currencies'] as List?)
+              ?.map((e) => CurrencyDef.fromMap(Map.from(e as Map)))
+              .toList() ??
+          defaultCurrencies,
+      books: books.isEmpty ? defaultBooks : books,
+      // اگر دفتر پیش‌فرض ذخیره‌شده دیگر وجود نداشته باشد، به اولین دفتر برگرد
+      defaultBookId: books.any((b) => b.id == wanted)
+          ? wanted
+          : (books.isEmpty ? BookIds.business : books.first.id),
+      persianDigits: map['persianDigits'] as bool? ?? true,
+      reminderDays: (map['reminderDays'] as num?)?.toInt() ?? 3,
+      pinHash: map['pinHash'] as String?,
+      themeMode: '${map['themeMode'] ?? 'system'}',
+      openingCash: (map['openingCash'] as num?)?.toDouble() ?? 0,
+      setupDone: map['setupDone'] as bool? ?? false,
+    );
+  }
 }
 
 /// ----- دسته‌بندی درآمد/هزینه -----
@@ -472,6 +552,7 @@ class Txn {
   final bool credit; // برای درآمد/هزینه: true یعنی «نسیه / روی حساب»
   final String note;
   final DateTime createdAt;
+  final String bookId; // دفتر تعلق تراکنش (کسب‌وکار / شخصی / …)
 
   const Txn({
     required this.id,
@@ -486,6 +567,7 @@ class Txn {
     this.credit = false,
     this.note = '',
     required this.createdAt,
+    this.bookId = BookIds.business,
   });
 
   bool get isCash => !credit;
@@ -501,6 +583,7 @@ class Txn {
     String? subscriptionId,
     bool? credit,
     String? note,
+    String? bookId,
     bool clearCustomer = false,
     bool clearCategory = false,
     bool clearSubscription = false,
@@ -518,6 +601,7 @@ class Txn {
         credit: credit ?? this.credit,
         note: note ?? this.note,
         createdAt: createdAt,
+        bookId: bookId ?? this.bookId,
       );
 
   Map<String, dynamic> toMap() => {
@@ -533,6 +617,7 @@ class Txn {
         'credit': credit,
         'note': note,
         'createdAt': createdAt.millisecondsSinceEpoch,
+        'bookId': bookId,
       };
 
   factory Txn.fromMap(Map map) => Txn(
@@ -550,6 +635,8 @@ class Txn {
         note: '${map['note'] ?? ''}',
         createdAt: DateTime.fromMillisecondsSinceEpoch(
             (map['createdAt'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch),
+        // تراکنش‌های قدیمی فیلد bookId ندارند → کسب‌وکار
+        bookId: '${map['bookId'] ?? BookIds.business}',
       );
 }
 

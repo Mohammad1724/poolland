@@ -246,4 +246,63 @@ void main() {
       expect(byCat['بدون دسته'], 100000);
     });
   });
+
+  group('تفکیک دفترها', () {
+    Txn inBook(Txn t, String bookId) => t.copyWith(bookId: bookId);
+
+    test('خلاصه و فیلتر بر اساس دفتر', () {
+      final txns = [
+        inBook(txn(kind: TxnKind.income, amount: 1000000), BookIds.business),
+        inBook(txn(kind: TxnKind.expense, amount: 300000), BookIds.personal),
+        inBook(txn(kind: TxnKind.income, amount: 200000), BookIds.personal),
+      ];
+
+      expect(Ledger.summarize(txns).income, 1200000, reason: 'بدون فیلتر = همه');
+      expect(Ledger.summarize(txns, bookId: BookIds.personal).income, 200000);
+      expect(Ledger.summarize(txns, bookId: BookIds.personal).profit, -100000);
+      expect(
+        Ledger.filter(txns, bookId: BookIds.business).length,
+        1,
+      );
+    });
+
+    test('نمودار ماهانه هر دفتر جدا حساب می‌شود', () {
+      final txns = [
+        inBook(txn(kind: TxnKind.income, amount: 111, date: now), BookIds.business),
+        inBook(txn(kind: TxnKind.income, amount: 222, date: now), BookIds.personal),
+      ];
+      final biz = Ledger.monthlySeries(txns, months: 2, endMonth: now, bookId: BookIds.business);
+      final per = Ledger.monthlySeries(txns, months: 2, endMonth: now, bookId: BookIds.personal);
+      expect(biz.last.income, 111);
+      expect(per.last.income, 222);
+    });
+
+    test('ساختار دفترها در پشتیبان حفظ می‌شود', () {
+      const s = AppSettings();
+      expect(s.books.length, 2);
+      expect(s.book(BookIds.personal).name, 'شخصی');
+      expect(s.book('ناموجود').id, BookIds.business, reason: 'دفتر ناشناخته → دفتر پیش‌فرض');
+
+      final restored = AppSettings.fromMap(s.toMap());
+      expect(restored.books.length, 2);
+      expect(restored.defaultBookId, BookIds.business);
+
+      // تنظیمات قدیمی بدون فیلد books نباید خطا بدهد
+      final legacy = AppSettings.fromMap({'businessName': 'قبلی'});
+      expect(legacy.books.length, 2);
+      expect(legacy.defaultBook, legacy.books.first);
+    });
+
+    test('تراکنش بدون bookId به کسب‌وکار نسبت داده می‌شود', () {
+      final t = Txn.fromMap({
+        'id': 't1',
+        'kind': 'income',
+        'amount': 10,
+        'date': now.millisecondsSinceEpoch,
+        'createdAt': now.millisecondsSinceEpoch,
+      });
+      expect(t.bookId, BookIds.business);
+      expect(t.toMap()['bookId'], BookIds.business);
+    });
+  });
 }

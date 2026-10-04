@@ -31,6 +31,28 @@ class AppRepository extends ChangeNotifier {
   List<Category> categories = [];
   List<Plan> plans = [];
 
+  /// دفتر فعال (null = همه‌ی دفترها). فقط در حافظه نگه داشته می‌شود.
+  String? _bookFilter;
+  String? get bookFilter => _bookFilter;
+  bool get isBookFiltered => _bookFilter != null;
+
+  void setBookFilter(String? id) {
+    if (id == _bookFilter) return;
+    _bookFilter = (id == null || !settings.isKnownBook(id)) ? null : id;
+    notifyListeners();
+  }
+
+  /// تراکنش‌های قابل مشاهده با فیلتر دفتر فعلی
+  List<Txn> get visibleTxns => _bookFilter == null
+      ? transactions
+      : transactions.where((t) => t.bookId == _bookFilter).toList();
+
+  /// دفتر پیش‌فرض تراکنش‌های جدید؛ اگر فیلتر فعال باشد همان دفتر انتخاب می‌شود
+  String get newTxnBookId => _bookFilter ?? settings.defaultBookId;
+
+  Book bookById(String? id) => settings.book(id);
+  String bookName(String? id) => settings.book(id).name;
+
   /// آماده‌سازی اولیه (باز کردن دیتابیس)
   Future<void> init() async {
     _store ??= await LocalStore.open();
@@ -114,11 +136,21 @@ class AppRepository extends ChangeNotifier {
 
   Balances get totals => Ledger.totals(customers, transactions);
 
-  Summary summary({DateTime? from, DateTime? to}) =>
-      Ledger.summarize(transactions, from: from, to: to);
+  Summary summary({DateTime? from, DateTime? to, String? bookId}) => Ledger.summarize(
+        transactions,
+        from: from,
+        to: to,
+        bookId: bookId ?? _bookFilter,
+      );
+
+  /// خلاصه‌ی هر دفتر در یک بازه — برای مقایسه‌ی کسب‌وکار و شخصی
+  List<MapEntry<Book, Summary>> summaryByBook({DateTime? from, DateTime? to}) => [
+        for (final b in settings.books)
+          MapEntry(b, Ledger.summarize(transactions, from: from, to: to, bookId: b.id)),
+      ];
 
   List<MonthPoint> series({int months = 6}) =>
-      Ledger.monthlySeries(transactions, months: months);
+      Ledger.monthlySeries(transactions, months: months, bookId: _bookFilter);
 
   List<Subscription> get alerts =>
       Ledger.alerts(subscriptions, reminderDays: settings.reminderDays);
@@ -225,7 +257,9 @@ class AppRepository extends ChangeNotifier {
     String note = '',
     String? categoryId,
     int deviceCount = 1,
+    String? bookId,
   }) async {
+    final book = bookId ?? settings.defaultBookId;
     final s = Subscription(
       id: LocalStore.newId(),
       customerId: customer.id,
@@ -258,6 +292,7 @@ class AppRepository extends ChangeNotifier {
         credit: true, // کل مبلغ به حساب مشتری بدهکار می‌شود
         note: note.isEmpty ? 'فروش $title' : note,
         createdAt: DateTime.now(),
+        bookId: book,
       ));
     }
 
@@ -274,6 +309,7 @@ class AppRepository extends ChangeNotifier {
         subscriptionId: s.id,
         note: 'دریافت بابت $title',
         createdAt: DateTime.now(),
+        bookId: book,
       ));
     }
 
@@ -340,6 +376,7 @@ class AppRepository extends ChangeNotifier {
     String? subscriptionId,
     bool credit = false,
     String note = '',
+    String? bookId,
   }) =>
       Txn(
         id: LocalStore.newId(),
@@ -354,6 +391,7 @@ class AppRepository extends ChangeNotifier {
         credit: credit,
         note: note,
         createdAt: DateTime.now(),
+        bookId: bookId ?? newTxnBookId,
       );
 
   Future<Txn> addTxn(Txn t) async {
@@ -452,6 +490,59 @@ class AppRepository extends ChangeNotifier {
     _syncGlobals();
     await store.saveSettings(s);
     notifyListeners();
+  }
+
+  // ---------------- دفترها ----------------
+  Future<void> addBook(String name, {int color = 0xFF2563EB}) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    await upsertBook(Book(
+      id: LocalStore.newId(),
+      name: trimmed,
+      color: color,
+      sortOrder: settings.books.length,
+    ));
+  }
+
+  Future<void> upsertBook(Book b) async {
+    final list = [...settings.books];
+    final i = list.indexWhere((x) => x.id == b.id);
+    if (i >= 0) {
+      list[i] = b;
+    } else {
+      list.add(b);
+    }
+    await updateSettings(settings.copyWith(books: list));
+  }
+
+  Future<void> setDefaultBook(String id) async {
+    if (!settings.isKnownBook(id)) return;
+    await updateSettings(settings.copyWith(defaultBookId: id));
+  }
+
+  /// حذف دفتر؛ تراکنش‌های آن به دفتر پیش‌فرض منتقل می‌شوند
+  Future<void> removeBook(String id) async {
+    if (settings.books.length <= 1) return;
+    if (id == settings.defaultBookId) return;
+    final fallback = settings.defaultBookId;
+    for (final t in transactions.where((t) => t.bookId == id).toList()) {
+      await store.putTxn(t.copyWith(bookId: fallback));
+    }
+    final list = settings.books.where((b) => b.id != id).toList();
+    await updateSettings(settings.copyWith(books: list));
+    if (_bookFilter == id) _bookFilter = fallback;
+    notifyListeners();
+  }
+
+  /// تغییر دفتر گروهی از تراکنش‌های انتخابی (ابزار اصلاح داده‌های قدیمی)
+  Future<void> moveTxnsToBook(Iterable<String> txnIds, String bookId) async {
+    if (!settings.isKnownBook(bookId)) return;
+    final ids = txnIds.toSet();
+    for (final t in transactions.where((t) => ids.contains(t.id)).toList()) {
+      if (t.bookId == bookId) continue;
+      await store.putTxn(t.copyWith(bookId: bookId));
+    }
+    await reload();
   }
 
   Future<void> upsertCurrency(CurrencyDef def) async {
@@ -606,6 +697,50 @@ class AppRepository extends ChangeNotifier {
           credit: false,
           note: 'فروش کانفیگ (پرداخت $cur)',
           createdAt: now,
+        ));
+      }
+    }
+
+    // ---------- دفتر شخصی: هزینه و درآمد روزانه ----------
+    String? catOf(String name, TxnKind kind) {
+      final list = categoriesOf(kind).where((c) => c.name == name).toList();
+      return list.isEmpty ? null : list.first.id;
+    }
+
+    const salaryCat = 'حقوق و درآمد شخصی';
+    const personal = <String, double>{
+      'اجاره و خانه': 4500000,
+      'خوراک و خرید روزانه': 2800000,
+      'قبض و شارژ': 900000,
+      'هزینه شخصی': 600000,
+    };
+    for (var m = 0; m < 6; m++) {
+      // حقوق ماهانه
+      await store.putTxn(Txn(
+        id: LocalStore.newId(),
+        kind: TxnKind.income,
+        amount: 32000000,
+        currency: 'IRT',
+        rateToBase: 1,
+        date: J.addDays(J.addMonths(now, -m), -2),
+        categoryId: catOf(salaryCat, TxnKind.income),
+        note: 'حقوق ماه',
+        createdAt: now,
+        bookId: BookIds.personal,
+      ));
+      // هزینه‌های شخصی
+      for (final e in personal.entries) {
+        await store.putTxn(Txn(
+          id: LocalStore.newId(),
+          kind: TxnKind.expense,
+          amount: e.value * (0.8 + rnd.nextDouble() * 0.4),
+          currency: 'IRT',
+          rateToBase: 1,
+          date: J.addDays(J.addMonths(now, -m), -rnd.nextInt(25)),
+          categoryId: catOf(e.key, TxnKind.expense),
+          note: e.key,
+          createdAt: now,
+          bookId: BookIds.personal,
         ));
       }
     }

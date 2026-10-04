@@ -5,6 +5,8 @@ import '../../core/format_utils.dart';
 import '../../core/jalali_utils.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
+import '../../data/repository.dart';
+import '../settings_page.dart';
 import 'date_picker.dart';
 
 /// ---------------- نمایش مبلغ ----------------
@@ -493,6 +495,138 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
   }
 }
 
+/// ---------------- سوییچر دفتر (کسب‌وکار / شخصی / همه) ----------------
+/// با زدن روی آن، یک شیت با همه‌ی دفترها باز می‌شود.
+class BookSwitcher extends StatelessWidget {
+  const BookSwitcher({super.key, required this.repo});
+
+  final AppRepository repo;
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = repo.settings;
+    final id = repo.bookFilter;
+    final isAll = id == null;
+    final book = isAll ? null : settings.book(id);
+    final color = isAll ? Theme.of(context).colorScheme.primary : Color(book!.color);
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(30),
+      onTap: () => _open(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(isAll ? Icons.all_inclusive_rounded : Icons.menu_book_rounded,
+                size: 15, color: color),
+            const SizedBox(width: 5),
+            Text(
+              isAll ? 'همه' : book!.name,
+              style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w700, color: isAll ? color : onSurface),
+            ),
+            const Icon(Icons.expand_more_rounded, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _open(BuildContext context) async {
+    final settings = repo.settings;
+    final chosen = await showModalBottomSheet<String?>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(ctx).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                      color: Theme.of(ctx).dividerColor,
+                      borderRadius: BorderRadius.circular(2))),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text('انتخاب دفتر',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                    ),
+                    TextButton(
+                      onPressed: () =>
+                          Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => const BooksPage())),
+                      child: const Text('مدیریت دفترها', style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              _row(ctx, null, 'همه‌ی دفترها', const Color(0xFF0F766E)),
+              for (final b in settings.books)
+                _row(ctx, b.id, b.name, Color(b.color), txnCount: _countOf(b.id)),
+              const SizedBox(height: 10),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (chosen != _Sentinel.unset) {
+      repo.setBookFilter(chosen == _Sentinel.unset ? null : chosen as String?);
+    }
+  }
+
+  int _countOf(String bookId) =>
+      repo.transactions.where((t) => t.bookId == bookId).length;
+
+  Widget _row(BuildContext ctx, String? id, String name, Color color, {int? txnCount}) {
+    final selected = repo.bookFilter == id;
+    return ListTile(
+      onTap: () => Navigator.pop(
+          ctx, id == null ? _Sentinel.all : (id as String)),
+      leading: Container(
+        width: 22,
+        height: 22,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(7),
+        ),
+        child: Icon(
+          id == null ? Icons.all_inclusive_rounded : Icons.menu_book_rounded,
+          size: 13,
+          color: color,
+        ),
+      ),
+      title: Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+      subtitle: txnCount == null || txnCount == 0
+          ? null
+          : Text('${Fmt.toFaDigits('$txnCount')} تراکنش', style: const TextStyle(fontSize: 11.5)),
+      trailing: selected
+          ? Icon(Icons.check_circle_rounded, size: 20, color: Theme.of(ctx).colorScheme.primary)
+          : null,
+    );
+  }
+}
+
+/// مقدار یکتا برای «همه‌ی دفترها» چون null معنی «انصراف از شیت» هم هست
+enum _Sentinel { all, unset }
+
 /// ---------------- فیلد متن ساده ----------------
 class AppTextField extends StatelessWidget {
   const AppTextField({
@@ -610,6 +744,9 @@ class TxnTile extends StatelessWidget {
     this.symbol = 'تومان',
     this.onTap,
     this.showCustomer = true,
+    this.showBook = false,
+    this.bookName,
+    this.bookColor,
   });
 
   final Txn txn;
@@ -618,6 +755,9 @@ class TxnTile extends StatelessWidget {
   final String symbol;
   final VoidCallback? onTap;
   final bool showCustomer;
+  final bool showBook;
+  final String? bookName;
+  final Color? bookColor;
 
   Color get _color => switch (txn.kind) {
         TxnKind.income => const Color(0xFF16A34A),
@@ -632,6 +772,7 @@ class TxnTile extends StatelessWidget {
     final title = txn.note.isNotEmpty ? txn.note : categoryName;
     final sub = <String>[
       J.d(txn.date),
+      if (showBook && bookName != null) bookName!,
       if (showCustomer && customerName != null) customerName!,
       if (txn.kind.isProfitKind) (txn.credit ? 'نسیه' : 'نقدی'),
     ].join(' • ');

@@ -68,6 +68,15 @@ class SettingsPage extends StatelessWidget {
             child: Column(
               children: [
                 _navTile(context,
+                    icon: Icons.menu_book_outlined,
+                    title: 'دفترها (شخصی و کسب‌وکار)',
+                    subtitle: s.books
+                        .map((b) => '${b.name}'
+                            '${b.id == s.defaultBookId ? ' (پیش‌فرض)' : ''}')
+                        .join(' • '),
+                    page: const BooksPage()),
+                Divider(color: Theme.of(context).dividerColor),
+                _navTile(context,
                     icon: Icons.local_offer_outlined,
                     title: 'پلن‌های فروش',
                     subtitle: '${Fmt.toFaDigits('${repo.plans.length}')} پلن ثبت شده',
@@ -550,6 +559,255 @@ class RatesPage extends StatelessWidget {
       rateToBase: parseAmount(rate.text),
       decimals: 2,
     ));
+  }
+}
+
+/// ---------- صفحه‌ی دفترها (تفکیک شخصی از کسب‌وکار) ----------
+class BooksPage extends StatelessWidget {
+  const BooksPage({super.key});
+
+  static const _palette = <int>[
+    0xFF0F766E, // سبزآبی — کسب‌وکار
+    0xFF7C3AED, // بنفش — شخصی
+    0xFF2563EB, // آبی
+    0xFFD97706, // نارنجی
+    0xFFDB2777, // صورتی
+    0xFF059669, // سبز
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = context.watch<AppRepository>();
+    final s = repo.settings;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('دفترها')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _addBook(context, repo),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('دفتر جدید'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
+        children: [
+          CardBox(
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'هر تراکنش به یک دفتر تعلق دارد. با کلید «دفتر» در بالای برنامه می‌توانید '
+                    'داشبورد و گزارش‌ها را فقط برای یک دفتر ببینید — مثلاً «شخصی» را جدا '
+                    'از درآمد و هزینه‌ی فروش VPN.',
+                    style: TextStyle(
+                        fontSize: 11.5,
+                        height: 1.8,
+                        color: onSurface.withValues(alpha: 0.7)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          for (final b in s.books)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: CardBox(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Color(b.color).withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(Icons.menu_book_rounded, size: 19, color: Color(b.color)),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(b.name,
+                              style: const TextStyle(
+                                  fontSize: 13.5, fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 3),
+                          Text(
+                            '${Fmt.toFaDigits('${repo.transactions.where((t) => t.bookId == b.id).length}')} تراکنش'
+                            '${b.id == s.defaultBookId ? '  •  دفتر پیش‌فرض' : ''}',
+                            style: TextStyle(
+                                fontSize: 11.5, color: onSurface.withValues(alpha: 0.6)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (b.id == s.defaultBookId)
+                      Tooltip(
+                        message: 'دفتر پیش‌فرض',
+                        child: Icon(Icons.star_rounded,
+                            size: 19, color: Color(b.color)),
+                      )
+                    else
+                      IconButton(
+                        tooltip: 'دفتر پیش‌فرض شود',
+                        icon: const Icon(Icons.star_outline_rounded, size: 19),
+                        onPressed: () => repo.setDefaultBook(b.id),
+                      ),
+                    IconButton(
+                      tooltip: 'ویرایش',
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      onPressed: () => _editBook(context, repo, b),
+                    ),
+                    IconButton(
+                      tooltip: 'حذف',
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                      onPressed: (b.id == s.defaultBookId || s.books.length <= 1)
+                          ? null
+                          : () async {
+                              final count =
+                                  repo.transactions.where((t) => t.bookId == b.id).length;
+                              final ok = await confirmDialog(context,
+                                  title: 'حذف دفتر',
+                                  message: count == 0
+                                      ? 'دفتر «${b.name}» خالی است و حذف می‌شود.'
+                                      : 'دفتر «${b.name}» حذف و ${Fmt.toFaDigits('$count')} تراکنش آن '
+                                          'به دفتر «${s.defaultBook.name}» منتقل می‌شود.',
+                                  okLabel: 'حذف',
+                                  danger: true);
+                              if (ok) await repo.removeBook(b.id);
+                            },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 8),
+          Text('راهنما: حذف دفتر پیش‌فرض ممکن نیست. برای افزودن دفتر تازه، از دکمه‌ی پایین استفاده کنید.',
+              style: TextStyle(fontSize: 11, color: onSurface.withValues(alpha: 0.55))),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _addBook(BuildContext context, AppRepository repo) async {
+    final ctrl = TextEditingController();
+    var color = _palette.first;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('دفتر جدید'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                decoration: const InputDecoration(hintText: 'مثلاً: خانه و زندگی'),
+              ),
+              const SizedBox(height: 14),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text('رنگ',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.7))),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final c in _palette)
+                    GestureDetector(
+                      onTap: () => setLocal(() => color = c),
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: Color(c),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: color == c ? const Color(0xFF111827) : Colors.transparent,
+                            width: 3,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('انصراف')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('افزودن')),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) await repo.addBook(ctrl.text, color: color);
+  }
+
+  Future<void> _editBook(BuildContext context, AppRepository repo, Book book) async {
+    final ctrl = TextEditingController(text: book.name);
+    var color = book.color;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('ویرایش دفتر'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: ctrl, autofocus: true),
+              const SizedBox(height: 14),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text('رنگ',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.7))),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final c in _palette)
+                    GestureDetector(
+                      onTap: () => setLocal(() => color = c),
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: Color(c),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: color == c ? const Color(0xFF111827) : Colors.transparent,
+                            width: 3,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('انصراف')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ذخیره')),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) {
+      final name = ctrl.text.trim();
+      await repo.upsertBook(book.copyWith(name: name.isEmpty ? book.name : name, color: color));
+    }
   }
 }
 

@@ -114,18 +114,24 @@ class PdfService {
     required AppRepository repo,
     required DateTime from,
     required DateTime to,
+    String? bookId,
   }) async {
     await _loadFonts();
     final s = repo.settings;
     final persian = s.persianDigits;
     final symbol = s.base.symbol;
-    final summary = repo.summary(from: from, to: to);
-    final byCategory = Ledger.byCategory(repo.transactions,
-        repo.categories, from: from, to: to, kind: TxnKind.expense);
-    final topCustomers =
-        Ledger.topCustomers(repo.customers, repo.transactions, from: from, to: to, limit: 8);
+    final book = bookId ?? repo.bookFilter;
+    final bookName = book == null ? 'همه‌ی دفترها' : s.book(book).name;
+    final showBusiness = book == null || book == BookIds.business;
+    final summary = Ledger.summarize(repo.transactions, from: from, to: to, bookId: book);
+    final byCategory = Ledger.byCategory(repo.transactions, repo.categories,
+        from: from, to: to, kind: TxnKind.expense, bookId: book);
+    final topCustomers = showBusiness
+        ? Ledger.topCustomers(repo.customers, repo.transactions,
+            from: from, to: to, limit: 8, bookId: book)
+        : <MapEntry<Customer, double>>[];
     final totals = repo.totals;
-    final rows = Ledger.filter(repo.transactions, from: from, to: to).toList()
+    final rows = Ledger.filter(repo.transactions, from: from, to: to, bookId: book).toList()
       ..sort((a, b) => b.date.compareTo(a.date));
 
     String money(num v, {String? cur}) => Fmt.money(v,
@@ -153,7 +159,7 @@ class PdfService {
       build: (ctx) => [
         _header(
           s.businessName,
-          'گزارش حساب و عملکرد',
+          'گزارش حساب و عملکرد — $bookName',
           'از ${J.dFull(from, persian: persian)}  تا  ${J.dFull(to, persian: persian)}  •  تاریخ صدور: ${J.d(DateTime.now(), persian: persian)}',
         ),
         pw.SizedBox(height: 10),
@@ -173,12 +179,27 @@ class PdfService {
           _box(label: 'نقد دریافتی', value: money(summary.cashIn)),
           _box(label: 'نقد پرداختی', value: money(summary.cashOut)),
         ]),
-        pw.SizedBox(height: 2),
-        pw.Row(children: [
-          _box(label: 'جمع طلب از مشتری‌ها', value: money(totals.receivable)),
-          _box(label: 'جمع بدهی ما', value: money(totals.payable)),
-          _box(label: 'تعداد تراکنش', value: persian ? Fmt.toFaDigits('${summary.txnCount}') : '${summary.txnCount}'),
-        ]),
+        if (showBusiness) ...[
+          pw.SizedBox(height: 2),
+          pw.Row(children: [
+            _box(label: 'جمع طلب از مشتری‌ها', value: money(totals.receivable)),
+            _box(label: 'جمع بدهی ما', value: money(totals.payable)),
+            _box(label: 'تعداد تراکنش', value: persian ? Fmt.toFaDigits('${summary.txnCount}') : '${summary.txnCount}'),
+          ]),
+        ],
+        if (book == null && s.books.length > 1) ...[
+          pw.SizedBox(height: 12),
+          _t('سود هر دفتر', bold: true, size: 11),
+          pw.SizedBox(height: 5),
+          _table(
+            headers: const ['دفتر', 'درآمد', 'هزینه', 'سود'],
+            widths: const [1.6, 1.3, 1.3, 1.3],
+            rows: [
+              for (final e in repo.summaryByBook(from: from, to: to))
+                [e.key.name, money(e.value.income), money(e.value.expense), money(e.value.profit)],
+            ],
+          ),
+        ],
         pw.SizedBox(height: 14),
         if (byCategory.isNotEmpty) ...[
           _t('هزینه‌ها به تفکیک دسته‌بندی', bold: true, size: 11),
@@ -212,16 +233,16 @@ class PdfService {
           _t('در این بازه تراکنشی ثبت نشده است.', size: 9, color: const PdfColor.fromInt(0xFF64748B))
         else
           _table(
-            headers: const ['تاریخ', 'نوع', 'شرح', 'طرف حساب', 'مبلغ', 'ارز', 'وضعیت'],
-            widths: const [1.15, 1.05, 2.2, 1.5, 1.25, 0.6, 0.95],
+            headers: const ['تاریخ', 'دفتر', 'نوع', 'شرح', 'طرف حساب', 'مبلغ', 'وضعیت'],
+            widths: const [1.1, 0.95, 1.0, 2.1, 1.4, 1.2, 0.9],
             rows: rows
                 .map((t) => [
                       J.d(t.date, persian: persian),
+                      s.book(t.bookId).name,
                       t.kind.shortLabel,
                       t.note.isEmpty ? repo.categoryName(t.categoryId) : t.note,
                       t.customerId == null ? '-' : repo.customerName(t.customerId),
                       money(t.amount),
-                      t.currency,
                       t.kind.isProfitKind ? (t.credit ? 'نسیه' : 'نقدی') : '-',
                     ])
                 .toList(),

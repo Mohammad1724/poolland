@@ -55,17 +55,22 @@ class _ReportsPageState extends State<ReportsPage> {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final (from, to) = _bounds(repo);
     final s = repo.summary(from: from, to: to);
+    final bookId = repo.bookFilter;
+    final showBusiness = !repo.isBookFiltered || bookId == BookIds.business;
     final monthsSpan = _monthsBetween(from, to);
-    final series = Ledger.monthlySeries(repo.transactions, months: monthsSpan, endMonth: to)
+    final series = Ledger.monthlySeries(repo.transactions,
+            months: monthsSpan, endMonth: to, bookId: bookId)
         .where((p) => !p.monthStart.isBefore(J.startOfMonth(from)))
         .toList();
     final incomeCats = Ledger.byCategory(repo.transactions, repo.categories,
-        from: from, to: to, kind: TxnKind.income);
+        from: from, to: to, kind: TxnKind.income, bookId: bookId);
     final expenseCats = Ledger.byCategory(repo.transactions, repo.categories,
-        from: from, to: to, kind: TxnKind.expense);
-    final top = Ledger.topCustomers(repo.customers, repo.transactions,
-        from: from, to: to, limit: 6);
-    final debtors = repo.debtorsList();
+        from: from, to: to, kind: TxnKind.expense, bookId: bookId);
+    final top = showBusiness
+        ? Ledger.topCustomers(repo.customers, repo.transactions,
+            from: from, to: to, limit: 6, bookId: bookId)
+        : <MapEntry<Customer, double>>[];
+    final debtors = showBusiness ? repo.debtorsList() : <MapEntry<Customer, double>>[];
     final margin = s.income > 0 ? s.profit / s.income : 0.0;
 
     return ListView(
@@ -88,8 +93,19 @@ class _ReportsPageState extends State<ReportsPage> {
           ),
         ),
         const SizedBox(height: 12),
-        Text('${J.d(from)} تا ${J.d(to)}',
-            style: TextStyle(fontSize: 12, color: onSurface.withValues(alpha: 0.6))),
+        Row(
+          children: [
+            Expanded(
+              child: Text('${J.d(from)} تا ${J.d(to)}',
+                  style: TextStyle(fontSize: 12, color: onSurface.withValues(alpha: 0.6))),
+            ),
+            if (repo.isBookFiltered)
+              TagChip(repo.bookName(bookId),
+                  color: Color(repo.bookById(bookId).color),
+                  icon: Icons.menu_book_rounded,
+                  dense: true),
+          ],
+        ),
         const SizedBox(height: 12),
 
         // خلاصه
@@ -129,23 +145,46 @@ class _ReportsPageState extends State<ReportsPage> {
                 ],
               ),
               const SizedBox(height: 12),
-              Divider(color: Theme.of(context).dividerColor),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _kv(context, 'طلبات (کل)', Money.text(repo.totals.receivable),
-                        const Color(0xFF0F766E)),
-                  ),
-                  Expanded(
-                    child: _kv(context, 'بدهی (کل)', Money.text(repo.totals.payable),
-                        const Color(0xFF2563EB)),
-                  ),
-                ],
-              ),
+              if (showBusiness) ...[
+                Divider(color: Theme.of(context).dividerColor),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _kv(context, 'طلبات (کل)', Money.text(repo.totals.receivable),
+                          const Color(0xFF0F766E)),
+                    ),
+                    Expanded(
+                      child: _kv(context, 'بدهی (کل)', Money.text(repo.totals.payable),
+                          const Color(0xFF2563EB)),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
+
+        // مقایسه‌ی دفترها در همین بازه
+        if (!repo.isBookFiltered && repo.settings.books.length > 1) ...[
+          const SectionTitle('سود هر دفتر در این بازه', icon: Icons.compare_arrows_rounded),
+          CardBox(
+            child: Column(
+              children: [
+                for (final e in repo.summaryByBook(from: from, to: to))
+                  InfoRow(
+                    e.key.name,
+                    MoneyText(e.value.profit,
+                        compact: true,
+                        style: TextStyle(
+                            color: e.value.profit >= 0
+                                ? const Color(0xFF16A34A)
+                                : const Color(0xFFE11D48))),
+                  ),
+              ],
+            ),
+          ),
+        ],
 
         // نمودار ماهانه
         if (series.length > 1) ...[
@@ -199,10 +238,11 @@ class _ReportsPageState extends State<ReportsPage> {
         ],
 
         // بدهکاران
-        const SectionTitle('بدهکاران', icon: Icons.account_balance_wallet_outlined),
-        if (debtors.isEmpty)
-          const CardBox(child: Text('همه‌ی حساب‌ها تسویه است ✅', style: TextStyle(fontSize: 12.5)))
-        else
+        if (showBusiness) ...[
+          const SectionTitle('بدهکاران', icon: Icons.account_balance_wallet_outlined),
+          if (debtors.isEmpty)
+            const CardBox(child: Text('همه‌ی حساب‌ها تسویه است ✅', style: TextStyle(fontSize: 12.5)))
+          else
           Column(
             children: [
               for (final e in debtors)
@@ -232,6 +272,7 @@ class _ReportsPageState extends State<ReportsPage> {
                 ),
             ],
           ),
+        ],
 
         // خروجی‌ها
         const SectionTitle('خروجی گرفتن', icon: Icons.ios_share_rounded),
@@ -340,6 +381,7 @@ class _ReportsPageState extends State<ReportsPage> {
       final rows = <List<String>>[
         [
           'تاریخ',
+          'دفتر',
           'نوع',
           'مبلغ',
           'ارز',
@@ -349,10 +391,13 @@ class _ReportsPageState extends State<ReportsPage> {
           'وضعیت پرداخت',
           'توضیح',
         ],
-        for (final t in (Ledger.filter(repo.transactions, from: from, to: to).toList()
-          ..sort((a, b) => a.date.compareTo(b.date))))
+        for (final t in (Ledger.filter(repo.transactions,
+                  from: from, to: to, bookId: repo.bookFilter)
+              .toList()
+            ..sort((a, b) => a.date.compareTo(b.date))))
           [
             J.d(t.date, persian: false),
+            repo.bookName(t.bookId),
             t.kind.shortLabel,
             Fmt.number(t.amount, decimals: Money.decimals(t.currency), persian: false),
             t.currency,

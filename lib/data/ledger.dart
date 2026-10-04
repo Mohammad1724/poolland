@@ -97,6 +97,7 @@ class Ledger {
     TxnKind? kind,
     String? customerId,
     String? categoryId,
+    String? bookId,
     String? search,
   }) {
     return txns.where((t) {
@@ -104,6 +105,7 @@ class Ledger {
       if (kind != null && t.kind != kind) return false;
       if (customerId != null && t.customerId != customerId) return false;
       if (categoryId != null && t.categoryId != categoryId) return false;
+      if (bookId != null && t.bookId != bookId) return false;
       if (search != null && search.trim().isNotEmpty) {
         final q = search.trim().toLowerCase();
         if (!t.note.toLowerCase().contains(q) &&
@@ -116,7 +118,7 @@ class Ledger {
   }
 
   static Summary summarize(Iterable<Txn> txns,
-      {DateTime? from, DateTime? to, String? customerId}) {
+      {DateTime? from, DateTime? to, String? customerId, String? bookId}) {
     double income = 0,
         expense = 0,
         refunds = 0,
@@ -124,7 +126,8 @@ class Ledger {
         incomeCash = 0,
         expenseCash = 0;
     var count = 0;
-    for (final t in filter(txns, from: from, to: to, customerId: customerId)) {
+    for (final t in filter(txns,
+        from: from, to: to, customerId: customerId, bookId: bookId)) {
       final v = base(t);
       count++;
       switch (t.kind) {
@@ -235,6 +238,7 @@ class Ledger {
     List<Txn> txns, {
     int months = 6,
     DateTime? endMonth,
+    String? bookId,
   }) {
     final end = endMonth ?? DateTime.now();
     final start = J.startOfMonth(J.addMonths(end, -(months - 1)));
@@ -242,7 +246,7 @@ class Ledger {
     for (var i = 0; i < months; i++) {
       final mStart = J.addMonths(start, i);
       final mEnd = J.endOfMonth(mStart);
-      final s = summarize(txns, from: mStart, to: mEnd);
+      final s = summarize(txns, from: mStart, to: mEnd, bookId: bookId);
       points.add(MonthPoint(monthStart: mStart, income: s.income, expense: s.expense));
     }
     return points;
@@ -255,10 +259,11 @@ class Ledger {
     DateTime? from,
     DateTime? to,
     TxnKind? kind,
+    String? bookId,
   }) {
     final names = {for (final c in categories) c.id: c.name};
     final out = <String, double>{};
-    for (final t in filter(txns, from: from, to: to, kind: kind)) {
+    for (final t in filter(txns, from: from, to: to, kind: kind, bookId: bookId)) {
       if (!t.kind.isProfitKind) continue;
       final name = t.categoryId == null ? 'بدون دسته' : (names[t.categoryId] ?? 'بدون دسته');
       out[name] = (out[name] ?? 0) + base(t);
@@ -272,9 +277,10 @@ class Ledger {
     DateTime? from,
     DateTime? to,
     TxnKind? kind,
+    String? bookId,
   }) {
     final out = <String, double>{};
-    for (final t in filter(txns, from: from, to: to, kind: kind)) {
+    for (final t in filter(txns, from: from, to: to, kind: kind, bookId: bookId)) {
       out[t.currency] = (out[t.currency] ?? 0) + t.amount;
     }
     return out;
@@ -287,10 +293,12 @@ class Ledger {
     DateTime? from,
     DateTime? to,
     int limit = 5,
+    String? bookId,
   }) {
     final byId = {for (final c in customers) c.id: c};
     final sums = <String, double>{};
-    for (final t in filter(txns, from: from, to: to, kind: TxnKind.income)) {
+    for (final t
+        in filter(txns, from: from, to: to, kind: TxnKind.income, bookId: bookId)) {
       final id = t.customerId;
       if (id == null || !byId.containsKey(id)) continue;
       sums[id] = (sums[id] ?? 0) + base(t);

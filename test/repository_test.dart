@@ -136,4 +136,106 @@ void main() {
     );
     expect(t.rateToBase, 35000);
   });
+
+  // ---------------- دفترها (شخصی / کسب‌وکار) ----------------
+  group('دفترها', () {
+    test('دو دفتر پیش‌فرض وجود دارد و داده‌های قدیمی کسب‌وکار هستند', () {
+      expect(repo.settings.books.length, 2);
+      expect(repo.settings.defaultBookId, BookIds.business);
+      // تراکنش قدیمی بدون bookId باید کسب‌وکار خوانده شود
+      final old = Txn.fromMap({
+        'id': 'x1',
+        'kind': 'expense',
+        'amount': 1000,
+        'date': J.today.millisecondsSinceEpoch,
+        'createdAt': J.today.millisecondsSinceEpoch,
+      });
+      expect(old.bookId, BookIds.business);
+    });
+
+    test('سود کسب‌وکار و شخصی از هم جدا می‌شود', () async {
+      await repo.addTxn(repo.buildTxn(
+        kind: TxnKind.income,
+        amount: 1000000,
+        currency: 'IRT',
+        date: J.today,
+        bookId: BookIds.business,
+      ));
+      await repo.addTxn(repo.buildTxn(
+        kind: TxnKind.expense,
+        amount: 250000,
+        currency: 'IRT',
+        date: J.today,
+        bookId: BookIds.personal,
+      ));
+
+      expect(repo.summary().profit, 750000, reason: 'بدون فیلتر: هر دو دفتر');
+      expect(repo.summary(bookId: BookIds.business).profit, 1000000);
+      expect(repo.summary(bookId: BookIds.personal).profit, -250000);
+
+      repo.setBookFilter(BookIds.personal);
+      expect(repo.isBookFiltered, isTrue);
+      expect(repo.visibleTxns.length, 1);
+      expect(repo.summary().profit, -250000, reason: 'خلاصه باید از فیلتر دفتر پیروی کند');
+      // تراکنش جدید در همان دفتر فعال ساخته می‌شود
+      expect(repo.newTxnBookId, BookIds.personal);
+      expect(repo.buildTxn(
+              kind: TxnKind.expense, amount: 1, currency: 'IRT', date: J.today)
+          .bookId, BookIds.personal);
+
+      repo.setBookFilter(null);
+      expect(repo.isBookFiltered, isFalse);
+      expect(repo.visibleTxns.length, 2);
+    });
+
+    test('خلاصه‌ی هر دفتر و مجموع آن‌ها', () async {
+      await repo.addTxn(repo.buildTxn(
+          kind: TxnKind.income, amount: 500, currency: 'IRT', date: J.today, bookId: BookIds.business));
+      await repo.addTxn(repo.buildTxn(
+          kind: TxnKind.income, amount: 300, currency: 'IRT', date: J.today, bookId: BookIds.personal));
+
+      final rows = repo.summaryByBook();
+      expect(rows.length, 2);
+      final total = rows.fold<double>(0, (a, e) => a + e.value.income);
+      expect(total, 800);
+      expect(repo.summary().income, 800, reason: 'مجموع دفترها = خلاصه‌ی کل');
+    });
+
+    test('افزودن، تغییر نام و حذف دفتر', () async {
+      await repo.addBook('خانه', color: 0xFF2563EB);
+      final home = repo.settings.books.firstWhere((b) => b.name == 'خانه');
+      expect(repo.settings.books.length, 3);
+
+      await repo.upsertBook(home.copyWith(name: 'خانه و زندگی'));
+      expect(repo.bookName(home.id), 'خانه و زندگی');
+
+      // دفتر پیش‌فرض قابل حذف نیست
+      await repo.removeBook(BookIds.business);
+      expect(repo.settings.books.length, 3);
+
+      // تراکنش‌های دفتر حذف‌شده به دفتر پیش‌فرض می‌روند
+      await repo.addTxn(repo.buildTxn(
+          kind: TxnKind.expense, amount: 700, currency: 'IRT', date: J.today, bookId: home.id));
+      await repo.removeBook(home.id);
+      expect(repo.settings.books.length, 2);
+      expect(repo.summary().expense, 700);
+    });
+
+    test('انتقال گروهی تراکنش به دفتر دیگر', () async {
+      final t = await repo.addTxn(repo.buildTxn(
+          kind: TxnKind.expense, amount: 900, currency: 'IRT', date: J.today));
+      expect(t.bookId, BookIds.business);
+      await repo.moveTxnsToBook([t.id], BookIds.personal);
+      expect(repo.transactions.first.bookId, BookIds.personal);
+    });
+
+    test('پشتیبان‌گیری، دفترها را حفظ می‌کند', () async {
+      await repo.addBook('خانه');
+      final backup = repo.exportData();
+      await repo.wipeAll();
+      await repo.importData(backup);
+      expect(repo.settings.books.length, 3);
+      expect(repo.bookName(repo.settings.defaultBookId), 'کسب‌وکار');
+    });
+  });
 }

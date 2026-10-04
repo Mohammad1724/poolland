@@ -12,6 +12,7 @@ import 'reports_page.dart';
 import 'settings_page.dart';
 import 'subscriptions_page.dart';
 import 'transactions_page.dart';
+import 'widgets/widgets.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -37,6 +38,7 @@ class _HomeShellState extends State<HomeShell> {
   void _goTo(int i) => setState(() => _index = i);
 
   Future<void> _quickAdd() async {
+    final repo = context.read<AppRepository>();
     final choice = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -56,10 +58,16 @@ class _HomeShellState extends State<HomeShell> {
                     color: Theme.of(ctx).dividerColor,
                     borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 16),
-            const Align(
-              alignment: Alignment.centerRight,
-              child: Text('چه کاری انجام دهیم؟',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text('چه کاری انجام دهیم؟',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                ),
+                if (repo.isBookFiltered)
+                  TagChip('دفتر: ${repo.bookName(repo.bookFilter)}',
+                      color: Color(repo.bookById(repo.bookFilter).color), dense: true),
+              ],
             ),
             const SizedBox(height: 10),
             _menuTile(ctx, 'فروش اشتراک جدید', Icons.vpn_key_rounded, 'sale_sub'),
@@ -128,6 +136,9 @@ class _HomeShellState extends State<HomeShell> {
                         color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55))),
               ),
             ),
+          const SizedBox(width: 8),
+          BookSwitcher(repo: repo),
+          const SizedBox(width: 4),
           IconButton(
             tooltip: 'تنظیمات',
             icon: const Icon(Icons.settings_outlined),
