@@ -22,6 +22,7 @@ void main() {
     bool credit = false,
     String currency = 'IRT',
     double rate = 1,
+    String note = '',
   }) =>
       Txn(
         id: 't${DateTime.now().microsecondsSinceEpoch}${amount.hashCode}',
@@ -32,6 +33,7 @@ void main() {
         date: date ?? now,
         customerId: customerId,
         credit: credit,
+        note: note,
         createdAt: now,
       );
 
