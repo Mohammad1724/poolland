@@ -10,6 +10,7 @@ import '../core/money.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 import 'forms/plan_edit_page.dart';
+import 'sms_page.dart';
 import 'widgets/widgets.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -206,6 +207,77 @@ class SettingsPage extends StatelessWidget {
             ),
           ),
 
+          // ---------- پیامک‌های بانکی ----------
+          if (repo.smsSupported) ...[
+            const SectionTitle('پیامک‌های بانکی', icon: Icons.sms_rounded),
+            CardBox(
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: s.smsEnabled,
+                    title: const Text('خواندن پیامک‌های بانکی',
+                        style: TextStyle(fontSize: 13.5)),
+                    subtitle: const Text(
+                      'واریز و برداشت‌ها به‌طور خودکار شناسایی می‌شوند '
+                      'و در صف بررسی قرار می‌گیرند',
+                      style: TextStyle(fontSize: 11.5),
+                    ),
+                    onChanged: (v) async {
+                      if (v && !repo.smsPermissionGranted) {
+                        final ok = await repo.requestSmsPermission();
+                        if (!ok) return;
+                      }
+                      await repo.updateSettings(s.copyWith(smsEnabled: v));
+                    },
+                  ),
+                  Divider(color: Theme.of(context).dividerColor),
+                  _navTile(
+                    context,
+                    icon: Icons.fact_check_outlined,
+                    title: 'بررسی پیامک‌ها',
+                    subtitle: repo.smsPendingCount > 0
+                        ? '${Fmt.toFaDigits('${repo.smsPendingCount}')} '
+                            'تراکنش در انتظار تأیید'
+                        : 'موردی در انتظار نیست',
+                    page: const SmsPage(),
+                  ),
+                  Divider(color: Theme.of(context).dividerColor),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.date_range_outlined, size: 20),
+                    title: const Text('بازه‌ی بررسی پیامک‌ها',
+                        style: TextStyle(fontSize: 13.5)),
+                    subtitle: Text(
+                      '${Fmt.toFaDigits('${s.smsSyncDays}')} روز گذشته',
+                      style: const TextStyle(fontSize: 11.5),
+                    ),
+                    onTap: () => _editInt(
+                      context,
+                      title: 'چند روز گذشته بررسی شود؟',
+                      initial: s.smsSyncDays,
+                      onSave: (v) => repo
+                          .updateSettings(s.copyWith(smsSyncDays: v.clamp(1, 365))),
+                    ),
+                  ),
+                  Divider(color: Theme.of(context).dividerColor),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: s.smsAutoApprove,
+                    title: const Text('ثبت خودکار موارد کاملاً مطمئن',
+                        style: TextStyle(fontSize: 13.5)),
+                    subtitle: const Text(
+                      'بدون تأیید شما هم تراکنش ثبت می‌شود (پیش‌فرض: خاموش)',
+                      style: TextStyle(fontSize: 11.5),
+                    ),
+                    onChanged: (v) =>
+                        repo.updateSettings(s.copyWith(smsAutoApprove: v)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           // ---------- درباره ----------
           const SectionTitle('درباره', icon: Icons.info_outline_rounded),
           CardBox(
@@ -216,7 +288,7 @@ class SettingsPage extends StatelessWidget {
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6),
                 Text(
-                  'نسخه ۱.۰.۰ • نرم‌افزار آزاد (MIT)\nحسابداری ساده و آفلاین برای فروشندگان VPN.\nهمه‌ی داده‌ها فقط روی همین دستگاه ذخیره می‌شود.',
+                  'نسخه ۱.۱.۰ • نرم‌افزار آزاد (MIT)\nحسابداری ساده و آفلاین برای فروشندگان VPN.\nهمه‌ی داده‌ها فقط روی همین دستگاه ذخیره می‌شود.',
                   style: TextStyle(
                       fontSize: 11.5, height: 1.9, color: onSurface.withValues(alpha: 0.65)),
                 ),

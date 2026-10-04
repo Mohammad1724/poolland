@@ -28,9 +28,18 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final repo = context.read<AppRepository>();
-      if (!repo.isReady) repo.init();
+      if (!repo.isReady) await repo.init();
+
+      // آماده‌سازی گیرنده‌ی پیامک و همگام‌سازی اولیه (فقط اندروید)
+      repo.initSms();
+      await repo.refreshSmsPermission();
+      if (repo.smsPermissionGranted &&
+          repo.settings.smsEnabled &&
+          repo.smsSuggestions.isEmpty) {
+        await repo.syncSms();
+      }
     });
   }
 

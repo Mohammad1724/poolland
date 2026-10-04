@@ -24,6 +24,7 @@ class _ContactEditPageState extends State<ContactEditPage> {
   final _telegram = TextEditingController();
   final _note = TextEditingController();
   final _opening = TextEditingController();
+  final _identifiers = TextEditingController();
 
   bool _openingIsDebt = true;
   bool _archived = false;
@@ -40,6 +41,7 @@ class _ContactEditPageState extends State<ContactEditPage> {
       _telegram.text = c.telegram;
       _note.text = c.note;
       _archived = c.archived;
+      _identifiers.text = c.bankIdentifiers.join('، ');
       if (c.openingBalance != 0) {
         _openingIsDebt = c.openingBalance > 0;
         _opening.text = groupedNumber(c.openingBalance.abs(), decimals: 0);
@@ -56,6 +58,7 @@ class _ContactEditPageState extends State<ContactEditPage> {
     _telegram.dispose();
     _note.dispose();
     _opening.dispose();
+    _identifiers.dispose();
     super.dispose();
   }
 
@@ -64,6 +67,11 @@ class _ContactEditPageState extends State<ContactEditPage> {
     final repo = context.read<AppRepository>();
     final opening = parseAmount(_opening.text) * (_openingIsDebt ? 1 : -1);
     final digits = _phone.text.replaceAll(RegExp(r'[^0-9+]'), '');
+    final identifiers = _identifiers.text
+        .split(RegExp(r'[,،\s]+'))
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
 
     if (isEdit) {
       final c = widget.existing!.copyWith(
@@ -73,6 +81,7 @@ class _ContactEditPageState extends State<ContactEditPage> {
         note: _note.text.trim(),
         openingBalance: opening,
         archived: _archived,
+        bankIdentifiers: identifiers,
       );
       await repo.updateCustomer(c);
       if (!mounted) return;
@@ -84,6 +93,7 @@ class _ContactEditPageState extends State<ContactEditPage> {
         telegram: _telegram.text.trim(),
         note: _note.text.trim(),
         openingBalance: opening,
+        bankIdentifiers: identifiers,
       );
       if (!mounted) return;
       Navigator.pop(context, c);
@@ -182,6 +192,25 @@ class _ContactEditPageState extends State<ContactEditPage> {
             ),
             const SizedBox(height: 14),
             AppTextField(controller: _note, label: 'یادداشت', maxLines: 3, icon: Icons.notes_rounded),
+            const SizedBox(height: 14),
+            AppTextField(
+              controller: _identifiers,
+              label: 'شناسه‌های بانکی (برای تشخیص خودکار پیامک)',
+              hint: 'مثلاً: 1234، 6104********5678',
+              icon: Icons.credit_card_rounded,
+              maxLines: 2,
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'اگر ۴ رقم آخر کارت یا شماره کارتِ این مشتری را اینجا بنویسید، '
+                'واریزهای او در پیامک‌های بانکی به‌طور خودکار شناسایی می‌شود.',
+                style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55)),
+              ),
+            ),
+            const SizedBox(height: 14),
             if (isEdit)
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,

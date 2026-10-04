@@ -1,9 +1,14 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart' show ChangeNotifier;
 
 import '../core/jalali_utils.dart';
 import '../core/money.dart';
+import '../core/sms/bank_rules.dart';
+import '../core/sms/sms_models.dart';
+import '../core/sms/sms_parser.dart';
+import '../core/sms/sms_service.dart';
 import 'ledger.dart';
 import 'models.dart';
 import 'store.dart';
@@ -31,6 +36,13 @@ class AppRepository extends ChangeNotifier {
   List<Category> categories = [];
   List<Plan> plans = [];
 
+  // ---- پیامک بانکی ----
+  List<ParsedSms> smsSuggestions = [];
+  List<BankRule> smsRules = [];
+  bool smsPermissionGranted = false;
+  bool smsBusy = false;
+  bool _smsInited = false;
+
   /// آماده‌سازی اولیه (باز کردن دیتابیس)
   Future<void> init() async {
     _store ??= await LocalStore.open();
@@ -47,6 +59,7 @@ class AppRepository extends ChangeNotifier {
     transactions = s.loadTxns()..sort((a, b) => b.date.compareTo(a.date));
     categories = s.loadCategories();
     plans = s.loadPlans();
+    smsRules = s.loadSmsRules();
     _syncGlobals();
   }
 
@@ -159,6 +172,7 @@ class AppRepository extends ChangeNotifier {
     String telegram = '',
     String note = '',
     double openingBalance = 0,
+    List<String> bankIdentifiers = const [],
   }) async {
     final c = Customer(
       id: LocalStore.newId(),
@@ -168,6 +182,7 @@ class AppRepository extends ChangeNotifier {
       note: note.trim(),
       openingBalance: openingBalance,
       createdAt: DateTime.now(),
+      bankIdentifiers: bankIdentifiers,
     );
     await store.putCustomer(c);
     customers = [...customers, c]..sort((a, b) => a.name.compareTo(b.name));
@@ -469,6 +484,188 @@ class AppRepository extends ChangeNotifier {
     if (code == settings.baseCurrency) return;
     final list = settings.currencies.where((c) => c.code != code).toList();
     await updateSettings(settings.copyWith(currencies: list));
+  }
+
+  // ---------------- پیامک بانکی ----------------
+  /// آیا این دستگاه اصلاً پیامک دارد؟ (فقط اندروید)
+  bool get smsSupported => SmsService.isSupported;
+
+  /// تعداد پیشنهادهای در انتظار تأیید
+  int get smsPendingCount => smsSuggestions.length;
+
+  /// آماده‌سازی گوش دادن به پیامک‌های جدید
+  void initSms() {
+    if (_smsInited || !SmsService.isSupported) return;
+    _smsInited = true;
+    SmsService.init();
+    SmsService.onSmsReceived = _onIncomingSms;
+  }
+
+  Future<void> _onIncomingSms(SmsMessage msg) async {
+    final parsed = SmsParser.parse(msg, extraRules: smsRules);
+    if (!parsed.isTransaction) return;
+    final state = store.loadSmsState();
+    if (state.containsKey(parsed.key)) return;
+
+    smsSuggestions = [parsed, ...smsSuggestions.where((e) => e.key != parsed.key)]
+      ..sort((a, b) => b.message.date.compareTo(a.message.date));
+    notifyListeners();
+
+    if (settings.smsAutoApprove && parsed.confident) {
+      await approveSms(parsed);
+    }
+  }
+
+  Future<bool> refreshSmsPermission() async {
+    smsPermissionGranted = await SmsService.hasPermission();
+    notifyListeners();
+    return smsPermissionGranted;
+  }
+
+  Future<bool> requestSmsPermission() async {
+    final ok = await SmsService.requestPermission();
+    smsPermissionGranted = ok;
+    if (ok) {
+      await updateSettings(settings.copyWith(smsEnabled: true));
+      unawaited(syncSms());
+    }
+    notifyListeners();
+    return ok;
+  }
+
+  /// خواندن پیامک‌ها و ساخت فهرست پیشنهادها
+  /// برمی‌گرداند: تعداد پیشنهادهای جدید
+  Future<int> syncSms({bool force = false}) async {
+    if (!isReady || !SmsService.isSupported) return 0;
+    if (smsBusy && !force) return 0;
+    smsBusy = true;
+    notifyListeners();
+    try {
+      final days = settings.smsSyncDays < 1 ? 1 : settings.smsSyncDays;
+      final since = DateTime.now().subtract(Duration(days: days));
+      final messages = await SmsService.readInbox(since: since);
+      final state = store.loadSmsState();
+
+      final pending = <ParsedSms>[];
+      for (final m in messages) {
+        if (state.containsKey(m.key)) continue;
+        final parsed = SmsParser.parse(m, extraRules: smsRules);
+        if (parsed.isTransaction) {
+          pending.add(parsed);
+        } else {
+          // پیامک‌های غیرمالی را دیگر هر بار بررسی نمی‌کنیم
+          await store.setSmsState(m.key, 'ignored');
+        }
+      }
+
+      final known = smsSuggestions.map((e) => e.key).toSet();
+      final merged = <ParsedSms>[
+        ...smsSuggestions,
+        ...pending.where((p) => !known.contains(p.key)),
+      ]..sort((a, b) => b.message.date.compareTo(a.message.date));
+      smsSuggestions = merged;
+
+      await updateSettings(
+          settings.copyWith(smsLastSyncAt: DateTime.now().millisecondsSinceEpoch));
+      notifyListeners();
+      return pending.length;
+    } finally {
+      smsBusy = false;
+      notifyListeners();
+    }
+  }
+
+  /// تطبیق پیامک با مشتری از طریق شناسه‌های بانکی او
+  Customer? matchCustomerForSms(ParsedSms sms) {
+    for (final c in activeCustomers) {
+      if (c.bankIdentifiers.isEmpty) continue;
+      if (SmsParser.matchesIdentifiers(sms, c.bankIdentifiers)) return c;
+    }
+    return null;
+  }
+
+  /// تأیید یک پیشنهاد و تبدیل آن به تراکنش واقعی
+  Future<Txn?> approveSms(
+    ParsedSms sms, {
+    Customer? customer,
+    TxnKind? kind,
+    String? categoryId,
+    double? amount,
+  }) async {
+    final cust = customer ?? matchCustomerForSms(sms);
+    final k = kind ??
+        (sms.direction == SmsDirection.deposit
+            ? (cust != null ? TxnKind.receive : TxnKind.income)
+            : TxnKind.expense);
+
+    String? cat = categoryId;
+    if (cat == null || cat.isEmpty) {
+      cat = k == TxnKind.expense ? defaultExpenseCategoryId : defaultIncomeCategoryId;
+    }
+
+    final cur = sms.currency;
+    final txn = Txn(
+      id: LocalStore.newId(),
+      kind: k,
+      amount: amount ?? sms.amount,
+      currency: cur,
+      rateToBase: settings.currency(cur).rateToBase,
+      date: sms.message.date,
+      categoryId: (k == TxnKind.income || k == TxnKind.expense) ? cat : null,
+      customerId: cust?.id,
+      credit: false,
+      note: _smsNote(sms),
+      createdAt: DateTime.now(),
+    );
+    await store.putTxn(txn);
+    await store.setSmsState(sms.key, 'approved');
+    smsSuggestions = smsSuggestions.where((e) => e.key != sms.key).toList();
+    await reload();
+    return txn;
+  }
+
+  /// رد کردن یک پیشنهاد (دیگر نمایش داده نمی‌شود)
+  Future<void> rejectSms(ParsedSms sms) async {
+    await store.setSmsState(sms.key, 'rejected');
+    smsSuggestions = smsSuggestions.where((e) => e.key != sms.key).toList();
+    notifyListeners();
+  }
+
+  /// رد کردن همه‌ی پیشنهادها
+  Future<void> rejectAllSms() async {
+    for (final s in smsSuggestions) {
+      await store.setSmsState(s.key, 'rejected');
+    }
+    smsSuggestions = [];
+    notifyListeners();
+  }
+
+  /// پاک کردن تاریخچه‌ی بررسی‌شده‌ها (همه چیز دوباره بررسی می‌شود)
+  Future<void> resetSmsState() async {
+    await store.clearSmsState();
+    smsSuggestions = [];
+    notifyListeners();
+  }
+
+  Future<void> addSmsRule(BankRule rule) async {
+    await store.putSmsRule(rule);
+    await reload();
+  }
+
+  Future<void> deleteSmsRule(String id) async {
+    await store.deleteSmsRule(id);
+    await reload();
+  }
+
+  static String _smsNote(ParsedSms sms) {
+    final parts = <String>[];
+    if (sms.bankName != null && sms.bankName!.isNotEmpty) parts.add(sms.bankName!);
+    if (sms.cardMask != null && sms.cardMask!.isNotEmpty) parts.add('کارت ${sms.cardMask}');
+    if (sms.reference != null && sms.reference!.isNotEmpty) {
+      parts.add('پیگیری ${sms.reference}');
+    }
+    if (parts.isEmpty) parts.add('ثبت‌شده از پیامک');
+    return parts.join(' · ');
   }
 
   // ---------------- پشتیبان‌گیری ----------------

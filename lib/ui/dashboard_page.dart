@@ -8,6 +8,7 @@ import '../data/models.dart';
 import '../data/repository.dart';
 import 'customer_detail_page.dart';
 import 'forms/sell_subscription_page.dart';
+import 'sms_page.dart';
 import 'widgets/common_charts.dart';
 import 'widgets/widgets.dart';
 
@@ -193,6 +194,66 @@ class DashboardPage extends StatelessWidget {
             ),
           ],
         ),
+
+        // پیامک‌های بانکی (فقط اندروید)
+        if (repo.smsSupported) ...[
+          CardBox(
+            onTap: () => Navigator.push(
+                context, MaterialPageRoute(builder: (_) => const SmsPage())),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: (repo.smsPendingCount > 0
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFF7C3AED))
+                        .withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Icon(Icons.sms_rounded,
+                      size: 19,
+                      color: repo.smsPendingCount > 0
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFF7C3AED)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('پیامک‌های بانکی',
+                          style: TextStyle(
+                              fontSize: 13.5, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 3),
+                      Text(
+                        !repo.smsPermissionGranted
+                            ? 'برای شناسایی خودکار واریزها دسترسی بدهید'
+                            : repo.smsPendingCount > 0
+                                ? '${Fmt.toFaDigits('${repo.smsPendingCount}')} '
+                                    'تراکنش در انتظار تأیید'
+                                : 'مورد جدیدی پیدا نشد',
+                        style: TextStyle(
+                            fontSize: 11.5,
+                            color: onSurface.withValues(alpha: 0.6)),
+                      ),
+                    ],
+                  ),
+                ),
+                if (repo.smsPendingCount > 0)
+                  TagChip(
+                      Fmt.toFaDigits('${repo.smsPendingCount}'),
+                      color: const Color(0xFF16A34A),
+                      dense: true)
+                else
+                  const Icon(Icons.chevron_left_rounded, size: 18),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
 
         // هشدار انقضا
         if (alerts.isNotEmpty) ...[

@@ -18,6 +18,7 @@ import 'package:poolland/ui/home_shell.dart';
 import 'package:poolland/ui/onboarding.dart';
 import 'package:poolland/ui/reports_page.dart';
 import 'package:poolland/ui/settings_page.dart';
+import 'package:poolland/ui/sms_page.dart';
 import 'package:poolland/ui/subscriptions_page.dart';
 import 'package:poolland/ui/theme.dart';
 import 'package:poolland/ui/transactions_page.dart';
@@ -136,6 +137,13 @@ void main() {
     await tester.pumpWidget(wrap(const ContactEditPage()));
     await tester.pumpAndSettle();
     expect(find.text('بدهی/طلب قبلی'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('صفحه‌ی پیامک‌های بانکی', (tester) async {
+    await tester.pumpWidget(wrap(const SmsPage()));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(tester.takeException(), isNull);
   });
 

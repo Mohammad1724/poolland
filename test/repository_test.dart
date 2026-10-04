@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:poolland/core/jalali_utils.dart';
+import 'package:poolland/core/sms/bank_rules.dart';
 import 'package:poolland/data/models.dart';
 import 'package:poolland/data/repository.dart';
 import 'package:poolland/data/store.dart';
@@ -113,6 +114,34 @@ void main() {
     expect(repo.transactions.length, 1);
     expect(repo.customerById(c.id)!.name, 'سارا');
     expect(repo.balanceOf(repo.customerById(c.id)!), 100000);
+  });
+
+  test('پلن‌های سفارشی بعد از بازگردانی پشتیبان حفظ می‌شوند', () async {
+    final plan = await repo.addPlan(const Plan(
+        id: 'x', name: 'پلن سفارشی', price: 123456, durationValue: 2));
+    expect(repo.plans.any((p) => p.id == plan.id), isTrue);
+
+    final backup = repo.exportData();
+    await repo.wipeAll();
+    await repo.importData(backup);
+
+    expect(repo.plans.any((p) => p.id == plan.id), isTrue,
+        reason: 'پلن‌های کاربر نباید هنگام بازگردانی گم شوند');
+  });
+
+  test('قانون اختصاصی پیامک ذخیره و بازگردانی می‌شود', () async {
+    await repo.addSmsRule(const BankRule(
+        id: 'r1', bankName: 'بانک من', senderHints: ['MYBANK']));
+    expect(repo.smsRules.length, 1);
+
+    final backup = repo.exportData();
+    await repo.wipeAll();
+    await repo.importData(backup);
+    expect(repo.smsRules.length, 1);
+    expect(repo.smsRules.first.bankName, 'بانک من');
+
+    await repo.deleteSmsRule('r1');
+    expect(repo.smsRules, isEmpty);
   });
 
   test('داده‌ی نمونه بارگذاری می‌شود', () async {

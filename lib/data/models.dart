@@ -64,6 +64,12 @@ class AppSettings {
   final double openingCash; // موجودی نقدی/بانکی اولیه
   final bool setupDone; // آیا راه‌اندازی اولیه انجام شده؟
 
+  // ---- پیامک بانکی ----
+  final bool smsEnabled; // خواندن پیامک فعال باشد؟
+  final int smsSyncDays; // چند روز گذشته بررسی شود
+  final bool smsAutoApprove; // ثبت خودکار موارد کاملاً مطمئن
+  final int smsLastSyncAt; // آخرین همگام‌سازی (برای به‌روزرسانی افزایشی)
+
   const AppSettings({
     this.businessName = 'فروش وی‌پی‌ان من',
     this.baseCurrency = 'IRT',
@@ -74,6 +80,10 @@ class AppSettings {
     this.themeMode = 'system',
     this.openingCash = 0,
     this.setupDone = false,
+    this.smsEnabled = false,
+    this.smsSyncDays = 90,
+    this.smsAutoApprove = false,
+    this.smsLastSyncAt = 0,
   });
 
   /// ارزهای پیش‌فرض: تومان (پایه) + ارزهای رایج برای فروشنده‌ی VPN
@@ -106,6 +116,10 @@ class AppSettings {
     String? themeMode,
     double? openingCash,
     bool? setupDone,
+    bool? smsEnabled,
+    int? smsSyncDays,
+    bool? smsAutoApprove,
+    int? smsLastSyncAt,
   }) =>
       AppSettings(
         businessName: businessName ?? this.businessName,
@@ -117,6 +131,10 @@ class AppSettings {
         themeMode: themeMode ?? this.themeMode,
         openingCash: openingCash ?? this.openingCash,
         setupDone: setupDone ?? this.setupDone,
+        smsEnabled: smsEnabled ?? this.smsEnabled,
+        smsSyncDays: smsSyncDays ?? this.smsSyncDays,
+        smsAutoApprove: smsAutoApprove ?? this.smsAutoApprove,
+        smsLastSyncAt: smsLastSyncAt ?? this.smsLastSyncAt,
       );
 
   Map<String, dynamic> toMap() => {
@@ -129,6 +147,10 @@ class AppSettings {
         'themeMode': themeMode,
         'openingCash': openingCash,
         'setupDone': setupDone,
+        'smsEnabled': smsEnabled,
+        'smsSyncDays': smsSyncDays,
+        'smsAutoApprove': smsAutoApprove,
+        'smsLastSyncAt': smsLastSyncAt,
       };
 
   factory AppSettings.fromMap(Map map) => AppSettings(
@@ -144,6 +166,10 @@ class AppSettings {
         themeMode: '${map['themeMode'] ?? 'system'}',
         openingCash: (map['openingCash'] as num?)?.toDouble() ?? 0,
         setupDone: map['setupDone'] as bool? ?? false,
+        smsEnabled: map['smsEnabled'] as bool? ?? false,
+        smsSyncDays: (map['smsSyncDays'] as num?)?.toInt() ?? 90,
+        smsAutoApprove: map['smsAutoApprove'] as bool? ?? false,
+        smsLastSyncAt: (map['smsLastSyncAt'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -184,6 +210,10 @@ class Customer {
   final DateTime createdAt;
   final bool archived;
 
+  /// شناسه‌های بانکی این مشتری برای تطبیق خودکار پیامک‌ها
+  /// (مثلاً ۴ رقم آخر کارت یا شماره کامل کارت)
+  final List<String> bankIdentifiers;
+
   const Customer({
     required this.id,
     required this.name,
@@ -193,6 +223,7 @@ class Customer {
     this.openingBalance = 0,
     required this.createdAt,
     this.archived = false,
+    this.bankIdentifiers = const [],
   });
 
   Customer copyWith({
@@ -202,6 +233,7 @@ class Customer {
     String? note,
     double? openingBalance,
     bool? archived,
+    List<String>? bankIdentifiers,
   }) =>
       Customer(
         id: id,
@@ -212,6 +244,7 @@ class Customer {
         openingBalance: openingBalance ?? this.openingBalance,
         createdAt: createdAt,
         archived: archived ?? this.archived,
+        bankIdentifiers: bankIdentifiers ?? this.bankIdentifiers,
       );
 
   Map<String, dynamic> toMap() => {
@@ -223,6 +256,7 @@ class Customer {
         'openingBalance': openingBalance,
         'createdAt': createdAt.millisecondsSinceEpoch,
         'archived': archived,
+        'bankIdentifiers': bankIdentifiers,
       };
 
   factory Customer.fromMap(Map map) => Customer(
@@ -235,6 +269,10 @@ class Customer {
         createdAt: DateTime.fromMillisecondsSinceEpoch(
             (map['createdAt'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch),
         archived: map['archived'] as bool? ?? false,
+        bankIdentifiers: (map['bankIdentifiers'] as List? ?? const [])
+            .map((e) => '$e')
+            .where((e) => e.trim().isNotEmpty)
+            .toList(),
       );
 }
 

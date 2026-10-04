@@ -1,6 +1,7 @@
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import '../core/sms/bank_rules.dart';
 import 'models.dart';
 
 /// لایه‌ی ذخیره‌سازی محلی روی Hive.
@@ -12,6 +13,8 @@ class LocalStore {
   static const boxCategories = 'categories';
   static const boxPlans = 'plans';
   static const boxMeta = 'meta';
+  static const boxSmsState = 'sms_state';
+  static const boxSmsRules = 'sms_rules';
 
   final Box customers;
   final Box subscriptions;
@@ -19,6 +22,8 @@ class LocalStore {
   final Box categories;
   final Box plans;
   final Box meta;
+  final Box smsState;
+  final Box smsRules;
 
   LocalStore._({
     required this.customers,
@@ -27,6 +32,8 @@ class LocalStore {
     required this.categories,
     required this.plans,
     required this.meta,
+    required this.smsState,
+    required this.smsRules,
   });
 
   static const _uuid = Uuid();
@@ -43,6 +50,8 @@ class LocalStore {
       categories: await Hive.openBox(boxCategories),
       plans: await Hive.openBox(boxPlans),
       meta: await Hive.openBox(boxMeta),
+      smsState: await Hive.openBox(boxSmsState),
+      smsRules: await Hive.openBox(boxSmsRules),
     );
     await store.ensureSeeded();
     return store;
@@ -58,6 +67,8 @@ class LocalStore {
       categories: await Hive.openBox(boxCategories),
       plans: await Hive.openBox(boxPlans),
       meta: await Hive.openBox(boxMeta),
+      smsState: await Hive.openBox(boxSmsState),
+      smsRules: await Hive.openBox(boxSmsRules),
     );
     await store.ensureSeeded();
     return store;
@@ -181,6 +192,8 @@ class LocalStore {
     await categories.clear();
     await plans.clear();
     await meta.clear();
+    await smsState.clear();
+    await smsRules.clear();
     await ensureSeeded();
   }
 
@@ -196,6 +209,7 @@ class LocalStore {
         'transactions': loadTxns().map((e) => e.toMap()).toList(),
         'categories': loadCategories().map((e) => e.toMap()).toList(),
         'plans': loadPlans().map((e) => e.toMap()).toList(),
+        'smsRules': loadSmsRules().map((e) => e.toMap()).toList(),
       };
 
   /// بازگردانی از فایل پشتیبان
@@ -230,6 +244,14 @@ class LocalStore {
       final m = Map<String, dynamic>.from(raw as Map);
       await categories.put('${m['id']}', m);
     }
+    for (final raw in (data['plans'] as List? ?? const [])) {
+      final m = Map<String, dynamic>.from(raw as Map);
+      await plans.put('${m['id']}', m);
+    }
+    for (final raw in (data['smsRules'] as List? ?? const [])) {
+      final m = Map<String, dynamic>.from(raw as Map);
+      await smsRules.put('${m['id']}', m);
+    }
     await ensureSeeded();
   }
 
@@ -240,5 +262,41 @@ class LocalStore {
     await categories.close();
     await plans.close();
     await meta.close();
+    await smsState.close();
+    await smsRules.close();
   }
+
+  // ---------- پیامک بانکی ----------
+  /// وضعیت بررسی‌شده‌ی هر پیامک: key → status
+  /// statusها: approved | rejected | ignored
+  Map<String, String> loadSmsState() {
+    final out = <String, String>{};
+    for (final e in smsState.values) {
+      if (e is! Map) continue;
+      final m = Map<String, dynamic>.from(e);
+      final key = m['key'] as String?;
+      final status = m['status'] as String?;
+      if (key != null && status != null) out[key] = status;
+    }
+    return out;
+  }
+
+  Future<void> setSmsState(String key, String status) => smsState.put(
+      key, {'key': key, 'status': status, 'at': DateTime.now().millisecondsSinceEpoch});
+
+  Future<void> clearSmsState() => smsState.clear();
+
+  /// قوانین اختصاصی کاربر (برای بانک‌هایی که در فهرست آماده نیستند)
+  List<BankRule> loadSmsRules() {
+    final out = <BankRule>[];
+    for (final e in smsRules.values) {
+      if (e is! Map) continue;
+      out.add(BankRule.fromMap(Map<String, dynamic>.from(e)));
+    }
+    return out;
+  }
+
+  Future<void> putSmsRule(BankRule rule) => smsRules.put(rule.id, rule.toMap());
+
+  Future<void> deleteSmsRule(String id) => smsRules.delete(id);
 }

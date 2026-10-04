@@ -2,7 +2,7 @@ name: poolland
 description: "پول‌لند — دفتر حسابداری ساده و آفلاین برای فروشندگان VPN: مشتری‌ها، اشتراک‌ها، بدهکار/بستانکار، درآمد و هزینه (چند ارزی)"
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ^3.13.0
