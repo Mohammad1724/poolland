@@ -235,7 +235,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
               value: _book,
               items: repo.settings.books,
               labelOf: (b) => b.name,
-              subOf: (b) => b.id == repo.settings.defaultBookId ? 'پیش‌فرض' : null,
+              subOf: (b) => b.id == repo.settings.defaultBookId ? 'دفتر پیش‌فرض' : '',
               onChanged: (b) => setState(() => _book = b ?? _book),
             ),
             const SizedBox(height: 14),

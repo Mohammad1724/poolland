@@ -541,7 +541,9 @@ class BookSwitcher extends StatelessWidget {
 
   Future<void> _open(BuildContext context) async {
     final settings = repo.settings;
-    final chosen = await showModalBottomSheet<String?>(
+    // رشته‌ی یکتا برای «همه‌ی دفترها»؛ null یعنی شیت بسته شده بدون انتخاب
+    const allMarker = '__all_books__';
+    final chosen = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
@@ -578,28 +580,28 @@ class BookSwitcher extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 6),
-              _row(ctx, null, 'همه‌ی دفترها', const Color(0xFF0F766E)),
+              _row(ctx, null, allMarker, 'همه‌ی دفترها', const Color(0xFF0F766E)),
               for (final b in settings.books)
-                _row(ctx, b.id, b.name, Color(b.color), txnCount: _countOf(b.id)),
+                _row(ctx, b.id, allMarker, b.name, Color(b.color),
+                    txnCount: _countOf(b.id)),
               const SizedBox(height: 10),
             ],
           ),
         ),
       ),
     );
-    if (chosen != _Sentinel.unset) {
-      repo.setBookFilter(chosen == _Sentinel.unset ? null : chosen as String?);
-    }
+    if (chosen == null) return;
+    repo.setBookFilter(chosen == allMarker ? null : chosen);
   }
 
   int _countOf(String bookId) =>
       repo.transactions.where((t) => t.bookId == bookId).length;
 
-  Widget _row(BuildContext ctx, String? id, String name, Color color, {int? txnCount}) {
+  Widget _row(BuildContext ctx, String? id, String allMarker, String name, Color color,
+      {int? txnCount}) {
     final selected = repo.bookFilter == id;
     return ListTile(
-      onTap: () => Navigator.pop(
-          ctx, id == null ? _Sentinel.all : (id as String)),
+      onTap: () => Navigator.pop(ctx, id ?? allMarker),
       leading: Container(
         width: 22,
         height: 22,
@@ -623,9 +625,6 @@ class BookSwitcher extends StatelessWidget {
     );
   }
 }
-
-/// مقدار یکتا برای «همه‌ی دفترها» چون null معنی «انصراف از شیت» هم هست
-enum _Sentinel { all, unset }
 
 /// ---------------- فیلد متن ساده ----------------
 class AppTextField extends StatelessWidget {
