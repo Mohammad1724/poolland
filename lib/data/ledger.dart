@@ -215,8 +215,18 @@ class Ledger {
   }
 
   /// خالص حساب هر طرف حساب به تفکیک ارز (بدون تبدیل)
-  static Map<String, double> customerCurrencyTotals(Customer c, Iterable<Txn> txns) {
+  ///
+  /// نکته: «بدهی/طلب اولیه» به ارز پایه هم لحاظ می‌شود تا مجموعِ تفکیک‌ارز
+  /// با مانده‌ی کلِ نمایش‌داده‌شده یکی باشد.
+  static Map<String, double> customerCurrencyTotals(
+    Customer c,
+    Iterable<Txn> txns, {
+    String baseCurrency = 'IRT',
+  }) {
     final map = <String, double>{};
+    if (c.openingBalance.abs() > 0.5) {
+      map[baseCurrency] = (map[baseCurrency] ?? 0) + c.openingBalance;
+    }
     for (final t in txns) {
       if (t.customerId != c.id) continue;
       final delta = switch (t.kind) {
@@ -227,6 +237,8 @@ class Ledger {
       };
       if (delta != 0) map[t.currency] = (map[t.currency] ?? 0) + delta;
     }
+    // مقادیرِ صفر (تراز‌شده) را حذف می‌کنیم تا چیپِ بی‌ربط نمایش داده نشود
+    map.removeWhere((_, v) => v.abs() < 0.5);
     return map;
   }
 

@@ -134,6 +134,27 @@ void main() {
       expect(totals.creditorsCount, 1);
     });
 
+    test('تفکیک ارز شامل بدهی اولیه هم می‌شود', () {
+      final c = customer(opening: 250000);
+      final txns = [
+        txn(kind: TxnKind.income, amount: 100000, credit: true),
+      ];
+      final map = Ledger.customerCurrencyTotals(c, txns);
+      expect(map['IRT'], 350000);
+      expect(Ledger.customerBalance(c, txns), 350000,
+          reason: 'جمع تفکیک‌ارز باید با مانده‌ی کل یکی باشد');
+    });
+
+    test('مقادیرِ تراز‌شده از تفکیک ارز حذف می‌شوند', () {
+      final c = customer(opening: 250000);
+      final txns = [
+        txn(kind: TxnKind.receive, amount: 250000),
+      ];
+      final map = Ledger.customerCurrencyTotals(c, txns);
+      expect(map.containsKey('IRT'), isFalse, reason: 'مانده صفر است');
+      expect(Ledger.customerBalance(c, txns), 0);
+    });
+
     test('خلاصه به تفکیک ارز', () {
       final c = customer();
       final txns = [

@@ -33,7 +33,11 @@ class CustomerDetailPage extends StatelessWidget {
     final monthStart = J.startOfMonth(J.addMonths(DateTime.now(), -11));
     final customerSummary = Ledger.summarize(repo.transactions,
         from: monthStart, customerId: c.id);
-    final currencyTotals = Ledger.customerCurrencyTotals(c, repo.transactions);
+    final currencyTotals = Ledger.customerCurrencyTotals(
+      c,
+      repo.transactions,
+      baseCurrency: repo.settings.baseCurrency,
+    );
 
     return Scaffold(
       appBar: AppBar(

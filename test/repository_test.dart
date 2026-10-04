@@ -144,6 +144,32 @@ void main() {
     expect(repo.smsRules, isEmpty);
   });
 
+  test('داده‌ی نمونه: همه‌ی ارجاع‌ها معتبرند (یتیم و بی‌سرپرست نداریم)', () async {
+    await repo.loadDemoData();
+
+    final customerIds = repo.customers.map((c) => c.id).toSet();
+    final orphans = repo.transactions
+        .where((t) => t.customerId != null && !customerIds.contains(t.customerId))
+        .length;
+    expect(orphans, 0,
+        reason: 'هیچ تراکنشی نباید به مشتری حذف‌شده اشاره کند');
+
+    final planIds = repo.plans.map((p) => p.id).toSet();
+    final badPlans = repo.subscriptions
+        .where((s) => s.planId != null && !planIds.contains(s.planId))
+        .length;
+    expect(badPlans, 0,
+        reason: 'همه‌ی اشتراک‌ها باید به یک پلن معتبر اشاره کنند '
+            '(وگرنه تمدید یک‌کلیکی درست کار نمی‌کند)');
+
+    final categoryIds = repo.categories.map((c) => c.id).toSet();
+    final badCategories = repo.transactions
+        .where((t) => t.categoryId != null && !categoryIds.contains(t.categoryId))
+        .length;
+    expect(badCategories, 0,
+        reason: 'دسته‌بندی تراکنش‌های نمونه باید معتبر باشد');
+  });
+
   test('داده‌ی نمونه بارگذاری می‌شود', () async {
     await repo.loadDemoData();
     expect(repo.customers.length, greaterThan(5));

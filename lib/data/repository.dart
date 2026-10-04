@@ -684,6 +684,13 @@ class AppRepository extends ChangeNotifier {
   /// داده‌ی نمونه برای تست سریع و دموی گیت‌هاب
   Future<void> loadDemoData() async {
     await store.clearAll();
+
+    // همگام‌سازی حافظه با دیتابیس: clearAll() همه چیز را پاک می‌کند و
+    // دسته‌ها و پلن‌های پیش‌فرض با شناسه‌ی جدید ساخته می‌شوند.
+    // بدون این reload، فهرست‌های درون‌حافظه‌ای (plans/customers/categories)
+    // هنوز به رکوردهای حذف‌شده اشاره می‌کنند و تراکنش‌های یتیم می‌سازند.
+    await reload();
+
     final rnd = Random(1405);
     final names = [
       'علی رضایی',
@@ -695,7 +702,20 @@ class AppRepository extends ChangeNotifier {
       'امیر صادقی',
       'فاطمه یوسفی',
     ];
-    final planList = plans.isEmpty ? LocalStore.defaultPlans() : plans;
+
+    // اگر پلنی در دیتابیس نیست، پلن‌های پیش‌فرض را «ذخیره» می‌کنیم تا
+    // اشتراک‌ها بتوانند به یک پلن معتبر اشاره کنند (و تمدید کار کند)
+    var planList = plans;
+    if (planList.isEmpty) {
+      for (final p in LocalStore.defaultPlans()) {
+        await store.putPlan(p);
+      }
+      await reload();
+      planList = plans;
+    }
+
+    // مشتری‌هایی که در همین اجرا ساخته می‌شوند (برای ارجاع‌های بعدی)
+    final createdCustomers = <Customer>[];
     final now = J.today;
 
     for (var i = 0; i < names.length; i++) {
@@ -708,6 +728,7 @@ class AppRepository extends ChangeNotifier {
         createdAt: J.addDays(now, -200),
       );
       await store.putCustomer(c);
+      createdCustomers.add(c);
 
       var start = J.addDays(now, -(30 * 5) + i * 3);
       for (var k = 0; k < 5; k++) {
@@ -789,8 +810,8 @@ class AppRepository extends ChangeNotifier {
 
     // چند فروش با تتر و دلار برای نمایش چند‌ارزی
     for (final cur in ['USD', 'USDT']) {
-      if (settings.currencies.any((c) => c.code == cur) && customers.isNotEmpty) {
-        final c = customers[rnd.nextInt(customers.length)];
+      if (settings.currencies.any((c) => c.code == cur) && createdCustomers.isNotEmpty) {
+        final c = createdCustomers[rnd.nextInt(createdCustomers.length)];
         await store.putTxn(Txn(
           id: LocalStore.newId(),
           kind: TxnKind.income,
