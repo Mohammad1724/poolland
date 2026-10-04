@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:poolland/data/models.dart';
 import 'package:poolland/data/repository.dart';
 import 'package:poolland/data/store.dart';
 import 'package:poolland/ui/personal_page.dart';
@@ -59,4 +60,20 @@ void main() {
     expect(find.text('تراکنش‌های تکرارشونده'), findsOneWidget);
   });
 
+
+  testWidgets('صفحه‌ی شخصی با داده‌ی نمونه رندر می‌شود', (tester) async {
+    // بارگذاریِ داده‌ی نمونه شامل IO واقعی است
+    await tester.runAsync(() async {
+      await repo.loadDemoData();
+    });
+    await tester.pumpWidget(wrap(const PersonalPage()));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(tester.takeException(), isNull);
+    expect(repo.budgets, isNotEmpty);
+    expect(repo.recurringRules, isNotEmpty);
+    expect(repo.transactions.where((t) => t.scope == TxnScope.personal),
+        isNotEmpty);
+  });
 }

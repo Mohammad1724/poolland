@@ -41,7 +41,12 @@ class _HomeShellState extends State<HomeShell> {
       if (!repo.isReady) await repo.init();
 
       // ثبت خودکارِ تراکنش‌های تکرارشونده‌ی سررسیدشده (اجاره، اینترنت…)
-      await repo.postDueRecurring();
+      // هیچ خطایی نباید جلوی بالا آمدنِ برنامه را بگیرد
+      try {
+        await repo.postDueRecurring();
+      } catch (_) {
+        // نادیده گرفتن: کاربر می‌تواند بعداً دوباره تلاش کند
+      }
 
       // یادآور روزانه (فقط اگر کاربر آن را روشن کرده باشد)
       await repo.scheduleDailyReminder();

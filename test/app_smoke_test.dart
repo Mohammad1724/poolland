@@ -72,6 +72,10 @@ void main() {
 
   testWidgets('پوسته‌ی اصلی: جابه‌جایی بین تب‌ها', (tester) async {
     await tester.pumpWidget(wrap(const HomeShell()));
+    // کارهای راه‌اندازی (ثبتِ خودکارِ تراکنش‌های تکرارشونده) شامل IO واقعی
+    // است؛ در تست‌های ویجتی باید با runAsync به آن‌ها فرصتِ اجرا بدهیم.
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 400)));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(tester.takeException(), isNull);

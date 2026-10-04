@@ -1113,6 +1113,8 @@ class AppRepository extends ChangeNotifier {
     final rentCat = categoriesOf(TxnKind.expense, scope: TxnScope.personal)
         .where((c) => c.name.contains('مسکن'))
         .toList();
+    // lastPosted = امروز، تا هنگام بارگذاریِ داده‌ی نمونه ناگهان
+    // چند تراکنشِ اجاره ساخته نشود (ماه بعد خودکار ثبت می‌شود)
     await store.putRecurring(RecurringRule(
       id: LocalStore.newId(),
       title: 'اجاره خانه',
@@ -1121,6 +1123,7 @@ class AppRepository extends ChangeNotifier {
       period: RecurringPeriod.monthly,
       dayOfMonth: 5,
       startDate: J.addMonths(now, -1),
+      lastPosted: now,
     ));
 
     await reload();
