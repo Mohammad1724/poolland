@@ -12,7 +12,7 @@
 [![Flutter](https://img.shields.io/badge/Flutter-3.4x-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Web-3DDC84?logo=android&logoColor=white)](#نصب-و-اجرا)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-43%20passing-success)](#توسعه)
+[![Tests](https://img.shields.io/badge/Tests-51%20passing-success)](#توسعه)
 [![Offline](https://img.shields.io/badge/Offline-100%25-0EA5A4)](#حریم-خصوصی)
 
 </div>
@@ -190,7 +190,7 @@ lib/
 
 ```bash
 flutter analyze                 # بررسی کد — باید «No issues found» بدهد
-flutter test                    # ۴۳ تست منطق حسابداری + رندر همه‌ی صفحه‌ها
+flutter test                    # ۵۱ تست منطق حسابداری + رندر همه‌ی صفحه‌ها
 python3 tool/generate_icons.py  # ساخت دوباره‌ی آیکون‌ها از design/icon-source.png
 ```
 
