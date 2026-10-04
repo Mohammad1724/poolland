@@ -15,6 +15,9 @@ class LocalStore {
   static const boxMeta = 'meta';
   static const boxSmsState = 'sms_state';
   static const boxSmsRules = 'sms_rules';
+  static const boxBudgets = 'budgets';
+  static const boxRecurring = 'recurring';
+  static const boxQuick = 'quick_expenses';
 
   final Box customers;
   final Box subscriptions;
@@ -24,6 +27,9 @@ class LocalStore {
   final Box meta;
   final Box smsState;
   final Box smsRules;
+  final Box budgets;
+  final Box recurring;
+  final Box quickExpenses;
 
   LocalStore._({
     required this.customers,
@@ -34,6 +40,9 @@ class LocalStore {
     required this.meta,
     required this.smsState,
     required this.smsRules,
+    required this.budgets,
+    required this.recurring,
+    required this.quickExpenses,
   });
 
   static const _uuid = Uuid();
@@ -52,6 +61,9 @@ class LocalStore {
       meta: await Hive.openBox(boxMeta),
       smsState: await Hive.openBox(boxSmsState),
       smsRules: await Hive.openBox(boxSmsRules),
+      budgets: await Hive.openBox(boxBudgets),
+      recurring: await Hive.openBox(boxRecurring),
+      quickExpenses: await Hive.openBox(boxQuick),
     );
     await store.ensureSeeded();
     return store;
@@ -69,6 +81,9 @@ class LocalStore {
       meta: await Hive.openBox(boxMeta),
       smsState: await Hive.openBox(boxSmsState),
       smsRules: await Hive.openBox(boxSmsRules),
+      budgets: await Hive.openBox(boxBudgets),
+      recurring: await Hive.openBox(boxRecurring),
+      quickExpenses: await Hive.openBox(boxQuick),
     );
     await store.ensureSeeded();
     return store;
@@ -86,6 +101,13 @@ class LocalStore {
         await plans.put(p.id, p.toMap());
       }
     }
+    if (quickExpenses.isEmpty) {
+      for (final q in QuickExpense.defaults()) {
+        await quickExpenses.put(q.id, q.toMap());
+      }
+    }
+    // مهاجرت: اضافه کردن دسته‌بندی‌های شخصی برای دیتابیس‌های قدیمی
+    await _seedPersonalCategoriesOnce();
     if (!meta.containsKey('settings')) {
       await meta.put('settings', const AppSettings().toMap());
     }
@@ -122,6 +144,66 @@ class LocalStore {
       out.add(Category(id: newId(), name: name, kind: TxnKind.expense, sortOrder: i++));
     }
     return out;
+  }
+
+  /// دسته‌بندی‌های مخصوص حسابداری شخصی
+  static List<Category> personalCategories() {
+    const expense = <String>[
+      'خوراک و رستوران',
+      'حمل‌ونقل و سوخت',
+      'مسکن و اجاره',
+      'قبوض (آب، برق، گاز)',
+      'اینترنت و شارژ موبایل',
+      'سلامت و درمان',
+      'آموزش',
+      'تفریح و سرگرمی',
+      'خرید شخصی و پوشاک',
+      'هدیه و مناسبت',
+      'ورزش و باشگاه',
+      'سفر و گردش',
+      'سایر هزینه‌های شخصی',
+    ];
+    const income = <String>[
+      'حقوق',
+      'درآمد آزاد',
+      'سود سرمایه‌گذاری',
+      'هدیه و کمک',
+      'استرداد و بازپرداخت',
+      'سایر درآمدهای شخصی',
+    ];
+    final out = <Category>[];
+    var i = 0;
+    for (final name in income) {
+      out.add(Category(
+          id: newId(),
+          name: name,
+          kind: TxnKind.income,
+          sortOrder: i++,
+          scope: TxnScope.personal));
+    }
+    i = 0;
+    for (final name in expense) {
+      out.add(Category(
+          id: newId(),
+          name: name,
+          kind: TxnKind.expense,
+          sortOrder: i++,
+          scope: TxnScope.personal));
+    }
+    return out;
+  }
+
+  /// یک‌بار دسته‌بندی‌های شخصی را به دیتابیس موجود اضافه می‌کند
+  Future<void> _seedPersonalCategoriesOnce() async {
+    if (meta.get('personalCategoriesSeeded') == true) return;
+    final existing = categories.values
+        .map((e) => Category.fromMap(Map<String, dynamic>.from(e as Map)).name)
+        .toSet();
+    for (final c in personalCategories()) {
+      if (existing.contains(c.name)) continue;
+      await categories.put(c.id, c.toMap());
+    }
+    await meta.put('personalCategoriesSeeded', true);
   }
 
   /// پلن‌های پیش‌فرض فروش
@@ -194,6 +276,9 @@ class LocalStore {
     await meta.clear();
     await smsState.clear();
     await smsRules.clear();
+    await budgets.clear();
+    await recurring.clear();
+    await quickExpenses.clear();
     await ensureSeeded();
   }
 
@@ -210,6 +295,9 @@ class LocalStore {
         'categories': loadCategories().map((e) => e.toMap()).toList(),
         'plans': loadPlans().map((e) => e.toMap()).toList(),
         'smsRules': loadSmsRules().map((e) => e.toMap()).toList(),
+        'budgets': loadBudgets().map((e) => e.toMap()).toList(),
+        'recurring': loadRecurring().map((e) => e.toMap()).toList(),
+        'quickExpenses': loadQuickExpenses().map((e) => e.toMap()).toList(),
       };
 
   /// بازگردانی از فایل پشتیبان
@@ -252,6 +340,18 @@ class LocalStore {
       final m = Map<String, dynamic>.from(raw as Map);
       await smsRules.put('${m['id']}', m);
     }
+    for (final raw in (data['budgets'] as List? ?? const [])) {
+      final m = Map<String, dynamic>.from(raw as Map);
+      await budgets.put('${m['id']}', m);
+    }
+    for (final raw in (data['recurring'] as List? ?? const [])) {
+      final m = Map<String, dynamic>.from(raw as Map);
+      await recurring.put('${m['id']}', m);
+    }
+    for (final raw in (data['quickExpenses'] as List? ?? const [])) {
+      final m = Map<String, dynamic>.from(raw as Map);
+      await quickExpenses.put('${m['id']}', m);
+    }
     await ensureSeeded();
   }
 
@@ -264,6 +364,9 @@ class LocalStore {
     await meta.close();
     await smsState.close();
     await smsRules.close();
+    await budgets.close();
+    await recurring.close();
+    await quickExpenses.close();
   }
 
   // ---------- پیامک بانکی ----------
@@ -299,4 +402,46 @@ class LocalStore {
   Future<void> putSmsRule(BankRule rule) => smsRules.put(rule.id, rule.toMap());
 
   Future<void> deleteSmsRule(String id) => smsRules.delete(id);
+
+  // ---------- حسابداری شخصی ----------
+  List<Budget> loadBudgets() {
+    final out = <Budget>[];
+    for (final e in budgets.values) {
+      if (e is! Map) continue;
+      out.add(Budget.fromMap(Map<String, dynamic>.from(e)));
+    }
+    return out;
+  }
+
+  Future<void> putBudget(Budget b) => budgets.put(b.id, b.toMap());
+
+  Future<void> deleteBudget(String id) => budgets.delete(id);
+
+  List<RecurringRule> loadRecurring() {
+    final out = <RecurringRule>[];
+    for (final e in recurring.values) {
+      if (e is! Map) continue;
+      out.add(RecurringRule.fromMap(Map<String, dynamic>.from(e)));
+    }
+    return out;
+  }
+
+  Future<void> putRecurring(RecurringRule r) => recurring.put(r.id, r.toMap());
+
+  Future<void> deleteRecurring(String id) => recurring.delete(id);
+
+  List<QuickExpense> loadQuickExpenses() {
+    final out = <QuickExpense>[];
+    for (final e in quickExpenses.values) {
+      if (e is! Map) continue;
+      out.add(QuickExpense.fromMap(Map<String, dynamic>.from(e)));
+    }
+    return out
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+  }
+
+  Future<void> putQuickExpense(QuickExpense q) =>
+      quickExpenses.put(q.id, q.toMap());
+
+  Future<void> deleteQuickExpense(String id) => quickExpenses.delete(id);
 }

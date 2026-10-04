@@ -27,9 +27,12 @@ class _TransactionsPageState extends State<TransactionsPage> {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final monthStart = J.startOfMonth(J.addMonths(DateTime.now(), _monthOffset));
     final monthEnd = J.endOfMonth(monthStart);
-    final summary = repo.summary(from: monthStart, to: monthEnd);
+    final summary =
+        repo.summary(from: monthStart, to: monthEnd, scope: repo.scopeFilter);
 
-    var list = repo.transactions
+    var list = (repo.scopeFilter == null
+            ? repo.transactions
+            : repo.transactions.where((t) => t.scope == repo.scopeFilter))
         .where((t) => Ledger.inRange(t.date, monthStart, monthEnd))
         .toList();
     if (_kind != null) list = list.where((t) => t.kind == _kind).toList();
@@ -98,6 +101,29 @@ class _TransactionsPageState extends State<TransactionsPage> {
                   isDense: true,
                 ),
                 onChanged: (v) => setState(() => _q = v.trim()),
+              ),
+              const SizedBox(height: 10),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final opt in <TxnScope?>[
+                      null,
+                      TxnScope.business,
+                      TxnScope.personal
+                    ])
+                      Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: ChoiceChip(
+                          label: Text(opt == null ? 'همه' : opt.label,
+                              style: const TextStyle(fontSize: 12)),
+                          showCheckmark: false,
+                          selected: repo.scopeFilter == opt,
+                          onSelected: (_) => repo.setScopeFilter(opt),
+                        ),
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(height: 10),
               SingleChildScrollView(

@@ -8,6 +8,7 @@ import 'dashboard_page.dart';
 import 'forms/contact_edit_page.dart';
 import 'forms/sell_subscription_page.dart';
 import 'forms/transaction_edit_page.dart';
+import 'personal_page.dart';
 import 'reports_page.dart';
 import 'settings_page.dart';
 import 'subscriptions_page.dart';
@@ -23,7 +24,14 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
-  static const _titles = ['داشبورد', 'مشتری‌ها', 'اشتراک‌ها', 'تراکنش‌ها', 'گزارش‌ها'];
+  static const _titles = [
+    'داشبورد',
+    'شخصی',
+    'مشتری‌ها',
+    'اشتراک‌ها',
+    'تراکنش‌ها',
+    'گزارش‌ها'
+  ];
 
   @override
   void initState() {
@@ -31,6 +39,12 @@ class _HomeShellState extends State<HomeShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final repo = context.read<AppRepository>();
       if (!repo.isReady) await repo.init();
+
+      // ثبت خودکارِ تراکنش‌های تکرارشونده‌ی سررسیدشده (اجاره، اینترنت…)
+      await repo.postDueRecurring();
+
+      // یادآور روزانه طبق تنظیمات
+      await repo.syncDailyReminder();
 
       // آماده‌سازی گیرنده‌ی پیامک و همگام‌سازی اولیه (فقط اندروید)
       repo.initSms();
@@ -75,6 +89,8 @@ class _HomeShellState extends State<HomeShell> {
             _menuTile(ctx, 'ثبت درآمد (بدون اشتراک)', Icons.trending_up_rounded, 'income'),
             _menuTile(ctx, 'دریافت پول از مشتری', Icons.call_received_rounded, 'receive'),
             _menuTile(ctx, 'ثبت هزینه', Icons.trending_down_rounded, 'expense'),
+            _menuTile(ctx, 'هزینه‌ی شخصی', Icons.person_outline_rounded, 'p_expense'),
+            _menuTile(ctx, 'درآمد شخصی', Icons.savings_outlined, 'p_income'),
             _menuTile(ctx, 'پرداخت / برگشت وجه', Icons.call_made_rounded, 'refund'),
           ],
         ),
@@ -97,6 +113,20 @@ class _HomeShellState extends State<HomeShell> {
       case 'expense':
         await Navigator.push(context,
             MaterialPageRoute(builder: (_) => const TransactionEditPage(initialKind: TxnKind.expense)));
+        break;
+      case 'p_expense':
+        await Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => const TransactionEditPage(
+                    initialKind: TxnKind.expense, initialScope: TxnScope.personal)));
+        break;
+      case 'p_income':
+        await Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => const TransactionEditPage(
+                    initialKind: TxnKind.income, initialScope: TxnScope.personal)));
         break;
       case 'refund':
         await Navigator.push(context,
@@ -151,6 +181,7 @@ class _HomeShellState extends State<HomeShell> {
               index: _index,
               children: [
                 DashboardPage(onNavigate: _goTo),
+                const PersonalPage(),
                 const CustomersPage(),
                 const SubscriptionsPage(),
                 const TransactionsPage(),
@@ -159,18 +190,29 @@ class _HomeShellState extends State<HomeShell> {
             ),
       floatingActionButton: !repo.isReady
           ? null
-          : _index == 1
+          : _index == 2
               ? FloatingActionButton.extended(
                   onPressed: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => const ContactEditPage())),
                   icon: const Icon(Icons.person_add_alt_1_rounded),
                   label: const Text('مشتری جدید'),
                 )
-              : FloatingActionButton(
-                  onPressed: _quickAdd,
-                  tooltip: 'ثبت سریع',
-                  child: const Icon(Icons.add_rounded),
-                ),
+              : _index == 1
+                  ? FloatingActionButton.extended(
+                      onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const TransactionEditPage(
+                                  initialKind: TxnKind.expense,
+                                  initialScope: TxnScope.personal))),
+                      icon: const Icon(Icons.remove_rounded),
+                      label: const Text('هزینه‌ی شخصی'),
+                    )
+                  : FloatingActionButton(
+                      onPressed: _quickAdd,
+                      tooltip: 'ثبت سریع',
+                      child: const Icon(Icons.add_rounded),
+                    ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: _goTo,
@@ -179,6 +221,10 @@ class _HomeShellState extends State<HomeShell> {
               icon: Icon(Icons.dashboard_outlined),
               selectedIcon: Icon(Icons.dashboard_rounded),
               label: 'داشبورد'),
+          NavigationDestination(
+              icon: Icon(Icons.person_outline_rounded),
+              selectedIcon: Icon(Icons.person_rounded),
+              label: 'شخصی'),
           NavigationDestination(
               icon: Icon(Icons.people_outline_rounded),
               selectedIcon: Icon(Icons.people_rounded),

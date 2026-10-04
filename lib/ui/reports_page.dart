@@ -54,23 +54,48 @@ class _ReportsPageState extends State<ReportsPage> {
     final repo = context.watch<AppRepository>();
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final (from, to) = _bounds(repo);
-    final s = repo.summary(from: from, to: to);
+    final scope = repo.scopeFilter;
+    final s = repo.summary(from: from, to: to, scope: scope);
     final monthsSpan = _monthsBetween(from, to);
-    final series = Ledger.monthlySeries(repo.transactions, months: monthsSpan, endMonth: to)
+    final series = Ledger.monthlySeries(repo.transactions,
+        months: monthsSpan, endMonth: to, scope: scope)
         .where((p) => !p.monthStart.isBefore(J.startOfMonth(from)))
         .toList();
     final incomeCats = Ledger.byCategory(repo.transactions, repo.categories,
-        from: from, to: to, kind: TxnKind.income);
+        from: from, to: to, kind: TxnKind.income, scope: scope);
     final expenseCats = Ledger.byCategory(repo.transactions, repo.categories,
-        from: from, to: to, kind: TxnKind.expense);
+        from: from, to: to, kind: TxnKind.expense, scope: scope);
     final top = Ledger.topCustomers(repo.customers, repo.transactions,
-        from: from, to: to, limit: 6);
+        from: from, to: to, limit: 6, scope: scope);
     final debtors = repo.debtorsList();
     final margin = s.income > 0 ? s.profit / s.income : 0.0;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final opt in <TxnScope?>[
+                null,
+                TxnScope.business,
+                TxnScope.personal
+              ])
+                Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: ChoiceChip(
+                    label: Text(opt == null ? 'همه' : opt.label,
+                        style: const TextStyle(fontSize: 12)),
+                    showCheckmark: false,
+                    selected: repo.scopeFilter == opt,
+                    onSelected: (_) => repo.setScopeFilter(opt),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -349,7 +374,8 @@ class _ReportsPageState extends State<ReportsPage> {
           'وضعیت پرداخت',
           'توضیح',
         ],
-        for (final t in (Ledger.filter(repo.transactions, from: from, to: to).toList()
+        for (final t in (Ledger.filter(repo.transactions,
+                from: from, to: to, scope: repo.scopeFilter).toList()
           ..sort((a, b) => a.date.compareTo(b.date))))
           [
             J.d(t.date, persian: false),

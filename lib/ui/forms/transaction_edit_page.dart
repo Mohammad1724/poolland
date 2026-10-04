@@ -14,12 +14,14 @@ class TransactionEditPage extends StatefulWidget {
     super.key,
     this.existing,
     this.initialKind = TxnKind.income,
+    this.initialScope = TxnScope.business,
     this.customer,
     this.categoryId,
   });
 
   final Txn? existing;
   final TxnKind initialKind;
+  final TxnScope initialScope;
   final Customer? customer;
   final String? categoryId;
 
@@ -34,6 +36,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
   final _note = TextEditingController();
 
   late TxnKind _kind;
+  late TxnScope _scope;
   late String _currency;
   late String _settleCurrency;
   late DateTime _date;
@@ -55,6 +58,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
     _settleCurrency = repo.settings.baseCurrency;
     _date = DateTime.now();
     _kind = widget.initialKind;
+    _scope = widget.initialScope;
 
     if (t != null) {
       _kind = t.kind;
@@ -67,12 +71,15 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
       _subscription = repo.subscriptionById(t.subscriptionId);
       _category = repo.categoryById(t.categoryId);
       _credit = t.credit;
+      _scope = t.scope;
     } else {
       _customer = widget.customer;
       _category = repo.categoryById(widget.categoryId) ??
           (widget.initialKind == TxnKind.expense
-              ? repo.categoryById(repo.defaultExpenseCategoryId)
-              : repo.categoryById(repo.defaultIncomeCategoryId));
+              ? repo.categoryById(
+                  repo.defaultCategoryId(TxnKind.expense, scope: _scope))
+              : repo.categoryById(
+                  repo.defaultCategoryId(TxnKind.income, scope: _scope)));
     }
   }
 
@@ -106,6 +113,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
         clearSubscription: _subscription == null,
         credit: _credit,
         note: _note.text.trim(),
+        scope: _scope,
       ));
     } else {
       final base = repo.buildTxn(
@@ -118,6 +126,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
         subscriptionId: _subscription?.id,
         credit: _needsCategory && _customer != null ? _credit : false,
         note: _note.text.trim(),
+        scope: _scope,
       );
       await repo.addTxn(base);
 
@@ -131,6 +140,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
           customerId: _customer!.id,
           subscriptionId: _subscription?.id,
           note: _kind == TxnKind.income ? 'دریافت نقدی' : 'پرداخت نقدی',
+          scope: _scope,
         ));
       }
     }
@@ -183,6 +193,41 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                     label: Text(k.label),
                   ),
               ],
+            ),
+            const SizedBox(height: 14),
+            // حوزه: کسب‌وکار یا شخصی
+            SegmentedButton<TxnScope>(
+              segments: [
+                for (final sc in TxnScope.values)
+                  ButtonSegment(value: sc, label: Text(sc.label)),
+              ],
+              selected: {_scope},
+              onSelectionChanged: (s) => setState(() {
+                _scope = s.first;
+                final list = repo.categoriesOf(_kind, scope: _scope);
+                if (_category != null &&
+                    !list.any((c) => c.id == _category!.id)) {
+                  _category =
+                      repo.defaultCategoryId(_kind, scope: _scope) == null
+                          ? null
+                          : repo.categoryById(
+                              repo.defaultCategoryId(_kind, scope: _scope));
+                }
+              }),
+              style: SegmentedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                textStyle: const TextStyle(fontSize: 12),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _scope.hint,
+              style: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.55)),
             ),
             const SizedBox(height: 16),
             Row(
@@ -259,7 +304,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                 label: 'دسته‌بندی',
                 icon: Icons.category_outlined,
                 value: _category,
-                items: repo.categoriesOf(_kind),
+                items: repo.categoriesOf(_kind, scope: _scope),
                 labelOf: (c) => c.name,
                 onChanged: (c) => setState(() => _category = c),
               ),

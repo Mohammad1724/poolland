@@ -10,6 +10,7 @@ import 'customer_detail_page.dart';
 import 'forms/sell_subscription_page.dart';
 import 'sms_page.dart';
 import 'widgets/common_charts.dart';
+import 'widgets/quick_buttons.dart';
 import 'widgets/widgets.dart';
 
 class DashboardPage extends StatelessWidget {
@@ -22,11 +23,16 @@ class DashboardPage extends StatelessWidget {
     final repo = context.watch<AppRepository>();
     final monthStart = J.startOfMonth(DateTime.now());
     final monthEnd = J.endOfMonth(DateTime.now());
-    final monthSummary = repo.summary(from: monthStart, to: monthEnd);
+    final monthSummary =
+        repo.summary(from: monthStart, to: monthEnd, scope: repo.scopeFilter);
     final totals = repo.totals;
     final alerts = repo.alerts;
-    final series = repo.series(months: 6);
-    final recent = repo.transactions.take(5).toList();
+    final series = repo.series(months: 6, scope: repo.scopeFilter);
+    final recent = (repo.scopeFilter == null
+            ? repo.transactions
+            : repo.transactions.where((t) => t.scope == repo.scopeFilter))
+        .take(5)
+        .toList();
     final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return ListView(
@@ -52,6 +58,51 @@ class DashboardPage extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 14),
+
+        // فیلتر حوزه (همه / کسب‌وکار / شخصی)
+        Row(
+          children: [
+            for (final opt in <TxnScope?>[null, TxnScope.business, TxnScope.personal])
+              Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: ChoiceChip(
+                  selected: repo.scopeFilter == opt,
+                  showCheckmark: false,
+                  onSelected: (_) => repo.setScopeFilter(opt),
+                  label: Text(opt == null ? 'همه' : opt.label,
+                      style: const TextStyle(fontSize: 12)),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // ثبت سریعِ هزینه‌های پرتکرار
+        if (repo.scopeFilter != TxnScope.business &&
+            repo.quickExpenses.isNotEmpty) ...[
+          CardBox(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.bolt_rounded, size: 16),
+                    const SizedBox(width: 6),
+                    Text('ثبت سریع',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: onSurface.withValues(alpha: 0.75))),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                QuickButtonsRow(),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
 
         // خلاصه‌ی ماه
         CardBox(
@@ -108,7 +159,7 @@ class DashboardPage extends StatelessWidget {
           children: [
             Expanded(
               child: CardBox(
-                onTap: () => onNavigate(1),
+                onTap: () => onNavigate(2),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -130,7 +181,7 @@ class DashboardPage extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: CardBox(
-                onTap: () => onNavigate(1),
+                onTap: () => onNavigate(2),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -258,7 +309,7 @@ class DashboardPage extends StatelessWidget {
         // هشدار انقضا
         if (alerts.isNotEmpty) ...[
           SectionTitle('سرویس‌های نزدیک انقضا و منقضی‌شده',
-              icon: Icons.notification_important_outlined, action: 'همه', onAction: () => onNavigate(2)),
+              icon: Icons.notification_important_outlined, action: 'همه', onAction: () => onNavigate(4)),
           ...alerts.take(4).map((s) {
             final customer = repo.customerById(s.customerId);
             final status = Ledger.subStatus(s, reminderDays: repo.settings.reminderDays);
@@ -317,7 +368,7 @@ class DashboardPage extends StatelessWidget {
 
         // آخرین تراکنش‌ها
         SectionTitle('آخرین تراکنش‌ها',
-            icon: Icons.receipt_long_outlined, action: 'همه', onAction: () => onNavigate(3)),
+            icon: Icons.receipt_long_outlined, action: 'همه', onAction: () => onNavigate(4)),
         if (recent.isEmpty)
           const EmptyState(
             icon: Icons.receipt_long_outlined,

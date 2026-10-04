@@ -7,6 +7,7 @@ import '../core/backup.dart';
 import '../core/format_utils.dart';
 import '../core/jalali_utils.dart';
 import '../core/money.dart';
+import '../core/notifications/notify.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 import 'forms/plan_edit_page.dart';
@@ -77,7 +78,8 @@ class SettingsPage extends StatelessWidget {
                 _navTile(context,
                     icon: Icons.category_outlined,
                     title: 'دسته‌بندی درآمد و هزینه',
-                    subtitle: '${Fmt.toFaDigits('${repo.categories.length}')} دسته',
+                    subtitle: '${Fmt.toFaDigits('${repo.categories.length}')} دسته '
+                        '(کسب‌وکار و شخصی)',
                     page: const CategoriesPage()),
                 Divider(color: Theme.of(context).dividerColor),
                 _navTile(context,
@@ -278,6 +280,90 @@ class SettingsPage extends StatelessWidget {
             ),
           ],
 
+          // ---------- یادآور روزانه ----------
+          if (reminder.supported) ...[
+            const SectionTitle('یادآور روزانه',
+                icon: Icons.notifications_active_outlined),
+            CardBox(
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: s.dailyReminder,
+                    title: const Text('یادآوریِ ثبت هزینه',
+                        style: TextStyle(fontSize: 13.5)),
+                    subtitle: const Text(
+                      'هر روز در ساعت تعیین‌شده یادآوری می‌کند '
+                      'هزینه‌ها و درآمدتان را ثبت کنید',
+                      style: TextStyle(fontSize: 11.5),
+                    ),
+                    onChanged: (v) async {
+                      if (v) {
+                        final ok = await reminder.requestPermission();
+                        if (!ok) {
+                          if (context.mounted) {
+                            showSnack(context,
+                                'اجازه‌ی اعلان داده نشد؛ از تنظیمات اندروید آن را فعال کنید',
+                                error: true);
+                          }
+                          return;
+                        }
+                      }
+                      await repo
+                          .updateSettings(s.copyWith(dailyReminder: v));
+                    },
+                  ),
+                  if (s.dailyReminder) ...[
+                    Divider(color: Theme.of(context).dividerColor),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.schedule_rounded, size: 20),
+                      title: const Text('ساعت یادآوری',
+                          style: TextStyle(fontSize: 13.5)),
+                      subtitle: Text(
+                        Fmt.toFaDigits(
+                            '${s.reminderHour.toString().padLeft(2, '0')}:'
+                            '${s.reminderMinute.toString().padLeft(2, '0')}'),
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      onTap: () async {
+                        final t = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay(
+                              hour: s.reminderHour, minute: s.reminderMinute),
+                        );
+                        if (t == null || !context.mounted) return;
+                        await repo.updateSettings(s.copyWith(
+                            reminderHour: t.hour, reminderMinute: t.minute));
+                      },
+                    ),
+                    Divider(color: Theme.of(context).dividerColor),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.send_rounded, size: 20),
+                      title: const Text('ارسال اعلان آزمایشی',
+                          style: TextStyle(fontSize: 13.5)),
+                      subtitle: const Text('مطمئن شوید اعلان نمایش داده می‌شود',
+                          style: TextStyle(fontSize: 11.5)),
+                      onTap: () async {
+                        try {
+                          await reminder.showNow(
+                              title: 'تست یادآور پول‌لند',
+                              body: 'اگر این پیام را می‌بینید، اعلان درست کار می‌کند ✓');
+                        } catch (_) {
+                          if (context.mounted) {
+                            showSnack(context, 'ارسال اعلان ناموفق بود',
+                                error: true);
+                          }
+                        }
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+
           // ---------- درباره ----------
           const SectionTitle('درباره', icon: Icons.info_outline_rounded),
           CardBox(
@@ -288,7 +374,9 @@ class SettingsPage extends StatelessWidget {
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6),
                 Text(
-                  'نسخه ۱.۱.۰ • نرم‌افزار آزاد (MIT)\nحسابداری ساده و آفلاین برای فروشندگان VPN.\nهمه‌ی داده‌ها فقط روی همین دستگاه ذخیره می‌شود.',
+                  'نسخه ۱.۲.۰ • نرم‌افزار آزاد (MIT)\nحسابداری ساده و آفلاین برای فروشندگان VPN.\nهمه‌ی داده‌ها فقط روی همین دستگاه ذخیره می‌شود.\n'
+                      'بخش «شخصی» برای حسابداریِ شخصی شماست و در سودِ کسب‌وکار '
+                      'لحاظ نمی‌شود.',
                   style: TextStyle(
                       fontSize: 11.5, height: 1.9, color: onSurface.withValues(alpha: 0.65)),
                 ),
@@ -626,12 +714,18 @@ class RatesPage extends StatelessWidget {
 }
 
 /// ---------- صفحه‌ی دسته‌بندی‌ها ----------
-class CategoriesPage extends StatelessWidget {
+class CategoriesPage extends StatefulWidget {
   const CategoriesPage({super.key});
 
   @override
+  State<CategoriesPage> createState() => _CategoriesPageState();
+}
+
+class _CategoriesPageState extends State<CategoriesPage> {
+  TxnScope _scope = TxnScope.business;
+
+  @override
   Widget build(BuildContext context) {
-    final repo = context.watch<AppRepository>();
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -641,18 +735,38 @@ class CategoriesPage extends StatelessWidget {
             tabs: [Tab(text: 'درآمد'), Tab(text: 'هزینه')],
           ),
         ),
-        body: TabBarView(
+        body: Column(
           children: [
-            _list(context, repo, TxnKind.income),
-            _list(context, repo, TxnKind.expense),
+            const SizedBox(height: 10),
+            SegmentedButton<TxnScope>(
+              segments: [
+                for (final sc in TxnScope.values)
+                  ButtonSegment(value: sc, label: Text(sc.label)),
+              ],
+              selected: {_scope},
+              onSelectionChanged: (s) => setState(() => _scope = s.first),
+              style: SegmentedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                textStyle: const TextStyle(fontSize: 12),
+              ),
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _list(context, TxnKind.income),
+                  _list(context, TxnKind.expense),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _list(BuildContext context, AppRepository repo, TxnKind kind) {
-    final list = repo.categoriesOf(kind);
+  Widget _list(BuildContext context, TxnKind kind) {
+    final repo = context.watch<AppRepository>();
+    final list = repo.categoriesOf(kind, scope: _scope);
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
       children: [
@@ -737,7 +851,9 @@ class CategoriesPage extends StatelessWidget {
                 ],
               ),
             );
-            if (res != null && res.isNotEmpty) await repo.addCategory(res, kind);
+            if (res != null && res.isNotEmpty) {
+              await repo.addCategory(res, kind, scope: _scope);
+            }
           },
           icon: const Icon(Icons.add_rounded, size: 18),
           label: const Text('افزودن دسته'),

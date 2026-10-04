@@ -2,7 +2,7 @@ name: poolland
 description: "پول‌لند — دفتر حسابداری ساده و آفلاین برای فروشندگان VPN: مشتری‌ها، اشتراک‌ها، بدهکار/بستانکار، درآمد و هزینه (چند ارزی)"
 publish_to: 'none'
 
-version: 1.1.0+2
+version: 1.2.0+3
 
 environment:
   sdk: ^3.13.0
@@ -31,6 +31,10 @@ dependencies:
   # تاریخ شمسی و قالب‌بندی اعداد
   shamsi_date: ^1.1.1
   intl: ^0.20.3
+
+  # اعلانِ یادآور روزانه + منطقه‌ی زمانی (برای زمان‌بندی دقیق)
+  flutter_local_notifications: ^22.3.1
+  timezone: ^0.11.1
 
   # ابزارها
   uuid: ^4.6.0

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show ChangeNotifier;
 
 import '../core/jalali_utils.dart';
 import '../core/money.dart';
+import '../core/notifications/notify.dart';
 import '../core/sms/bank_rules.dart';
 import '../core/sms/sms_models.dart';
 import '../core/sms/sms_parser.dart';
@@ -36,6 +37,19 @@ class AppRepository extends ChangeNotifier {
   List<Category> categories = [];
   List<Plan> plans = [];
 
+  // ---- حسابداری شخصی ----
+  List<Budget> budgets = [];
+  List<RecurringRule> recurringRules = [];
+  List<QuickExpense> quickExpenses = [];
+
+  /// فیلتر حوزه‌ی نمایش در رابط کاربری (null = همه)
+  TxnScope? scopeFilter;
+
+  void setScopeFilter(TxnScope? scope) {
+    scopeFilter = scope;
+    notifyListeners();
+  }
+
   // ---- پیامک بانکی ----
   List<ParsedSms> smsSuggestions = [];
   List<BankRule> smsRules = [];
@@ -60,6 +74,9 @@ class AppRepository extends ChangeNotifier {
     categories = s.loadCategories();
     plans = s.loadPlans();
     smsRules = s.loadSmsRules();
+    budgets = s.loadBudgets();
+    recurringRules = s.loadRecurring();
+    quickExpenses = s.loadQuickExpenses();
     _syncGlobals();
   }
 
@@ -113,8 +130,10 @@ class AppRepository extends ChangeNotifier {
 
   String categoryName(String? id) => categoryById(id)?.name ?? 'بدون دسته';
 
-  List<Category> categoriesOf(TxnKind kind) =>
-      categories.where((c) => c.kind == kind).toList();
+  List<Category> categoriesOf(TxnKind kind, {TxnScope? scope}) =>
+      categories
+          .where((c) => c.kind == kind && c.scope == (scope ?? TxnScope.business))
+          .toList();
 
   List<Subscription> subsOfCustomer(String customerId) =>
       subscriptions.where((s) => s.customerId == customerId).toList()
@@ -127,11 +146,22 @@ class AppRepository extends ChangeNotifier {
 
   Balances get totals => Ledger.totals(customers, transactions);
 
-  Summary summary({DateTime? from, DateTime? to}) =>
-      Ledger.summarize(transactions, from: from, to: to);
+  /// تراکنش‌های یک حوزه‌ی مشخص (اگر null باشد، همه)
+  List<Txn> scopeTxns(TxnScope? scope) => scope == null
+      ? transactions
+      : transactions.where((t) => t.scope == scope).toList();
 
-  List<MonthPoint> series({int months = 6}) =>
-      Ledger.monthlySeries(transactions, months: months);
+  /// تراکنش‌های کسب‌وکار — یعنی همه به‌جز موارد «شخصی».
+  /// این مبنای تمام محاسبات کسب‌وکار است تا هزینه‌های شخصی
+  /// سودِ فروش وی‌پی‌ان را خراب نکند.
+  List<Txn> get businessTxns =>
+      transactions.where((t) => t.scope != TxnScope.personal).toList();
+
+  Summary summary({DateTime? from, DateTime? to, TxnScope? scope}) =>
+      Ledger.summarize(scopeTxns(scope), from: from, to: to, scope: scope);
+
+  List<MonthPoint> series({int months = 6, TxnScope? scope}) =>
+      Ledger.monthlySeries(scopeTxns(scope), months: months, scope: scope);
 
   List<Subscription> get alerts =>
       Ledger.alerts(subscriptions, reminderDays: settings.reminderDays);
@@ -139,10 +169,11 @@ class AppRepository extends ChangeNotifier {
   int get activeSubsCount => Ledger.activeCount(subscriptions);
 
   Map<String, double> balancesMap() =>
-      Ledger.balancesByCustomer(customers, transactions);
+      Ledger.balancesByCustomer(customers, businessTxns);
 
-  /// موجودی نقدی/بانکی = موجودی اولیه + خالص جریان نقدی
-  double get cashBalance => settings.openingCash + summary().netCash;
+  /// موجودی نقدی/بانکی = موجودی اولیه + خالص جریان نقدی (فقط کسب‌وکار)
+  double get cashBalance =>
+      settings.openingCash + Ledger.summarize(businessTxns).netCash;
 
   /// فهرست بدهکارها (به ما بدهکار) مرتب‌شده
   List<MapEntry<Customer, double>> debtorsList() {
@@ -330,18 +361,20 @@ class AppRepository extends ChangeNotifier {
     );
   }
 
-  String? get defaultIncomeCategoryId {
-    final list = categoriesOf(TxnKind.income);
+  String? get defaultIncomeCategoryId => defaultCategoryId(TxnKind.income);
+
+  String? get defaultExpenseCategoryId => defaultCategoryId(TxnKind.expense);
+
+  /// اولین دسته‌بندی مناسب برای یک نوع/حوزه
+  String? defaultCategoryId(TxnKind kind, {TxnScope scope = TxnScope.business}) {
+    final list = categoriesOf(kind, scope: scope);
     if (list.isEmpty) return null;
-    for (final c in list) {
-      if (c.name.contains('اشتراک')) return c.id;
+    if (kind == TxnKind.income) {
+      for (final c in list) {
+        if (c.name.contains('اشتراک')) return c.id;
+      }
     }
     return list.first.id;
-  }
-
-  String? get defaultExpenseCategoryId {
-    final list = categoriesOf(TxnKind.expense);
-    return list.isEmpty ? null : list.first.id;
   }
 
   // ---------------- تراکنش‌ها ----------------
@@ -349,6 +382,7 @@ class AppRepository extends ChangeNotifier {
     required TxnKind kind,
     required double amount,
     required String currency,
+    TxnScope scope = TxnScope.business,
     required DateTime date,
     String? categoryId,
     String? customerId,
@@ -368,6 +402,7 @@ class AppRepository extends ChangeNotifier {
         subscriptionId: subscriptionId,
         credit: credit,
         note: note,
+        scope: scope,
         createdAt: DateTime.now(),
       );
 
@@ -386,6 +421,144 @@ class AppRepository extends ChangeNotifier {
   Future<void> deleteTxn(String id) async {
     await store.deleteTxn(id);
     await reload();
+  }
+
+  // ================= حسابداری شخصی =================
+
+  /// بازه‌ی ماه شمسیِ جاری (برای بودجه و نمودار ماهانه)
+  static DateTimeRangeOfMonth monthOf(DateTime d) {
+    final j = J.of(d);
+    final start = J.toDate(j.year, j.month, 1);
+    final end = J.endOfDay(J.addDays(J.addMonths(start, 1), -1));
+    return DateTimeRangeOfMonth(start: start, end: end, year: j.year, month: j.month);
+  }
+
+  /// وضعیت مصرف همه‌ی بودجه‌ها در ماه جاری
+  List<BudgetUsage> budgetUsages({DateTime? now}) {
+    final range = monthOf(now ?? DateTime.now());
+    return budgets.map((b) {
+      final cat = categories.where((c) => c.id == b.categoryId).firstOrNull;
+      return BudgetUsage(
+        budget: b,
+        categoryName: cat?.name ?? 'دسته حذف‌شده',
+        spent: Ledger.spentIn(
+          transactions,
+          b.categoryId,
+          from: range.start,
+          to: range.end,
+        ),
+      );
+    }).toList()
+      ..sort((a, b) => b.ratio.compareTo(a.ratio));
+  }
+
+  Future<void> addBudget(Budget b) async {
+    budgets = [...budgets, b];
+    await store.putBudget(b);
+    notifyListeners();
+  }
+
+  Future<void> updateBudget(Budget b) async {
+    budgets = budgets.map((e) => e.id == b.id ? b : e).toList();
+    await store.putBudget(b);
+    notifyListeners();
+  }
+
+  Future<void> deleteBudget(String id) async {
+    budgets = budgets.where((e) => e.id != id).toList();
+    await store.deleteBudget(id);
+    notifyListeners();
+  }
+
+  Future<void> addRecurring(RecurringRule r) async {
+    recurringRules = [...recurringRules, r];
+    await store.putRecurring(r);
+    notifyListeners();
+  }
+
+  Future<void> updateRecurring(RecurringRule r) async {
+    recurringRules =
+        recurringRules.map((e) => e.id == r.id ? r : e).toList();
+    await store.putRecurring(r);
+    notifyListeners();
+  }
+
+  Future<void> deleteRecurring(String id) async {
+    recurringRules = recurringRules.where((e) => e.id != id).toList();
+    await store.deleteRecurring(id);
+    notifyListeners();
+  }
+
+  /// ثبت خودکارِ تراکنش‌های تکرارشونده‌ای که سررسیدشان رسیده است.
+  /// تعداد تراکنش‌های ایجادشده را برمی‌گرداند.
+  Future<int> postDueRecurring({DateTime? now}) async {
+    final today = now ?? DateTime.now();
+    var created = 0;
+    for (final r in List<RecurringRule>.from(recurringRules)) {
+      final dues = r.pendingDues(today);
+      if (dues.isEmpty) continue;
+      for (final d in dues) {
+        await store.putTxn(Txn(
+          id: LocalStore.newId(),
+          kind: r.kind,
+          amount: r.amount,
+          currency: r.currency,
+          rateToBase: settings.currency(r.currency).rateToBase,
+          date: d,
+          categoryId: r.categoryId,
+          customerId: r.customerId,
+          note: r.note.isEmpty ? r.title : r.note,
+          scope: r.scope,
+          createdAt: DateTime.now(),
+        ));
+        created++;
+      }
+      final updated = r.copyWith(lastPosted: dues.last);
+      await store.putRecurring(updated);
+      recurringRules = recurringRules
+          .map((e) => e.id == updated.id ? updated : e)
+          .toList();
+    }
+    if (created > 0) {
+      transactions = store.loadTxns()..sort((a, b) => b.date.compareTo(a.date));
+      notifyListeners();
+    }
+    return created;
+  }
+
+  /// ثبت یک هزینه‌ی سریع از روی دکمه‌های داشبورد
+  Future<Txn> addQuickExpense(QuickExpense q, {double? amount, DateTime? date}) {
+    return addTxn(Txn(
+      id: LocalStore.newId(),
+      kind: q.kind,
+      amount: amount ?? q.amount,
+      currency: 'IRT',
+      rateToBase: settings.currency('IRT').rateToBase,
+      date: date ?? DateTime.now(),
+      categoryId: q.categoryId,
+      note: q.label,
+      scope: q.scope,
+      createdAt: DateTime.now(),
+    ));
+  }
+
+  Future<void> addQuickButton(QuickExpense q) async {
+    quickExpenses = [...quickExpenses, q]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    await store.putQuickExpense(q);
+    notifyListeners();
+  }
+
+  Future<void> updateQuickButton(QuickExpense q) async {
+    quickExpenses = (quickExpenses.map((e) => e.id == q.id ? q : e).toList())
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    await store.putQuickExpense(q);
+    notifyListeners();
+  }
+
+  Future<void> deleteQuickButton(String id) async {
+    quickExpenses = quickExpenses.where((e) => e.id != id).toList();
+    await store.deleteQuickExpense(id);
+    notifyListeners();
   }
 
   /// ثبت سریع دریافت/پرداخت برای یک مشتری
@@ -410,20 +583,26 @@ class AppRepository extends ChangeNotifier {
       ));
 
   // ---------------- دسته‌بندی‌ها ----------------
-  Future<void> addCategory(String name, TxnKind kind) async {
-    final list = categoriesOf(kind);
+  Future<void> addCategory(String name, TxnKind kind,
+      {TxnScope scope = TxnScope.business}) async {
+    final list = categoriesOf(kind, scope: scope);
     await store.putCategory(Category(
       id: LocalStore.newId(),
       name: name.trim(),
       kind: kind,
       sortOrder: list.isEmpty ? 0 : list.last.sortOrder + 1,
+      scope: scope,
     ));
     await reload();
   }
 
   Future<void> renameCategory(Category c, String newName) async {
     await store.putCategory(Category(
-        id: c.id, name: newName.trim(), kind: c.kind, sortOrder: c.sortOrder));
+        id: c.id,
+        name: newName.trim(),
+        kind: c.kind,
+        sortOrder: c.sortOrder,
+        scope: c.scope));
     await reload();
   }
 
@@ -463,11 +642,37 @@ class AppRepository extends ChangeNotifier {
 
   // ---------------- تنظیمات ----------------
   Future<void> updateSettings(AppSettings s) async {
+    final reminderChanged = s.dailyReminder != settings.dailyReminder ||
+        s.reminderHour != settings.reminderHour ||
+        s.reminderMinute != settings.reminderMinute;
     settings = s;
     _syncGlobals();
     await store.saveSettings(s);
     notifyListeners();
+    if (reminderChanged) await syncDailyReminder();
   }
+
+  /// فعال/غیرفعال کردن یادآور روزانه بر اساس تنظیمات
+  Future<void> syncDailyReminder() async {
+    if (!reminder.supported) return;
+    try {
+      if (settings.dailyReminder) {
+        await reminder.scheduleDaily(
+          hour: settings.reminderHour,
+          minute: settings.reminderMinute,
+        );
+      } else {
+        await reminder.cancelDaily();
+      }
+    } catch (_) {
+      // اگر اعلان در دسترس نبود، برنامه نباید از کار بیفتد
+    }
+  }
+
+  /// تراکنش‌های قابل‌نمایش با احتساب فیلتر حوزه
+  List<Txn> get visibleTxns => scopeFilter == null
+      ? transactions
+      : transactions.where((t) => t.scope == scopeFilter).toList();
 
   Future<void> upsertCurrency(CurrencyDef def) async {
     final list = [...settings.currencies];
@@ -828,6 +1033,97 @@ class AppRepository extends ChangeNotifier {
       }
     }
 
+    // ---------- داده‌ی نمونه‌ی حسابداری شخصی ----------
+    final personalExp = <String, double>{
+      'خوراک و رستوران': 380000,
+      'حمل‌ونقل و سوخت': 120000,
+      'قبوض (آب، برق، گاز)': 450000,
+      'اینترنت و شارژ موبایل': 200000,
+      'تفریح و سرگرمی': 150000,
+      'خرید شخصی و پوشاک': 600000,
+    };
+    for (final e in personalExp.entries) {
+      final cat = categoriesOf(TxnKind.expense, scope: TxnScope.personal)
+          .where((c) => c.name == e.key)
+          .toList();
+      final count = 2 + rnd.nextInt(4);
+      for (var k = 0; k < count; k++) {
+        await store.putTxn(Txn(
+          id: LocalStore.newId(),
+          kind: TxnKind.expense,
+          amount: e.value * (0.4 + rnd.nextDouble() * 1.2),
+          currency: 'IRT',
+          rateToBase: 1,
+          date: J.addDays(now, -rnd.nextInt(40)),
+          categoryId: cat.isEmpty ? null : cat.first.id,
+          note: e.key,
+          scope: TxnScope.personal,
+          createdAt: now,
+        ));
+      }
+    }
+
+    // حقوق ماهانه (درآمد شخصی)
+    final salaryCat = categoriesOf(TxnKind.income, scope: TxnScope.personal)
+        .where((c) => c.name == 'حقوق')
+        .toList();
+    for (var m = 0; m < 3; m++) {
+      await store.putTxn(Txn(
+        id: LocalStore.newId(),
+        kind: TxnKind.income,
+        amount: 25000000,
+        currency: 'IRT',
+        rateToBase: 1,
+        date: J.toDate(J.of(J.addMonths(now, -m)).year,
+            J.of(J.addMonths(now, -m)).month, 28),
+        categoryId: salaryCat.isEmpty ? null : salaryCat.first.id,
+        note: 'حقوق ماهانه',
+        scope: TxnScope.personal,
+        createdAt: now,
+      ));
+    }
+
+    // یک بودجه‌ی نمونه برای خوراک
+    final foodCat = categoriesOf(TxnKind.expense, scope: TxnScope.personal)
+        .where((c) => c.name.contains('خوراک'))
+        .toList();
+    if (foodCat.isNotEmpty) {
+      await store.putBudget(Budget(
+        id: LocalStore.newId(),
+        categoryId: foodCat.first.id,
+        limit: 3000000,
+      ));
+    }
+
+    // یک قانونِ تکرارشونده‌ی نمونه (از ماه قبل شروع شده)
+    final rentCat = categoriesOf(TxnKind.expense, scope: TxnScope.personal)
+        .where((c) => c.name.contains('مسکن'))
+        .toList();
+    await store.putRecurring(RecurringRule(
+      id: LocalStore.newId(),
+      title: 'اجاره خانه',
+      amount: 8000000,
+      categoryId: rentCat.isEmpty ? null : rentCat.first.id,
+      period: RecurringPeriod.monthly,
+      dayOfMonth: 5,
+      startDate: J.addMonths(now, -1),
+    ));
+
     await reload();
   }
+}
+
+/// بازه‌ی یک ماه شمسی
+class DateTimeRangeOfMonth {
+  final DateTime start;
+  final DateTime end;
+  final int year;
+  final int month;
+
+  const DateTimeRangeOfMonth({
+    required this.start,
+    required this.end,
+    required this.year,
+    required this.month,
+  });
 }

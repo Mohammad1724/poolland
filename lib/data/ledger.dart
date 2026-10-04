@@ -98,9 +98,11 @@ class Ledger {
     String? customerId,
     String? categoryId,
     String? search,
+    TxnScope? scope,
   }) {
     return txns.where((t) {
       if (!inRange(t.date, from, to)) return false;
+      if (scope != null && t.scope != scope) return false;
       if (kind != null && t.kind != kind) return false;
       if (customerId != null && t.customerId != customerId) return false;
       if (categoryId != null && t.categoryId != categoryId) return false;
@@ -116,7 +118,7 @@ class Ledger {
   }
 
   static Summary summarize(Iterable<Txn> txns,
-      {DateTime? from, DateTime? to, String? customerId}) {
+      {DateTime? from, DateTime? to, String? customerId, TxnScope? scope}) {
     double income = 0,
         expense = 0,
         refunds = 0,
@@ -124,7 +126,13 @@ class Ledger {
         incomeCash = 0,
         expenseCash = 0;
     var count = 0;
-    for (final t in filter(txns, from: from, to: to, customerId: customerId)) {
+    for (final t in filter(
+      txns,
+      from: from,
+      to: to,
+      customerId: customerId,
+      scope: scope,
+    )) {
       final v = base(t);
       count++;
       switch (t.kind) {
@@ -247,6 +255,7 @@ class Ledger {
     List<Txn> txns, {
     int months = 6,
     DateTime? endMonth,
+    TxnScope? scope,
   }) {
     final end = endMonth ?? DateTime.now();
     final start = J.startOfMonth(J.addMonths(end, -(months - 1)));
@@ -254,7 +263,7 @@ class Ledger {
     for (var i = 0; i < months; i++) {
       final mStart = J.addMonths(start, i);
       final mEnd = J.endOfMonth(mStart);
-      final s = summarize(txns, from: mStart, to: mEnd);
+      final s = summarize(txns, from: mStart, to: mEnd, scope: scope);
       points.add(MonthPoint(monthStart: mStart, income: s.income, expense: s.expense));
     }
     return points;
@@ -267,10 +276,12 @@ class Ledger {
     DateTime? from,
     DateTime? to,
     TxnKind? kind,
+    TxnScope? scope,
+    bool? personalOnly,
   }) {
     final names = {for (final c in categories) c.id: c.name};
     final out = <String, double>{};
-    for (final t in filter(txns, from: from, to: to, kind: kind)) {
+    for (final t in filter(txns, from: from, to: to, kind: kind, scope: scope)) {
       if (!t.kind.isProfitKind) continue;
       final name = t.categoryId == null ? 'بدون دسته' : (names[t.categoryId] ?? 'بدون دسته');
       out[name] = (out[name] ?? 0) + base(t);
@@ -284,9 +295,10 @@ class Ledger {
     DateTime? from,
     DateTime? to,
     TxnKind? kind,
+    TxnScope? scope,
   }) {
     final out = <String, double>{};
-    for (final t in filter(txns, from: from, to: to, kind: kind)) {
+    for (final t in filter(txns, from: from, to: to, kind: kind, scope: scope)) {
       out[t.currency] = (out[t.currency] ?? 0) + t.amount;
     }
     return out;
@@ -299,10 +311,17 @@ class Ledger {
     DateTime? from,
     DateTime? to,
     int limit = 5,
+    TxnScope? scope,
   }) {
     final byId = {for (final c in customers) c.id: c};
     final sums = <String, double>{};
-    for (final t in filter(txns, from: from, to: to, kind: TxnKind.income)) {
+    for (final t in filter(
+      txns,
+      from: from,
+      to: to,
+      kind: TxnKind.income,
+      scope: scope,
+    )) {
       final id = t.customerId;
       if (id == null || !byId.containsKey(id)) continue;
       sums[id] = (sums[id] ?? 0) + base(t);
@@ -352,4 +371,81 @@ class Ledger {
   /// تاریخ پایان پیشنهادی برای تمدید (ماه‌های شمسی)
   static DateTime suggestEnd(DateTime start, int months) =>
       J.addMonths(start, months);
+
+  /// مجموع خالصِ هزینه‌ها (به ارز پایه) برای یک دسته در یک بازه
+  static double spentIn(
+    List<Txn> txns,
+    String categoryId, {
+    DateTime? from,
+    DateTime? to,
+  }) {
+    var total = 0.0;
+    for (final t in filter(txns, from: from, to: to, kind: TxnKind.expense)) {
+      if (t.categoryId != categoryId) continue;
+      total += base(t);
+    }
+    return total;
+  }
+
+  /// سری روزانه (از [days] روز پیش تا امروز) — برای نمودار روزانه
+  static List<DayPoint> dailySeries(
+    List<Txn> txns, {
+    int days = 30,
+    DateTime? endDay,
+    TxnScope? scope,
+  }) {
+    final end = J.startOfDay(endDay ?? DateTime.now());
+    final start = J.addDays(end, -(days - 1));
+    final points = <DayPoint>[];
+    for (var i = 0; i < days; i++) {
+      final day = J.addDays(start, i);
+      final dayEnd = DateTime(day.year, day.month, day.day, 23, 59, 59, 999);
+      double expense = 0, income = 0;
+      for (final t in filter(txns,
+          from: day, to: dayEnd, kind: TxnKind.expense, scope: scope)) {
+        expense += base(t);
+      }
+      for (final t in filter(txns,
+          from: day, to: dayEnd, kind: TxnKind.income, scope: scope)) {
+        income += base(t);
+      }
+      points.add(DayPoint(day: day, income: income, expense: expense));
+    }
+    return points;
+  }
+
+  /// سری هفتگی (از [weeks] هفته پیش تا این هفته)
+  static List<DayPoint> weeklySeries(
+    List<Txn> txns, {
+    int weeks = 12,
+    DateTime? endDay,
+    TxnScope? scope,
+  }) {
+    final end = J.startOfDay(endDay ?? DateTime.now());
+    final points = <DayPoint>[];
+    for (var i = weeks - 1; i >= 0; i--) {
+      final weekEnd = J.addDays(end, -7 * i);
+      final weekStart = J.addDays(weekEnd, -6);
+      final s = summarize(txns, from: weekStart, to: J.endOfDay(weekEnd), scope: scope);
+      points.add(DayPoint(
+          day: weekStart, income: s.income, expense: s.expense, label: 'هفته'));
+    }
+    return points;
+  }
+}
+
+/// یک نقطه روی نمودار روزانه/هفتگی
+class DayPoint {
+  final DateTime day;
+  final double income;
+  final double expense;
+  final String label;
+
+  const DayPoint({
+    required this.day,
+    required this.income,
+    required this.expense,
+    this.label = 'روز',
+  });
+
 }

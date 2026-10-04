@@ -16,6 +16,7 @@ import 'package:poolland/ui/forms/sell_subscription_page.dart';
 import 'package:poolland/ui/forms/transaction_edit_page.dart';
 import 'package:poolland/ui/home_shell.dart';
 import 'package:poolland/ui/onboarding.dart';
+import 'package:poolland/ui/personal_page.dart';
 import 'package:poolland/ui/reports_page.dart';
 import 'package:poolland/ui/settings_page.dart';
 import 'package:poolland/ui/sms_page.dart';
@@ -75,7 +76,14 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpAndSettle();
 
-    for (final tab in ['مشتری‌ها', 'اشتراک‌ها', 'تراکنش‌ها', 'گزارش‌ها', 'داشبورد']) {
+    for (final tab in [
+      'شخصی',
+      'مشتری‌ها',
+      'اشتراک‌ها',
+      'تراکنش‌ها',
+      'گزارش‌ها',
+      'داشبورد'
+    ]) {
       await tester.tap(find.text(tab).last);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull, reason: 'تب $tab خطا داد');
@@ -98,7 +106,12 @@ void main() {
   });
 
   testWidgets('صفحه‌های اشتراک و تراکنش و گزارش', (tester) async {
-    for (final page in [const SubscriptionsPage(), const TransactionsPage(), const ReportsPage()]) {
+    for (final page in [
+      const PersonalPage(),
+      const SubscriptionsPage(),
+      const TransactionsPage(),
+      const ReportsPage()
+    ]) {
       await tester.pumpWidget(wrap(page));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));

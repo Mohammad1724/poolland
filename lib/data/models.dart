@@ -70,6 +70,11 @@ class AppSettings {
   final bool smsAutoApprove; // ثبت خودکار موارد کاملاً مطمئن
   final int smsLastSyncAt; // آخرین همگام‌سازی (برای به‌روزرسانی افزایشی)
 
+  // ---- یادآور روزانه‌ی ثبت هزینه ----
+  final bool dailyReminder; // یادآور روزانه فعال باشد؟
+  final int reminderHour; // ساعت یادآور (۰ تا ۲۳)
+  final int reminderMinute; // دقیقه‌ی یادآور
+
   const AppSettings({
     this.businessName = 'فروش وی‌پی‌ان من',
     this.baseCurrency = 'IRT',
@@ -84,6 +89,9 @@ class AppSettings {
     this.smsSyncDays = 90,
     this.smsAutoApprove = false,
     this.smsLastSyncAt = 0,
+    this.dailyReminder = false,
+    this.reminderHour = 21,
+    this.reminderMinute = 0,
   });
 
   /// ارزهای پیش‌فرض: تومان (پایه) + ارزهای رایج برای فروشنده‌ی VPN
@@ -120,6 +128,9 @@ class AppSettings {
     int? smsSyncDays,
     bool? smsAutoApprove,
     int? smsLastSyncAt,
+    bool? dailyReminder,
+    int? reminderHour,
+    int? reminderMinute,
   }) =>
       AppSettings(
         businessName: businessName ?? this.businessName,
@@ -135,6 +146,9 @@ class AppSettings {
         smsSyncDays: smsSyncDays ?? this.smsSyncDays,
         smsAutoApprove: smsAutoApprove ?? this.smsAutoApprove,
         smsLastSyncAt: smsLastSyncAt ?? this.smsLastSyncAt,
+        dailyReminder: dailyReminder ?? this.dailyReminder,
+        reminderHour: reminderHour ?? this.reminderHour,
+        reminderMinute: reminderMinute ?? this.reminderMinute,
       );
 
   Map<String, dynamic> toMap() => {
@@ -151,6 +165,9 @@ class AppSettings {
         'smsSyncDays': smsSyncDays,
         'smsAutoApprove': smsAutoApprove,
         'smsLastSyncAt': smsLastSyncAt,
+        'dailyReminder': dailyReminder,
+        'reminderHour': reminderHour,
+        'reminderMinute': reminderMinute,
       };
 
   factory AppSettings.fromMap(Map map) => AppSettings(
@@ -170,7 +187,27 @@ class AppSettings {
         smsSyncDays: (map['smsSyncDays'] as num?)?.toInt() ?? 90,
         smsAutoApprove: map['smsAutoApprove'] as bool? ?? false,
         smsLastSyncAt: (map['smsLastSyncAt'] as num?)?.toInt() ?? 0,
+        dailyReminder: map['dailyReminder'] as bool? ?? false,
+        reminderHour: (map['reminderHour'] as num?)?.toInt() ?? 21,
+        reminderMinute: (map['reminderMinute'] as num?)?.toInt() ?? 0,
       );
+}
+
+/// ----- حوزه‌ی تراکنش: کسب‌وکار یا زندگی شخصی -----
+enum TxnScope {
+  business, // مربوط به کسب‌وکار (فروش وی‌پی‌ان)
+  personal; // مربوط به زندگی شخصی
+
+  String get label => switch (this) {
+        TxnScope.business => 'کسب‌وکار',
+        TxnScope.personal => 'شخصی',
+      };
+
+  /// برای نمایش در فرم‌ها
+  String get hint => switch (this) {
+        TxnScope.business => 'در سود و زیان کسب‌وکار حساب می‌شود',
+        TxnScope.personal => 'در سود کسب‌وکار لحاظ نمی‌شود',
+      };
 }
 
 /// ----- دسته‌بندی درآمد/هزینه -----
@@ -179,16 +216,23 @@ class Category {
   final String name;
   final TxnKind kind; // فقط income و expense معنی دارند
   final int sortOrder;
+  final TxnScope scope; // این دسته مربوط به کسب‌وکار است یا زندگی شخصی؟
 
   const Category({
     required this.id,
     required this.name,
     required this.kind,
     this.sortOrder = 0,
+    this.scope = TxnScope.business,
   });
 
-  Map<String, dynamic> toMap() =>
-      {'id': id, 'name': name, 'kind': kind.name, 'sortOrder': sortOrder};
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'name': name,
+        'kind': kind.name,
+        'sortOrder': sortOrder,
+        'scope': scope.name,
+      };
 
   factory Category.fromMap(Map map) => Category(
         id: '${map['id']}',
@@ -196,6 +240,8 @@ class Category {
         kind: TxnKind.values.firstWhere((k) => k.name == map['kind'],
             orElse: () => TxnKind.expense),
         sortOrder: (map['sortOrder'] as num?)?.toInt() ?? 0,
+        scope: TxnScope.values.firstWhere((v) => v.name == map['scope'],
+            orElse: () => TxnScope.business),
       );
 }
 
@@ -508,6 +554,7 @@ class Txn {
   final String? customerId;
   final String? subscriptionId;
   final bool credit; // برای درآمد/هزینه: true یعنی «نسیه / روی حساب»
+  final TxnScope scope; // کسب‌وکار یا شخصی (سود کسب‌وکار فقط شامل business می‌شود)
   final String note;
   final DateTime createdAt;
 
@@ -522,6 +569,7 @@ class Txn {
     this.customerId,
     this.subscriptionId,
     this.credit = false,
+    this.scope = TxnScope.business,
     this.note = '',
     required this.createdAt,
   });
@@ -538,6 +586,7 @@ class Txn {
     String? customerId,
     String? subscriptionId,
     bool? credit,
+    TxnScope? scope,
     String? note,
     bool clearCustomer = false,
     bool clearCategory = false,
@@ -554,6 +603,7 @@ class Txn {
         customerId: clearCustomer ? null : (customerId ?? this.customerId),
         subscriptionId: clearSubscription ? null : (subscriptionId ?? this.subscriptionId),
         credit: credit ?? this.credit,
+        scope: scope ?? this.scope,
         note: note ?? this.note,
         createdAt: createdAt,
       );
@@ -569,6 +619,7 @@ class Txn {
         'customerId': customerId,
         'subscriptionId': subscriptionId,
         'credit': credit,
+        'scope': scope.name,
         'note': note,
         'createdAt': createdAt.millisecondsSinceEpoch,
       };
@@ -585,6 +636,8 @@ class Txn {
         customerId: map['customerId'] as String?,
         subscriptionId: map['subscriptionId'] as String?,
         credit: map['credit'] as bool? ?? false,
+        scope: TxnScope.values.firstWhere((v) => v.name == map['scope'],
+            orElse: () => TxnScope.business),
         note: '${map['note'] ?? ''}',
         createdAt: DateTime.fromMillisecondsSinceEpoch(
             (map['createdAt'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch),
@@ -606,4 +659,401 @@ extension SubStatusX on SubStatus {
         SubStatus.expiringSoon => const Color(0xFFF59E0B),
         SubStatus.expired => const Color(0xFFDC2626),
       };
+}
+
+/// ============================================================
+///  حسابداری شخصی
+/// ============================================================
+
+/// ----- بودجه‌ی ماهانه برای یک دسته‌بندی -----
+class Budget {
+  final String id;
+  final String categoryId;
+  final double limit; // سقف ماهانه به ارز پایه
+  final TxnScope scope;
+  final bool enabled;
+
+  const Budget({
+    required this.id,
+    required this.categoryId,
+    required this.limit,
+    this.scope = TxnScope.personal,
+    this.enabled = true,
+  });
+
+  Budget copyWith({
+    String? categoryId,
+    double? limit,
+    TxnScope? scope,
+    bool? enabled,
+  }) =>
+      Budget(
+        id: id,
+        categoryId: categoryId ?? this.categoryId,
+        limit: limit ?? this.limit,
+        scope: scope ?? this.scope,
+        enabled: enabled ?? this.enabled,
+      );
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'categoryId': categoryId,
+        'limit': limit,
+        'scope': scope.name,
+        'enabled': enabled,
+      };
+
+  factory Budget.fromMap(Map map) => Budget(
+        id: '${map['id']}',
+        categoryId: '${map['categoryId'] ?? ''}',
+        limit: (map['limit'] as num?)?.toDouble() ?? 0,
+        scope: TxnScope.values.firstWhere((v) => v.name == map['scope'],
+            orElse: () => TxnScope.personal),
+        enabled: map['enabled'] as bool? ?? true,
+      );
+}
+
+/// وضعیت مصرف یک بودجه در ماه جاری
+class BudgetUsage {
+  final Budget budget;
+  final String categoryName;
+  final double spent;
+
+  const BudgetUsage({
+    required this.budget,
+    required this.categoryName,
+    required this.spent,
+  });
+
+  /// نسبت مصرف (۰ تا ۱ و بیشتر)
+  double get ratio => budget.limit <= 0 ? 0 : spent / budget.limit;
+
+  double get remaining => budget.limit - spent;
+
+  bool get isOver => spent > budget.limit;
+
+  /// ۰ = خطر ندارد، ۱ = نزدیک سقف، ۲ = رد کرده
+  int get level => ratio >= 1 ? 2 : (ratio >= 0.8 ? 1 : 0);
+}
+
+/// ----- تراکنش تکرارشونده (اجاره، اینترنت، آبونمان…) -----
+enum RecurringPeriod { monthly, weekly, daily }
+
+extension RecurringPeriodX on RecurringPeriod {
+  String get label => switch (this) {
+        RecurringPeriod.monthly => 'ماهانه',
+        RecurringPeriod.weekly => 'هفتگی',
+        RecurringPeriod.daily => 'روزانه',
+      };
+}
+
+class RecurringRule {
+  final String id;
+  final String title;
+  final TxnKind kind;
+  final TxnScope scope;
+  final double amount;
+  final String currency;
+  final String? categoryId;
+  final String? customerId;
+  final String note;
+
+  final RecurringPeriod period;
+
+  /// روزِ اجرا در ماه شمسی (۱ تا ۳۱) — فقط برای حالت ماهانه
+  final int dayOfMonth;
+
+  final DateTime startDate;
+  final DateTime? endDate;
+  final bool enabled;
+
+  /// آخرین باری که ثبت شده (برای جلوگیری از تکرار)
+  final DateTime? lastPosted;
+
+  const RecurringRule({
+    required this.id,
+    required this.title,
+    this.kind = TxnKind.expense,
+    required this.amount,
+    this.scope = TxnScope.personal,
+    this.currency = 'IRT',
+    this.categoryId,
+    this.customerId,
+    this.note = '',
+    this.period = RecurringPeriod.monthly,
+    this.dayOfMonth = 1,
+    required this.startDate,
+    this.endDate,
+    this.enabled = true,
+    this.lastPosted,
+  });
+
+  RecurringRule copyWith({
+    String? title,
+    TxnKind? kind,
+    double? amount,
+    TxnScope? scope,
+    String? currency,
+    String? categoryId,
+    String? customerId,
+    String? note,
+    RecurringPeriod? period,
+    int? dayOfMonth,
+    DateTime? startDate,
+    DateTime? endDate,
+    bool? enabled,
+    bool clearEndDate = false,
+    DateTime? lastPosted,
+    bool clearLastPosted = false,
+  }) =>
+      RecurringRule(
+        id: id,
+        title: title ?? this.title,
+        kind: kind ?? this.kind,
+        amount: amount ?? this.amount,
+        scope: scope ?? this.scope,
+        currency: currency ?? this.currency,
+        categoryId: categoryId ?? this.categoryId,
+        customerId: customerId ?? this.customerId,
+        note: note ?? this.note,
+        period: period ?? this.period,
+        dayOfMonth: dayOfMonth ?? this.dayOfMonth,
+        startDate: startDate ?? this.startDate,
+        endDate: clearEndDate ? null : (endDate ?? this.endDate),
+        enabled: enabled ?? this.enabled,
+        lastPosted: clearLastPosted ? null : (lastPosted ?? this.lastPosted),
+      );
+
+  // ---------- محاسبه‌ی سررسید ----------
+  static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  /// تعداد روزهای ماه شمسی
+  static int _monthLength(int y, int m) => Jalali(y, m).monthLength;
+
+  /// روزِ اجرا در ماه (با محدود شدن به طول ماه، مثلاً ۳۱ → ۲۹)
+  int _dayIn(int y, int m) {
+    final len = _monthLength(y, m);
+    if (dayOfMonth < 1) return 1;
+    return dayOfMonth > len ? len : dayOfMonth;
+  }
+
+  DateTime _advance(DateTime d) {
+    switch (period) {
+      case RecurringPeriod.daily:
+        return _dateOnly(DateTime(d.year, d.month, d.day + 1));
+      case RecurringPeriod.weekly:
+        return _dateOnly(DateTime(d.year, d.month, d.day + 7));
+      case RecurringPeriod.monthly:
+        final j = Jalali.fromDateTime(d);
+        var y = j.year;
+        var m = j.month + 1;
+        if (m > 12) {
+          m = 1;
+          y += 1;
+        }
+        return Jalali(y, m, _dayIn(y, m)).toDateTime();
+    }
+  }
+
+  /// اولین تاریخ اجرا (با در نظر گرفتن روزِ ماه)
+  DateTime get _firstOccurrence {
+    final start = _dateOnly(startDate);
+    if (period != RecurringPeriod.monthly) return start;
+    final j = Jalali.fromDateTime(start);
+    final candidate = Jalali(j.year, j.month, _dayIn(j.year, j.month)).toDateTime();
+    return candidate.isBefore(start) ? _advance(start) : candidate;
+  }
+
+  /// همه‌ی سررسیدهای این قانون از شروع تا [to]
+  List<DateTime> occurrencesUpTo(DateTime to, {int limit = 600}) {
+    final out = <DateTime>[];
+    final end = _dateOnly(to);
+    final stop = endDate == null ? null : _dateOnly(endDate!);
+    var cur = _firstOccurrence;
+    var guard = 0;
+    while (!cur.isAfter(end) && guard++ < limit) {
+      if (stop != null && cur.isAfter(stop)) break;
+      out.add(cur);
+      cur = _advance(cur);
+    }
+    return out;
+  }
+
+  /// سررسیدهایی که زمان‌شان رسیده ولی هنوز ثبت نشده‌اند
+  List<DateTime> pendingDues(DateTime now) {
+    if (!enabled) return const [];
+    final first = _dateOnly(startDate);
+    final from = lastPosted == null
+        ? first
+        : Jalali.fromDateTime(_dateOnly(DateTime(
+                lastPosted!.year, lastPosted!.month, lastPosted!.day + 1)))
+            .toDateTime();
+    return occurrencesUpTo(now).where((d) => !d.isBefore(from)).toList();
+  }
+
+  /// سررسید بعدی (برای نمایش در رابط کاربری)
+  DateTime? nextDue(DateTime now) {
+    if (!enabled) return null;
+    final from = lastPosted ?? _dateOnly(startDate);
+    final list = occurrencesUpTo(DateTime(now.year, now.month + 1, now.day),
+        limit: 60);
+    for (final d in list) {
+      if (d.isAfter(_dateOnly(from))) return d;
+    }
+    return null;
+  }
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'title': title,
+        'kind': kind.name,
+        'amount': amount,
+        'scope': scope.name,
+        'currency': currency,
+        'categoryId': categoryId,
+        'customerId': customerId,
+        'note': note,
+        'period': period.name,
+        'dayOfMonth': dayOfMonth,
+        'startDate': startDate.millisecondsSinceEpoch,
+        'endDate': endDate?.millisecondsSinceEpoch,
+        'enabled': enabled,
+        'lastPosted': lastPosted?.millisecondsSinceEpoch,
+      };
+
+  factory RecurringRule.fromMap(Map map) => RecurringRule(
+        id: '${map['id']}',
+        title: '${map['title'] ?? ''}',
+        kind: TxnKind.values.firstWhere((k) => k.name == map['kind'],
+            orElse: () => TxnKind.expense),
+        amount: (map['amount'] as num?)?.toDouble() ?? 0,
+        scope: TxnScope.values.firstWhere((v) => v.name == map['scope'],
+            orElse: () => TxnScope.personal),
+        currency: '${map['currency'] ?? 'IRT'}',
+        categoryId: map['categoryId'] as String?,
+        customerId: map['customerId'] as String?,
+        note: '${map['note'] ?? ''}',
+        period: RecurringPeriod.values.firstWhere(
+            (p) => p.name == map['period'],
+            orElse: () => RecurringPeriod.monthly),
+        dayOfMonth: (map['dayOfMonth'] as num?)?.toInt() ?? 1,
+        startDate: DateTime.fromMillisecondsSinceEpoch(
+            (map['startDate'] as num?)?.toInt() ??
+                DateTime.now().millisecondsSinceEpoch),
+        endDate: (map['endDate'] as num?) == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch((map['endDate'] as num).toInt()),
+        enabled: map['enabled'] as bool? ?? true,
+        lastPosted: (map['lastPosted'] as num?) == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(
+                (map['lastPosted'] as num).toInt()),
+      );
+}
+
+/// ----- دکمه‌ی ثبت سریع روی داشبورد -----
+class QuickExpense {
+  final String id;
+  final String label;
+
+  /// اگر صفر باشد، هنگام ثبت مبلغ پرسیده می‌شود
+  final double amount;
+  final TxnKind kind;
+  final TxnScope scope;
+  final String? categoryId;
+
+  /// کدِ آیکون (Icons.xxx.codePoint)
+  final int iconCodePoint;
+  final int sortOrder;
+
+  const QuickExpense({
+    required this.id,
+    required this.label,
+    this.amount = 0,
+    this.kind = TxnKind.expense,
+    this.scope = TxnScope.personal,
+    this.categoryId,
+    this.iconCodePoint = 0xe15b, // Icons.receipt_long_outlined
+    this.sortOrder = 0,
+  });
+
+  bool get hasFixedAmount => amount > 0;
+
+  QuickExpense copyWith({
+    String? label,
+    double? amount,
+    TxnKind? kind,
+    TxnScope? scope,
+    String? categoryId,
+    int? iconCodePoint,
+    int? sortOrder,
+  }) =>
+      QuickExpense(
+        id: id,
+        label: label ?? this.label,
+        amount: amount ?? this.amount,
+        kind: kind ?? this.kind,
+        scope: scope ?? this.scope,
+        categoryId: categoryId ?? this.categoryId,
+        iconCodePoint: iconCodePoint ?? this.iconCodePoint,
+        sortOrder: sortOrder ?? this.sortOrder,
+      );
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'label': label,
+        'amount': amount,
+        'kind': kind.name,
+        'scope': scope.name,
+        'categoryId': categoryId,
+        'iconCodePoint': iconCodePoint,
+        'sortOrder': sortOrder,
+      };
+
+  factory QuickExpense.fromMap(Map map) => QuickExpense(
+        id: '${map['id']}',
+        label: '${map['label'] ?? ''}',
+        amount: (map['amount'] as num?)?.toDouble() ?? 0,
+        kind: TxnKind.values.firstWhere((k) => k.name == map['kind'],
+            orElse: () => TxnKind.expense),
+        scope: TxnScope.values.firstWhere((v) => v.name == map['scope'],
+            orElse: () => TxnScope.personal),
+        categoryId: map['categoryId'] as String?,
+        iconCodePoint: (map['iconCodePoint'] as num?)?.toInt() ?? 0xe15b,
+        sortOrder: (map['sortOrder'] as num?)?.toInt() ?? 0,
+      );
+
+  /// دکمه‌های پیش‌فرضِ حسابداری شخصی
+  static List<QuickExpense> defaults() => [
+        QuickExpense(
+            id: 'q_food',
+            label: 'خوراک',
+            iconCodePoint: 0xf0a6, // Icons.restaurant_outlined
+            sortOrder: 0),
+        QuickExpense(
+            id: 'q_transport',
+            label: 'حمل‌ونقل',
+            iconCodePoint: 0xf8e9, // Icons.directions_bus_outlined
+            sortOrder: 1),
+        QuickExpense(
+            id: 'q_market',
+            label: 'خرید روزانه',
+            iconCodePoint: 0xf7bb, // Icons.shopping_bag_outlined
+            sortOrder: 2),
+        QuickExpense(
+            id: 'q_bill',
+            label: 'قبض',
+            iconCodePoint: 0xf0ac, // Icons.receipt_outlined
+            sortOrder: 3),
+        QuickExpense(
+            id: 'q_cafe',
+            label: 'کافه',
+            iconCodePoint: 0xf0a8, // Icons.local_cafe_outlined
+            sortOrder: 4),
+        QuickExpense(
+            id: 'q_health',
+            label: 'سلامت',
+            iconCodePoint: 0xf0ad, // Icons.local_hospital_outlined
+            sortOrder: 5),
+      ];
 }
