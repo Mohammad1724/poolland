@@ -645,27 +645,41 @@ class AppRepository extends ChangeNotifier {
     final reminderChanged = s.dailyReminder != settings.dailyReminder ||
         s.reminderHour != settings.reminderHour ||
         s.reminderMinute != settings.reminderMinute;
+    final wasEnabled = settings.dailyReminder;
     settings = s;
     _syncGlobals();
     await store.saveSettings(s);
     notifyListeners();
-    if (reminderChanged) await syncDailyReminder();
+    if (!reminderChanged) return;
+    if (s.dailyReminder) {
+      await scheduleDailyReminder();
+    } else if (wasEnabled) {
+      await cancelDailyReminder();
+    }
   }
 
-  /// فعال/غیرفعال کردن یادآور روزانه بر اساس تنظیمات
-  Future<void> syncDailyReminder() async {
-    if (!reminder.supported) return;
+  /// زمان‌بندی یادآور روزانه (فقط وقتی کاربر آن را روشن کرده باشد).
+  /// اگر یادآور خاموش است، اصلاً سراغ پلاگینِ اعلان نمی‌رویم تا
+  /// راه‌اندازیِ برنامه سبک و بدون وابستگی باقی بماند.
+  Future<void> scheduleDailyReminder() async {
+    if (!reminder.supported || !settings.dailyReminder) return;
     try {
-      if (settings.dailyReminder) {
-        await reminder.scheduleDaily(
-          hour: settings.reminderHour,
-          minute: settings.reminderMinute,
-        );
-      } else {
-        await reminder.cancelDaily();
-      }
+      await reminder.scheduleDaily(
+        hour: settings.reminderHour,
+        minute: settings.reminderMinute,
+      );
     } catch (_) {
       // اگر اعلان در دسترس نبود، برنامه نباید از کار بیفتد
+    }
+  }
+
+  /// لغو یادآورِ زمان‌بندی‌شده
+  Future<void> cancelDailyReminder() async {
+    if (!reminder.supported) return;
+    try {
+      await reminder.cancelDaily();
+    } catch (_) {
+      // نادیده گرفتن خطاهای احتمالی پلاگین
     }
   }
 

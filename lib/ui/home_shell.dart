@@ -43,8 +43,8 @@ class _HomeShellState extends State<HomeShell> {
       // ثبت خودکارِ تراکنش‌های تکرارشونده‌ی سررسیدشده (اجاره، اینترنت…)
       await repo.postDueRecurring();
 
-      // یادآور روزانه طبق تنظیمات
-      await repo.syncDailyReminder();
+      // یادآور روزانه (فقط اگر کاربر آن را روشن کرده باشد)
+      await repo.scheduleDailyReminder();
 
       // آماده‌سازی گیرنده‌ی پیامک و همگام‌سازی اولیه (فقط اندروید)
       repo.initSms();

@@ -340,13 +340,23 @@ class _BudgetTile extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: pct,
-                minHeight: 7,
-                backgroundColor: onSurface.withValues(alpha: 0.08),
-                valueColor: AlwaysStoppedAnimation<Color>(color),
+            // نوار پیشرفتِ ساده و بدون انیمیشن (باتری کمتری مصرف می‌کند)
+            Container(
+              height: 7,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: onSurface.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: FractionallySizedBox(
+                alignment: Alignment.centerRight,
+                widthFactor: pct < 0 ? 0 : (pct > 1 ? 1 : pct),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 6),

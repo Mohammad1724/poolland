@@ -72,9 +72,9 @@ void main() {
 
   testWidgets('پوسته‌ی اصلی: جابه‌جایی بین تب‌ها', (tester) async {
     await tester.pumpWidget(wrap(const HomeShell()));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(tester.takeException(), isNull);
-    await tester.pumpAndSettle();
 
     for (final tab in [
       'شخصی',
@@ -85,7 +85,8 @@ void main() {
       'داشبورد'
     ]) {
       await tester.tap(find.text(tab).last);
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       expect(tester.takeException(), isNull, reason: 'تب $tab خطا داد');
     }
   });
