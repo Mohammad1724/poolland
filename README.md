@@ -114,12 +114,14 @@ flutter run                    # اجرا روی گوشی/شبیه‌ساز
 flutter build apk --release    # ساخت فایل APK
 ```
 
-### ۳) نسخه‌ی وب
-```bash
-flutter build web --release --base-href=/poolland/
-```
-خروجی در `build/web` است و می‌توانی روی GitHub Pages منتشرش کنی
-(وورک‌فلوی آماده در `.github/workflows/pages.yml`).
+### ۳) نسخه‌ی وب (قابل نصب روی گوشی مثل اپ)
+نسخه‌ی وب به‌صورت خودکار روی شاخه‌ی `gh-pages` ساخته و به‌روز می‌شود.
+برای فعال‌سازی یک‌باره: **Settings → Pages → Source: «Deploy from a branch» → Branch: `gh-pages` / root → Save**
+
+آدرس نهایی: `https://mohammad1724.github.io/poolland/`
+
+> بیلد وب با `--no-web-resources-cdn` ساخته می‌شود؛ یعنی هیچ فایلی از CDN گوگل (gstatic) بارگذاری نمی‌شود
+> و روی اینترنت ایران بدون مشکل باز می‌شود.
 
 ---
 

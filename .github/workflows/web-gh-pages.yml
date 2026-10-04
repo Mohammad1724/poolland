@@ -24,7 +24,7 @@ jobs:
         run: flutter pub get
 
       - name: ساخت نسخه‌ی وب
-        run: flutter build web --release --base-href=/poolland/
+        run: flutter build web --release --base-href=/poolland/ --no-web-resources-cdn
 
       - name: افزودن .nojekyll
         run: |
