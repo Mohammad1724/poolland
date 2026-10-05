@@ -902,12 +902,16 @@ class AppRepository extends ChangeNotifier {
 
   /// داده‌ی نمونه برای تست سریع و دموی گیت‌هاب
   Future<void> loadDemoData() async {
+    // تنظیماتی که کاربر وارد کرده (از جمله setupDone و موجودی اولیه) را
+    // هنگام جایگزینی تراکنش‌ها با داده‌ی نمونه حفظ می‌کنیم.
+    final settingsToKeep = settings;
     await store.clearAll();
+    await store.saveSettings(settingsToKeep);
 
-    // همگام‌سازی حافظه با دیتابیس: clearAll() همه چیز را پاک می‌کند و
+    // همگام‌سازی حافظه با دیتابیس: clearAll() داده‌ها را پاک می‌کند و
     // دسته‌ها و پلن‌های پیش‌فرض با شناسه‌ی جدید ساخته می‌شوند.
-    // بدون این reload، فهرست‌های درون‌حافظه‌ای (plans/customers/categories)
-    // هنوز به رکوردهای حذف‌شده اشاره می‌کنند و تراکنش‌های یتیم می‌سازند.
+    // بدون این reload، فهرست‌های درون‌حافظه‌ای هنوز به رکوردهای حذف‌شده
+    // اشاره می‌کنند و تراکنش‌های یتیم می‌سازند.
     await reload();
 
     final rnd = Random(1405);

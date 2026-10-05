@@ -26,15 +26,23 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   Future<void> _finish(AppRepository repo, {required bool demo}) async {
+    if (_busy) return;
     setState(() => _busy = true);
-    final s = repo.settings.copyWith(
-      businessName: _name.text.trim().isEmpty ? 'فروش وی‌پی‌ان من' : _name.text.trim(),
-      openingCash: parseAmount(_cash.text),
-      setupDone: true,
-    );
-    await repo.updateSettings(s);
-    if (demo) await repo.loadDemoData();
-    if (mounted) setState(() => _busy = false);
+    try {
+      final s = repo.settings.copyWith(
+        businessName: _name.text.trim().isEmpty ? 'فروش وی‌پی‌ان من' : _name.text.trim(),
+        openingCash: parseAmount(_cash.text),
+        setupDone: true,
+      );
+      await repo.updateSettings(s);
+      if (demo) await repo.loadDemoData();
+    } catch (e) {
+      if (mounted) {
+        showSnack(context, 'راه‌اندازی انجام نشد: $e', error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
