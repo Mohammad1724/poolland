@@ -66,18 +66,38 @@ class AppRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  T _readBox<T>(String box, T Function() read) {
+    try {
+      return read();
+    } catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        StateError('Reading Hive box "$box" failed: $error'),
+        stackTrace,
+      );
+    }
+  }
+
   void _loadFrom(LocalStore s) {
-    settings = s.loadSettings();
-    customers = s.loadCustomers()..sort((a, b) => a.name.compareTo(b.name));
-    subscriptions = s.loadSubscriptions()
-      ..sort((a, b) => a.endDate.compareTo(b.endDate));
-    transactions = s.loadTxns()..sort((a, b) => b.date.compareTo(a.date));
-    categories = s.loadCategories();
-    plans = s.loadPlans();
-    smsRules = s.loadSmsRules();
-    budgets = s.loadBudgets();
-    recurringRules = s.loadRecurring();
-    quickExpenses = s.loadQuickExpenses();
+    settings = _readBox('meta/settings', s.loadSettings);
+    customers = _readBox(
+      'customers',
+      () => s.loadCustomers()..sort((a, b) => a.name.compareTo(b.name)),
+    );
+    subscriptions = _readBox(
+      'subscriptions',
+      () => s.loadSubscriptions()
+        ..sort((a, b) => a.endDate.compareTo(b.endDate)),
+    );
+    transactions = _readBox(
+      'transactions',
+      () => s.loadTxns()..sort((a, b) => b.date.compareTo(a.date)),
+    );
+    categories = _readBox('categories', s.loadCategories);
+    plans = _readBox('plans', s.loadPlans);
+    smsRules = _readBox('sms_rules', s.loadSmsRules);
+    budgets = _readBox('budgets', s.loadBudgets);
+    recurringRules = _readBox('recurring', s.loadRecurring);
+    quickExpenses = _readBox('quick_expenses', s.loadQuickExpenses);
     _syncGlobals();
   }
 

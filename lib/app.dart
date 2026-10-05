@@ -166,7 +166,7 @@ class _StartupError extends StatelessWidget {
               ),
               if (error != null) ...[
                 const SizedBox(height: 8),
-                Text(
+                SelectableText(
                   '$error',
                   textAlign: TextAlign.center,
                   style: TextStyle(

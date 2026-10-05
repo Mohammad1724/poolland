@@ -49,23 +49,45 @@ class LocalStore {
 
   static String newId() => _uuid.v4();
 
+  static Future<Box> _openBox(String name) async {
+    try {
+      return await Hive.openBox(name);
+    } catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        StateError('Opening Hive box "$name" failed: $error'),
+        stackTrace,
+      );
+    }
+  }
+
+  static Future<void> _ensureSeeded(LocalStore store) async {
+    try {
+      await store.ensureSeeded();
+    } catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        StateError('Initializing local Hive data failed: $error'),
+        stackTrace,
+      );
+    }
+  }
+
   /// Open storage boxes on mobile or web.
   static Future<LocalStore> open() async {
     await Hive.initFlutter('vpn_ledger');
     final store = LocalStore._(
-      customers: await Hive.openBox(boxCustomers),
-      subscriptions: await Hive.openBox(boxSubscriptions),
-      transactions: await Hive.openBox(boxTransactions),
-      categories: await Hive.openBox(boxCategories),
-      plans: await Hive.openBox(boxPlans),
-      meta: await Hive.openBox(boxMeta),
-      smsState: await Hive.openBox(boxSmsState),
-      smsRules: await Hive.openBox(boxSmsRules),
-      budgets: await Hive.openBox(boxBudgets),
-      recurring: await Hive.openBox(boxRecurring),
-      quickExpenses: await Hive.openBox(boxQuick),
+      customers: await _openBox(boxCustomers),
+      subscriptions: await _openBox(boxSubscriptions),
+      transactions: await _openBox(boxTransactions),
+      categories: await _openBox(boxCategories),
+      plans: await _openBox(boxPlans),
+      meta: await _openBox(boxMeta),
+      smsState: await _openBox(boxSmsState),
+      smsRules: await _openBox(boxSmsRules),
+      budgets: await _openBox(boxBudgets),
+      recurring: await _openBox(boxRecurring),
+      quickExpenses: await _openBox(boxQuick),
     );
-    await store.ensureSeeded();
+    await _ensureSeeded(store);
     return store;
   }
 
@@ -73,19 +95,19 @@ class LocalStore {
   static Future<LocalStore> openAt(String path) async {
     Hive.init(path);
     final store = LocalStore._(
-      customers: await Hive.openBox(boxCustomers),
-      subscriptions: await Hive.openBox(boxSubscriptions),
-      transactions: await Hive.openBox(boxTransactions),
-      categories: await Hive.openBox(boxCategories),
-      plans: await Hive.openBox(boxPlans),
-      meta: await Hive.openBox(boxMeta),
-      smsState: await Hive.openBox(boxSmsState),
-      smsRules: await Hive.openBox(boxSmsRules),
-      budgets: await Hive.openBox(boxBudgets),
-      recurring: await Hive.openBox(boxRecurring),
-      quickExpenses: await Hive.openBox(boxQuick),
+      customers: await _openBox(boxCustomers),
+      subscriptions: await _openBox(boxSubscriptions),
+      transactions: await _openBox(boxTransactions),
+      categories: await _openBox(boxCategories),
+      plans: await _openBox(boxPlans),
+      meta: await _openBox(boxMeta),
+      smsState: await _openBox(boxSmsState),
+      smsRules: await _openBox(boxSmsRules),
+      budgets: await _openBox(boxBudgets),
+      recurring: await _openBox(boxRecurring),
+      quickExpenses: await _openBox(boxQuick),
     );
-    await store.ensureSeeded();
+    await _ensureSeeded(store);
     return store;
   }
 
