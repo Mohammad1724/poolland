@@ -26,26 +26,26 @@ void main() {
     await tmp.delete(recursive: true);
   });
 
-  // ---------------------------------------------------------------- حوزه
+  // ---------------------------------------------------------------- Scope
 
-  test('دسته‌بندی‌های شخصی هنگام راه‌اندازی ساخته می‌شوند', () {
+  test('Personal categories are seeded on startup', () {
     final personal = repo.categoriesOf(TxnKind.expense, scope: TxnScope.personal);
     final income = repo.categoriesOf(TxnKind.income, scope: TxnScope.personal);
     expect(personal, isNotEmpty);
     expect(income, isNotEmpty);
-    // دسته‌های کسب‌وکار جدا هستند
+    // Business categories remain separate.
     final business = repo.categoriesOf(TxnKind.expense);
     for (final c in business) {
       expect(c.scope, TxnScope.business);
     }
   });
 
-  test('دکمه‌های سریع پیش‌فرض ساخته می‌شوند', () {
+  test('Default quick-entry buttons are seeded', () {
     expect(repo.quickExpenses.length, 6);
     expect(repo.quickExpenses.first.scope, TxnScope.personal);
   });
 
-  test('تراکنش‌های شخصی در سود کسب‌وکار لحاظ نمی‌شوند', () async {
+  test('Personal transactions are excluded from business profit', () async {
     final cat = repo
         .categoriesOf(TxnKind.expense, scope: TxnScope.personal)
         .first;
@@ -75,16 +75,16 @@ void main() {
       scope: TxnScope.personal,
     ));
 
-    // سود کسب‌وکار = ۱,۰۰۰,۰۰۰ − ۲۰۰,۰۰۰ (هزینه‌ی شخصی حساب نشده)
+    // Business profit = 1,000,000 − 200,000 (personal expenses are excluded).
     final all = repo.summary();
-    expect(all.profit, closeTo(300000, 0.01)); // همه: ۱۰۰۰۰۰۰-۷۰۰۰۰۰
+    expect(all.profit, closeTo(300000, 0.01)); // Overall profit: 1,000,000 − 700,000.
     final biz = repo.summary(scope: TxnScope.business);
     expect(biz.profit, closeTo(800000, 0.01));
     final per = repo.summary(scope: TxnScope.personal);
     expect(per.expense, closeTo(500000, 0.01));
   });
 
-  test('هزینه‌ی شخصیِ نقدی موجودی صندوق را کم نمی‌کند', () async {
+  test('A personal cash expense does not reduce the business cash balance', () async {
     await repo.updateSettings(repo.settings.copyWith(openingCash: 1000000));
     final before = repo.cashBalance;
     final cat = repo
@@ -101,9 +101,9 @@ void main() {
     expect(repo.cashBalance, closeTo(before, 0.01));
   });
 
-  test('بک‌آپِ قدیمی بدون فیلد scope به‌عنوان کسب‌وکار بار می‌شود', () async {
+  test('Legacy backups without scope default to business', () async {
     final data = store.exportAll();
-    // فیلد scope را از همه‌ی تراکنش‌ها و دسته‌ها حذف می‌کنیم (شبیه نسخه ۱.۱)
+    // Remove scope from all transactions and categories (simulating version 1.1).
     for (final m in data['transactions'] as List) {
       (m as Map).remove('scope');
     }
@@ -121,7 +121,7 @@ void main() {
     }
   });
 
-  test('پشتیبان‌گیری و بازگردانی شامل بودجه و قوانین تکرار است', () async {
+  test('Backup and restore include budgets and recurring rules', () async {
     final cat = repo
         .categoriesOf(TxnKind.expense, scope: TxnScope.personal)
         .first;
@@ -129,7 +129,7 @@ void main() {
     await repo.addBudget(b);
     await repo.addRecurring(RecurringRule(
       id: 'r1',
-      title: 'اجاره',
+      title: 'Rent',
       amount: 3000000,
       startDate: J.toDate(1405, 1, 1),
       dayOfMonth: 5,
@@ -146,12 +146,12 @@ void main() {
     expect(store.loadRecurring().length, 1);
   });
 
-  // ---------------------------------------------------------------- بودجه
+  // ---------------------------------------------------------------- Budgets
 
-  test('محاسبه‌ی مصرف بودجه در ماه جاری', () async {
+  test('Budget usage is calculated for the current month', () async {
     final cat = repo
         .categoriesOf(TxnKind.expense, scope: TxnScope.personal)
-        .firstWhere((c) => c.name.contains('خوراک'));
+        .firstWhere((c) => c.name.contains('Food'));
     await repo.addBudget(Budget(id: 'b1', categoryId: cat.id, limit: 1000000));
 
     final now = DateTime.now();
@@ -173,10 +173,10 @@ void main() {
     expect(usages.first.remaining, closeTo(700000, 0.01));
     expect(usages.first.isOver, isFalse);
     expect(usages.first.level, 0);
-    expect(usages.first.categoryName, contains('خوراک'));
+    expect(usages.first.categoryName, contains('Food'));
   });
 
-  test('عبور از سقف بودجه تشخیص داده می‌شود', () async {
+  test('Exceeding the budget limit is detected', () async {
     final cat = repo
         .categoriesOf(TxnKind.expense, scope: TxnScope.personal)
         .first;
@@ -195,7 +195,7 @@ void main() {
     expect(u.remaining, closeTo(-50000, 0.01));
   });
 
-  test('هزینه‌ی ماهِ قبل در بودجه‌ی این ماه حساب نمی‌شود', () async {
+  test('Last month’s expenses are excluded from this month’s budget', () async {
     final cat = repo
         .categoriesOf(TxnKind.expense, scope: TxnScope.personal)
         .first;
@@ -212,7 +212,7 @@ void main() {
     expect(repo.budgetUsages().first.spent, closeTo(0, 0.01));
   });
 
-  test('حذف بودجه', () async {
+  test('Delete a budget', () async {
     final cat = repo
         .categoriesOf(TxnKind.expense, scope: TxnScope.personal)
         .first;
@@ -223,12 +223,12 @@ void main() {
     expect(store.loadBudgets(), isEmpty);
   });
 
-  // ------------------------------------------------- تکرارشونده‌ها
+  // ------------------------------------------------- Recurring rules
 
-  test('سررسید ماهانه با روزِ مشخص درست محاسبه می‌شود', () {
+  test('Monthly due dates use the selected day', () {
     final r = RecurringRule(
       id: 'r',
-      title: 'اجاره',
+      title: 'Rent',
       amount: 1000,
       startDate: J.toDate(1405, 1, 1),
       dayOfMonth: 5,
@@ -241,10 +241,10 @@ void main() {
     expect(J.of(dues.last).month, 4);
   });
 
-  test('روزِ ۳۱ در ماه‌های ۲۹ و ۳۰ روزه به آخرِ ماه محدود می‌شود', () {
+  test('Day 31 is clamped to the end of shorter months', () {
     final r = RecurringRule(
       id: 'r',
-      title: 'قسط',
+      title: 'Installment',
       amount: 1000,
       startDate: J.toDate(1404, 1, 1),
       dayOfMonth: 31,
@@ -261,7 +261,7 @@ void main() {
     expect(dues.length, 12);
   });
 
-  test('قانونِ غیرفعال هیچ سررسیدی ندارد', () {
+  test('A disabled rule has no due dates', () {
     final r = RecurringRule(
       id: 'r',
       title: 'x',
@@ -273,7 +273,7 @@ void main() {
     expect(r.nextDue(DateTime.now()), isNull);
   });
 
-  test('تاریخ پایان رعایت می‌شود', () {
+  test('The end date is respected', () {
     final r = RecurringRule(
       id: 'r',
       title: 'x',
@@ -287,14 +287,14 @@ void main() {
     expect(dues.last, J.toDate(1405, 3, 1));
   });
 
-  test('ثبت خودکارِ قوانینِ سررسیدشده و عدم تکرار', () async {
+  test('Due rules post automatically without duplication', () async {
     final cat = repo
         .categoriesOf(TxnKind.expense, scope: TxnScope.personal)
         .first;
-    // از دو ماه پیش شروع شده با تکرار ماهانه
+    // Started three months ago with monthly recurrence.
     await repo.addRecurring(RecurringRule(
       id: 'r1',
-      title: 'اجاره',
+      title: 'Rent',
       amount: 3000000,
       startDate: J.addMonths(DateTime.now(), -3),
       dayOfMonth: 1,
@@ -304,11 +304,11 @@ void main() {
 
     final before = repo.transactions.length;
     final n = await repo.postDueRecurring();
-    expect(n, greaterThanOrEqualTo(3)); // ماه‌های گذشته + ماه جاری
+    expect(n, greaterThanOrEqualTo(3)); // Past months plus the current month.
     expect(repo.transactions.length, before + n);
 
-    // هر تراکنش شخصی و با مبلغ درست
-    final posted = repo.transactions.where((t) => t.note.contains('اجاره'));
+    // Each transaction is personal and has the correct amount.
+    final posted = repo.transactions.where((t) => t.note.contains('Rent'));
     expect(posted.length, n);
     for (final t in posted) {
       expect(t.scope, TxnScope.personal);
@@ -316,13 +316,13 @@ void main() {
       expect(t.kind, TxnKind.expense);
     }
 
-    // اجرای دوباره: چیزی اضافه نمی‌شود
+    // Running it again should not add anything.
     final again = await repo.postDueRecurring();
     expect(again, 0);
     expect(repo.transactions.length, before + n);
   });
 
-  test('قانونِ غیرفعال چیزی ثبت نمی‌کند', () async {
+  test('A disabled rule posts nothing', () async {
     await repo.addRecurring(RecurringRule(
       id: 'r1',
       title: 'x',
@@ -334,7 +334,7 @@ void main() {
     expect(n, 0);
   });
 
-  test('حذف قانون تکرارشونده', () async {
+  test('Delete a recurring rule', () async {
     await repo.addRecurring(RecurringRule(
         id: 'r1', title: 'x', amount: 1, startDate: DateTime.now()));
     await repo.deleteRecurring('r1');
@@ -342,11 +342,11 @@ void main() {
     expect(store.loadRecurring(), isEmpty);
   });
 
-  // ------------------------------------------------- ثبت سریع
+  // ------------------------------------------------- Quick entry
 
-  test('ثبت سریع با مبلغ ثابت', () async {
+  test('Quick entry with a fixed amount', () async {
     final q = QuickExpense(
-        id: 'q1', label: 'تاکسی', amount: 50000, iconCodePoint: 0);
+        id: 'q1', label: 'Taxi', amount: 50000, iconCodePoint: 0);
     await repo.addQuickButton(q);
     final before = repo.transactions.length;
     await repo.addQuickExpense(q);
@@ -355,23 +355,23 @@ void main() {
     expect(t.amount, 50000);
     expect(t.scope, TxnScope.personal);
     expect(t.kind, TxnKind.expense);
-    expect(t.note, 'تاکسی');
+    expect(t.note, 'Taxi');
   });
 
-  test('ثبت سریع با مبلغِ لحظه‌ای', () async {
-    final q = QuickExpense(id: 'q1', label: 'ناهار', iconCodePoint: 0);
+  test('Quick entry with an amount entered at the time', () async {
+    final q = QuickExpense(id: 'q1', label: 'Lunch', iconCodePoint: 0);
     expect(q.hasFixedAmount, isFalse);
     final t = await repo.addQuickExpense(q, amount: 120000);
     expect(t.amount, 120000);
   });
 
-  test('دکمه‌ی سریع با درآمد', () async {
+  test('Quick-entry button for income', () async {
     final cat = repo
         .categoriesOf(TxnKind.income, scope: TxnScope.personal)
-        .firstWhere((c) => c.name.contains('حقوق'));
+        .firstWhere((c) => c.name.contains('Salary'));
     final q = QuickExpense(
         id: 'q1',
-        label: 'حقوق',
+        label: 'Salary',
         amount: 20000000,
         kind: TxnKind.income,
         categoryId: cat.id,
@@ -382,18 +382,18 @@ void main() {
     expect(per.income, closeTo(20000000, 0.01));
   });
 
-  test('حذف دکمه‌ی سریع', () async {
+  test('Delete a quick-entry button', () async {
     await repo.addQuickButton(
-        QuickExpense(id: 'q9', label: 'تست', iconCodePoint: 0));
+        QuickExpense(id: 'q9', label: 'Test', iconCodePoint: 0));
     final n = repo.quickExpenses.length;
     await repo.deleteQuickButton('q9');
     expect(repo.quickExpenses.length, n - 1);
     expect(store.loadQuickExpenses().any((e) => e.id == 'q9'), isFalse);
   });
 
-  // ------------------------------------------------- نمودارها
+  // ------------------------------------------------- Charts
 
-  test('سری روزانه ۳۰ نقطه و مجموعِ درست دارد', () async {
+  test('Daily series has 30 points and the correct total', () async {
     final cat = repo
         .categoriesOf(TxnKind.expense, scope: TxnScope.personal)
         .first;
@@ -427,19 +427,19 @@ void main() {
         days: 30, scope: TxnScope.personal);
     expect(daily.length, 30);
     final total = daily.fold<double>(0, (a, p) => a + p.expense);
-    expect(total, closeTo(15000, 0.01)); // تراکنشِ ۶۰ روز پیش داخل بازه نیست
+    expect(total, closeTo(15000, 0.01)); // The transaction from 60 days ago is outside the range.
   });
 
-  test('سری هفتگی تعدادِ درخواستی را برمی‌گرداند', () {
+  test('Weekly series returns the requested number of points', () {
     final weekly = Ledger.weeklySeries(repo.transactions,
         weeks: 12, scope: TxnScope.personal);
     expect(weekly.length, 12);
     for (final p in weekly) {
-      expect(p.label, 'هفته');
+      expect(p.label, 'Week');
     }
   });
 
-  test('نمودار ماهانه با فیلتر حوزه', () async {
+  test('Monthly chart respects the scope filter', () async {
     final cat = repo
         .categoriesOf(TxnKind.expense, scope: TxnScope.personal)
         .first;
@@ -460,9 +460,9 @@ void main() {
         closeTo(0, 0.01));
   });
 
-  // ------------------------------------------------- فیلتر UI
+  // ------------------------------------------------- UI filter
 
-  test('تغییر فیلتر حوزه به رابط کاربری اطلاع می‌دهد', () {
+  test('Changing the scope filter notifies the UI', () {
     var notified = 0;
     repo.addListener(() => notified++);
     repo.setScopeFilter(TxnScope.personal);
@@ -472,7 +472,7 @@ void main() {
     expect(notified, 2);
   });
 
-  test('ماه شمسیِ جاری درست محاسبه می‌شود', () {
+  test('The current Jalali month is calculated correctly', () {
     final r = AppRepository.monthOf(DateTime.now());
     final j = J.of(DateTime.now());
     expect(r.year, j.year);

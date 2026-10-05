@@ -7,7 +7,7 @@ import '../../data/models.dart';
 import '../../data/repository.dart';
 import '../widgets/widgets.dart';
 
-/// مدیریت پلن‌های آماده فروش
+/// Manage saved sales plans
 class PlansPage extends StatelessWidget {
   const PlansPage({super.key});
 
@@ -15,18 +15,18 @@ class PlansPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
     return Scaffold(
-      appBar: AppBar(title: const Text('پلن‌های فروش')),
+      appBar: AppBar(title: const Text('Plans')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.push(
             context, MaterialPageRoute(builder: (_) => const PlanEditPage())),
         icon: const Icon(Icons.add_rounded),
-        label: const Text('پلن جدید'),
+        label: const Text('New plan'),
       ),
       body: repo.plans.isEmpty
           ? const EmptyState(
               icon: Icons.local_offer_outlined,
-              title: 'هنوز پلنی نساخته‌اید',
-              text: 'پلن‌ها قالب‌های آماده فروش هستند (مثلاً «۱ ماهه ۵۰ گیگ»).\nبا ساخت پلن، ثبت فروش چند ثانیه‌ای می‌شود.',
+              title: 'No plans yet',
+              text: 'Plans are reusable sales templates (for example, “1 month, 50 GB”).\nCreate a plan to record a sale in seconds.',
             )
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
@@ -69,7 +69,7 @@ class PlansPage extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const Icon(Icons.chevron_left_rounded, size: 20),
+                      const Icon(Icons.chevron_right_rounded, size: 20),
                     ],
                   ),
                 );
@@ -79,7 +79,7 @@ class PlansPage extends StatelessWidget {
   }
 }
 
-/// افزودن/ویرایش پلن
+/// Add or edit a plan
 class PlanEditPage extends StatefulWidget {
   const PlanEditPage({super.key, this.existing});
 
@@ -144,7 +144,7 @@ class _PlanEditPageState extends State<PlanEditPage> {
     }
     if (!mounted) return;
     Navigator.pop(context);
-    showSnack(context, isEdit ? 'پلن ویرایش شد' : 'پلن اضافه شد');
+    showSnack(context, isEdit ? 'Plan updated' : 'Plan added');
   }
 
   @override
@@ -152,17 +152,17 @@ class _PlanEditPageState extends State<PlanEditPage> {
     final repo = context.watch<AppRepository>();
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEdit ? 'ویرایش پلن' : 'پلن جدید'),
+        title: Text(isEdit ? 'Edit plan' : 'New plan'),
         actions: [
           if (isEdit)
             IconButton(
               icon: const Icon(Icons.delete_outline_rounded),
               onPressed: () async {
                 final ok = await confirmDialog(context,
-                    title: 'حذف پلن',
-                    message: 'این پلن حذف شود؟ (فروش‌های قبلی دست‌نخورده می‌مانند)',
+                    title: 'Delete plan',
+                    message: 'Delete this plan? Existing sales will not be changed.',
                     danger: true,
-                    okLabel: 'حذف');
+                    okLabel: 'Delete');
                 if (!ok) return;
                 await repo.deletePlan(widget.existing!.id);
                 if (!context.mounted) return;
@@ -178,10 +178,10 @@ class _PlanEditPageState extends State<PlanEditPage> {
           children: [
             AppTextField(
               controller: _name,
-              label: 'نام پلن',
-              hint: 'مثلاً: ۱ ماهه ۵۰ گیگ',
+              label: 'Plan name',
+              hint: 'e.g. 1 month, 50 GB',
               icon: Icons.label_outline_rounded,
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'نام را وارد کنید' : null,
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter a name' : null,
             ),
             const SizedBox(height: 14),
             Row(
@@ -189,13 +189,13 @@ class _PlanEditPageState extends State<PlanEditPage> {
               children: [
                 Expanded(
                   child: AmountField(
-                      controller: _price, label: 'قیمت', currency: _currency, validator: (_) => null),
+                      controller: _price, label: 'Price', currency: _currency, validator: (_) => null),
                 ),
                 const SizedBox(width: 8),
                 SizedBox(
                   width: 112,
                   child: SelectField<String>(
-                    label: 'ارز',
+                    label: 'Currency',
                     value: _currency,
                     items: repo.settings.currencies.map((c) => c.code).toList(),
                     labelOf: (c) => Money.symbol(c),
@@ -205,7 +205,7 @@ class _PlanEditPageState extends State<PlanEditPage> {
               ],
             ),
             const SizedBox(height: 18),
-            const Text('مدت اعتبار', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            const Text('Duration', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -215,7 +215,7 @@ class _PlanEditPageState extends State<PlanEditPage> {
                 ),
                 Expanded(
                   child: Center(
-                    child: Text(Fmt.toFaDigits('$_duration'),
+                    child: Text('$_duration',
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                   ),
                 ),
@@ -228,19 +228,19 @@ class _PlanEditPageState extends State<PlanEditPage> {
             const SizedBox(height: 8),
             SegmentedButton<PlanDurationUnit>(
               segments: const [
-                ButtonSegment(value: PlanDurationUnit.month, label: Text('ماه')),
-                ButtonSegment(value: PlanDurationUnit.day, label: Text('روز')),
+                ButtonSegment(value: PlanDurationUnit.month, label: Text('month')),
+                ButtonSegment(value: PlanDurationUnit.day, label: Text('day')),
               ],
               selected: {_unit},
               onSelectionChanged: (s) => setState(() => _unit = s.first),
             ),
             const SizedBox(height: 16),
-            AppTextField(controller: _note, label: 'توضیح (اختیاری)', maxLines: 2),
+            AppTextField(controller: _note, label: 'Description (optional)', maxLines: 2),
             const SizedBox(height: 20),
             FilledButton.icon(
               onPressed: _save,
               icon: const Icon(Icons.check_rounded),
-              label: Text(isEdit ? 'ذخیره' : 'افزودن پلن'),
+              label: Text(isEdit ? 'Save' : 'Add plan'),
             ),
           ],
         ),

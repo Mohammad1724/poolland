@@ -1,13 +1,13 @@
-## چه تغییری دادم؟
+## What changed?
 
 -
 
-## نوع تغییر
-- [ ] افزودن قابلیت
-- [ ] رفع باگ
-- [ ] به‌روزرسانی مستندات / ظاهر
+## Type of change
+- [ ] Feature
+- [ ] Bug fix
+- [ ] Documentation / UI update
 
-## چک‌لیست
-- [ ] `flutter analyze` بدون خطا است
-- [ ] `flutter test` پاس می‌شود
-- [ ] برای قابلیت جدید، تست اضافه کرده‌ام (اگر منطق حسابداری باشد)
+## Checklist
+- [ ] `flutter analyze` reports no issues
+- [ ] `flutter test` passes
+- [ ] Added tests for new features (especially accounting logic)

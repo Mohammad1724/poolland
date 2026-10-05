@@ -6,7 +6,7 @@ import '../../core/jalali_utils.dart';
 import '../../core/money.dart';
 import '../../data/ledger.dart';
 
-/// نمودار ستونی درآمد/هزینه به تفکیک ماه
+/// Monthly income and expense bar chart
 class MonthlyBarChart extends StatelessWidget {
   const MonthlyBarChart({super.key, required this.points, this.height = 190});
 
@@ -110,14 +110,14 @@ class MonthlyBarChart extends StatelessWidget {
   }
 
   String _short(double v) {
-    if (v >= 1000000000) return '${Fmt.toFaDigits((v / 1000000000).toStringAsFixed(1))}م';
-    if (v >= 1000000) return '${Fmt.toFaDigits((v / 1000000).toStringAsFixed(1))}م';
-    if (v >= 1000) return '${Fmt.toFaDigits((v / 1000).toStringAsFixed(0))}ه';
-    return Fmt.toFaDigits(v.toStringAsFixed(0));
+    if (v >= 1000000000) return '${(v / 1000000000).toStringAsFixed(1)}B';
+    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
+    if (v >= 1000) return '${(v / 1000).toStringAsFixed(0)}K';
+    return v.toStringAsFixed(0);
   }
 }
 
-/// نمودار دایره‌ای (سهم دسته‌بندی‌ها)
+/// Pie chart showing category shares
 class CategoryPieChart extends StatelessWidget {
   const CategoryPieChart({super.key, required this.data, this.size = 170});
 
@@ -159,7 +159,7 @@ class CategoryPieChart extends StatelessWidget {
                     color: _palette[i % _palette.length],
                     radius: size * 0.2,
                     showTitle: entries[i].value / total > 0.08,
-                    title: Fmt.percent(entries[i].value / total, persian: true),
+                    title: Fmt.percent(entries[i].value / total, persian: false),
                     titleStyle: const TextStyle(
                         fontFamily: 'Vazirmatn',
                         fontSize: 10,

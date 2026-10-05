@@ -1,4 +1,4 @@
 import 'dart:io';
 
-/// نسخه‌ی موبایل/دسکتاپ
+/// Mobile and desktop implementation.
 bool get platformIsAndroid => Platform.isAndroid;

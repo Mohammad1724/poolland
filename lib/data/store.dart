@@ -4,8 +4,8 @@ import 'package:uuid/uuid.dart';
 import '../core/sms/bank_rules.dart';
 import 'models.dart';
 
-/// لایه‌ی ذخیره‌سازی محلی روی Hive.
-/// سه باکس اصلی + باکس تنظیمات.
+/// Local storage layer built on Hive.
+/// Three primary boxes plus the settings box.
 class LocalStore {
   static const boxCustomers = 'customers';
   static const boxSubscriptions = 'subscriptions';
@@ -49,7 +49,7 @@ class LocalStore {
 
   static String newId() => _uuid.v4();
 
-  /// باز کردن باکس‌ها (روی موبایل و وب)
+  /// Open storage boxes on mobile or web.
   static Future<LocalStore> open() async {
     await Hive.initFlutter('vpn_ledger');
     final store = LocalStore._(
@@ -69,7 +69,7 @@ class LocalStore {
     return store;
   }
 
-  /// باز کردن باکس‌ها در یک مسیر مشخص (برای تست‌ها)
+  /// Open storage boxes at a specific path (for tests).
   static Future<LocalStore> openAt(String path) async {
     Hive.init(path);
     final store = LocalStore._(
@@ -89,7 +89,7 @@ class LocalStore {
     return store;
   }
 
-  /// مقدار اولیه: دسته‌بندی‌های پیش‌فرض و تنظیمات
+  /// Seed default categories, plans, settings, and quick buttons.
   Future<void> ensureSeeded() async {
     if (categories.isEmpty) {
       for (final c in defaultCategories()) {
@@ -106,7 +106,7 @@ class LocalStore {
         await quickExpenses.put(q.id, q.toMap());
       }
     }
-    // مهاجرت: اضافه کردن دسته‌بندی‌های شخصی برای دیتابیس‌های قدیمی
+    // Migration: add personal categories to existing databases.
     await _seedPersonalCategoriesOnce();
     if (!meta.containsKey('settings')) {
       await meta.put('settings', const AppSettings().toMap());
@@ -118,21 +118,21 @@ class LocalStore {
 
   static List<Category> defaultCategories() {
     final income = [
-      'فروش اشتراک',
-      'فروش کانفیگ تک‌کاربره',
-      'تمدید اشتراک',
-      'پشتیبانی و نصب',
-      'فروش اکانت/لایسنس',
+      'Subscription sales',
+      'Single-user configuration sales',
+      'Subscription renewals',
+      'Support and setup',
+      'Account and license sales',
     ];
     final expense = [
-      'خرید سرور / VPS',
-      'دامنه و SSL',
-      'پنل و لایسنس',
-      'تبلیغات و بازاریابی',
-      'کارمزد درگاه پرداخت',
-      'اینترنت و ابزار کار',
-      'حقوق و دستمزد',
-      'سایر هزینه‌ها',
+      'Server / VPS purchase',
+      'Domain and SSL',
+      'Control panel and license',
+      'Advertising and marketing',
+      'Payment gateway fees',
+      'Internet and work tools',
+      'Salaries and wages',
+      'Other expenses',
     ];
     final out = <Category>[];
     var i = 0;
@@ -146,30 +146,30 @@ class LocalStore {
     return out;
   }
 
-  /// دسته‌بندی‌های مخصوص حسابداری شخصی
+  /// Categories for personal finance.
   static List<Category> personalCategories() {
     const expense = <String>[
-      'خوراک و رستوران',
-      'حمل‌ونقل و سوخت',
-      'مسکن و اجاره',
-      'قبوض (آب، برق، گاز)',
-      'اینترنت و شارژ موبایل',
-      'سلامت و درمان',
-      'آموزش',
-      'تفریح و سرگرمی',
-      'خرید شخصی و پوشاک',
-      'هدیه و مناسبت',
-      'ورزش و باشگاه',
-      'سفر و گردش',
-      'سایر هزینه‌های شخصی',
+      'Food and dining',
+      'Transport and fuel',
+      'Housing and rent',
+      'Utilities (water, electricity, gas)',
+      'Internet and mobile top-up',
+      'Health and medical',
+      'Education',
+      'Leisure and entertainment',
+      'Personal shopping and clothing',
+      'Gifts and occasions',
+      'Sports and gym',
+      'Travel and trips',
+      'Other personal expenses',
     ];
     const income = <String>[
-      'حقوق',
-      'درآمد آزاد',
-      'سود سرمایه‌گذاری',
-      'هدیه و کمک',
-      'استرداد و بازپرداخت',
-      'سایر درآمدهای شخصی',
+      'Salary',
+      'Freelance income',
+      'Investment returns',
+      'Gifts and support',
+      'Refunds and reimbursements',
+      'Other personal income',
     ];
     final out = <Category>[];
     var i = 0;
@@ -193,7 +193,7 @@ class LocalStore {
     return out;
   }
 
-  /// یک‌بار دسته‌بندی‌های شخصی را به دیتابیس موجود اضافه می‌کند
+  /// Add personal categories to an existing database once.
   Future<void> _seedPersonalCategoriesOnce() async {
     if (meta.get('personalCategoriesSeeded') == true) return;
     final existing = categories.values
@@ -206,18 +206,18 @@ class LocalStore {
     await meta.put('personalCategoriesSeeded', true);
   }
 
-  /// پلن‌های پیش‌فرض فروش
+  /// Default sales plans.
   static List<Plan> defaultPlans() => [
-        Plan(id: newId(), name: '۱ ماهه ۵۰ گیگ', price: 250000),
-        Plan(id: newId(), name: '۱ ماهه نامحدود', price: 350000),
+        Plan(id: newId(), name: '1 month, 50 GB', price: 250000),
+        Plan(id: newId(), name: '1 month, unlimited', price: 350000),
         Plan(
             id: newId(),
-            name: '۳ ماهه نامحدود',
+            name: '3 months, unlimited',
             price: 900000,
             durationValue: 3),
       ];
 
-  // ---------- خواندن ----------
+  // ---------- Read ----------
   List<Customer> loadCustomers() => customers.values
       .map((e) => Customer.fromMap(Map<String, dynamic>.from(e as Map)))
       .toList();
@@ -249,7 +249,7 @@ class LocalStore {
     return const AppSettings();
   }
 
-  // ---------- نوشتن ----------
+  // ---------- Write ----------
   Future<void> putCustomer(Customer c) => customers.put(c.id, c.toMap());
   Future<void> deleteCustomer(String id) => customers.delete(id);
 
@@ -282,8 +282,8 @@ class LocalStore {
     await ensureSeeded();
   }
 
-  // ---------- پشتیبان‌گیری ----------
-  /// همه‌ی داده‌ها به‌صورت یک Map (برای خروجی JSON)
+  // ---------- Backups ----------
+  /// All data as a Map (for JSON export).
   Map<String, dynamic> exportAll() => {
         'app': 'vpn_ledger',
         'schema': 1,
@@ -300,7 +300,7 @@ class LocalStore {
         'quickExpenses': loadQuickExpenses().map((e) => e.toMap()).toList(),
       };
 
-  /// بازگردانی از فایل پشتیبان
+  /// Restore from a backup file.
   Future<void> importAll(Map<String, dynamic> data) async {
     await customers.clear();
     await subscriptions.clear();
@@ -369,9 +369,9 @@ class LocalStore {
     await quickExpenses.close();
   }
 
-  // ---------- پیامک بانکی ----------
-  /// وضعیت بررسی‌شده‌ی هر پیامک: key → status
-  /// statusها: approved | rejected | ignored
+  // ---------- Bank SMS ----------
+  /// Review status for each SMS: key → status.
+  /// Possible statuses: approved | rejected | ignored.
   Map<String, String> loadSmsState() {
     final out = <String, String>{};
     for (final e in smsState.values) {
@@ -389,7 +389,7 @@ class LocalStore {
 
   Future<void> clearSmsState() => smsState.clear();
 
-  /// قوانین اختصاصی کاربر (برای بانک‌هایی که در فهرست آماده نیستند)
+  /// Custom rules for banks not included in the built-in list.
   List<BankRule> loadSmsRules() {
     final out = <BankRule>[];
     for (final e in smsRules.values) {
@@ -403,7 +403,7 @@ class LocalStore {
 
   Future<void> deleteSmsRule(String id) => smsRules.delete(id);
 
-  // ---------- حسابداری شخصی ----------
+  // ---------- Personal finance ----------
   List<Budget> loadBudgets() {
     final out = <Budget>[];
     for (final e in budgets.values) {

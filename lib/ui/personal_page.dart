@@ -12,8 +12,8 @@ import 'widgets/period_chart.dart';
 import 'widgets/quick_buttons.dart';
 import 'widgets/widgets.dart';
 
-/// صفحه‌ی حسابداری شخصی: ثبت سریع، بودجه‌بندی،
-/// تراکنش‌های تکرارشونده و نمودار روزانه/هفتگی/ماهانه.
+/// Personal finance page: quick entry, budgeting,
+/// recurring transactions, and daily, weekly, and monthly charts.
 class PersonalPage extends StatelessWidget {
   const PersonalPage({super.key});
 
@@ -31,7 +31,7 @@ class PersonalPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
       children: [
-        // ---- خلاصه‌ی ماه شخصی ----
+        // ---- Personal monthly summary ----
         CardBox(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -41,7 +41,7 @@ class PersonalPage extends StatelessWidget {
                 children: [
                   const Icon(Icons.person_outline_rounded, size: 17),
                   const SizedBox(width: 6),
-                  Text('خلاصه‌ی شخصیِ ${J.mLabel(DateTime.now())}',
+                  Text('Personal summary — ${J.mLabel(DateTime.now())}',
                       style: const TextStyle(
                           fontSize: 13.5, fontWeight: FontWeight.w700)),
                 ],
@@ -50,14 +50,14 @@ class PersonalPage extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                      child: _miniStat(context, 'درآمد', month.income,
+                      child: _miniStat(context, 'Income', month.income,
                           const Color(0xFF16A34A), Icons.trending_up_rounded)),
                   Container(
                       width: 1,
                       height: 42,
                       color: Theme.of(context).dividerColor),
                   Expanded(
-                      child: _miniStat(context, 'هزینه', month.expense,
+                      child: _miniStat(context, 'Expense', month.expense,
                           const Color(0xFFE11D48), Icons.trending_down_rounded)),
                 ],
               ),
@@ -68,7 +68,7 @@ class PersonalPage extends StatelessWidget {
                 children: [
                   const Icon(Icons.account_balance_wallet_rounded, size: 18),
                   const SizedBox(width: 8),
-                  Text('مانده',
+                  Text('Balance',
                       style: TextStyle(
                           fontSize: 12.5,
                           color: onSurface.withValues(alpha: 0.7))),
@@ -86,31 +86,31 @@ class PersonalPage extends StatelessWidget {
           ),
         ),
 
-        // ---- دکمه‌های ثبت سریع ----
+        // ---- Quick-entry buttons ----
         SectionTitle(
-          'ثبت سریع',
+          'Quick add',
           icon: Icons.bolt_rounded,
-          action: 'مدیریت',
+          action: 'Manage',
           onAction: () => _manageQuick(context),
         ),
         QuickButtonsRow(
-          emptyHint: 'هنوز دکمه‌ای نساخته‌اید. با «مدیریت» دکمه‌های موردنیازتان '
-              '(خوراک، تاکسی، قبض…) را بسازید تا ثبت هزینه فقط یک لمس باشد.',
+          emptyHint: 'No quick buttons yet. Use “Manage” to add the buttons you need '
+              '(food, taxi, bills...) and record expenses with one tap.',
           onLongPress: (q) => _editQuick(context, q),
         ),
 
-        // ---- بودجه‌ی ماهانه ----
+        // ---- Monthly budgets ----
         SectionTitle(
-          'بودجه‌ی ماهانه',
+          'Monthly budgets',
           icon: Icons.pie_chart_outline_rounded,
-          action: 'افزودن',
+          action: 'Add',
           onAction: () => _editBudget(context, null),
         ),
         if (usages.isEmpty)
           CardBox(
             child: Text(
-              'برای هر دسته (مثلاً خوراک یا حمل‌ونقل) یک سقف ماهانه تعیین کنید؛ '
-              'برنامه در همین صفحه نشان می‌دهد چقدر از سقف باقی مانده است.',
+              'Set a monthly limit for each category (such as food or transport); '
+              'this page will show how much of each limit remains.',
               style: TextStyle(
                   fontSize: 12,
                   height: 1.7,
@@ -123,9 +123,9 @@ class PersonalPage extends StatelessWidget {
                 onEdit: () => _editBudget(context, u.budget),
                 onDelete: () async {
                   final ok = await confirmDialog(context,
-                      title: 'حذف بودجه',
-                      message: 'بودجه‌ی «${u.categoryName}» حذف شود؟',
-                      okLabel: 'حذف',
+                      title: 'Delete budget',
+                      message: 'Delete the budget for “${u.categoryName}”?',
+                      okLabel: 'Delete',
                       danger: true);
                   if (ok && context.mounted) {
                     await context.read<AppRepository>().deleteBudget(u.budget.id);
@@ -133,18 +133,18 @@ class PersonalPage extends StatelessWidget {
                 },
               )),
 
-        // ---- تراکنش‌های تکرارشونده ----
+        // ---- Recurring transactions ----
         SectionTitle(
-          'تراکنش‌های تکرارشونده',
+          'Recurring transactions',
           icon: Icons.autorenew_rounded,
-          action: 'افزودن',
+          action: 'Add',
           onAction: () => _editRecurring(context, null),
         ),
         if (repo.recurringRules.isEmpty)
           CardBox(
             child: Text(
-              'اجاره، اینترنت، آبونمان و حقوق را یک‌بار تعریف کنید؛ '
-              'برنامه هر ماه خودکار آن‌ها را ثبت می‌کند.',
+              'Set up rent, internet, subscriptions, and salary once; '
+              'the app will record them automatically on schedule.',
               style: TextStyle(
                   fontSize: 12,
                   height: 1.7,
@@ -157,9 +157,9 @@ class PersonalPage extends StatelessWidget {
                 onEdit: () => _editRecurring(context, r),
                 onDelete: () async {
                   final ok = await confirmDialog(context,
-                      title: 'حذف قانون',
-                      message: '«${r.title}» حذف شود؟ (تراکنش‌های ثبت‌شده باقی می‌مانند)',
-                      okLabel: 'حذف',
+                      title: 'Delete rule',
+                      message: 'Delete “${r.title}”? Existing transactions will remain.',
+                      okLabel: 'Delete',
                       danger: true);
                   if (ok && context.mounted) {
                     await context
@@ -176,15 +176,15 @@ class PersonalPage extends StatelessWidget {
                   await context.read<AppRepository>().postDueRecurring();
               if (!context.mounted) return;
               showSnack(context,
-                  n == 0 ? 'موردِ سررسیدشده‌ای وجود نداشت' : '$n تراکنش ثبت شد');
+                  n == 0 ? 'No due items found' : '$n transactions recorded');
             },
             icon: const Icon(Icons.play_arrow_rounded, size: 18),
-            label: const Text('ثبت موردهای سررسیدشده'),
+            label: const Text('Post due items'),
           ),
         ],
 
-        // ---- نمودارها ----
-        const SectionTitle('روند هزینه و درآمد', icon: Icons.bar_chart_rounded),
+        // ---- Charts ----
+        const SectionTitle('Income and expense trend', icon: Icons.bar_chart_rounded),
         _PeriodChartCard(
           daily: Ledger.dailySeries(repo.transactions,
               days: 30, scope: TxnScope.personal),
@@ -193,13 +193,13 @@ class PersonalPage extends StatelessWidget {
           monthly: repo.series(months: 6, scope: TxnScope.personal),
         ),
 
-        // ---- آخرین تراکنش‌های شخصی ----
-        SectionTitle('آخرین تراکنش‌های شخصی',
+        // ---- Recent personal transactions ----
+        SectionTitle('Recent personal transactions',
             icon: Icons.receipt_long_outlined),
         if (personal.isEmpty)
           CardBox(
             child: Text(
-              'هنوز چیزی ثبت نکرده‌اید. از دکمه‌های بالا شروع کنید.',
+              'Nothing recorded yet. Start with the buttons above.',
               style: TextStyle(
                   fontSize: 12, color: onSurface.withValues(alpha: 0.65)),
             ),
@@ -216,7 +216,7 @@ class PersonalPage extends StatelessWidget {
                             .where((c) => c.id == t.categoryId)
                             .firstOrNull
                             ?.name ??
-                        'بدون دسته',
+                        'Uncategorized',
                     showCustomer: false,
                   ),
               ],
@@ -250,7 +250,7 @@ class PersonalPage extends StatelessWidget {
         ],
       );
 
-  // ---------- عملیات ----------
+  // ---------- Actions ----------
   Future<void> _manageQuick(BuildContext context) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -288,7 +288,7 @@ class PersonalPage extends StatelessWidget {
   }
 }
 
-/// ---------------- کارت بودجه ----------------
+/// ---------------- Budget card ----------------
 class _BudgetTile extends StatelessWidget {
   const _BudgetTile(
       {required this.usage, required this.onEdit, required this.onDelete});
@@ -340,7 +340,7 @@ class _BudgetTile extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            // نوار پیشرفتِ ساده و بدون انیمیشن (باتری کمتری مصرف می‌کند)
+            // A simple, non-animated progress bar uses less battery.
             Container(
               height: 7,
               width: double.infinity,
@@ -349,7 +349,7 @@ class _BudgetTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
               ),
               child: FractionallySizedBox(
-                alignment: Alignment.centerRight,
+                alignment: Alignment.centerLeft,
                 widthFactor: pct < 0 ? 0 : (pct > 1 ? 1 : pct),
                 child: Container(
                   decoration: BoxDecoration(
@@ -362,9 +362,9 @@ class _BudgetTile extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               usage.isOver
-                  ? '${Money.text(-usage.remaining, compact: true)} بیشتر از سقف خرج کرده‌اید'
-                  : '${Money.text(usage.remaining, compact: true)} تا سقف باقی مانده • '
-                      '${Fmt.percent(usage.ratio, persian: true)}',
+                  ? '${Money.text(-usage.remaining, compact: true)} over budget'
+                  : '${Money.text(usage.remaining, compact: true)} remaining • '
+                      '${Fmt.percent(usage.ratio, persian: false)}',
               style: TextStyle(
                   fontSize: 11, color: onSurface.withValues(alpha: 0.6)),
             ),
@@ -375,7 +375,7 @@ class _BudgetTile extends StatelessWidget {
   }
 }
 
-/// ---------------- کارت قانون تکرارشونده ----------------
+/// ---------------- Recurring rule card ----------------
 class _RecurringTile extends StatelessWidget {
   const _RecurringTile(
       {required this.rule, required this.onEdit, required this.onDelete});
@@ -416,7 +416,7 @@ class _RecurringTile extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     '${rule.period.label} • ${Money.text(rule.amount)}'
-                    '${next == null ? '' : ' • بعدی ${J.d(next)}'}',
+                    '${next == null ? '' : ' • Next: ${J.d(next)}'}',
                     style: TextStyle(
                         fontSize: 11.5,
                         color: onSurface.withValues(alpha: 0.6)),
@@ -425,7 +425,7 @@ class _RecurringTile extends StatelessWidget {
               ),
             ),
             if (!rule.enabled)
-              TagChip('غیرفعال',
+              TagChip('Inactive',
                   color: onSurface.withValues(alpha: 0.5), dense: true),
             const SizedBox(width: 6),
             InkWell(
@@ -441,7 +441,7 @@ class _RecurringTile extends StatelessWidget {
   }
 }
 
-/// ---------------- نمودار دوره‌ای ----------------
+/// ---------------- Period chart ----------------
 class _PeriodChartCard extends StatefulWidget {
   const _PeriodChartCard({
     required this.daily,
@@ -458,7 +458,7 @@ class _PeriodChartCard extends StatefulWidget {
 }
 
 class _PeriodChartCardState extends State<_PeriodChartCard> {
-  int _mode = 0; // ۰ روزانه، ۱ هفتگی، ۲ ماهانه
+  int _mode = 0; // 0 = daily, 1 = weekly, 2 = monthly
 
   @override
   Widget build(BuildContext context) {
@@ -468,9 +468,9 @@ class _PeriodChartCardState extends State<_PeriodChartCard> {
         children: [
           SegmentedButton<int>(
             segments: const [
-              ButtonSegment(value: 0, label: Text('روزانه')),
-              ButtonSegment(value: 1, label: Text('هفتگی')),
-              ButtonSegment(value: 2, label: Text('ماهانه')),
+              ButtonSegment(value: 0, label: Text('Daily')),
+              ButtonSegment(value: 1, label: Text('Weekly')),
+              ButtonSegment(value: 2, label: Text('Monthly')),
             ],
             selected: {_mode},
             onSelectionChanged: (s) => setState(() => _mode = s.first),
@@ -483,13 +483,13 @@ class _PeriodChartCardState extends State<_PeriodChartCard> {
           if (_mode == 0)
             PeriodBarChart(
               points: widget.daily,
-              labelOf: (p) => Fmt.toFaDigits('${J.of(p.day).day}'),
+              labelOf: (p) => '${J.of(p.day).day}',
             )
           else if (_mode == 1)
             PeriodBarChart(
               points: widget.weekly,
               labelOf: (p) =>
-                  Fmt.toFaDigits('${J.of(p.day).day}/${J.of(p.day).month}'),
+                  '${J.of(p.day).day}/${J.of(p.day).month}',
             )
           else
             PeriodBarChart(
@@ -505,7 +505,7 @@ class _PeriodChartCardState extends State<_PeriodChartCard> {
   }
 }
 
-/// ---------------- شیتِ بودجه ----------------
+/// ---------------- Budget sheet ----------------
 class _BudgetSheet extends StatefulWidget {
   const _BudgetSheet({this.initial});
 
@@ -561,19 +561,19 @@ class _BudgetSheetState extends State<_BudgetSheet> {
                       color: Theme.of(context).dividerColor,
                       borderRadius: BorderRadius.circular(2))),
               const SizedBox(height: 16),
-              Text(widget.initial == null ? 'بودجه‌ی جدید' : 'ویرایش بودجه',
+              Text(widget.initial == null ? 'New budget' : 'Edit budget',
                   style: const TextStyle(
                       fontSize: 15, fontWeight: FontWeight.w700)),
               const SizedBox(height: 14),
               SelectField<Category>(
-                label: 'دسته‌بندی',
+                label: 'Category',
                 value: cats.where((c) => c.id == _categoryId).firstOrNull,
                 items: cats,
                 labelOf: (c) => c.name,
                 onChanged: (c) => setState(() => _categoryId = c?.id),
               ),
               const SizedBox(height: 12),
-              AmountField(controller: _limit, label: 'سقف ماهانه'),
+              AmountField(controller: _limit, label: 'Monthly limit'),
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: () async {
@@ -592,7 +592,7 @@ class _BudgetSheetState extends State<_BudgetSheet> {
                   }
                   if (context.mounted) Navigator.pop(context);
                 },
-                child: const Text('ذخیره'),
+                child: const Text('Save'),
               ),
             ],
           ),
@@ -602,7 +602,7 @@ class _BudgetSheetState extends State<_BudgetSheet> {
   }
 }
 
-/// ---------------- شیتِ قانون تکرارشونده ----------------
+/// ---------------- Recurring rule sheet ----------------
 class _RecurringSheet extends StatefulWidget {
   const _RecurringSheet({this.initial});
 
@@ -675,22 +675,22 @@ class _RecurringSheetState extends State<_RecurringSheet> {
                       color: Theme.of(context).dividerColor,
                       borderRadius: BorderRadius.circular(2))),
               const SizedBox(height: 16),
-              Text(widget.initial == null ? 'قانون جدید' : 'ویرایش قانون',
+              Text(widget.initial == null ? 'New rule' : 'Edit rule',
                   style: const TextStyle(
                       fontSize: 15, fontWeight: FontWeight.w700)),
               const SizedBox(height: 14),
               AppTextField(
                   controller: _title,
-                  label: 'عنوان',
-                  hint: 'مثلاً اجاره خانه',
+                  label: 'Title',
+                  hint: 'e.g. Home rent',
                   icon: Icons.title_rounded),
               const SizedBox(height: 12),
               AmountField(controller: _amount),
               const SizedBox(height: 12),
               SegmentedButton<TxnKind>(
                 segments: const [
-                  ButtonSegment(value: TxnKind.expense, label: Text('هزینه')),
-                  ButtonSegment(value: TxnKind.income, label: Text('درآمد')),
+                  ButtonSegment(value: TxnKind.expense, label: Text('Expense')),
+                  ButtonSegment(value: TxnKind.income, label: Text('Income')),
                 ],
                 selected: {_kind},
                 onSelectionChanged: (s) =>
@@ -698,7 +698,7 @@ class _RecurringSheetState extends State<_RecurringSheet> {
               ),
               const SizedBox(height: 12),
               SelectField<Category>(
-                label: 'دسته‌بندی',
+                label: 'Category',
                 value: cats.where((c) => c.id == _categoryId).firstOrNull,
                 items: cats,
                 labelOf: (c) => c.name,
@@ -707,7 +707,7 @@ class _RecurringSheetState extends State<_RecurringSheet> {
               ),
               const SizedBox(height: 12),
               SelectField<RecurringPeriod>(
-                label: 'دوره‌ی تکرار',
+                label: 'Repeat interval',
                 value: _period,
                 items: RecurringPeriod.values,
                 labelOf: (p) => p.label,
@@ -717,7 +717,7 @@ class _RecurringSheetState extends State<_RecurringSheet> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    const Text('روزِ اجرا در ماه:',
+                    const Text('Day of month:',
                         style: TextStyle(fontSize: 12.5)),
                     const SizedBox(width: 10),
                     DropdownButton<int>(
@@ -726,7 +726,7 @@ class _RecurringSheetState extends State<_RecurringSheet> {
                         for (var d = 1; d <= 30; d++)
                           DropdownMenuItem(
                               value: d,
-                              child: Text(Fmt.toFaDigits('$d'))),
+                              child: Text('$d')),
                       ],
                       onChanged: (v) => setState(() => _dayOfMonth = v ?? 1),
                     ),
@@ -735,7 +735,7 @@ class _RecurringSheetState extends State<_RecurringSheet> {
               ],
               const SizedBox(height: 12),
               JalaliDateField(
-                  label: 'شروع',
+                  label: 'Start',
                   value: _start,
                   onChanged: (d) => setState(() => _start = d)),
               const SizedBox(height: 12),
@@ -744,20 +744,20 @@ class _RecurringSheetState extends State<_RecurringSheet> {
                   Expanded(
                     child: Text(
                       _end == null
-                          ? 'پایان: نامحدود'
-                          : 'پایان: ${J.d(_end!)}',
+                          ? 'End: Never'
+                          : 'End: ${J.d(_end!)}',
                       style: const TextStyle(fontSize: 12.5),
                     ),
                   ),
                   if (_end != null)
                     TextButton(
                         onPressed: () => setState(() => _end = null),
-                        child: const Text('نامحدود')),
+                        child: const Text('Never')),
                 ],
               ),
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('فعال', style: TextStyle(fontSize: 13)),
+                title: const Text('Active', style: TextStyle(fontSize: 13)),
                 value: _enabled,
                 onChanged: (v) => setState(() => _enabled = v),
               ),
@@ -787,7 +787,7 @@ class _RecurringSheetState extends State<_RecurringSheet> {
                   }
                   if (context.mounted) Navigator.pop(context);
                 },
-                child: const Text('ذخیره'),
+                child: const Text('Save'),
               ),
             ],
           ),
@@ -797,7 +797,7 @@ class _RecurringSheetState extends State<_RecurringSheet> {
   }
 }
 
-/// ---------------- مدیریت دکمه‌های سریع ----------------
+/// ---------------- Manage quick-entry buttons ----------------
 class _QuickManagerSheet extends StatelessWidget {
   const _QuickManagerSheet();
 
@@ -827,7 +827,7 @@ class _QuickManagerSheet extends StatelessWidget {
               child: Row(
                 children: [
                   const Expanded(
-                      child: Text('دکمه‌های ثبت سریع',
+                      child: Text('Quick-entry buttons',
                           style: TextStyle(
                               fontSize: 15, fontWeight: FontWeight.w700))),
                   IconButton(
@@ -847,7 +847,7 @@ class _QuickManagerSheet extends StatelessWidget {
                       title: Text(q.label),
                       subtitle: Text(q.hasFixedAmount
                           ? Money.text(q.amount)
-                          : 'مبلغ هنگام ثبت پرسیده می‌شود'),
+                          : 'Ask for an amount when recording'),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -862,9 +862,9 @@ class _QuickManagerSheet extends StatelessWidget {
                                 size: 19),
                             onPressed: () async {
                               final ok = await confirmDialog(context,
-                                  title: 'حذف دکمه',
-                                  message: '«${q.label}» حذف شود؟',
-                                  okLabel: 'حذف',
+                                  title: 'Delete button',
+                                  message: 'Delete “${q.label}”?',
+                                  okLabel: 'Delete',
                                   danger: true);
                               if (ok && context.mounted) {
                                 await context
@@ -884,7 +884,7 @@ class _QuickManagerSheet extends StatelessWidget {
                           MaterialPageRoute(
                               builder: (_) => const _QuickEditPage())),
                       icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('دکمه‌ی جدید'),
+                      label: const Text('New button'),
                     ),
                   ),
                 ],
@@ -897,7 +897,7 @@ class _QuickManagerSheet extends StatelessWidget {
   }
 }
 
-/// ---------------- ویرایش/ساخت دکمه‌ی سریع ----------------
+/// ---------------- Edit or create a quick-entry button ----------------
 class _QuickEditSheet extends StatelessWidget {
   const _QuickEditSheet({this.initial});
 
@@ -927,7 +927,7 @@ class _QuickEditPageState extends State<_QuickEditPage> {
   String? _categoryId;
   int _iconCodePoint = 0xe15b;
 
-  // همان فهرستِ سراسری (const) در quick_buttons.dart
+  // Use the same global const list from quick_buttons.dart.
   static const List<IconData> _icons = quickIcons;
 
   @override
@@ -961,15 +961,15 @@ class _QuickEditPageState extends State<_QuickEditPage> {
       padding: EdgeInsets.fromLTRB(
           18, widget.asSheet ? 12 : 12, 18, 24 + MediaQuery.of(context).viewInsets.bottom),
       children: [
-        AppTextField(controller: _label, label: 'عنوان دکمه', hint: 'مثلاً تاکسی'),
+        AppTextField(controller: _label, label: 'Button label', hint: 'e.g. Taxi'),
         const SizedBox(height: 12),
         AmountField(
             controller: _amount,
-            label: 'مبلغ ثابت (اختیاری)',
+            label: 'Fixed amount (optional)',
             validator: (_) => null),
         const SizedBox(height: 4),
         Text(
-          'اگر خالی بماند، هنگام ثبت مبلغ از شما پرسیده می‌شود.',
+          'If left blank, the app will ask for an amount when recording.',
           style: TextStyle(
               fontSize: 11,
               color: Theme.of(context)
@@ -980,8 +980,8 @@ class _QuickEditPageState extends State<_QuickEditPage> {
         const SizedBox(height: 14),
         SegmentedButton<TxnKind>(
           segments: const [
-            ButtonSegment(value: TxnKind.expense, label: Text('هزینه')),
-            ButtonSegment(value: TxnKind.income, label: Text('درآمد')),
+            ButtonSegment(value: TxnKind.expense, label: Text('Expense')),
+            ButtonSegment(value: TxnKind.income, label: Text('Income')),
           ],
           selected: {_kind},
           onSelectionChanged: (s) => setState(() =>
@@ -989,7 +989,7 @@ class _QuickEditPageState extends State<_QuickEditPage> {
         ),
         const SizedBox(height: 14),
         SelectField<Category>(
-          label: 'دسته‌بندی',
+          label: 'Category',
           value: cats.where((c) => c.id == _categoryId).firstOrNull,
           items: cats,
           labelOf: (c) => c.name,
@@ -997,7 +997,7 @@ class _QuickEditPageState extends State<_QuickEditPage> {
           onChanged: (c) => setState(() => _categoryId = c?.id),
         ),
         const SizedBox(height: 14),
-        const Text('آیکون', style: TextStyle(fontSize: 12.5)),
+        const Text('Icon', style: TextStyle(fontSize: 12.5)),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -1052,7 +1052,7 @@ class _QuickEditPageState extends State<_QuickEditPage> {
             }
             if (context.mounted) Navigator.pop(context);
           },
-          child: const Text('ذخیره'),
+          child: const Text('Save'),
         ),
       ],
     );
@@ -1080,7 +1080,7 @@ class _QuickEditPageState extends State<_QuickEditPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.initial == null ? 'دکمه‌ی جدید' : 'ویرایش دکمه')),
+      appBar: AppBar(title: Text(widget.initial == null ? 'New button' : 'Edit button')),
       body: body,
     );
   }

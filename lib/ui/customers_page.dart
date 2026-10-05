@@ -52,7 +52,7 @@ class _CustomersPageState extends State<CustomersPage> {
             children: [
               TextField(
                 decoration: const InputDecoration(
-                  hintText: 'جست‌وجوی نام یا شماره…',
+                  hintText: 'Search name or phone...',
                   prefixIcon: Icon(Icons.search_rounded, size: 20),
                 ),
                 onChanged: (v) => setState(() => _q = v.trim()),
@@ -60,11 +60,11 @@ class _CustomersPageState extends State<CustomersPage> {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  _chip('همه', _Filter.all, list.length),
+                  _chip('All', _Filter.all, list.length),
                   const SizedBox(width: 8),
-                  _chip('بدهکاران', _Filter.debtors, null),
+                  _chip('Debtors', _Filter.debtors, null),
                   const SizedBox(width: 8),
-                  _chip('بستانکاران', _Filter.creditors, null),
+                  _chip('Creditors', _Filter.creditors, null),
                 ],
               ),
             ],
@@ -74,11 +74,11 @@ class _CustomersPageState extends State<CustomersPage> {
           child: list.isEmpty
               ? EmptyState(
                   icon: Icons.people_outline_rounded,
-                  title: _q.isEmpty ? 'هنوز مشتری‌ای ثبت نشده' : 'موردی پیدا نشد',
+                  title: _q.isEmpty ? 'No customers yet' : 'No items found',
                   text: _q.isEmpty
-                      ? 'مشتری‌ها را یک‌بار ثبت کنید تا فروش، بدهی و تمدید همه به حساب آن‌ها ثبت شود.'
-                      : 'عبارت دیگری را جست‌وجو کنید.',
-                  actionLabel: _q.isEmpty ? 'افزودن مشتری' : null,
+                      ? 'Add each customer once to keep their sales, balances, and renewals together.'
+                      : 'Try a different search.',
+                  actionLabel: _q.isEmpty ? 'Add customer' : null,
                   onAction: _q.isEmpty
                       ? () => Navigator.push(context,
                           MaterialPageRoute(builder: (_) => const ContactEditPage()))
@@ -130,18 +130,18 @@ class _CustomersPageState extends State<CustomersPage> {
                                     ),
                                     if (active.isNotEmpty) ...[
                                       const SizedBox(width: 6),
-                                      TagChip('فعال', color: const Color(0xFF16A34A), dense: true),
+                                      TagChip('Active', color: const Color(0xFF16A34A), dense: true),
                                     ] else if (latest != null) ...[
                                       const SizedBox(width: 6),
-                                      TagChip('منقضی', color: const Color(0xFFE11D48), dense: true),
+                                      TagChip('Expired', color: const Color(0xFFE11D48), dense: true),
                                     ],
                                   ],
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   latest == null
-                                      ? (c.phone.isEmpty ? 'بدون سرویس' : formatPhone(c.phone))
-                                      : '${latest.planName} • تا ${J.d(latest.endDate)}',
+                                      ? (c.phone.isEmpty ? 'No subscription' : formatPhone(c.phone))
+                                      : '${latest.planName} • until ${J.d(latest.endDate)}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
@@ -157,7 +157,7 @@ class _CustomersPageState extends State<CustomersPage> {
                             children: [
                               Text(
                                 balance.abs() < 1
-                                    ? 'تسویه'
+                                    ? 'Settled'
                                     : Money.text(balance.abs(), withSymbol: false),
                                 style: TextStyle(
                                   fontSize: 13.5,
@@ -170,7 +170,7 @@ class _CustomersPageState extends State<CustomersPage> {
                                 ),
                               ),
                               if (balance.abs() >= 1)
-                                Text(balance > 0 ? 'بدهکار' : 'بستانکار',
+                                Text(balance > 0 ? 'Debtor' : 'Creditor',
                                     style: TextStyle(
                                         fontSize: 10.5,
                                         color: onSurface.withValues(alpha: 0.55))),
@@ -191,7 +191,7 @@ class _CustomersPageState extends State<CustomersPage> {
     return ChoiceChip(
       selected: selected,
       onSelected: (_) => setState(() => _filter = value),
-      label: Text(count == null ? label : '$label (${Fmt.toFaDigits('$count')})'),
+      label: Text(count == null ? label : '$label ($count)'),
       showCheckmark: false,
     );
   }

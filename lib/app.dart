@@ -82,10 +82,10 @@ class _VpnLedgerAppState extends State<VpnLedgerApp> {
     ThemeMode themeMode = ThemeMode.system,
   }) =>
       MaterialApp(
-        title: 'دفتر وی‌پی‌ان',
+        title: 'Poolland — VPN Seller Ledger',
         debugShowCheckedModeBanner: false,
-        locale: const Locale('fa', 'IR'),
-        supportedLocales: const [Locale('fa', 'IR'), Locale('en')],
+        locale: const Locale('en'),
+        supportedLocales: const [Locale('en')],
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
@@ -95,7 +95,7 @@ class _VpnLedgerAppState extends State<VpnLedgerApp> {
         darkTheme: AppTheme.dark(),
         themeMode: themeMode,
         builder: (context, child) => Directionality(
-          textDirection: TextDirection.rtl,
+          textDirection: TextDirection.ltr,
           child: child ?? const SizedBox.shrink(),
         ),
         home: home,
@@ -114,7 +114,7 @@ class _StartupLoading extends StatelessWidget {
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
               Text(
-                'در حال آماده‌سازی برنامه…',
+                'Preparing the app…',
                 style: TextStyle(
                   color: Theme.of(context)
                       .colorScheme
@@ -146,13 +146,13 @@ class _StartupError extends StatelessWidget {
                   const Icon(Icons.error_outline_rounded, size: 42),
                   const SizedBox(height: 12),
                   const Text(
-                    'راه‌اندازی برنامه انجام نشد',
+                    'App startup failed',
                     style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'پایگاه داده‌ی محلی باز نشد. دوباره تلاش کنید.',
+                    'The local database could not be opened. Please try again.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Theme.of(context)
@@ -179,7 +179,7 @@ class _StartupError extends StatelessWidget {
                   FilledButton.icon(
                     onPressed: onRetry,
                     icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('تلاش دوباره'),
+                    label: const Text('Try again'),
                   ),
                 ],
               ),

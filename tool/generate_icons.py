@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-ساخت آیکون‌های برنامه «پوللند» به‌صورت خودکار.
+Generate Poolland app icons automatically.
 
-اجرا:
+Usage:
     python3 tool/generate_icons.py
 
-خروجی‌ها:
-  • design/icon-source.png            آیکون اصلی ۱۰۲۴×۱۰۲۴
-  • docs/logo.png                     لوگو ۵۱۲×۵۱۲ برای README
-  • android/.../mipmap-*/ic_launcher.png            آیکون قدیمی اندروید
-  • android/.../mipmap-*/ic_launcher_foreground.png لایه‌ی روبات (adaptive)
-  • web/icons/Icon-*.png              آیکون‌های وب
+Outputs:
+  • design/icon-source.png            main 1024×1024 icon
+  • docs/logo.png                     512×512 logo for README
+  • android/.../mipmap-*/ic_launcher.png            legacy Android icon
+  • android/.../mipmap-*/ic_launcher_foreground.png adaptive foreground layer
+  • web/icons/Icon-*.png              web icons
 
-اگر آیکون اختصاصی خودت را داری، آن را روی design/icon-source.png بگذار
-و همین اسکریپت را اجرا کن تا همه‌ی اندازه‌ها بازتولید شوند.
+If you have a custom icon, place it at design/icon-source.png
+and run this script to regenerate all sizes.
 """
 
 from __future__ import annotations
@@ -24,9 +24,9 @@ from PIL import Image, ImageDraw
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-BG_TOP = (17, 30, 52)       # سرمه‌ای تیره
+BG_TOP = (17, 30, 52)       # Dark navy
 BG_BOTTOM = (11, 19, 33)
-TEAL = (14, 165, 164)       # فیروزه‌ای برند
+TEAL = (14, 165, 164)       # Brand teal
 EMERALD = (52, 211, 153)
 WHITE = (255, 255, 255)
 
@@ -36,7 +36,7 @@ def lerp(a, b, t):
 
 
 def rounded_rect(size, radius_ratio=0.235):
-    """ماسک مستطیل با گوشه‌های گرد (نسبت به اندازه)"""
+    """Rounded-corner rectangle mask (relative to the image size)"""
     w, h = size
     mask = Image.new("L", size, 0)
     d = ImageDraw.Draw(mask)
@@ -65,7 +65,7 @@ def bezier(p0, p1, p2, steps=48):
 
 
 def shield_polygon(size, scale=0.62, offset_y=-0.03):
-    """نقاط سپر: بالا صاف، پایین نوک‌تیز"""
+    """Shield outline: flat top, pointed bottom"""
     w, h = size
     sw = w * scale
     x0 = (w - sw) / 2
@@ -88,7 +88,7 @@ def shield_mask(size, scale=0.62):
 
 
 def shield_layer(size, scale=0.62, with_bars=True):
-    """سپر با گرادیان فیروزه‌ای + سه ستون سفید رو به بالا"""
+    """Shield with a teal gradient and three ascending white bars"""
     w, h = size
     grad = Image.new("RGB", size)
     d = ImageDraw.Draw(grad)
@@ -137,7 +137,7 @@ def main():
     save(icon, os.path.join(ROOT, "docs", "logo.png"), 512)
     save(icon, os.path.join(ROOT, "assets", "icon", "icon.png"), 512)
 
-    # آیکون‌های اندروید (قدیمی) و لایه‌ی foreground برای آیکون تطبیقی
+    # Legacy Android icons and adaptive-icon foreground layers
     densities = {
         "mdpi": (48, 108),
         "hdpi": (72, 162),
@@ -152,7 +152,7 @@ def main():
         save(icon, os.path.join(res, f"mipmap-{name}", "ic_launcher.png"), launcher)
         save(fg_only, os.path.join(res, f"mipmap-{name}", "ic_launcher_foreground.png"), foreground)
 
-    # آیکون‌های وب
+    # web icons
     web = os.path.join(ROOT, "web", "icons")
     save(icon, os.path.join(web, "Icon-192.png"), 192)
     save(icon, os.path.join(web, "Icon-512.png"), 512)
@@ -160,7 +160,7 @@ def main():
     save(icon, os.path.join(web, "Icon-maskable-512.png"), 512)
     save(icon, os.path.join(web, "favicon.png"), 64)
 
-    print("\nهمه‌ی آیکون‌ها ساخته شد ✅")
+    print("\nAll icons generated ✅")
 
 
 if __name__ == "__main__":

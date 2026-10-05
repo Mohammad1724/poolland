@@ -1,18 +1,18 @@
-name: پیشنهاد قابلیت
-description: ایده‌ای داری که پول‌لند را بهتر می‌کند؟
+name: Feature request
+description: Have an idea to make Poolland better?
 labels: [enhancement]
 body:
   - type: textarea
     id: idea
     attributes:
-      label: ایده‌ی تو چیست؟
-      description: مشکل یا نیازی که داری را توضیح بده
+      label: What is your idea?
+      description: Describe the problem or need you would like to address.
     validations:
       required: true
   - type: textarea
     id: why
     attributes:
-      label: چرا این قابلیت مهم است؟
-      description: مثلاً «هر روز درگیر این هستم که...»
+      label: Why is this feature important?
+      description: 'For example: “I have to deal with this every day...”'
     validations:
       required: false

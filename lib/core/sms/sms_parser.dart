@@ -2,24 +2,24 @@ import 'bank_rules.dart';
 import 'sms_models.dart';
 
 /// ============================================================
-///  موتور تجزیه‌ی پیامک بانکی (تابع خالص — قابل تست)
+///  Bank SMS parsing engine (pure function, easy to test).
 ///
-///  وظایف:
-///   ۱. نرمال‌سازی متن (ارقام عربی/فارسی، نیم‌فاصله، ی/ک)
-///   ۲. فیلتر پیامک‌های غیرمالی (رمز یک‌بار، کد تایید، اطلاع‌رسانی…)
-///   ۳. تشخیص بانک از روی فرستنده یا متن
-///   ۴. تشخیص جهت: واریز / برداشت
-///   ۵. استخراج مبلغ + تبدیل «ریال به تومان»
-///   ۶. استخراج کارت، مانده و شماره پیگیری
+///  Responsibilities:
+///   1. Normalize text (Arabic/Persian digits, spacing, and character variants).
+///   2. Filter non-financial messages (one-time passwords, codes, notifications, etc.).
+///   3. Identify the bank from the sender or message body.
+///   4. Detect direction: deposit or withdrawal.
+///   5. Extract the amount and convert Rials to Tomans.
+///   6. Extract card number, balance, and reference number.
 /// ============================================================
 class SmsParser {
   SmsParser._();
 
   // ---------------------------------------------------------
-  // واژگان
+  // Vocabulary
   // ---------------------------------------------------------
 
-  /// پیامک‌هایی که تراکنش مالی نیستند
+  /// Keywords used to identify non-financial messages.
   static const List<String> ignoreKeywords = <String>[
     'رمز',
     'otp',
@@ -69,7 +69,7 @@ class SmsParser {
   ];
 
   // ---------------------------------------------------------
-  // الگوها
+  // Patterns
   // ---------------------------------------------------------
   static final RegExp _numberRe = RegExp(
     r'[0-9\u06F0-\u06F9\u0660-\u0669][0-9\u06F0-\u06F9\u0660-\u0669,\u066C\u200c ]*',
@@ -100,7 +100,7 @@ class SmsParser {
   );
 
   // ---------------------------------------------------------
-  // نرمال‌سازی
+  // Normalization
   // ---------------------------------------------------------
   static String normalize(String input) {
     var s = input;
@@ -115,7 +115,7 @@ class SmsParser {
     return s;
   }
 
-  /// ارقام عربی/فارسی → لاتین
+  /// Convert Arabic and Persian digits to Latin digits.
   static String toLatinDigits(String input) {
     const fa = '۰۱۲۳۴۵۶۷۸۹';
     const ar = '٠١٢٣٤٥٦٧٨٩';
@@ -134,12 +134,12 @@ class SmsParser {
     return double.tryParse(s) ?? 0;
   }
 
-  /// فقط ارقام (برای مقایسه‌ی کارت/شناسه)
+  /// Keep digits only (for card and identifier comparisons).
   static String digitsOnly(String input) =>
       toLatinDigits(input).replaceAll(RegExp(r'[^0-9]'), '');
 
   // ---------------------------------------------------------
-  // API اصلی
+  // Main API
   // ---------------------------------------------------------
   static ParsedSms parse(
     SmsMessage msg, {
@@ -153,7 +153,7 @@ class SmsParser {
       return ParsedSms(
         message: msg,
         bankName: rule?.bankName,
-        note: 'پیامک غیرتراکنشی (رمز، کد یا اطلاع‌رسانی)',
+        note: 'Non-transaction message (password, code, or notification)',
       );
     }
 
@@ -190,14 +190,14 @@ class SmsParser {
   }) => messages.map((m) => parse(m, extraRules: extraRules)).toList();
 
   // ---------------------------------------------------------
-  // تشخیص بانک
+  // Bank identification
   // ---------------------------------------------------------
   static BankRule? findRule(
     String upperAddress,
     String body,
     List<BankRule> extraRules,
   ) {
-    // قوانین اختصاصی کاربر اولویت دارند
+    // Custom user rules take priority.
     for (final rule in [...extraRules, ...builtinBankRules]) {
       for (final hint in rule.senderHints) {
         final h = normalize(hint).toUpperCase();
@@ -215,7 +215,7 @@ class SmsParser {
   }
 
   // ---------------------------------------------------------
-  // فیلتر پیامک‌های غیرمالی
+  // Filter non-financial messages
   // ---------------------------------------------------------
   static bool isIgnored(String body) {
     for (final w in ignoreKeywords) {
@@ -225,7 +225,7 @@ class SmsParser {
   }
 
   // ---------------------------------------------------------
-  // جهت تراکنش
+  // Transaction direction
   // ---------------------------------------------------------
   static SmsDirection detectDirection(String body) {
     for (final w in withdrawWords) {
@@ -240,17 +240,17 @@ class SmsParser {
   }
 
   // ---------------------------------------------------------
-  // مبلغ
+  // Amount
   // ---------------------------------------------------------
   static _Amount _extractAmount(String body, BankRule? rule) {
-    // ۱) بعد از واژه‌ی «مبلغ / amount»
+    // 1) Look for a value following “amount”.
     final kw = _amountKeywordRe.firstMatch(body);
     if (kw != null) {
       final v = _toDouble(kw.group(1)!.trim());
       if (v > 0) return _convert(v, _unitAfter(body, kw.end), rule);
     }
 
-    // ۲) عددی که بلافاصله واحد پول دارد
+    // 2) Look for a number immediately followed by a currency unit.
     for (final m in _numberRe.allMatches(body)) {
       if (_isExcluded(body, m)) continue;
       final unit = _unitAfter(body, m.end);
@@ -260,7 +260,7 @@ class SmsParser {
       }
     }
 
-    // ۳) اولین عددِ قابل‌توجهِ باقی‌مانده
+    // 3) Fall back to the first remaining significant number.
     double? fallback;
     for (final m in _numberRe.allMatches(body)) {
       if (_isExcluded(body, m)) continue;
@@ -285,7 +285,7 @@ class SmsParser {
       case 'toman':
         return _Amount(value, 'IRT', 'toman');
       default:
-        // واحد ذکر نشده → واحد پیش‌فرضِ بانک
+        // No unit specified; use the bank’s default unit.
         if (rule != null && rule.defaultUnit == AmountUnit.rial) {
           return _Amount(value / 10, 'IRT', 'rial?');
         }
@@ -293,7 +293,7 @@ class SmsParser {
     }
   }
 
-  /// واحد پول در ۱۶ کاراکترِ بعد از عدد
+  /// Detect the currency unit within 16 characters after the number.
   static String _unitAfter(String body, int endIndex) {
     if (endIndex >= body.length) return '';
     final tail = body
@@ -314,17 +314,17 @@ class SmsParser {
     return '';
   }
 
-  /// آیا این عدد نباید به‌عنوان مبلغ در نظر گرفته شود؟
-  /// (تاریخ، بخشی از شماره کارت، مانده حساب، شماره پیگیری)
+  /// Should this number be excluded from amount detection?
+  /// (For example, a date, card digits, balance, or reference number.)
   static bool _isExcluded(String body, Match m) {
     final start = m.start;
     final end = m.end;
 
-    // چسبیده به ستاره (بخشی از شماره کارت)
+    // Adjacent to an asterisk (part of a card number).
     if (start > 0 && body[start - 1] == '*') return true;
     if (end < body.length && body[end] == '*') return true;
 
-    // بخشی از تاریخ: 1405/07/12 یا 12-07
+    // Part of a date, such as 1405/07/12 or 12-07.
     final after = end < body.length ? body[end] : '';
     final before = start > 0 ? body[start - 1] : '';
     if ((after == '/' || after == '-') && end + 1 < body.length) {
@@ -333,7 +333,7 @@ class SmsParser {
     }
     if (before == '/' || before == '-') return true;
 
-    // مانده/موجودی
+    // Balance
     final headStart = (start - 12).clamp(0, body.length);
     final head = body.substring(headStart, start);
     if (head.contains('مانده') ||
@@ -342,7 +342,7 @@ class SmsParser {
       return true;
     }
 
-    // شماره پیگیری
+    // Reference number
     if (head.contains('پیگیری') ||
         head.contains('پيگيري') ||
         head.contains('سریال')) {
@@ -352,7 +352,7 @@ class SmsParser {
   }
 
   // ---------------------------------------------------------
-  // مانده حساب
+  // Account balance
   // ---------------------------------------------------------
   static double? _extractBalance(String body, BankRule? rule) {
     final m = _balanceRe.firstMatch(body);
@@ -364,7 +364,7 @@ class SmsParser {
   }
 
   // ---------------------------------------------------------
-  // شماره کارت
+  // Card number
   // ---------------------------------------------------------
   static String? _extractCard(String body) {
     final star = _cardStarRe.firstMatch(body);
@@ -382,7 +382,7 @@ class SmsParser {
   }
 
   // ---------------------------------------------------------
-  // شماره پیگیری
+  // Reference number
   // ---------------------------------------------------------
   static String? _extractReference(String body) {
     final m = _refRe.firstMatch(body);
@@ -392,9 +392,9 @@ class SmsParser {
   }
 
   // ---------------------------------------------------------
-  // تطبیق با مشتری (نگاشت کارت/شماره)
+  // Match to a customer (card or number mapping)
   // ---------------------------------------------------------
-  /// آیا این پیامک به یکی از شناسه‌های بانکیِ مشتری می‌خورد؟
+  /// Does this SMS match one of the customer’s bank identifiers?
   static bool matchesIdentifiers(ParsedSms sms, List<String> identifiers) {
     final body = normalize(sms.message.body);
     final cardDigits = sms.cardDigits;
@@ -403,7 +403,7 @@ class SmsParser {
     for (final raw in identifiers) {
       final id = digitsOnly(raw);
       if (id.length < 4) continue;
-      // اولویت با ارقامِ خودِ کارت (کمترین احتمال اشتباه)
+      // Prefer card digits because they are least likely to produce a false match.
       if (cardDigits.isNotEmpty && cardDigits.contains(id)) return true;
       if (cardDigits.isEmpty && bodyDigits.contains(id)) return true;
     }
@@ -413,14 +413,14 @@ class SmsParser {
   static String _buildNote(BankRule? rule, _Amount amount, SmsDirection dir) {
     final parts = <String>[];
     if (rule != null) parts.add(rule.bankName);
-    if (amount.unit == 'rial') parts.add('مبلغ از ریال به تومان تبدیل شد');
-    if (amount.unit == 'rial?') parts.add('مبلغ ریال فرض شد (طبق قانون بانک)');
-    if (dir == SmsDirection.unknown) parts.add('جهت تراکنش مشخص نیست');
+    if (amount.unit == 'rial') parts.add('Amount converted from Rials to Tomans');
+    if (amount.unit == 'rial?') parts.add('Amount assumed to be in Rials (bank rule)');
+    if (dir == SmsDirection.unknown) parts.add('Transaction direction could not be determined');
     return parts.join(' · ');
   }
 }
 
-/// نتیجه‌ی استخراج مبلغ (به تومان + ارز + واحد تشخیص‌داده‌شده)
+/// Extracted amount result (value, currency, and detected unit).
 class _Amount {
   final double value;
   final String currency;

@@ -1,6 +1,6 @@
 import 'package:intl/intl.dart';
 
-/// ابزارهای قالب‌بندی عدد، پول و تاریخ (شمسی).
+/// Number, currency, and Jalali date formatting utilities.
 class Fmt {
   Fmt._();
 
@@ -10,7 +10,7 @@ class Fmt {
 
   static const _faDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
 
-  /// تبدیل ارقام لاتین به فارسی
+  /// Convert Latin digits to Persian digits.
   static String toFaDigits(String input) {
     final sb = StringBuffer();
     for (final rune in input.runes) {
@@ -21,26 +21,26 @@ class Fmt {
     return sb.toString();
   }
 
-  /// جداکننده هزارگان فارسی + اعشار فارسی
+  /// Use Persian digits and separators when requested.
   static String _localize(String s, bool persian) {
     if (!persian) return s;
     return toFaDigits(s).replaceAll(',', '٬').replaceAll('.', '٫');
   }
 
-  /// قالب‌بندی عدد (بدون واحد پول)
-  static String number(num value, {int decimals = 0, bool persian = true}) {
+  /// Format a number without a currency unit.
+  static String number(num value, {int decimals = 0, bool persian = false}) {
     final s = decimals > 0
         ? NumberFormat('#,##0.${'0' * decimals}', _en).format(value)
         : _grouped.format(value.round());
     return _localize(s, persian);
   }
 
-  /// قالب‌بندی مبلغ به همراه نماد/کد ارز
+  /// Format an amount with an optional currency symbol or code.
   static String money(
     num value, {
-    String symbol = 'تومان',
+    String symbol = 'Toman',
     int decimals = 0,
-    bool persian = true,
+    bool persian = false,
     bool withSymbol = true,
     bool sign = false,
   }) {
@@ -55,16 +55,16 @@ class Fmt {
     return withSymbol ? '$prefix$s $symbol' : '$prefix$s';
   }
 
-  /// نمایش خلاصه‌ی مبلغ برای کارت‌ها: ۱۲٫۵ میلیون / ۳۴۰ هزار / ۱٫۲ میلیارد
-  static String compactMoney(num value, {String symbol = 'تومان', bool persian = true}) {
+  /// Compact amount for summary cards: 12.5 billion, 340 thousand, and so on.
+  static String compactMoney(num value, {String symbol = 'Toman', bool persian = false}) {
     final v = value.abs();
     String out;
     if (v >= 1000000000) {
-      out = '${NumberFormat('#,##0.##', _en).format(v / 1000000000)} میلیارد';
+      out = '${NumberFormat('#,##0.##', _en).format(v / 1000000000)} billion';
     } else if (v >= 1000000) {
-      out = '${NumberFormat('#,##0.##', _en).format(v / 1000000)} میلیون';
+      out = '${NumberFormat('#,##0.##', _en).format(v / 1000000)} million';
     } else if (v >= 1000) {
-      out = '${NumberFormat('#,##0.#', _en).format(v / 1000)} هزار';
+      out = '${NumberFormat('#,##0.#', _en).format(v / 1000)} thousand';
     } else {
       out = _plainDecimal.format(v);
     }
@@ -72,7 +72,7 @@ class Fmt {
     return '$sign${_localize(out, persian)} $symbol';
   }
 
-  /// عدد اعشاری ساده بدون جداکننده (برای فیلدهای ورودی)
+  /// Format a decimal input value without grouping separators.
   static String inputNumber(num value, {int decimals = 2}) {
     final s = value.toStringAsFixed(decimals);
     return s.endsWith('.00') && decimals == 2 ? value.toStringAsFixed(0) : s;
@@ -80,80 +80,84 @@ class Fmt {
 
   static String _two(int v) => v.toString().padLeft(2, '0');
 
-  /// ۱۴۰۵/۰۷/۱۲
-  static String date(int y, int m, int d, {bool persian = true, String sep = '/'}) {
+  /// Format a Jalali date, e.g. 1405/07/12.
+  static String date(int y, int m, int d, {bool persian = false, String sep = '/'}) {
     final s = '$y$sep${_two(m)}$sep${_two(d)}';
     return persian ? toFaDigits(s) : s;
   }
 
-  /// ۱۲ مهر ۱۴۰۵
-  static String dateLong(int y, int m, int d, {bool persian = true}) {
-    final s = '$y ${monthName(m)} $d';
+  /// Format a long Jalali date, e.g. 12 Mehr 1405.
+  static String dateLong(int y, int m, int d, {bool persian = false}) {
+    final s = '$d ${monthName(m)} $y';
     return persian ? toFaDigits(s) : s;
   }
 
-  /// مهر ۱۴۰۵
-  static String monthLabel(int y, int m, {bool persian = true}) {
+  /// Format a Jalali month and year, e.g. Mehr 1405.
+  static String monthLabel(int y, int m, {bool persian = false}) {
     final s = '${monthName(m)} $y';
     return persian ? toFaDigits(s) : s;
   }
 
-  static String ordinal(int day, {bool persian = true}) {
+  static String ordinal(int day, {bool persian = false}) {
     final s = '$day';
     return persian ? toFaDigits(s) : s;
   }
 
   static const jalaliMonths = <String>[
-    'فروردین',
-    'اردیبهشت',
-    'خرداد',
-    'تیر',
-    'مرداد',
-    'شهریور',
-    'مهر',
-    'آبان',
-    'آذر',
-    'دی',
-    'بهمن',
-    'اسفند',
+    'Farvardin',
+    'Ordibehesht',
+    'Khordad',
+    'Tir',
+    'Mordad',
+    'Shahrivar',
+    'Mehr',
+    'Aban',
+    'Azar',
+    'Dey',
+    'Bahman',
+    'Esfand',
   ];
 
   static const weekDays = <String>[
-    'شنبه',
-    'یک‌شنبه',
-    'دوشنبه',
-    'سه‌شنبه',
-    'چهارشنبه',
-    'پنج‌شنبه',
-    'جمعه',
+    'Saturday',
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
   ];
 
   static String monthName(int m) => (m >= 1 && m <= 12) ? jalaliMonths[m - 1] : '';
 
-  /// نام روز هفته بر اساس شماره‌ی هفته‌ی جلالی (۱ = شنبه … ۷ = جمعه)
+  /// Return the weekday name for a Jalali weekday (1 = Saturday, 7 = Friday).
   static String weekDayName(int weekDay) =>
       (weekDay >= 1 && weekDay <= 7) ? weekDays[weekDay - 1] : '';
 
-  /// «۳ روز مانده»، «امروز آخرین روز»، «۵ روز گذشته»
-  static String expiryLabel(int days, {bool persian = true}) {
-    if (days == 0) return 'امروز';
-    if (days == 1) return 'فردا';
-    if (days > 1) return '${persian ? toFaDigits('$days') : days} روز مانده';
+  /// Describe the remaining or elapsed days until expiry.
+  static String expiryLabel(int days, {bool persian = false}) {
+    String count(int value) => persian ? toFaDigits('$value') : '$value';
+
+    if (days == 0) return 'Today';
+    if (days == 1) return 'Tomorrow';
+    if (days > 1) return '${count(days)} days left';
     final passed = -days;
-    return '${persian ? toFaDigits('$passed') : passed} روز گذشته';
+    return passed == 1
+        ? '${count(passed)} day ago'
+        : '${count(passed)} days ago';
   }
 
-  static String percent(double ratio, {bool persian = true}) =>
-      '${_localize(NumberFormat('#,##0.#', _en).format(ratio * 100), persian)}٪';
+  static String percent(double ratio, {bool persian = false}) =>
+      '${_localize(NumberFormat('#,##0.#', _en).format(ratio * 100), persian)}${persian ? '٪' : '%'}';
 
-  /// ساعت ۱۴:۳۰
-  static String clock(DateTime dt, {bool persian = true}) {
+  /// Format a clock time, e.g. 14:30.
+  static String clock(DateTime dt, {bool persian = false}) {
     final s = '${_two(dt.hour)}:${_two(dt.minute)}';
     return persian ? toFaDigits(s) : s;
   }
 }
 
-/// تبدیل ورودی کاربر (ارقام فارسی/عربی، جداکننده) به عدد
+/// Parse Latin, Arabic, or Persian digits and separators into a number.
 double parseAmount(String input) {
   if (input.trim().isEmpty) return 0;
   var s = input;
@@ -172,16 +176,16 @@ double parseAmount(String input) {
   return double.tryParse(s) ?? 0;
 }
 
-/// عدد → رشتهٔ گروه‌بندی‌شده با ارقام فارسی
+/// Group a number using Persian digits when needed.
 String faNumber(num value, {int decimals = 0}) =>
     Fmt.number(value, decimals: decimals, persian: true);
 
-/// عدد → رشتهٔ گروه‌بندی‌شده با ارقام لاتین
+/// Group a number using Latin digits.
 String groupedNumber(num value, {int decimals = 0}) =>
     Fmt.number(value, decimals: decimals, persian: false);
 
-/// قالب‌بندی شماره تلفن: ۰۹۱۲ ۱۲۳ ۴۵۶۷
-String formatPhone(String value, {bool persian = true}) {
+/// Format a phone number, e.g. 0912 123 4567.
+String formatPhone(String value, {bool persian = false}) {
   final s = value.trim();
   if (s.isEmpty) return '';
   final out = s.replaceAllMapped(

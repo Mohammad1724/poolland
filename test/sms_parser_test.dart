@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:poolland/core/sms/sms_models.dart';
 import 'package:poolland/core/sms/sms_parser.dart';
 
-/// تست‌های موتور تجزیه‌ی پیامک بانکی
+/// Bank SMS parser tests.
 void main() {
   final now = DateTime(2026, 10, 4, 14, 30);
 
@@ -12,33 +12,33 @@ void main() {
   ParsedSms p(String body, {String address = ''}) =>
       SmsParser.parse(msg(body, address: address));
 
-  group('تشخیص بانک', () {
-    test('بانک ملت از روی فرستنده', () {
+  group('Bank identification', () {
+    test('Identify Mellat Bank from the sender', () {
       final r = p(
         'واریز\nمبلغ: 1,500,000 ریال\nکارت 6104********1234',
         address: 'BANKMELAT',
       );
-      expect(r.bankName, 'بانک ملت');
+      expect(r.bankName, 'Mellat Bank');
     });
 
-    test('بانک صادرات از روی فرستنده (BSI)', () {
+    test('Identify Saderat Bank from the sender (BSI)', () {
       final r = p('برداشت مبلغ 100,000 ریال', address: 'BSI');
-      expect(r.bankName, 'بانک صادرات');
+      expect(r.bankName, 'Saderat Bank');
     });
 
-    test('تشخیص از روی متن وقتی فرستنده ناشناس است', () {
+    test('Identify a bank from the body when the sender is unknown', () {
       final r = p('بانک سامان\nواریز مبلغ 50,000 ریال', address: '982000');
-      expect(r.bankName, 'بانک سامان');
+      expect(r.bankName, 'Saman Bank');
     });
 
-    test('فرستنده‌ی ناشناس', () {
+    test('Unknown sender', () {
       final r = p('واریز مبلغ 50,000 ریال', address: '30001234');
       expect(r.bankName, isNull);
     });
   });
 
-  group('مبلغ و واحد پول', () {
-    test('ریال به تومان تبدیل می‌شود', () {
+  group('Amount and currency unit', () {
+    test('Rials are converted to Tomans', () {
       final r = p(
         'بانک ملت\nواریز\nمبلغ: 15,000,000 ریال',
         address: 'BANKMELAT',
@@ -47,22 +47,22 @@ void main() {
       expect(r.currency, 'IRT');
     });
 
-    test('تومان دست‌نخورده می‌ماند', () {
+    test('Tomans are left unchanged', () {
       final r = p('واریز مبلغ 500,000 تومان به حساب شما');
       expect(r.amount, 500000);
     });
 
-    test('وقتی واحد ذکر نشده، طبق قانون بانک ریال فرض می‌شود', () {
+    test('Assume Rials when the bank rule specifies the default unit', () {
       final r = p('بانک ملت\nبرداشت\nمبلغ: 300,000', address: 'BANKMELAT');
       expect(r.amount, 30000);
     });
 
-    test('ارقام فارسی و جداکننده‌ی فارسی', () {
+    test('Persian digits and separators are parsed', () {
       final r = p('واریز مبلغ ۱٬۵۰۰٬۰۰۰ ریال');
       expect(r.amount, 150000);
     });
 
-    test('ارقام عربی و «ي» عربی', () {
+    test('Arabic digits and Arabic Yeh are normalized', () {
       final r = p(
         'خريد\nمبلغ:250,000 ريال\nكارت:6037********5678',
         address: 'BSI',
@@ -71,58 +71,58 @@ void main() {
       expect(r.direction, SmsDirection.withdraw);
     });
 
-    test('دلار', () {
+    test('US dollars', () {
       final r = p('واریز مبلغ 100 دلار به حساب شما');
       expect(r.amount, 100);
       expect(r.currency, 'USD');
     });
 
-    test('پیامک انگلیسی', () {
+    test('English SMS', () {
       final r = p('Your account has been credited with 1,000,000 Rials');
       expect(r.direction, SmsDirection.deposit);
       expect(r.amount, 100000);
     });
   });
 
-  group('جهت تراکنش', () {
-    test('واریز', () {
+  group('Transaction direction', () {
+    test('Deposit', () {
       expect(p('واریز مبلغ 100,000 ریال').direction, SmsDirection.deposit);
     });
-    test('برداشت', () {
+    test('Withdrawal', () {
       expect(p('برداشت مبلغ 100,000 ریال').direction, SmsDirection.withdraw);
     });
-    test('خرید', () {
+    test('Purchase', () {
       expect(p('خرید مبلغ 100,000 ریال').direction, SmsDirection.withdraw);
     });
-    test('انتقال خروجی = برداشت', () {
+    test('Outgoing transfer is a withdrawal', () {
       expect(
         p('انتقال وجه مبلغ 100,000 ریال').direction,
         SmsDirection.withdraw,
       );
     });
-    test('پیامکِ بی‌ربط نامشخص است', () {
+    test('Unrelated SMS has unknown direction', () {
       expect(p('سلام، وقت بخیر').direction, SmsDirection.unknown);
     });
   });
 
-  group('فیلتر پیامک‌های غیرمالی', () {
-    test('رمز یک‌بار مصرف تراکنش نیست', () {
+  group('Non-financial SMS filtering', () {
+    test('A one-time password is not a transaction', () {
       final r = p('رمز یکبار مصرف شما 12345 می‌باشد');
       expect(r.isTransaction, isFalse);
       expect(r.amount, 0);
     });
 
-    test('کد تایید تراکنش نیست', () {
+    test('A verification code is not a transaction', () {
       expect(p('کد تایید شما: 998877').isTransaction, isFalse);
     });
 
-    test('اعلام موجودی تراکنش نیست (جهت نامشخص)', () {
+    test('A balance notification is not a transaction', () {
       expect(p('موجودی حساب شما 5,000,000 ریال است').isTransaction, isFalse);
     });
   });
 
-  group('استخراج کارت، مانده و پیگیری', () {
-    test('کارتِ ماسک‌شده و مانده', () {
+  group('Card, balance, and reference extraction', () {
+    test('Masked card and balance', () {
       final r = p(
         'بانک ملت\nواریز\nمبلغ: 15,000,000 ریال\n'
         'به کارت 6104********1234\nمانده: 20,000,000 ریال\n1405/07/12 14:30',
@@ -133,7 +133,7 @@ void main() {
       expect(r.balance, 2000000);
     });
 
-    test('تاریخِ داخل پیامک به‌جای مبلغ گرفته نمی‌شود', () {
+    test('A date in the SMS is not parsed as the amount', () {
       final r = p(
         'بانک تجارت\nبرداشت\nمبلغ: 1,250,000 ریال\nتاریخ: 1405/07/12',
         address: 'TEJARAT',
@@ -141,34 +141,34 @@ void main() {
       expect(r.amount, 125000);
     });
 
-    test('شماره پیگیری', () {
+    test('Reference number', () {
       final r = p(
         'بانک پارسیان\nخرید\nمبلغ 89,000 ریال\n'
         'کارت 6221********9988\nپیگیری 123456789',
         address: 'PARSIAN',
       );
-      expect(r.bankName, 'بانک پارسیان');
+      expect(r.bankName, 'Parsian Bank');
       expect(r.amount, 8900);
       expect(r.cardMask, '6221********9988');
       expect(r.reference, '123456789');
     });
   });
 
-  group('تطبیق با مشتری', () {
-    test('۴ رقم آخر کارت مشتری پیدا می‌شود', () {
+  group('Customer matching', () {
+    test('Match a customer by the last four card digits', () {
       final sms = p('واریز مبلغ 1,000,000 ریال\nکارت 6104********1234');
       expect(SmsParser.matchesIdentifiers(sms, ['1234']), isTrue);
       expect(SmsParser.matchesIdentifiers(sms, ['9999']), isFalse);
     });
 
-    test('شناسه‌ی کوتاه نادیده گرفته می‌شود', () {
+    test('Short identifiers are ignored', () {
       final sms = p('واریز مبلغ 1,000,000 ریال\nکارت 6104********1234');
       expect(SmsParser.matchesIdentifiers(sms, ['12']), isFalse);
     });
   });
 
-  group('سناریوی کامل', () {
-    test('پیامک واریزِ مشتری: مبلغ، جهت، بانک و اطمینان', () {
+  group('End-to-end scenario', () {
+    test('Customer deposit SMS: amount, direction, bank, and confidence', () {
       final r = p(
         'بانک ملت\nواریز\nمبلغ: 4,500,000 ریال\n'
         'از کارت 6037********8888 به کارت 6104********1234\n'
@@ -179,7 +179,7 @@ void main() {
       expect(r.confident, isTrue);
       expect(r.amount, 450000);
       expect(r.direction, SmsDirection.deposit);
-      expect(r.bankName, 'بانک ملت');
+      expect(r.bankName, 'Mellat Bank');
       expect(r.cardDigits, '60378888');
     });
   });

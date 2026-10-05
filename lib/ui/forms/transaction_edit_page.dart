@@ -8,7 +8,7 @@ import '../../data/repository.dart';
 import '../widgets/widgets.dart';
 import 'contact_edit_page.dart';
 
-/// ثبت یا ویرایش یک تراکنش (درآمد، هزینه، دریافت، پرداخت)
+/// Record or edit a transaction (income, expense, receipt, or payment)
 class TransactionEditPage extends StatefulWidget {
   const TransactionEditPage({
     super.key,
@@ -130,7 +130,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
       );
       await repo.addTxn(base);
 
-      // اگر بخشی نقدی پرداخت/دریافت شد، جداگانه ثبت می‌شود
+      // Any amount paid or received immediately is recorded separately.
       if (_needsCategory && _customer != null && settled > 0) {
         await repo.addTxn(repo.buildTxn(
           kind: _kind == TxnKind.income ? TxnKind.receive : TxnKind.refund,
@@ -139,13 +139,13 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
           date: _date,
           customerId: _customer!.id,
           subscriptionId: _subscription?.id,
-          note: _kind == TxnKind.income ? 'دریافت نقدی' : 'پرداخت نقدی',
+          note: _kind == TxnKind.income ? 'Cash received' : 'Cash paid',
           scope: _scope,
         ));
       }
     }
     if (!mounted) return;
-    showSnack(context, isEdit ? 'تراکنش ویرایش شد' : 'تراکنش ثبت شد');
+    showSnack(context, isEdit ? 'Transaction updated' : 'Transaction recorded');
     Navigator.pop(context);
   }
 
@@ -157,20 +157,20 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEdit ? 'ویرایش تراکنش' : 'ثبت تراکنش'),
+        title: Text(isEdit ? 'Edit transaction' : 'New transaction'),
         actions: [
           if (isEdit)
             IconButton(
-              tooltip: 'حذف',
+              tooltip: 'Delete',
               icon: const Icon(Icons.delete_outline_rounded),
               onPressed: () async {
                 final ok = await confirmDialog(context,
-                    title: 'حذف تراکنش', message: 'این تراکنش حذف شود؟', danger: true, okLabel: 'حذف');
+                    title: 'Delete transaction', message: 'Delete this transaction?', danger: true, okLabel: 'Delete');
                 if (!ok) return;
                 await repo.deleteTxn(widget.existing!.id);
                 if (!context.mounted) return;
                 Navigator.pop(context);
-                showSnack(context, 'تراکنش حذف شد');
+                showSnack(context, 'Transaction deleted');
               },
             ),
         ],
@@ -180,7 +180,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
           children: [
-            // نوع تراکنش
+            // Transaction type
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -195,7 +195,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
               ],
             ),
             const SizedBox(height: 14),
-            // حوزه: کسب‌وکار یا شخصی
+            // Scope: business or personal
             SegmentedButton<TxnScope>(
               segments: [
                 for (final sc in TxnScope.values)
@@ -234,13 +234,13 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: AmountField(controller: _amount, label: 'مبلغ', currency: _currency),
+                  child: AmountField(controller: _amount, label: 'Amount', currency: _currency),
                 ),
                 const SizedBox(width: 8),
                 SizedBox(
                   width: 112,
                   child: SelectField<String>(
-                    label: 'ارز',
+                    label: 'Currency',
                     value: _currency,
                     items: currencies.map((c) => c.code).toList(),
                     labelOf: (c) => Money.symbol(c),
@@ -256,7 +256,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  'معادل با نرخ ${Money.text(repo.settings.currency(_currency).rateToBase)} '
+                  'Base-currency equivalent at ${Money.text(repo.settings.currency(_currency).rateToBase)} '
                   '= ${Money.text(parseAmount(_amount.text) * repo.settings.currency(_currency).rateToBase)}',
                   style: TextStyle(
                       fontSize: 11.5,
@@ -264,29 +264,29 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                 ),
               ),
             const SizedBox(height: 14),
-            JalaliDateField(label: 'تاریخ', value: _date, onChanged: (d) => setState(() => _date = d)),
+            JalaliDateField(label: 'Date', value: _date, onChanged: (d) => setState(() => _date = d)),
             const SizedBox(height: 14),
 
-            // طرف حساب
+            // Contact
             Row(
               children: [
                 Expanded(
                   child: SelectField<Customer>(
-                    label: 'طرف حساب (اختیاری)',
+                    label: 'Contact (optional)',
                     icon: Icons.person_outline_rounded,
                     value: _customer,
                     items: repo.activeCustomers,
                     clearable: true,
                     labelOf: (c) => c.name,
                     subOf: (c) => c.phone,
-                    searchHint: 'نام مشتری…',
-                    sheetTitle: 'انتخاب طرف حساب',
+                    searchHint: 'Customer name...',
+                    sheetTitle: 'Select contact',
                     onChanged: (c) => setState(() => _customer = c),
                   ),
                 ),
                 const SizedBox(width: 8),
                 IconButton.filledTonal(
-                  tooltip: 'طرف حساب جدید',
+                  tooltip: 'New contact',
                   onPressed: () async {
                     final created = await Navigator.push<Customer>(
                       context,
@@ -301,7 +301,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
             if (_needsCategory) ...[
               const SizedBox(height: 14),
               SelectField<Category>(
-                label: 'دسته‌بندی',
+                label: 'Category',
                 icon: Icons.category_outlined,
                 value: _category,
                 items: repo.categoriesOf(_kind, scope: _scope),
@@ -314,9 +314,9 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                   contentPadding: EdgeInsets.zero,
                   value: _credit,
                   onChanged: (v) => setState(() => _credit = v),
-                  title: Text(_kind == TxnKind.income ? 'نسیه (روی حساب مشتری)' : 'نسیه (بدهی ما)',
+                  title: Text(_kind == TxnKind.income ? 'Credit (customer balance)' : 'Credit (our payable)',
                       style: const TextStyle(fontSize: 13.5)),
-                  subtitle: const Text('اگر خاموش باشد یعنی نقدی پرداخت/دریافت شده است',
+                  subtitle: const Text('When off, this is recorded as a cash payment or receipt.',
                       style: TextStyle(fontSize: 11.5)),
                 ),
               ],
@@ -329,7 +329,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                   Expanded(
                     child: AmountField(
                       controller: _settled,
-                      label: _kind == TxnKind.income ? 'دریافت نقدی همراه' : 'پرداخت نقدی همراه',
+                      label: _kind == TxnKind.income ? 'Cash received now' : 'Cash paid now',
                       currency: _settleCurrency,
                       validator: (_) => null,
                     ),
@@ -338,7 +338,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                   SizedBox(
                     width: 112,
                     child: SelectField<String>(
-                      label: 'ارز',
+                      label: 'Currency',
                       value: _settleCurrency,
                       items: currencies.map((c) => c.code).toList(),
                       labelOf: (c) => Money.symbol(c),
@@ -349,12 +349,12 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
               ),
             ],
             const SizedBox(height: 14),
-            AppTextField(controller: _note, label: 'توضیح', icon: Icons.notes_rounded, maxLines: 2),
+            AppTextField(controller: _note, label: 'Description', icon: Icons.notes_rounded, maxLines: 2),
             const SizedBox(height: 20),
             FilledButton.icon(
               onPressed: _save,
               icon: const Icon(Icons.check_rounded),
-              label: Text(isEdit ? 'ذخیره تغییرات' : 'ثبت'),
+              label: Text(isEdit ? 'Save changes' : 'Record'),
             ),
           ],
         ),

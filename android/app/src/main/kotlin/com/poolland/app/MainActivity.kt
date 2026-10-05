@@ -9,9 +9,9 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 /**
- * نگه‌دارنده‌ی کانالِ مشترک با بخش فلاتر.
- * گیرنده‌ی پیامک (SmsReceiver) از همین کانال استفاده می‌کند تا
- * پیامک‌های جدید را در لحظه به دارت بفرستد.
+ * Holds the channel shared with the Flutter app.
+ * SmsReceiver uses this channel to
+ * send newly received SMS messages to Dart in real time.
  */
 object SmsBus {
     const val CHANNEL_NAME = "poolland/sms"
@@ -52,7 +52,7 @@ class MainActivity : FlutterActivity() {
     }
 
     // ---------------------------------------------------------
-    // مجوزها
+    // Permissions
     // ---------------------------------------------------------
     private fun hasSmsPermission(): Boolean {
         val read = checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
@@ -86,7 +86,7 @@ class MainActivity : FlutterActivity() {
     }
 
     // ---------------------------------------------------------
-    // خواندن پیامک‌های دریافتی
+    // Read received SMS messages
     // ---------------------------------------------------------
     private fun readInbox(since: Long, limit: Int): List<Map<String, Any?>> {
         val out = mutableListOf<Map<String, Any?>>()

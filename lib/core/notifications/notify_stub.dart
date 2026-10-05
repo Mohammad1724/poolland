@@ -1,4 +1,4 @@
-/// نسخه‌ی وب/پشتیبانی‌نشده — اعلان‌ها غیرفعال هستند.
+/// Web and unsupported platforms do not provide notifications.
 const bool notifyIsSupported = false;
 
 class ReminderService {
@@ -13,8 +13,8 @@ class ReminderService {
   Future<void> scheduleDaily({
     required int hour,
     required int minute,
-    String title = 'یادآوری ثبت هزینه',
-    String body = 'هزینه‌ها و درآمد امروز رو ثبت کردی؟',
+    String title = 'Expense reminder',
+    String body = 'Have you recorded today’s expenses and income?',
   }) async {}
 
   Future<void> cancelDaily() async {}

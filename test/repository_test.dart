@@ -26,18 +26,18 @@ void main() {
     await tmp.delete(recursive: true);
   });
 
-  test('داده‌های اولیه ساخته می‌شوند', () {
+  test('Initial data is seeded', () {
     expect(repo.categoriesOf(TxnKind.income), isNotEmpty);
     expect(repo.categoriesOf(TxnKind.expense), isNotEmpty);
     expect(repo.plans, isNotEmpty);
     expect(repo.settings.baseCurrency, 'IRT');
   });
 
-  test('ثبت فروش: درآمد + بدهی مشتری + دریافت نقدی', () async {
-    final customer = await repo.addCustomer(name: 'رضا');
+  test('Sale records income, customer debt, and cash received', () async {
+    final customer = await repo.addCustomer(name: 'Reza');
     await repo.sellSubscription(
       customer: customer,
-      title: 'یک ماهه ۵۰ گیگ',
+      title: 'One month, 50 GB',
       price: 500000,
       currencyCode: 'IRT',
       start: J.today,
@@ -46,7 +46,7 @@ void main() {
     );
 
     final fresh = repo.customerById(customer.id)!;
-    expect(repo.balanceOf(fresh), 300000, reason: '۵۰۰ فروش نسیه − ۲۰۰ دریافت');
+    expect(repo.balanceOf(fresh), 300000, reason: '500 credit sale − 200 received');
     expect(repo.transactions.length, 2);
     expect(repo.subsOfCustomer(customer.id).length, 1);
 
@@ -57,11 +57,11 @@ void main() {
     expect(s.cashIn, 200000);
   });
 
-  test('تمدید اشتراک از فردای تاریخ پایان ساخته می‌شود', () async {
-    final customer = await repo.addCustomer(name: 'مریم');
+  test('Renewal starts the day after the previous subscription ends', () async {
+    final customer = await repo.addCustomer(name: 'Maryam');
     final first = await repo.sellSubscription(
       customer: customer,
-      title: 'یک ماهه',
+      title: 'One month',
       price: 300000,
       currencyCode: 'IRT',
       start: J.today,
@@ -74,11 +74,11 @@ void main() {
     expect(repo.balanceOf(repo.customerById(customer.id)!), 300000);
   });
 
-  test('دریافت وجه بدهی را کم می‌کند', () async {
-    final customer = await repo.addCustomer(name: 'حسین');
+  test('A customer payment reduces their balance', () async {
+    final customer = await repo.addCustomer(name: 'Hossein');
     await repo.sellSubscription(
       customer: customer,
-      title: 'سرویس',
+      title: 'Service',
       price: 400000,
       currencyCode: 'IRT',
       start: J.today,
@@ -94,11 +94,11 @@ void main() {
     expect(repo.totals.receivable, 250000);
   });
 
-  test('پشتیبان‌گیری و بازگردانی (JSON)', () async {
-    final c = await repo.addCustomer(name: 'سارا', phone: '09120000000');
+  test('JSON backup and restore', () async {
+    final c = await repo.addCustomer(name: 'Sara', phone: '09120000000');
     await repo.sellSubscription(
       customer: c,
-      title: 'اشتراک',
+      title: 'Subscription',
       price: 100000,
       currencyCode: 'IRT',
       start: J.today,
@@ -112,13 +112,13 @@ void main() {
     await repo.importData(backup);
     expect(repo.customers.length, 1);
     expect(repo.transactions.length, 1);
-    expect(repo.customerById(c.id)!.name, 'سارا');
+    expect(repo.customerById(c.id)!.name, 'Sara');
     expect(repo.balanceOf(repo.customerById(c.id)!), 100000);
   });
 
-  test('پلن‌های سفارشی بعد از بازگردانی پشتیبان حفظ می‌شوند', () async {
+  test('Custom plans survive backup restoration', () async {
     final plan = await repo.addPlan(const Plan(
-        id: 'x', name: 'پلن سفارشی', price: 123456, durationValue: 2));
+        id: 'x', name: 'Custom plan', price: 123456, durationValue: 2));
     expect(repo.plans.any((p) => p.id == plan.id), isTrue);
 
     final backup = repo.exportData();
@@ -126,25 +126,25 @@ void main() {
     await repo.importData(backup);
 
     expect(repo.plans.any((p) => p.id == plan.id), isTrue,
-        reason: 'پلن‌های کاربر نباید هنگام بازگردانی گم شوند');
+        reason: 'User plans should not be lost during restoration');
   });
 
-  test('قانون اختصاصی پیامک ذخیره و بازگردانی می‌شود', () async {
+  test('Custom SMS rules are saved and restored', () async {
     await repo.addSmsRule(const BankRule(
-        id: 'r1', bankName: 'بانک من', senderHints: ['MYBANK']));
+        id: 'r1', bankName: 'My Bank', senderHints: ['MYBANK']));
     expect(repo.smsRules.length, 1);
 
     final backup = repo.exportData();
     await repo.wipeAll();
     await repo.importData(backup);
     expect(repo.smsRules.length, 1);
-    expect(repo.smsRules.first.bankName, 'بانک من');
+    expect(repo.smsRules.first.bankName, 'My Bank');
 
     await repo.deleteSmsRule('r1');
     expect(repo.smsRules, isEmpty);
   });
 
-  test('داده‌ی نمونه: همه‌ی ارجاع‌ها معتبرند (یتیم و بی‌سرپرست نداریم)', () async {
+  test('Sample data references are valid (no orphan records)', () async {
     await repo.loadDemoData();
 
     final customerIds = repo.customers.map((c) => c.id).toSet();
@@ -152,25 +152,25 @@ void main() {
         .where((t) => t.customerId != null && !customerIds.contains(t.customerId))
         .length;
     expect(orphans, 0,
-        reason: 'هیچ تراکنشی نباید به مشتری حذف‌شده اشاره کند');
+        reason: 'No transaction should reference a deleted customer');
 
     final planIds = repo.plans.map((p) => p.id).toSet();
     final badPlans = repo.subscriptions
         .where((s) => s.planId != null && !planIds.contains(s.planId))
         .length;
     expect(badPlans, 0,
-        reason: 'همه‌ی اشتراک‌ها باید به یک پلن معتبر اشاره کنند '
-            '(وگرنه تمدید یک‌کلیکی درست کار نمی‌کند)');
+        reason: 'Every subscription should reference a valid plan '
+            '(otherwise one-tap renewal will fail)');
 
     final categoryIds = repo.categories.map((c) => c.id).toSet();
     final badCategories = repo.transactions
         .where((t) => t.categoryId != null && !categoryIds.contains(t.categoryId))
         .length;
     expect(badCategories, 0,
-        reason: 'دسته‌بندی تراکنش‌های نمونه باید معتبر باشد');
+        reason: 'Sample transactions should reference valid categories');
   });
 
-  test('داده‌ی نمونه بارگذاری می‌شود', () async {
+  test('Sample data loads', () async {
     await repo.loadDemoData();
     expect(repo.customers.length, greaterThan(5));
     expect(repo.transactions.length, greaterThan(20));
@@ -178,9 +178,9 @@ void main() {
     expect(repo.totals.receivable, greaterThan(0));
   });
 
-  test('نرخ ارز در تنظیمات ذخیره می‌شود', () async {
+  test('Exchange rates are saved in settings', () async {
     await repo.upsertCurrency(const CurrencyDef(
-        code: 'AED', name: 'درهم', symbol: 'د.ا', rateToBase: 35000, decimals: 2));
+        code: 'AED', name: 'UAE Dirham', symbol: 'AED', rateToBase: 35000, decimals: 2));
     expect(repo.settings.currency('AED').rateToBase, 35000);
 
     final t = repo.buildTxn(

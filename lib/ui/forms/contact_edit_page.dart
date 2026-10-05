@@ -6,7 +6,7 @@ import '../../data/models.dart';
 import '../../data/repository.dart';
 import '../widgets/widgets.dart';
 
-/// افزودن / ویرایش مشتری یا تأمین‌کننده
+/// Add or edit a customer or supplier
 class ContactEditPage extends StatefulWidget {
   const ContactEditPage({super.key, this.existing, this.initialName});
 
@@ -37,11 +37,11 @@ class _ContactEditPageState extends State<ContactEditPage> {
     final c = widget.existing;
     if (c != null) {
       _name.text = c.name;
-      _phone.text = c.phone.isEmpty ? '' : Fmt.toFaDigits(c.phone);
+      _phone.text = c.phone.isEmpty ? '' : c.phone;
       _telegram.text = c.telegram;
       _note.text = c.note;
       _archived = c.archived;
-      _identifiers.text = c.bankIdentifiers.join('، ');
+      _identifiers.text = c.bankIdentifiers.join(' , ');
       if (c.openingBalance != 0) {
         _openingIsDebt = c.openingBalance > 0;
         _opening.text = groupedNumber(c.openingBalance.abs(), decimals: 0);
@@ -68,7 +68,7 @@ class _ContactEditPageState extends State<ContactEditPage> {
     final opening = parseAmount(_opening.text) * (_openingIsDebt ? 1 : -1);
     final digits = _phone.text.replaceAll(RegExp(r'[^0-9+]'), '');
     final identifiers = _identifiers.text
-        .split(RegExp(r'[,،\s]+'))
+        .split(RegExp(r'[,\u060C\s]+'))
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .toList();
@@ -98,35 +98,35 @@ class _ContactEditPageState extends State<ContactEditPage> {
       if (!mounted) return;
       Navigator.pop(context, c);
     }
-    if (mounted) showSnack(context, isEdit ? 'تغییرات ذخیره شد' : 'مشتری اضافه شد');
+    if (mounted) showSnack(context, isEdit ? 'Changes saved' : 'Customer added');
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEdit ? 'ویرایش طرف حساب' : 'طرف حساب جدید'),
+        title: Text(isEdit ? 'Edit contact' : 'New contact'),
         actions: [
           if (isEdit)
             IconButton(
-              tooltip: 'حذف',
+              tooltip: 'Delete',
               onPressed: () async {
                 final repo = context.read<AppRepository>();
                 final count = repo.txnsOfCustomer(widget.existing!.id).length;
                 final ok = await confirmDialog(
                   context,
-                  title: 'حذف طرف حساب',
+                  title: 'Delete contact',
                   message: count > 0
-                      ? 'این طرف حساب $count تراکنش دارد. با حذف او، همه‌ی آن تراکنش‌ها هم حذف می‌شوند. مطمئن هستید؟'
-                      : 'این طرف حساب حذف شود؟',
-                  okLabel: 'حذف',
+                      ? 'This contact has $count transactions. Deleting them will also delete all of those transactions. Continue?'
+                      : 'Delete this contact?',
+                  okLabel: 'Delete',
                   danger: true,
                 );
                 if (!ok) return;
                 await repo.deleteCustomer(widget.existing!.id);
                 if (!context.mounted) return;
                 Navigator.pop(context);
-                showSnack(context, 'طرف حساب حذف شد');
+                showSnack(context, 'Contact deleted');
               },
               icon: const Icon(Icons.delete_outline_rounded),
             ),
@@ -139,22 +139,22 @@ class _ContactEditPageState extends State<ContactEditPage> {
           children: [
             AppTextField(
               controller: _name,
-              label: 'نام',
+              label: 'Name',
               icon: Icons.person_outline_rounded,
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'نام را وارد کنید' : null,
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter a name' : null,
             ),
             const SizedBox(height: 14),
             AppTextField(
               controller: _phone,
-              label: 'شماره تماس',
-              hint: '۰۹۱۲…',
+              label: 'Phone number',
+              hint: '0912...',
               icon: Icons.phone_outlined,
               keyboardType: TextInputType.phone,
             ),
             const SizedBox(height: 14),
             AppTextField(
               controller: _telegram,
-              label: 'آیدی تلگرام (اختیاری)',
+              label: 'Telegram username (optional)',
               hint: '@username',
               icon: Icons.send_outlined,
             ),
@@ -165,7 +165,7 @@ class _ContactEditPageState extends State<ContactEditPage> {
                 Expanded(
                   child: AmountField(
                     controller: _opening,
-                    label: 'بدهی/طلب قبلی',
+                    label: 'Opening balance',
                     validator: (_) => null,
                   ),
                 ),
@@ -173,8 +173,8 @@ class _ContactEditPageState extends State<ContactEditPage> {
                 SegmentedButton<bool>(
                   showSelectedIcon: false,
                   segments: const [
-                    ButtonSegment(value: true, label: Text('بدهکار')),
-                    ButtonSegment(value: false, label: Text('بستانکار')),
+                    ButtonSegment(value: true, label: Text('Debtor')),
+                    ButtonSegment(value: false, label: Text('Creditor')),
                   ],
                   selected: {_openingIsDebt},
                   onSelectionChanged: (s) => setState(() => _openingIsDebt = s.first),
@@ -184,27 +184,27 @@ class _ContactEditPageState extends State<ContactEditPage> {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                'اگر از قبل حساب باز مانده دارید، اینجا وارد کنید (مثلاً مشتری قدیمی که ۵۰۰ هزار بدهکار است).',
+                'Enter any existing balance here (for example, an old customer who owes 500,000).',
                 style: TextStyle(
                     fontSize: 11,
                     color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55)),
               ),
             ),
             const SizedBox(height: 14),
-            AppTextField(controller: _note, label: 'یادداشت', maxLines: 3, icon: Icons.notes_rounded),
+            AppTextField(controller: _note, label: 'Note', maxLines: 3, icon: Icons.notes_rounded),
             const SizedBox(height: 14),
             AppTextField(
               controller: _identifiers,
-              label: 'شناسه‌های بانکی (برای تشخیص خودکار پیامک)',
-              hint: 'مثلاً: 1234، 6104********5678',
+              label: 'Bank identifiers (for automatic SMS matching)',
+              hint: 'e.g. 1234, 6104********5678',
               icon: Icons.credit_card_rounded,
               maxLines: 2,
             ),
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                'اگر ۴ رقم آخر کارت یا شماره کارتِ این مشتری را اینجا بنویسید، '
-                'واریزهای او در پیامک‌های بانکی به‌طور خودکار شناسایی می‌شود.',
+                'Enter this customer’s last four card digits or full card number here, '
+                'and incoming payments in bank SMS messages can be matched automatically.',
                 style: TextStyle(
                     fontSize: 11,
                     color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55)),
@@ -216,15 +216,15 @@ class _ContactEditPageState extends State<ContactEditPage> {
                 contentPadding: EdgeInsets.zero,
                 value: _archived,
                 onChanged: (v) => setState(() => _archived = v),
-                title: const Text('بایگانی شده', style: TextStyle(fontSize: 13.5)),
-                subtitle: const Text('در لیست اصلی نمایش داده نمی‌شود',
+                title: const Text('Archived', style: TextStyle(fontSize: 13.5)),
+                subtitle: const Text('Hidden from the main list',
                     style: TextStyle(fontSize: 11.5)),
               ),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: _save,
               icon: const Icon(Icons.check_rounded),
-              label: Text(isEdit ? 'ذخیره تغییرات' : 'افزودن'),
+              label: Text(isEdit ? 'Save changes' : 'Add'),
             ),
           ],
         ),

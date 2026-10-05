@@ -4,23 +4,23 @@ import '../platform_info.dart';
 import 'sms_models.dart';
 
 /// ============================================================
-///  ارتباط با بخش بومی اندروید برای خواندن پیامک‌ها
+///  Bridge to native Android code for reading SMS messages.
 ///
-///  طرف اندروید: MainActivity.kt و SmsReceiver.kt
-///  · hasPermission      → آیا مجوز پیامک داده شده؟
-///  · requestPermission  → درخواست مجوز
-///  · readInbox          → خواندن پیامک‌های دریافتی
-///  · onSms              → فراخوانی از اندروید هنگام دریافت پیامک جدید
+///  Android side: MainActivity.kt and SmsReceiver.kt.
+///  · hasPermission      → Check whether SMS permission is granted.
+///  · requestPermission  → Request permission.
+///  · readInbox          → Read received SMS messages.
+///  · onSms              → Called by Android when a new SMS arrives.
 /// ============================================================
 class SmsService {
   static const MethodChannel _channel = MethodChannel('poolland/sms');
 
   static bool _inited = false;
 
-  /// وقتی پیامک جدید می‌رسد (در حالی که برنامه باز است)
+  /// Called when a new SMS arrives while the app is open.
   static void Function(SmsMessage message)? onSmsReceived;
 
-  /// آیا این پلتفرم اصلاً پیامک دارد؟ (فقط اندروید)
+  /// Whether SMS is available on this platform (Android only).
   static bool get isSupported => isSmsCapable;
 
   static void init() {
@@ -62,7 +62,7 @@ class SmsService {
     }
   }
 
-  /// خواندن پیامک‌های دریافتی از [since] به بعد
+  /// Read received SMS messages from [since] onward.
   static Future<List<SmsMessage>> readInbox({
     DateTime? since,
     int limit = 500,

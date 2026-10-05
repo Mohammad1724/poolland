@@ -14,8 +14,8 @@ import 'ledger.dart';
 import 'models.dart';
 import 'store.dart';
 
-/// مغز برنامه: داده‌ها را در حافظه نگه می‌دارد، در Hive ذخیره می‌کند
-/// و به رابط کاربری خبر می‌دهد.
+/// Core app repository: keeps data in memory, stores it in Hive,
+/// and notifies the UI of changes.
 class AppRepository extends ChangeNotifier {
   LocalStore? _store;
   bool _ready = false;
@@ -37,12 +37,12 @@ class AppRepository extends ChangeNotifier {
   List<Category> categories = [];
   List<Plan> plans = [];
 
-  // ---- حسابداری شخصی ----
+  // ---- Personal finance ----
   List<Budget> budgets = [];
   List<RecurringRule> recurringRules = [];
   List<QuickExpense> quickExpenses = [];
 
-  /// فیلتر حوزه‌ی نمایش در رابط کاربری (null = همه)
+  /// UI scope filter (null = all).
   TxnScope? scopeFilter;
 
   void setScopeFilter(TxnScope? scope) {
@@ -50,14 +50,14 @@ class AppRepository extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ---- پیامک بانکی ----
+  // ---- Bank SMS ----
   List<ParsedSms> smsSuggestions = [];
   List<BankRule> smsRules = [];
   bool smsPermissionGranted = false;
   bool smsBusy = false;
   bool _smsInited = false;
 
-  /// آماده‌سازی اولیه (باز کردن دیتابیس)
+  /// Initialize the repository and open the database.
   Future<void> init() async {
     _store ??= await LocalStore.open();
     _loadFrom(_store!);
@@ -88,7 +88,7 @@ class AppRepository extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ---------------- دسترسی‌های سریع ----------------
+  // ---------------- Quick accessors ----------------
   List<Customer> get activeCustomers =>
       customers.where((c) => !c.archived).toList();
 
@@ -102,7 +102,7 @@ class AppRepository extends ChangeNotifier {
     return null;
   }
 
-  String customerName(String? id) => customerById(id)?.name ?? 'بدون مشتری';
+  String customerName(String? id) => customerById(id)?.name ?? 'No customer';
 
   Subscription? subscriptionById(String? id) {
     if (id == null) return null;
@@ -128,7 +128,7 @@ class AppRepository extends ChangeNotifier {
     return null;
   }
 
-  String categoryName(String? id) => categoryById(id)?.name ?? 'بدون دسته';
+  String categoryName(String? id) => categoryById(id)?.name ?? 'Uncategorized';
 
   List<Category> categoriesOf(TxnKind kind, {TxnScope? scope}) =>
       categories
@@ -146,14 +146,14 @@ class AppRepository extends ChangeNotifier {
 
   Balances get totals => Ledger.totals(customers, transactions);
 
-  /// تراکنش‌های یک حوزه‌ی مشخص (اگر null باشد، همه)
+  /// Transactions in a given scope (all scopes when null).
   List<Txn> scopeTxns(TxnScope? scope) => scope == null
       ? transactions
       : transactions.where((t) => t.scope == scope).toList();
 
-  /// تراکنش‌های کسب‌وکار — یعنی همه به‌جز موارد «شخصی».
-  /// این مبنای تمام محاسبات کسب‌وکار است تا هزینه‌های شخصی
-  /// سودِ فروش وی‌پی‌ان را خراب نکند.
+  /// Business transactions — everything except personal transactions.
+  /// All business calculations use this list so personal expenses
+  /// do not distort VPN business profit.
   List<Txn> get businessTxns =>
       transactions.where((t) => t.scope != TxnScope.personal).toList();
 
@@ -171,11 +171,11 @@ class AppRepository extends ChangeNotifier {
   Map<String, double> balancesMap() =>
       Ledger.balancesByCustomer(customers, businessTxns);
 
-  /// موجودی نقدی/بانکی = موجودی اولیه + خالص جریان نقدی (فقط کسب‌وکار)
+  /// Cash/bank balance = opening balance + net business cash flow.
   double get cashBalance =>
       settings.openingCash + Ledger.summarize(businessTxns).netCash;
 
-  /// فهرست بدهکارها (به ما بدهکار) مرتب‌شده
+  /// Sorted list of debtors (contacts who owe us).
   List<MapEntry<Customer, double>> debtorsList() {
     final map = balancesMap();
     final list = activeCustomers
@@ -186,7 +186,7 @@ class AppRepository extends ChangeNotifier {
     return list;
   }
 
-  /// فهرست بستانکارها (ما به آن‌ها بدهکاریم)
+  /// Sorted list of creditors (contacts we owe).
   List<MapEntry<Customer, double>> creditorsList() {
     final map = balancesMap();
     return activeCustomers
@@ -196,7 +196,7 @@ class AppRepository extends ChangeNotifier {
       ..sort((a, b) => a.value.compareTo(b.value));
   }
 
-  // ---------------- مشتری‌ها ----------------
+  // ---------------- Customers ----------------
   Future<Customer> addCustomer({
     required String name,
     String phone = '',
@@ -226,7 +226,7 @@ class AppRepository extends ChangeNotifier {
     await reload();
   }
 
-  /// حذف مشتری؛ [withData] یعنی تراکنش‌ها و اشتراک‌های او هم حذف شوند
+  /// Delete a customer; [withData] also deletes their transactions and subscriptions.
   Future<void> deleteCustomer(String id, {bool withData = true}) async {
     if (withData) {
       for (final t in transactions.where((t) => t.customerId == id).toList()) {
@@ -244,7 +244,7 @@ class AppRepository extends ChangeNotifier {
     await reload();
   }
 
-  // ---------------- اشتراک‌ها ----------------
+  // ---------------- Subscriptions ----------------
   Future<Subscription> saveSubscription(Subscription s) async {
     await store.putSubscription(s);
     await reload();
@@ -256,7 +256,7 @@ class AppRepository extends ChangeNotifier {
     await reload();
   }
 
-  /// ثبت فروش اشتراک (+ ثبت درآمد و پرداخت در همان لحظه)
+  /// Record a subscription sale, including income and any immediate payment.
   Future<Subscription> sellSubscription({
     required Customer customer,
     Plan? plan,
@@ -301,8 +301,8 @@ class AppRepository extends ChangeNotifier {
             : categoryId,
         customerId: customer.id,
         subscriptionId: s.id,
-        credit: true, // کل مبلغ به حساب مشتری بدهکار می‌شود
-        note: note.isEmpty ? 'فروش $title' : note,
+        credit: true, // The full amount is charged to the customer’s balance.
+        note: note.isEmpty ? 'Sale: $title' : note,
         createdAt: DateTime.now(),
       ));
     }
@@ -318,7 +318,7 @@ class AppRepository extends ChangeNotifier {
         date: J.dateOnly(start),
         customerId: customer.id,
         subscriptionId: s.id,
-        note: 'دریافت بابت $title',
+        note: 'Payment for $title',
         createdAt: DateTime.now(),
       ));
     }
@@ -327,7 +327,7 @@ class AppRepository extends ChangeNotifier {
     return s;
   }
 
-  /// تمدید اشتراک: اشتراک جدید از فردای تاریخ پایان قبلی
+  /// Renew a subscription, starting the new one the day after the previous end date.
   Future<Subscription> renewSubscription(
     Subscription old, {
     int? months,
@@ -338,7 +338,7 @@ class AppRepository extends ChangeNotifier {
     String? categoryId,
   }) async {
     final customer = customerById(old.customerId);
-    if (customer == null) throw StateError('مشتری پیدا نشد');
+    if (customer == null) throw StateError('Customer not found');
     final plan = planById(old.planId);
     final startDate = start ?? J.addDays(old.endDate, 1);
     final end = plan != null
@@ -355,7 +355,7 @@ class AppRepository extends ChangeNotifier {
       received: received ?? 0,
       receiveCurrency: currencyCode ?? old.currency,
       autoRenew: old.autoRenew,
-      note: 'تمدید ${old.planName}',
+      note: 'Renewal: ${old.planName}',
       categoryId: categoryId,
       deviceCount: old.deviceCount,
     );
@@ -365,19 +365,19 @@ class AppRepository extends ChangeNotifier {
 
   String? get defaultExpenseCategoryId => defaultCategoryId(TxnKind.expense);
 
-  /// اولین دسته‌بندی مناسب برای یک نوع/حوزه
+  /// First suitable category for a transaction type and scope.
   String? defaultCategoryId(TxnKind kind, {TxnScope scope = TxnScope.business}) {
     final list = categoriesOf(kind, scope: scope);
     if (list.isEmpty) return null;
     if (kind == TxnKind.income) {
       for (final c in list) {
-        if (c.name.contains('اشتراک')) return c.id;
+        if (c.name.toLowerCase().contains('subscription')) return c.id;
       }
     }
     return list.first.id;
   }
 
-  // ---------------- تراکنش‌ها ----------------
+  // ---------------- Transactions ----------------
   Txn buildTxn({
     required TxnKind kind,
     required double amount,
@@ -423,9 +423,9 @@ class AppRepository extends ChangeNotifier {
     await reload();
   }
 
-  // ================= حسابداری شخصی =================
+  // ================= Personal finance =================
 
-  /// بازه‌ی ماه شمسیِ جاری (برای بودجه و نمودار ماهانه)
+  /// Current Jalali month range (for budgets and monthly charts).
   static DateTimeRangeOfMonth monthOf(DateTime d) {
     final j = J.of(d);
     final start = J.toDate(j.year, j.month, 1);
@@ -433,14 +433,14 @@ class AppRepository extends ChangeNotifier {
     return DateTimeRangeOfMonth(start: start, end: end, year: j.year, month: j.month);
   }
 
-  /// وضعیت مصرف همه‌ی بودجه‌ها در ماه جاری
+  /// Usage for all budgets in the current month.
   List<BudgetUsage> budgetUsages({DateTime? now}) {
     final range = monthOf(now ?? DateTime.now());
     return budgets.map((b) {
       final cat = categories.where((c) => c.id == b.categoryId).firstOrNull;
       return BudgetUsage(
         budget: b,
-        categoryName: cat?.name ?? 'دسته حذف‌شده',
+        categoryName: cat?.name ?? 'Deleted category',
         spent: Ledger.spentIn(
           transactions,
           b.categoryId,
@@ -489,8 +489,8 @@ class AppRepository extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// ثبت خودکارِ تراکنش‌های تکرارشونده‌ای که سررسیدشان رسیده است.
-  /// تعداد تراکنش‌های ایجادشده را برمی‌گرداند.
+  /// Automatically post recurring transactions that are due.
+  /// Returns the number of transactions created.
   Future<int> postDueRecurring({DateTime? now}) async {
     final today = now ?? DateTime.now();
     var created = 0;
@@ -526,7 +526,7 @@ class AppRepository extends ChangeNotifier {
     return created;
   }
 
-  /// ثبت یک هزینه‌ی سریع از روی دکمه‌های داشبورد
+  /// Record a quick expense or income from a dashboard button.
   Future<Txn> addQuickExpense(QuickExpense q, {double? amount, DateTime? date}) {
     return addTxn(Txn(
       id: LocalStore.newId(),
@@ -561,7 +561,7 @@ class AppRepository extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// ثبت سریع دریافت/پرداخت برای یک مشتری
+  /// Quickly record a receipt from or payment to a customer.
   Future<void> addPayment({
     required Customer customer,
     required double amount,
@@ -578,11 +578,11 @@ class AppRepository extends ChangeNotifier {
         rateToBase: settings.currency(currencyCode).rateToBase,
         date: date,
         customerId: customer.id,
-        note: note.isEmpty ? (isReceive ? 'دریافت وجه' : 'پرداخت وجه') : note,
+        note: note.isEmpty ? (isReceive ? 'Payment received' : 'Payment made') : note,
         createdAt: DateTime.now(),
       ));
 
-  // ---------------- دسته‌بندی‌ها ----------------
+  // ---------------- Categories ----------------
   Future<void> addCategory(String name, TxnKind kind,
       {TxnScope scope = TxnScope.business}) async {
     final list = categoriesOf(kind, scope: scope);
@@ -614,7 +614,7 @@ class AppRepository extends ChangeNotifier {
     await reload();
   }
 
-  // ---------------- پلن‌ها ----------------
+  // ---------------- Plans ----------------
   Future<Plan> addPlan(Plan p) async {
     final created = Plan(
       id: LocalStore.newId(),
@@ -640,7 +640,7 @@ class AppRepository extends ChangeNotifier {
     await reload();
   }
 
-  // ---------------- تنظیمات ----------------
+  // ---------------- Settings ----------------
   Future<void> updateSettings(AppSettings s) async {
     final reminderChanged = s.dailyReminder != settings.dailyReminder ||
         s.reminderHour != settings.reminderHour ||
@@ -658,9 +658,9 @@ class AppRepository extends ChangeNotifier {
     }
   }
 
-  /// زمان‌بندی یادآور روزانه (فقط وقتی کاربر آن را روشن کرده باشد).
-  /// اگر یادآور خاموش است، اصلاً سراغ پلاگینِ اعلان نمی‌رویم تا
-  /// راه‌اندازیِ برنامه سبک و بدون وابستگی باقی بماند.
+  /// Schedule the daily reminder only when the user has enabled it.
+  /// When the reminder is off, avoid initializing the notification plugin so
+  /// app startup stays lightweight and dependency-free.
   Future<void> scheduleDailyReminder() async {
     if (!reminder.supported || !settings.dailyReminder) return;
     try {
@@ -669,21 +669,21 @@ class AppRepository extends ChangeNotifier {
         minute: settings.reminderMinute,
       );
     } catch (_) {
-      // اگر اعلان در دسترس نبود، برنامه نباید از کار بیفتد
+      // The app must keep working if notifications are unavailable.
     }
   }
 
-  /// لغو یادآورِ زمان‌بندی‌شده
+  /// Cancel the scheduled reminder.
   Future<void> cancelDailyReminder() async {
     if (!reminder.supported) return;
     try {
       await reminder.cancelDaily();
     } catch (_) {
-      // نادیده گرفتن خطاهای احتمالی پلاگین
+      // Ignore possible plugin errors.
     }
   }
 
-  /// تراکنش‌های قابل‌نمایش با احتساب فیلتر حوزه
+  /// Visible transactions after applying the scope filter.
   List<Txn> get visibleTxns => scopeFilter == null
       ? transactions
       : transactions.where((t) => t.scope == scopeFilter).toList();
@@ -705,14 +705,14 @@ class AppRepository extends ChangeNotifier {
     await updateSettings(settings.copyWith(currencies: list));
   }
 
-  // ---------------- پیامک بانکی ----------------
-  /// آیا این دستگاه اصلاً پیامک دارد؟ (فقط اندروید)
+  // ---------------- Bank SMS ----------------
+  /// Whether SMS is supported on this device (Android only).
   bool get smsSupported => SmsService.isSupported;
 
-  /// تعداد پیشنهادهای در انتظار تأیید
+  /// Number of suggestions awaiting approval.
   int get smsPendingCount => smsSuggestions.length;
 
-  /// آماده‌سازی گوش دادن به پیامک‌های جدید
+  /// Initialize listening for new SMS messages.
   void initSms() {
     if (_smsInited || !SmsService.isSupported) return;
     _smsInited = true;
@@ -752,8 +752,8 @@ class AppRepository extends ChangeNotifier {
     return ok;
   }
 
-  /// خواندن پیامک‌ها و ساخت فهرست پیشنهادها
-  /// برمی‌گرداند: تعداد پیشنهادهای جدید
+  /// Read SMS messages and build the suggestion list.
+  /// Returns the number of new suggestions.
   Future<int> syncSms({bool force = false}) async {
     if (!isReady || !SmsService.isSupported) return 0;
     if (smsBusy && !force) return 0;
@@ -772,7 +772,7 @@ class AppRepository extends ChangeNotifier {
         if (parsed.isTransaction) {
           pending.add(parsed);
         } else {
-          // پیامک‌های غیرمالی را دیگر هر بار بررسی نمی‌کنیم
+          // Do not rescan non-financial messages on every sync.
           await store.setSmsState(m.key, 'ignored');
         }
       }
@@ -794,7 +794,7 @@ class AppRepository extends ChangeNotifier {
     }
   }
 
-  /// تطبیق پیامک با مشتری از طریق شناسه‌های بانکی او
+  /// Match an SMS to a customer using their bank identifiers.
   Customer? matchCustomerForSms(ParsedSms sms) {
     for (final c in activeCustomers) {
       if (c.bankIdentifiers.isEmpty) continue;
@@ -803,7 +803,7 @@ class AppRepository extends ChangeNotifier {
     return null;
   }
 
-  /// تأیید یک پیشنهاد و تبدیل آن به تراکنش واقعی
+  /// Approve a suggestion and convert it into a ledger transaction.
   Future<Txn?> approveSms(
     ParsedSms sms, {
     Customer? customer,
@@ -843,14 +843,14 @@ class AppRepository extends ChangeNotifier {
     return txn;
   }
 
-  /// رد کردن یک پیشنهاد (دیگر نمایش داده نمی‌شود)
+  /// Reject a suggestion (it will no longer be displayed).
   Future<void> rejectSms(ParsedSms sms) async {
     await store.setSmsState(sms.key, 'rejected');
     smsSuggestions = smsSuggestions.where((e) => e.key != sms.key).toList();
     notifyListeners();
   }
 
-  /// رد کردن همه‌ی پیشنهادها
+  /// Reject all suggestions.
   Future<void> rejectAllSms() async {
     for (final s in smsSuggestions) {
       await store.setSmsState(s.key, 'rejected');
@@ -859,7 +859,7 @@ class AppRepository extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// پاک کردن تاریخچه‌ی بررسی‌شده‌ها (همه چیز دوباره بررسی می‌شود)
+  /// Clear review history so all messages are scanned again.
   Future<void> resetSmsState() async {
     await store.clearSmsState();
     smsSuggestions = [];
@@ -879,15 +879,15 @@ class AppRepository extends ChangeNotifier {
   static String _smsNote(ParsedSms sms) {
     final parts = <String>[];
     if (sms.bankName != null && sms.bankName!.isNotEmpty) parts.add(sms.bankName!);
-    if (sms.cardMask != null && sms.cardMask!.isNotEmpty) parts.add('کارت ${sms.cardMask}');
+    if (sms.cardMask != null && sms.cardMask!.isNotEmpty) parts.add('Card ${sms.cardMask}');
     if (sms.reference != null && sms.reference!.isNotEmpty) {
-      parts.add('پیگیری ${sms.reference}');
+      parts.add('Reference ${sms.reference}');
     }
-    if (parts.isEmpty) parts.add('ثبت‌شده از پیامک');
+    if (parts.isEmpty) parts.add('Imported from SMS');
     return parts.join(' · ');
   }
 
-  // ---------------- پشتیبان‌گیری ----------------
+  // ---------------- Backups ----------------
   Map<String, dynamic> exportData() => store.exportAll();
 
   Future<void> importData(Map<String, dynamic> data) async {
@@ -900,34 +900,34 @@ class AppRepository extends ChangeNotifier {
     await reload();
   }
 
-  /// داده‌ی نمونه برای تست سریع و دموی گیت‌هاب
+  /// Sample data for quick testing and the GitHub demo.
   Future<void> loadDemoData() async {
-    // تنظیماتی که کاربر وارد کرده (از جمله setupDone و موجودی اولیه) را
-    // هنگام جایگزینی تراکنش‌ها با داده‌ی نمونه حفظ می‌کنیم.
+    // Preserve user-entered settings (including setupDone and the opening balance)
+    // when replacing transactions with sample data.
     final settingsToKeep = settings;
     await store.clearAll();
     await store.saveSettings(settingsToKeep);
 
-    // همگام‌سازی حافظه با دیتابیس: clearAll() داده‌ها را پاک می‌کند و
-    // دسته‌ها و پلن‌های پیش‌فرض با شناسه‌ی جدید ساخته می‌شوند.
-    // بدون این reload، فهرست‌های درون‌حافظه‌ای هنوز به رکوردهای حذف‌شده
-    // اشاره می‌کنند و تراکنش‌های یتیم می‌سازند.
+    // Synchronize memory with the database: clearAll() deletes data, and
+    // default categories and plans are recreated with new IDs.
+    // Without this reload, in-memory lists still point to deleted records
+    // and can create orphaned transactions.
     await reload();
 
     final rnd = Random(1405);
     final names = [
-      'علی رضایی',
-      'مریم احمدی',
-      'حسین کریمی',
-      'سارا محمدی',
-      'رضا نوری',
-      'نگار تهرانی',
-      'امیر صادقی',
-      'فاطمه یوسفی',
+      'Alex Morgan',
+      'Maya Carter',
+      'Daniel Kim',
+      'Sara Reed',
+      'Ryan Brooks',
+      'Nora Taylor',
+      'Ethan Clark',
+      'Emma Wilson',
     ];
 
-    // اگر پلنی در دیتابیس نیست، پلن‌های پیش‌فرض را «ذخیره» می‌کنیم تا
-    // اشتراک‌ها بتوانند به یک پلن معتبر اشاره کنند (و تمدید کار کند)
+    // If the database has no plans, save the defaults so
+    // subscriptions can reference a valid plan and renewals continue to work.
     var planList = plans;
     if (planList.isEmpty) {
       for (final p in LocalStore.defaultPlans()) {
@@ -937,7 +937,7 @@ class AppRepository extends ChangeNotifier {
       planList = plans;
     }
 
-    // مشتری‌هایی که در همین اجرا ساخته می‌شوند (برای ارجاع‌های بعدی)
+    // Keep customers created in this run for later references.
     final createdCustomers = <Customer>[];
     final now = J.today;
 
@@ -946,7 +946,7 @@ class AppRepository extends ChangeNotifier {
         id: LocalStore.newId(),
         name: names[i],
         phone: '0912000010$i',
-        note: i == 0 ? 'مشتری قدیمی - معمولاً با تتر پرداخت می‌کند' : '',
+        note: i == 0 ? 'Long-time customer; usually pays with USDT' : '',
         openingBalance: i == 3 ? 250000 : 0,
         createdAt: J.addDays(now, -200),
       );
@@ -981,7 +981,7 @@ class AppRepository extends ChangeNotifier {
           customerId: c.id,
           subscriptionId: sub.id,
           credit: true,
-          note: 'فروش ${plan.name}',
+          note: 'Sale: ${plan.name}',
           createdAt: start,
         ));
         final paid = rnd.nextDouble();
@@ -995,7 +995,7 @@ class AppRepository extends ChangeNotifier {
             rateToBase: settings.currency(plan.currency).rateToBase,
             date: J.addDays(start, 1 + rnd.nextInt(12)),
             customerId: c.id,
-            note: amount == plan.price ? 'تسویه کامل' : 'علی‌الحساب',
+            note: amount == plan.price ? 'Paid in full' : 'Partial payment',
             createdAt: start,
           ));
         }
@@ -1004,13 +1004,13 @@ class AppRepository extends ChangeNotifier {
       }
     }
 
-    // هزینه‌های ماهانه‌ی ثابت
+    // Fixed monthly expenses.
     const expenses = <String, double>{
-      'خرید سرور / VPS': 4200000,
-      'دامنه و SSL': 650000,
-      'پنل و لایسنس': 1800000,
-      'تبلیغات و بازاریابی': 900000,
-      'اینترنت و ابزار کار': 400000,
+      'Server / VPS purchase': 4200000,
+      'Domain and SSL': 650000,
+      'Control panel and license': 1800000,
+      'Advertising and marketing': 900000,
+      'Internet and work tools': 400000,
     };
     for (var m = 0; m < 6; m++) {
       for (final e in expenses.entries) {
@@ -1031,7 +1031,7 @@ class AppRepository extends ChangeNotifier {
       }
     }
 
-    // چند فروش با تتر و دلار برای نمایش چند‌ارزی
+    // Add a few USDT and USD sales to demonstrate multiple currencies.
     for (final cur in ['USD', 'USDT']) {
       if (settings.currencies.any((c) => c.code == cur) && createdCustomers.isNotEmpty) {
         final c = createdCustomers[rnd.nextInt(createdCustomers.length)];
@@ -1045,20 +1045,20 @@ class AppRepository extends ChangeNotifier {
           categoryId: defaultIncomeCategoryId,
           customerId: c.id,
           credit: false,
-          note: 'فروش کانفیگ (پرداخت $cur)',
+          note: 'Configuration sale (paid in $cur)',
           createdAt: now,
         ));
       }
     }
 
-    // ---------- داده‌ی نمونه‌ی حسابداری شخصی ----------
+    // ---------- Personal finance sample data ----------
     final personalExp = <String, double>{
-      'خوراک و رستوران': 380000,
-      'حمل‌ونقل و سوخت': 120000,
-      'قبوض (آب، برق، گاز)': 450000,
-      'اینترنت و شارژ موبایل': 200000,
-      'تفریح و سرگرمی': 150000,
-      'خرید شخصی و پوشاک': 600000,
+      'Food and dining': 380000,
+      'Transport and fuel': 120000,
+      'Utilities (water, electricity, gas)': 450000,
+      'Internet and mobile top-up': 200000,
+      'Leisure and entertainment': 150000,
+      'Personal shopping and clothing': 600000,
     };
     for (final e in personalExp.entries) {
       final cat = categoriesOf(TxnKind.expense, scope: TxnScope.personal)
@@ -1081,9 +1081,9 @@ class AppRepository extends ChangeNotifier {
       }
     }
 
-    // حقوق ماهانه (درآمد شخصی)
+    // Monthly salary (personal income).
     final salaryCat = categoriesOf(TxnKind.income, scope: TxnScope.personal)
-        .where((c) => c.name == 'حقوق')
+        .where((c) => c.name == 'Salary')
         .toList();
     for (var m = 0; m < 3; m++) {
       await store.putTxn(Txn(
@@ -1095,15 +1095,15 @@ class AppRepository extends ChangeNotifier {
         date: J.toDate(J.of(J.addMonths(now, -m)).year,
             J.of(J.addMonths(now, -m)).month, 28),
         categoryId: salaryCat.isEmpty ? null : salaryCat.first.id,
-        note: 'حقوق ماهانه',
+        note: 'Monthly salary',
         scope: TxnScope.personal,
         createdAt: now,
       ));
     }
 
-    // یک بودجه‌ی نمونه برای خوراک
+    // A sample food budget.
     final foodCat = categoriesOf(TxnKind.expense, scope: TxnScope.personal)
-        .where((c) => c.name.contains('خوراک'))
+        .where((c) => c.name.toLowerCase().contains('food'))
         .toList();
     if (foodCat.isNotEmpty) {
       await store.putBudget(Budget(
@@ -1113,15 +1113,15 @@ class AppRepository extends ChangeNotifier {
       ));
     }
 
-    // یک قانونِ تکرارشونده‌ی نمونه (از ماه قبل شروع شده)
+    // A sample recurring rule that started last month.
     final rentCat = categoriesOf(TxnKind.expense, scope: TxnScope.personal)
-        .where((c) => c.name.contains('مسکن'))
+        .where((c) => c.name.toLowerCase().contains('housing'))
         .toList();
-    // lastPosted = امروز، تا هنگام بارگذاریِ داده‌ی نمونه ناگهان
-    // چند تراکنشِ اجاره ساخته نشود (ماه بعد خودکار ثبت می‌شود)
+    // Set lastPosted to today so loading sample data does not suddenly
+    // create several rent transactions (the next one is posted automatically next month).
     await store.putRecurring(RecurringRule(
       id: LocalStore.newId(),
-      title: 'اجاره خانه',
+      title: 'Home rent',
       amount: 8000000,
       categoryId: rentCat.isEmpty ? null : rentCat.first.id,
       period: RecurringPeriod.monthly,
@@ -1134,7 +1134,7 @@ class AppRepository extends ChangeNotifier {
   }
 }
 
-/// بازه‌ی یک ماه شمسی
+/// A Jalali month range.
 class DateTimeRangeOfMonth {
   final DateTime start;
   final DateTime end;

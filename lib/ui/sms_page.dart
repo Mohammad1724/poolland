@@ -10,10 +10,10 @@ import '../data/repository.dart';
 import 'widgets/widgets.dart';
 
 /// ============================================================
-///  پیامک‌های بانکی — صف بررسی و تأیید
+///  Bank SMS — review and approval queue
 ///
-///  پیامک‌ها خوانده و تجزیه می‌شوند، اما تا وقتی کاربر تأیید نکند
-///  هیچ تراکنشی در دفتر ثبت نمی‌شود.
+///  Messages are read and parsed, but until the user approves them,
+///  no transaction is recorded in the ledger.
 /// ============================================================
 class SmsPage extends StatefulWidget {
   const SmsPage({super.key});
@@ -47,13 +47,13 @@ class _SmsPageState extends State<SmsPage> {
 
     if (!repo.smsSupported) {
       return Scaffold(
-        appBar: AppBar(title: const Text('پیامک‌های بانکی')),
+        appBar: AppBar(title: const Text('Bank SMS')),
         body: const EmptyState(
           icon: Icons.sms_outlined,
-          title: 'فقط روی اندروید',
+          title: 'Android only',
           text:
-              'خواندن پیامک روی وب و دسکتاپ ممکن نیست. '
-              'این قابلیت را روی گوشی اندرویدی خود امتحان کنید.',
+              'SMS access is not available on web or desktop. '
+              'Try this feature on an Android phone.',
         ),
       );
     }
@@ -69,10 +69,10 @@ class _SmsPageState extends State<SmsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('پیامک‌های بانکی'),
+        title: const Text('Bank SMS'),
         actions: [
           IconButton(
-            tooltip: 'همگام‌سازی',
+            tooltip: 'Sync',
             icon: repo.smsBusy
                 ? const SizedBox(
                     width: 18,
@@ -88,11 +88,11 @@ class _SmsPageState extends State<SmsPage> {
                 case 'reject_all':
                   final ok = await confirmDialog(
                     context,
-                    title: 'رد کردن همه',
+                    title: 'Reject all',
                     message:
-                        'همه‌ی پیشنهادها رد شوند؟ '
-                        '(دیگر نمایش داده نمی‌شوند اما تراکنشی حذف نمی‌شود)',
-                    okLabel: 'رد کن',
+                        'Reject all suggestions? '
+                        '(They will no longer appear, but no transactions will be deleted.)',
+                    okLabel: 'Reject',
                     danger: true,
                   );
                   if (ok) await repo.rejectAllSms();
@@ -100,11 +100,11 @@ class _SmsPageState extends State<SmsPage> {
                 case 'reset':
                   final ok = await confirmDialog(
                     context,
-                    title: 'بررسی دوباره',
+                    title: 'Review again',
                     message:
-                        'تاریخچه‌ی بررسی‌شده‌ها پاک شود و پیامک‌ها '
-                        'دوباره بررسی شوند؟',
-                    okLabel: 'پاک کن',
+                        'Clear the review history and scan SMS messages '
+                        'again?',
+                    okLabel: 'Clear',
                   );
                   if (ok) {
                     await repo.resetSmsState();
@@ -114,10 +114,10 @@ class _SmsPageState extends State<SmsPage> {
               }
             },
             itemBuilder: (_) => const [
-              PopupMenuItem(value: 'reject_all', child: Text('رد کردن همه')),
+              PopupMenuItem(value: 'reject_all', child: Text('Reject all')),
               PopupMenuItem(
                 value: 'reset',
-                child: Text('بررسی دوباره پیامک‌ها'),
+                child: Text('Rescan SMS'),
               ),
             ],
           ),
@@ -134,10 +134,10 @@ class _SmsPageState extends State<SmsPage> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      _chip('همه', _SmsFilter.all, all.length),
+                      _chip('All', _SmsFilter.all, all.length),
                       const SizedBox(width: 8),
                       _chip(
-                        'واریز',
+                        'Deposit',
                         _SmsFilter.deposit,
                         all
                             .where((s) => s.direction == SmsDirection.deposit)
@@ -145,7 +145,7 @@ class _SmsPageState extends State<SmsPage> {
                       ),
                       const SizedBox(width: 8),
                       _chip(
-                        'برداشت',
+                        'Withdrawal',
                         _SmsFilter.withdraw,
                         all
                             .where((s) => s.direction == SmsDirection.withdraw)
@@ -160,12 +160,12 @@ class _SmsPageState extends State<SmsPage> {
                       child: EmptyState(
                         icon: Icons.sms_outlined,
                         title: repo.smsBusy
-                            ? 'در حال بررسی پیامک‌ها…'
-                            : 'موردی پیدا نشد',
+                            ? 'Checking SMS...'
+                            : 'No items found',
                         text: repo.smsBusy
-                            ? 'کمی صبر کنید'
-                            : 'پیامک تراکنشی جدیدی پیدا نشد. دکمه‌ی '
-                                  'همگام‌سازی را بزنید تا پیامک‌های اخیر بررسی شوند.',
+                            ? 'Please wait'
+                            : 'No new transaction messages found. Tap '
+                                  'Sync to check recent messages.',
                       ),
                     )
                   else
@@ -201,8 +201,8 @@ class _SmsPageState extends State<SmsPage> {
               const SizedBox(width: 8),
               Text(
                 count > 0
-                    ? '$count تراکنش در انتظار تأیید'
-                    : 'چیزی در انتظار نیست',
+                    ? '$count transactions awaiting review'
+                    : 'Nothing awaiting review',
                 style: const TextStyle(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w700,
@@ -212,8 +212,8 @@ class _SmsPageState extends State<SmsPage> {
           ),
           const SizedBox(height: 6),
           Text(
-            '${Fmt.toFaDigits('$days')} روز گذشته بررسی می‌شود'
-            '${last > 0 ? ' · آخرین بررسی: ${J.d(DateTime.fromMillisecondsSinceEpoch(last))}' : ''}',
+            'Checking the past $days days'
+            '${last > 0 ? ' · Last checked: ${J.d(DateTime.fromMillisecondsSinceEpoch(last))}' : ''}',
             style: TextStyle(
               fontSize: 11.5,
               color: onSurface.withValues(alpha: 0.6),
@@ -237,19 +237,18 @@ class _SmsPageState extends State<SmsPage> {
                   Icon(Icons.privacy_tip_outlined, size: 20),
                   SizedBox(width: 8),
                   Text(
-                    'دسترسی خواندن پیامک',
+                    'SMS reading permission',
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
               const Text(
-                'برای اینکه پول‌لند بتواند پیامک‌های بانکی را بخواند و '
-                'واریز و برداشت‌ها را به‌صورت خودکار شناسایی کند، باید اجازه‌ی '
-                'خواندن پیامک را بدهید.\n\n'
-                '• پیامک‌ها فقط روی خودِ گوشی خوانده می‌شوند\n'
-                '• هیچ داده‌ای به جایی ارسال نمی‌شود\n'
-                '• تا وقتی خودتان تأیید نکنید، تراکنشی ثبت نمی‌شود',
+                'To let Poolland read bank SMS and '
+                'automatically identify deposits and withdrawals, grant SMS permission.\n\n'
+                '• SMS messages are read on this device only\n'
+                '• No data is sent anywhere\n'
+                '• No transaction is recorded until you approve it',
                 style: TextStyle(fontSize: 12.5, height: 1.8),
               ),
               const SizedBox(height: 14),
@@ -258,7 +257,7 @@ class _SmsPageState extends State<SmsPage> {
                 child: FilledButton.icon(
                   onPressed: () => repo.requestSmsPermission(),
                   icon: const Icon(Icons.sms_rounded, size: 18),
-                  label: const Text('دادن دسترسی پیامک'),
+                  label: const Text('Grant SMS access'),
                 ),
               ),
             ],
@@ -269,7 +268,7 @@ class _SmsPageState extends State<SmsPage> {
   }
 }
 
-/// ---------------- کارتِ هر پیامک ----------------
+/// ---------------- SMS card ----------------
 class _SmsCard extends StatelessWidget {
   const _SmsCard({required this.sms, required this.onSurface});
 
@@ -315,7 +314,7 @@ class _SmsCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      sms.bankName ?? 'بانک نامشخص',
+                      sms.bankName ?? 'Unknown bank',
                       style: const TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w700,
@@ -357,19 +356,19 @@ class _SmsCard extends StatelessWidget {
             children: [
               if (sms.cardMask != null)
                 TagChip(
-                  'کارت ${sms.cardMask}',
+                  'Card ${sms.cardMask}',
                   color: const Color(0xFF7C3AED),
                   dense: true,
                 ),
               if (sms.reference != null)
                 TagChip(
-                  'پیگیری ${sms.reference}',
+                  'Reference ${sms.reference}',
                   color: const Color(0xFF0F766E),
                   dense: true,
                 ),
               if (sms.balance != null)
                 TagChip(
-                  'مانده ${Money.text(sms.balance!, compact: true)}',
+                  'Balance ${Money.text(sms.balance!, compact: true)}',
                   color: const Color(0xFF2563EB),
                   dense: true,
                 ),
@@ -390,7 +389,7 @@ class _SmsCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  '(تطبیق خودکار)',
+                  '(Auto-matched)',
                   style: TextStyle(
                     fontSize: 10.5,
                     color: onSurface.withValues(alpha: 0.55),
@@ -424,7 +423,7 @@ class _SmsCard extends StatelessWidget {
                 child: OutlinedButton.icon(
                   onPressed: () => repo.rejectSms(sms),
                   icon: const Icon(Icons.close_rounded, size: 17),
-                  label: const Text('رد'),
+                  label: const Text('Reject'),
                 ),
               ),
               const SizedBox(width: 8),
@@ -433,7 +432,7 @@ class _SmsCard extends StatelessWidget {
                 child: FilledButton.icon(
                   onPressed: () => _openReview(context, sms, matched),
                   icon: const Icon(Icons.check_rounded, size: 17),
-                  label: Text(matched == null ? 'بررسی و ثبت' : 'تأیید'),
+                  label: Text(matched == null ? 'Review and record' : 'Confirm'),
                 ),
               ),
             ],
@@ -455,12 +454,12 @@ class _SmsCard extends StatelessWidget {
       builder: (ctx) => SmsReviewSheet(sms: sms, initialCustomer: matched),
     );
     if (ok == true && context.mounted) {
-      showSnack(context, 'تراکنش از پیامک ثبت شد');
+      showSnack(context, 'Transaction recorded from SMS');
     }
   }
 }
 
-/// ---------------- برگه‌ی بررسی / ویرایش قبل از ثبت ----------------
+/// ---------------- Review or edit before recording ----------------
 class SmsReviewSheet extends StatefulWidget {
   const SmsReviewSheet({super.key, required this.sms, this.initialCustomer});
 
@@ -534,7 +533,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
             ),
             const SizedBox(height: 14),
             const Text(
-              'ثبت این پیامک در دفتر',
+              'Record this SMS transaction',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 4),
@@ -548,7 +547,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
             ),
             const SizedBox(height: 16),
 
-            // نوع تراکنش
+            // Transaction type
             Wrap(
               spacing: 8,
               children: [
@@ -575,28 +574,28 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
 
             AmountField(
               controller: _amount,
-              label: 'مبلغ',
+              label: 'Amount',
               currency: sms.currency,
             ),
             const SizedBox(height: 14),
 
             SelectField<Customer>(
-              label: 'طرف حساب (اختیاری)',
+              label: 'Contact (optional)',
               icon: Icons.person_outline_rounded,
               value: _customer,
               items: repo.activeCustomers,
               clearable: true,
               labelOf: (c) => c.name,
               subOf: (c) => c.phone,
-              searchHint: 'نام مشتری…',
-              sheetTitle: 'انتخاب طرف حساب',
+              searchHint: 'Customer name...',
+              sheetTitle: 'Select contact',
               onChanged: (c) => setState(() => _customer = c),
             ),
 
             if (isProfit) ...[
               const SizedBox(height: 14),
               SelectField<Category>(
-                label: 'دسته‌بندی',
+                label: 'Category',
                 icon: Icons.category_outlined,
                 value: repo.categoryById(_categoryId),
                 items: repo.categoriesOf(_kind),
@@ -611,7 +610,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('انصراف'),
+                    child: const Text('Cancel'),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -621,7 +620,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                     onPressed: () async {
                       final value = parseAmount(_amount.text);
                       if (value <= 0) {
-                        showSnack(context, 'مبلغ را وارد کنید', error: true);
+                        showSnack(context, 'Enter an amount', error: true);
                         return;
                       }
                       await repo.approveSms(
@@ -634,7 +633,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                       if (context.mounted) Navigator.pop(context, true);
                     },
                     icon: const Icon(Icons.check_rounded, size: 18),
-                    label: const Text('ثبت در دفتر'),
+                    label: const Text('Record transaction'),
                   ),
                 ),
               ],

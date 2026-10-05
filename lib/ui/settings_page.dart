@@ -24,25 +24,25 @@ class SettingsPage extends StatelessWidget {
     final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('تنظیمات')),
+      appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
         children: [
-          // ---------- کسب‌وکار ----------
-          const SectionTitle('کسب‌وکار', icon: Icons.storefront_outlined),
+          // ---------- Business ----------
+          const SectionTitle('Business', icon: Icons.storefront_outlined),
           CardBox(
             child: Column(
               children: [
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.badge_outlined, size: 20),
-                  title: const Text('نام کسب‌وکار', style: TextStyle(fontSize: 13.5)),
+                  title: const Text('Business name', style: TextStyle(fontSize: 13.5)),
                   subtitle: Text(s.businessName, style: const TextStyle(fontSize: 12)),
                   onTap: () => _editText(
                     context,
-                    title: 'نام کسب‌وکار',
+                    title: 'Business name',
                     initial: s.businessName,
-                    hint: 'مثلاً: VPN علی',
+                    hint: 'e.g. Alex VPN',
                     onSave: (v) => repo.updateSettings(s.copyWith(businessName: v)),
                   ),
                 ),
@@ -50,13 +50,13 @@ class SettingsPage extends StatelessWidget {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.account_balance_wallet_outlined, size: 20),
-                  title: const Text('موجودی اولیه صندوق', style: TextStyle(fontSize: 13.5)),
+                  title: const Text('Opening cash balance', style: TextStyle(fontSize: 13.5)),
                   subtitle: Text(
-                    '${Money.text(s.openingCash)} — پول نقد/بانکی که از قبل داشتید',
+                    '${Money.text(s.openingCash)} — cash or bank balance you already had',
                     style: const TextStyle(fontSize: 11.5),
                   ),
                   onTap: () => _editAmount(context,
-                      title: 'موجودی اولیه صندوق',
+                      title: 'Opening cash balance',
                       initial: s.openingCash,
                       onSave: (v) => repo.updateSettings(s.copyWith(openingCash: v))),
                 ),
@@ -64,37 +64,37 @@ class SettingsPage extends StatelessWidget {
             ),
           ),
 
-          // ---------- داده‌های پایه ----------
-          const SectionTitle('داده‌های پایه', icon: Icons.tune_rounded),
+          // ---------- Basic data ----------
+          const SectionTitle('Basic data', icon: Icons.tune_rounded),
           CardBox(
             child: Column(
               children: [
                 _navTile(context,
                     icon: Icons.local_offer_outlined,
-                    title: 'پلن‌های فروش',
-                    subtitle: '${Fmt.toFaDigits('${repo.plans.length}')} پلن ثبت شده',
+                    title: 'Plans',
+                    subtitle: '${repo.plans.length} plans',
                     page: const PlansPage()),
                 Divider(color: Theme.of(context).dividerColor),
                 _navTile(context,
                     icon: Icons.category_outlined,
-                    title: 'دسته‌بندی درآمد و هزینه',
-                    subtitle: '${Fmt.toFaDigits('${repo.categories.length}')} دسته '
-                        '(کسب‌وکار و شخصی)',
+                    title: 'Income and expense categories',
+                    subtitle: '${repo.categories.length} categories '
+                        '(business and personal)',
                     page: const CategoriesPage()),
                 Divider(color: Theme.of(context).dividerColor),
                 _navTile(context,
                     icon: Icons.currency_exchange_rounded,
-                    title: 'ارزها و نرخ تبدیل',
+                    title: 'Currencies and exchange rates',
                     subtitle: s.currencies
-                        .map((c) => '${c.code} ${Fmt.toFaDigits(Fmt.number(c.rateToBase))}')
+                        .map((c) => '${c.code} ${Fmt.number(c.rateToBase, persian: false)}')
                         .join(' • '),
                     page: const RatesPage()),
               ],
             ),
           ),
 
-          // ---------- نمایش ----------
-          const SectionTitle('نمایش', icon: Icons.palette_outlined),
+          // ---------- Display ----------
+          const SectionTitle('Display', icon: Icons.palette_outlined),
           CardBox(
             child: Column(
               children: [
@@ -102,18 +102,18 @@ class SettingsPage extends StatelessWidget {
                   contentPadding: EdgeInsets.zero,
                   value: s.persianDigits,
                   onChanged: (v) => repo.updateSettings(s.copyWith(persianDigits: v)),
-                  title: const Text('نمایش اعداد فارسی', style: TextStyle(fontSize: 13.5)),
+                  title: const Text('Use Persian digits', style: TextStyle(fontSize: 13.5)),
                 ),
                 Divider(color: Theme.of(context).dividerColor),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.notifications_active_outlined, size: 20),
-                  title: const Text('هشدار انقضا', style: TextStyle(fontSize: 13.5)),
-                  subtitle: Text('${Fmt.toFaDigits('${s.reminderDays}')} روز قبل از انقضا',
+                  title: const Text('Expiry reminders', style: TextStyle(fontSize: 13.5)),
+                  subtitle: Text('${s.reminderDays} days before expiry',
                       style: const TextStyle(fontSize: 11.5)),
                   onTap: () => _editInt(
                     context,
-                    title: 'چند روز قبل هشدار بدهیم؟',
+                    title: 'How many days before expiry should we remind you?',
                     initial: s.reminderDays,
                     onSave: (v) => repo.updateSettings(s.copyWith(reminderDays: v)),
                   ),
@@ -124,13 +124,13 @@ class SettingsPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('ظاهر برنامه', style: TextStyle(fontSize: 13.5)),
+                      const Text('Appearance', style: TextStyle(fontSize: 13.5)),
                       const SizedBox(height: 8),
                       SegmentedButton<String>(
                         segments: const [
-                          ButtonSegment(value: 'system', label: Text('سیستم')),
-                          ButtonSegment(value: 'light', label: Text('روشن')),
-                          ButtonSegment(value: 'dark', label: Text('تاریک')),
+                          ButtonSegment(value: 'system', label: Text('System')),
+                          ButtonSegment(value: 'light', label: Text('Light')),
+                          ButtonSegment(value: 'dark', label: Text('Dark')),
                         ],
                         selected: {s.themeMode},
                         onSelectionChanged: (v) =>
@@ -143,86 +143,86 @@ class SettingsPage extends StatelessWidget {
             ),
           ),
 
-          // ---------- پشتیبان‌گیری ----------
-          const SectionTitle('پشتیبان‌گیری', icon: Icons.cloud_sync_outlined),
+          // ---------- Backups ----------
+          const SectionTitle('Backups', icon: Icons.cloud_sync_outlined),
           CardBox(
             child: Column(
               children: [
                 _actionTile(context,
                     icon: Icons.share_rounded,
-                    title: 'ارسال فایل پشتیبان',
-                    subtitle: 'خروجی JSON برای تلگرام/واتس‌اپ یا ذخیره در گوشی',
+                    title: 'Share backup',
+                    subtitle: 'Export JSON to a messaging app or save it on your phone',
                     onTap: () => _backup(context, repo, share: true)),
                 Divider(color: Theme.of(context).dividerColor),
                 _actionTile(context,
                     icon: Icons.download_rounded,
-                    title: 'ذخیره پشتیبان در دستگاه',
-                    subtitle: 'انتخاب مسیر ذخیره‌ی فایل JSON',
+                    title: 'Save backup to device',
+                    subtitle: 'Choose where to save the JSON file',
                     onTap: () => _backup(context, repo, share: false)),
                 Divider(color: Theme.of(context).dividerColor),
                 _actionTile(context,
                     icon: Icons.restore_rounded,
-                    title: 'بازگردانی از فایل پشتیبان',
-                    subtitle: 'همه‌ی داده‌های فعلی با فایل انتخابی جایگزین می‌شود',
+                    title: 'Restore from backup',
+                    subtitle: 'All current data will be replaced with the selected file',
                     onTap: () => _restore(context, repo)),
               ],
             ),
           ),
 
-          // ---------- داده‌ها ----------
-          const SectionTitle('داده‌ها', icon: Icons.storage_rounded),
+          // ---------- Data ----------
+          const SectionTitle('Data', icon: Icons.storage_rounded),
           CardBox(
             child: Column(
               children: [
                 _actionTile(context,
                     icon: Icons.auto_awesome_outlined,
-                    title: 'بارگذاری داده‌ی نمونه',
-                    subtitle: 'برای تست سریع برنامه (داده‌های فعلی پاک می‌شود)',
+                    title: 'Load sample data',
+                    subtitle: 'For a quick app demo (current data will be erased)',
                     onTap: () async {
                       final ok = await confirmDialog(context,
-                          title: 'داده‌ی نمونه',
+                          title: 'Sample data',
                           message:
-                              'داده‌های فعلی پاک و داده‌ی نمونه جایگزین می‌شود. ادامه می‌دهید؟',
-                          okLabel: 'ادامه');
+                              'Current data will be erased and replaced with sample data. Continue?',
+                          okLabel: 'Continue');
                       if (!ok) return;
                       await repo.loadDemoData();
-                      if (context.mounted) showSnack(context, 'داده‌ی نمونه بارگذاری شد');
+                      if (context.mounted) showSnack(context, 'Sample data loaded');
                     }),
                 Divider(color: Theme.of(context).dividerColor),
                 _actionTile(context,
                     icon: Icons.delete_forever_outlined,
-                    title: 'پاک کردن همه‌ی داده‌ها',
-                    subtitle: 'بازگشت به حالت اولیه (قابل بازگشت نیست)',
+                    title: 'Erase all data',
+                    subtitle: 'Reset the app (cannot be undone)',
                     danger: true,
                     onTap: () async {
                       final ok = await confirmDialog(context,
-                          title: 'پاک کردن همه‌ی داده‌ها',
+                          title: 'Erase all data',
                           message:
-                              'همه‌ی مشتری‌ها، اشتراک‌ها و تراکنش‌ها حذف می‌شوند. قبل از این کار پشتیبان بگیرید.',
-                          okLabel: 'پاک کن',
+                              'All customers, subscriptions, and transactions will be deleted. Back up your data first.',
+                          okLabel: 'Clear',
                           danger: true);
                       if (!ok) return;
                       await repo.wipeAll();
-                      if (context.mounted) showSnack(context, 'همه‌ی داده‌ها پاک شد');
+                      if (context.mounted) showSnack(context, 'All data erased');
                     }),
               ],
             ),
           ),
 
-          // ---------- پیامک‌های بانکی ----------
+          // ---------- Bank SMS ----------
           if (repo.smsSupported) ...[
-            const SectionTitle('پیامک‌های بانکی', icon: Icons.sms_rounded),
+            const SectionTitle('Bank SMS', icon: Icons.sms_rounded),
             CardBox(
               child: Column(
                 children: [
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: s.smsEnabled,
-                    title: const Text('خواندن پیامک‌های بانکی',
+                    title: const Text('Read bank SMS',
                         style: TextStyle(fontSize: 13.5)),
                     subtitle: const Text(
-                      'واریز و برداشت‌ها به‌طور خودکار شناسایی می‌شوند '
-                      'و در صف بررسی قرار می‌گیرند',
+                      'Deposits and withdrawals are detected automatically '
+                      'and added to the review queue',
                       style: TextStyle(fontSize: 11.5),
                     ),
                     onChanged: (v) async {
@@ -237,26 +237,26 @@ class SettingsPage extends StatelessWidget {
                   _navTile(
                     context,
                     icon: Icons.fact_check_outlined,
-                    title: 'بررسی پیامک‌ها',
+                    title: 'Review SMS',
                     subtitle: repo.smsPendingCount > 0
-                        ? '${Fmt.toFaDigits('${repo.smsPendingCount}')} '
-                            'تراکنش در انتظار تأیید'
-                        : 'موردی در انتظار نیست',
+                        ? '${repo.smsPendingCount} '
+                            'transactions awaiting review'
+                        : 'Nothing awaiting review',
                     page: const SmsPage(),
                   ),
                   Divider(color: Theme.of(context).dividerColor),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.date_range_outlined, size: 20),
-                    title: const Text('بازه‌ی بررسی پیامک‌ها',
+                    title: const Text('SMS lookback period',
                         style: TextStyle(fontSize: 13.5)),
                     subtitle: Text(
-                      '${Fmt.toFaDigits('${s.smsSyncDays}')} روز گذشته',
+                      'Past ${s.smsSyncDays} days',
                       style: const TextStyle(fontSize: 11.5),
                     ),
                     onTap: () => _editInt(
                       context,
-                      title: 'چند روز گذشته بررسی شود؟',
+                      title: 'How many past days should be checked?',
                       initial: s.smsSyncDays,
                       onSave: (v) => repo
                           .updateSettings(s.copyWith(smsSyncDays: v.clamp(1, 365))),
@@ -266,10 +266,10 @@ class SettingsPage extends StatelessWidget {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: s.smsAutoApprove,
-                    title: const Text('ثبت خودکار موارد کاملاً مطمئن',
+                    title: const Text('Automatically approve high-confidence matches',
                         style: TextStyle(fontSize: 13.5)),
                     subtitle: const Text(
-                      'بدون تأیید شما هم تراکنش ثبت می‌شود (پیش‌فرض: خاموش)',
+                      'Transactions will be recorded without your approval (off by default)',
                       style: TextStyle(fontSize: 11.5),
                     ),
                     onChanged: (v) =>
@@ -280,9 +280,9 @@ class SettingsPage extends StatelessWidget {
             ),
           ],
 
-          // ---------- یادآور روزانه ----------
+          // ---------- Daily reminder ----------
           if (reminder.supported) ...[
-            const SectionTitle('یادآور روزانه',
+            const SectionTitle('Daily reminder',
                 icon: Icons.notifications_active_outlined),
             CardBox(
               child: Column(
@@ -290,11 +290,11 @@ class SettingsPage extends StatelessWidget {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: s.dailyReminder,
-                    title: const Text('یادآوریِ ثبت هزینه',
+                    title: const Text('Expense reminder',
                         style: TextStyle(fontSize: 13.5)),
                     subtitle: const Text(
-                      'هر روز در ساعت تعیین‌شده یادآوری می‌کند '
-                      'هزینه‌ها و درآمدتان را ثبت کنید',
+                      'Reminds you every day at the selected time '
+                      'to record your expenses and income',
                       style: TextStyle(fontSize: 11.5),
                     ),
                     onChanged: (v) async {
@@ -303,7 +303,7 @@ class SettingsPage extends StatelessWidget {
                         if (!ok) {
                           if (context.mounted) {
                             showSnack(context,
-                                'اجازه‌ی اعلان داده نشد؛ از تنظیمات اندروید آن را فعال کنید',
+                                'Notification permission denied. Enable it in Android settings.',
                                 error: true);
                           }
                           return;
@@ -318,12 +318,10 @@ class SettingsPage extends StatelessWidget {
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.schedule_rounded, size: 20),
-                      title: const Text('ساعت یادآوری',
+                      title: const Text('Reminder time',
                           style: TextStyle(fontSize: 13.5)),
                       subtitle: Text(
-                        Fmt.toFaDigits(
-                            '${s.reminderHour.toString().padLeft(2, '0')}:'
-                            '${s.reminderMinute.toString().padLeft(2, '0')}'),
+                        '${s.reminderHour.toString().padLeft(2, '0')}:${s.reminderMinute.toString().padLeft(2, '0')}',
                         style: const TextStyle(fontSize: 12),
                       ),
                       onTap: () async {
@@ -341,18 +339,18 @@ class SettingsPage extends StatelessWidget {
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.send_rounded, size: 20),
-                      title: const Text('ارسال اعلان آزمایشی',
+                      title: const Text('Send test notification',
                           style: TextStyle(fontSize: 13.5)),
-                      subtitle: const Text('مطمئن شوید اعلان نمایش داده می‌شود',
+                      subtitle: const Text('Check that notifications are displayed',
                           style: TextStyle(fontSize: 11.5)),
                       onTap: () async {
                         try {
                           await reminder.showNow(
-                              title: 'تست یادآور پول‌لند',
-                              body: 'اگر این پیام را می‌بینید، اعلان درست کار می‌کند ✓');
+                              title: 'Poolland reminder test',
+                              body: 'If you can see this message, notifications are working ✓');
                         } catch (_) {
                           if (context.mounted) {
-                            showSnack(context, 'ارسال اعلان ناموفق بود',
+                            showSnack(context, 'Could not send notification',
                                 error: true);
                           }
                         }
@@ -364,19 +362,19 @@ class SettingsPage extends StatelessWidget {
             ),
           ],
 
-          // ---------- درباره ----------
-          const SectionTitle('درباره', icon: Icons.info_outline_rounded),
+          // ---------- About ----------
+          const SectionTitle('About', icon: Icons.info_outline_rounded),
           CardBox(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('دفتر وی‌پی‌ان',
+                const Text('Poolland Ledger',
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6),
                 Text(
-                  'نسخه ۱.۲.۰ • نرم‌افزار آزاد (MIT)\nحسابداری ساده و آفلاین برای فروشندگان VPN.\nهمه‌ی داده‌ها فقط روی همین دستگاه ذخیره می‌شود.\n'
-                      'بخش «شخصی» برای حسابداریِ شخصی شماست و در سودِ کسب‌وکار '
-                      'لحاظ نمی‌شود.',
+                  'Version 1.2.0 • Open-source software (MIT)\nA simple offline ledger for VPN sellers.\nAll data stays on this device.\n'
+                      'The Personal section is for your own finances and is not included in business profit '
+                      'or loss.',
                   style: TextStyle(
                       fontSize: 11.5, height: 1.9, color: onSurface.withValues(alpha: 0.65)),
                 ),
@@ -402,7 +400,7 @@ class SettingsPage extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 11.5)),
-        trailing: const Icon(Icons.chevron_left_rounded, size: 18),
+        trailing: const Icon(Icons.chevron_right_rounded, size: 18),
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => page)),
       );
 
@@ -438,10 +436,10 @@ class SettingsPage extends StatelessWidget {
           decoration: InputDecoration(hintText: hint),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: const Text('ذخیره')),
+              child: const Text('Save')),
         ],
       ),
     );
@@ -461,13 +459,13 @@ class SettingsPage extends StatelessWidget {
           controller: ctrl,
           autofocus: true,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(suffixText: 'تومان'),
+          decoration: const InputDecoration(suffixText: 'Toman'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, parseAmount(ctrl.text)),
-              child: const Text('ذخیره')),
+              child: const Text('Save')),
         ],
       ),
     );
@@ -478,7 +476,7 @@ class SettingsPage extends StatelessWidget {
       {required String title,
       required int initial,
       required Future<void> Function(int) onSave}) async {
-    final ctrl = TextEditingController(text: Fmt.toFaDigits('$initial'));
+    final ctrl = TextEditingController(text: '$initial');
     final res = await showDialog<int>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -487,14 +485,14 @@ class SettingsPage extends StatelessWidget {
           controller: ctrl,
           autofocus: true,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(suffixText: 'روز'),
+          decoration: const InputDecoration(suffixText: 'day'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
               onPressed: () =>
                   Navigator.pop(ctx, parseAmount(ctrl.text).toInt().clamp(0, 60)),
-              child: const Text('ذخیره')),
+              child: const Text('Save')),
         ],
       ),
     );
@@ -504,13 +502,13 @@ class SettingsPage extends StatelessWidget {
   Future<void> _backup(BuildContext context, AppRepository repo,
       {required bool share}) async {
     final content = const JsonEncoder.withIndent('  ').convert(repo.exportData());
-    final name = 'hesab-vpn-backup-${J.d(DateTime.now(), persian: false).replaceAll('/', '-')}.json';
+    final name = 'poolland-backup-${J.d(DateTime.now(), persian: false).replaceAll('/', '-')}.json';
     final ok = share
         ? await Backup.shareFile(fileName: name, content: content)
         : await Backup.saveToDevice(fileName: name, content: content);
     if (context.mounted) {
       showSnack(context,
-          ok ? 'فایل پشتیبان ساخته شد' : 'ذخیره‌ی پشتیبان لغو شد',
+          ok ? 'Backup file created' : 'Backup save cancelled',
           error: !ok);
     }
   }
@@ -521,20 +519,20 @@ class SettingsPage extends StatelessWidget {
       if (data == null) return;
       if (!context.mounted) return;
       final ok = await confirmDialog(context,
-          title: 'بازگردانی پشتیبان',
+          title: 'Restore backup',
           message:
-              'همه‌ی داده‌های فعلی با محتوای این فایل جایگزین می‌شود. ادامه می‌دهید؟',
-          okLabel: 'بازگردانی');
+              'All current data will be replaced with the contents of this file. Continue?',
+          okLabel: 'Restore');
       if (!ok) return;
       await repo.importData(data);
-      if (context.mounted) showSnack(context, 'پشتیبان بازیابی شد');
+      if (context.mounted) showSnack(context, 'Backup restored');
     } catch (e) {
-      if (context.mounted) showSnack(context, 'فایل نامعتبر است: $e', error: true);
+      if (context.mounted) showSnack(context, 'Invalid file: $e', error: true);
     }
   }
 }
 
-/// ---------- صفحه‌ی ارزها و نرخ‌ها ----------
+/// ---------- Currencies and exchange rates page ----------
 class RatesPage extends StatelessWidget {
   const RatesPage({super.key});
 
@@ -543,11 +541,11 @@ class RatesPage extends StatelessWidget {
     final repo = context.watch<AppRepository>();
     final s = repo.settings;
     return Scaffold(
-      appBar: AppBar(title: const Text('ارزها و نرخ تبدیل')),
+      appBar: AppBar(title: const Text('Currencies and exchange rates')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addCurrency(context, repo),
         icon: const Icon(Icons.add_rounded),
-        label: const Text('ارز جدید'),
+        label: const Text('Add currency'),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
@@ -559,7 +557,7 @@ class RatesPage extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'ارز پایه «تومان» است. برای هر ارز، نرخ آن به تومان را وارد کنید تا همه‌ی گزارش‌ها خودکار تبدیل شوند.',
+                    'The base currency is Toman. Enter each currency’s rate in Toman to convert reports automatically.',
                     style: TextStyle(
                         fontSize: 11.5,
                         height: 1.8,
@@ -602,8 +600,8 @@ class RatesPage extends StatelessWidget {
                         const SizedBox(height: 3),
                         Text(
                           c.code == s.baseCurrency
-                              ? 'ارز پایه'
-                              : 'هر ${c.name} = ${Money.text(c.rateToBase)}',
+                              ? 'Base currency'
+                              : '1 ${c.name} = ${Money.text(c.rateToBase)}',
                           style: TextStyle(
                               fontSize: 11.5,
                               color: Theme.of(context)
@@ -616,13 +614,13 @@ class RatesPage extends StatelessWidget {
                   ),
                   if (c.code != s.baseCurrency)
                     IconButton(
-                      tooltip: 'حذف',
+                      tooltip: 'Delete',
                       icon: const Icon(Icons.delete_outline_rounded, size: 18),
                       onPressed: () async {
                         final ok = await confirmDialog(context,
-                            title: 'حذف ارز',
-                            message: 'ارز ${c.name} حذف شود؟ (تراکنش‌های قبلی حذف نمی‌شوند)',
-                            okLabel: 'حذف',
+                            title: 'Remove currency',
+                            message: 'Remove ${c.name}? Existing transactions will not be deleted.',
+                            okLabel: 'Delete',
                             danger: true);
                         if (ok) await repo.removeCurrency(c.code);
                       },
@@ -644,18 +642,18 @@ class RatesPage extends StatelessWidget {
     final res = await showDialog<double>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('نرخ ${c.name} به تومان'),
+        title: Text('${c.name} exchange rate in Toman'),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(suffixText: 'تومان'),
+          decoration: const InputDecoration(suffixText: 'Toman'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, parseAmount(ctrl.text)),
-              child: const Text('ذخیره')),
+              child: const Text('Save')),
         ],
       ),
     );
@@ -672,7 +670,7 @@ class RatesPage extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('افزودن ارز'),
+        title: const Text('Add currency'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -680,24 +678,24 @@ class RatesPage extends StatelessWidget {
               TextField(
                   controller: code,
                   textDirection: TextDirection.ltr,
-                  decoration: const InputDecoration(labelText: 'کد (مثلاً AED)')),
+                  decoration: const InputDecoration(labelText: 'Code (e.g. AED)')),
               const SizedBox(height: 10),
-              TextField(controller: name, decoration: const InputDecoration(labelText: 'نام')),
+              TextField(controller: name, decoration: const InputDecoration(labelText: 'Name')),
               const SizedBox(height: 10),
               TextField(
-                  controller: symbol, decoration: const InputDecoration(labelText: 'نماد')),
+                  controller: symbol, decoration: const InputDecoration(labelText: 'Symbol')),
               const SizedBox(height: 10),
               TextField(
                   controller: rate,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                      labelText: 'نرخ به تومان', suffixText: 'تومان')),
+                      labelText: 'Rate in Toman', suffixText: 'Toman')),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('انصراف')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('افزودن')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Add')),
         ],
       ),
     );
@@ -713,7 +711,7 @@ class RatesPage extends StatelessWidget {
   }
 }
 
-/// ---------- صفحه‌ی دسته‌بندی‌ها ----------
+/// ---------- Categories page ----------
 class CategoriesPage extends StatefulWidget {
   const CategoriesPage({super.key});
 
@@ -730,9 +728,9 @@ class _CategoriesPageState extends State<CategoriesPage> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('دسته‌بندی‌ها'),
+          title: const Text('Categories'),
           bottom: const TabBar(
-            tabs: [Tab(text: 'درآمد'), Tab(text: 'هزینه')],
+            tabs: [Tab(text: 'Income'), Tab(text: 'Expense')],
           ),
         ),
         body: Column(
@@ -789,22 +787,22 @@ class _CategoriesPageState extends State<CategoriesPage> {
                   Expanded(
                       child: Text(c.name, style: const TextStyle(fontSize: 13.5))),
                   IconButton(
-                    tooltip: 'ویرایش',
+                    tooltip: 'Edit',
                     icon: const Icon(Icons.edit_outlined, size: 18),
                     onPressed: () async {
                       final ctrl = TextEditingController(text: c.name);
                       final res = await showDialog<String>(
                         context: context,
                         builder: (ctx) => AlertDialog(
-                          title: const Text('ویرایش دسته'),
+                          title: const Text('Edit category'),
                           content: TextField(controller: ctrl, autofocus: true),
                           actions: [
                             TextButton(
                                 onPressed: () => Navigator.pop(ctx),
-                                child: const Text('انصراف')),
+                                child: const Text('Cancel')),
                             FilledButton(
                                 onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-                                child: const Text('ذخیره')),
+                                child: const Text('Save')),
                           ],
                         ),
                       );
@@ -814,14 +812,14 @@ class _CategoriesPageState extends State<CategoriesPage> {
                     },
                   ),
                   IconButton(
-                    tooltip: 'حذف',
+                    tooltip: 'Delete',
                     icon: const Icon(Icons.delete_outline_rounded, size: 18),
                     onPressed: () async {
                       final ok = await confirmDialog(context,
-                          title: 'حذف دسته',
+                          title: 'Delete category',
                           message:
-                              'دسته «${c.name}» حذف شود؟ تراکنش‌های آن بدون دسته می‌شوند.',
-                          okLabel: 'حذف',
+                              'Delete category “${c.name}”? Its transactions will become uncategorized.',
+                          okLabel: 'Delete',
                           danger: true);
                       if (ok) await repo.deleteCategory(c.id);
                     },
@@ -837,17 +835,17 @@ class _CategoriesPageState extends State<CategoriesPage> {
             final res = await showDialog<String>(
               context: context,
               builder: (ctx) => AlertDialog(
-                title: Text(kind == TxnKind.income ? 'دسته‌ی درآمد جدید' : 'دسته‌ی هزینه جدید'),
+                title: Text(kind == TxnKind.income ? 'New income category' : 'New expense category'),
                 content: TextField(
                     controller: ctrl,
                     autofocus: true,
-                    decoration: const InputDecoration(hintText: 'مثلاً: خرید سرور')),
+                    decoration: const InputDecoration(hintText: 'e.g. Server purchase')),
                 actions: [
                   TextButton(
-                      onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
+                      onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
                   FilledButton(
                       onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-                      child: const Text('افزودن')),
+                      child: const Text('Add')),
                 ],
               ),
             );
@@ -856,7 +854,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
             }
           },
           icon: const Icon(Icons.add_rounded, size: 18),
-          label: const Text('افزودن دسته'),
+          label: const Text('Add category'),
         ),
       ],
     );

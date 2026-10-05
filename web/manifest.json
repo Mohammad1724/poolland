@@ -1,11 +1,11 @@
 {
-    "name": "پول‌لند — حسابداری فروشندگان VPN",
-    "short_name": "پول‌لند",
+    "name": "Poolland — VPN Seller Ledger",
+    "short_name": "Poolland",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0B1220",
     "theme_color": "#0EA5A4",
-    "description": "دفتر حسابداری ساده و آفلاین برای فروشندگان VPN: مشتری‌ها، بدهکار/بستانکار، اشتراک‌ها، درآمد و هزینه (چند ارزی)",
+    "description": "A simple offline ledger for VPN sellers: customers, receivables, payables, subscriptions, income, and expenses across multiple currencies.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -85,7 +85,7 @@ class _ReportsPageState extends State<ReportsPage> {
                 Padding(
                   padding: const EdgeInsets.only(left: 6),
                   child: ChoiceChip(
-                    label: Text(opt == null ? 'همه' : opt.label,
+                    label: Text(opt == null ? 'All' : opt.label,
                         style: const TextStyle(fontSize: 12)),
                     showCheckmark: false,
                     selected: repo.scopeFilter == opt,
@@ -113,21 +113,21 @@ class _ReportsPageState extends State<ReportsPage> {
           ),
         ),
         const SizedBox(height: 12),
-        Text('${J.d(from)} تا ${J.d(to)}',
+        Text('${J.d(from)} to ${J.d(to)}',
             style: TextStyle(fontSize: 12, color: onSurface.withValues(alpha: 0.6))),
         const SizedBox(height: 12),
 
-        // خلاصه
+        // Summary
         CardBox(
           child: Column(
             children: [
               Row(
                 children: [
                   Expanded(
-                      child: _kv(context, 'درآمد (فروش)', Money.text(s.income),
+                      child: _kv(context, 'Income (sales)', Money.text(s.income),
                           const Color(0xFF16A34A))),
                   Expanded(
-                      child: _kv(context, 'هزینه', Money.text(s.expense),
+                      child: _kv(context, 'Expense', Money.text(s.expense),
                           const Color(0xFFE11D48))),
                 ],
               ),
@@ -135,10 +135,10 @@ class _ReportsPageState extends State<ReportsPage> {
               Row(
                 children: [
                   Expanded(
-                      child: _kv(context, 'سود خالص', Money.text(s.profit),
+                      child: _kv(context, 'Net profit', Money.text(s.profit),
                           s.profit >= 0 ? const Color(0xFF16A34A) : const Color(0xFFE11D48))),
                   Expanded(
-                      child: _kv(context, 'حاشیه سود', Fmt.percent(margin),
+                      child: _kv(context, 'Profit margin', Fmt.percent(margin),
                           const Color(0xFF7C3AED))),
                 ],
               ),
@@ -146,10 +146,10 @@ class _ReportsPageState extends State<ReportsPage> {
               Row(
                 children: [
                   Expanded(
-                      child: _kv(context, 'وصولی از مشتری‌ها', Money.text(s.received),
+                      child: _kv(context, 'Received from customers', Money.text(s.received),
                           const Color(0xFF0F766E))),
                   Expanded(
-                      child: _kv(context, 'نقد پرداختی',
+                      child: _kv(context, 'Cash paid',
                           Money.text(s.cashOut), const Color(0xFFB45309))),
                 ],
               ),
@@ -159,11 +159,11 @@ class _ReportsPageState extends State<ReportsPage> {
               Row(
                 children: [
                   Expanded(
-                    child: _kv(context, 'طلبات (کل)', Money.text(repo.totals.receivable),
+                    child: _kv(context, 'Total receivables', Money.text(repo.totals.receivable),
                         const Color(0xFF0F766E)),
                   ),
                   Expanded(
-                    child: _kv(context, 'بدهی (کل)', Money.text(repo.totals.payable),
+                    child: _kv(context, 'Total payables', Money.text(repo.totals.payable),
                         const Color(0xFF2563EB)),
                   ),
                 ],
@@ -172,24 +172,24 @@ class _ReportsPageState extends State<ReportsPage> {
           ),
         ),
 
-        // نمودار ماهانه
+        // Monthly chart
         if (series.length > 1) ...[
-          const SectionTitle('درآمد و هزینه ماهانه', icon: Icons.bar_chart_rounded),
+          const SectionTitle('Monthly income and expenses', icon: Icons.bar_chart_rounded),
           CardBox(
             padding: const EdgeInsets.fromLTRB(8, 14, 8, 6),
             child: SizedBox(height: 190, child: MonthlyBarChart(points: series)),
           ),
         ],
 
-        // نمودار دسته‌بندی هزینه
+        // Expense category chart
         if (expenseCats.isNotEmpty) ...[
-          const SectionTitle('هزینه‌ها به تفکیک دسته‌بندی', icon: Icons.pie_chart_outline_rounded),
+          const SectionTitle('Expenses by category', icon: Icons.pie_chart_outline_rounded),
           CardBox(child: CategoryPieChart(data: expenseCats, size: 150)),
         ],
 
-        // تفکیک درآمد
+        // Income breakdown
         if (incomeCats.isNotEmpty) ...[
-          const SectionTitle('منابع درآمد', icon: Icons.trending_up_rounded),
+          const SectionTitle('Income sources', icon: Icons.trending_up_rounded),
           CardBox(
             child: Column(
               children: [
@@ -207,15 +207,15 @@ class _ReportsPageState extends State<ReportsPage> {
           ),
         ],
 
-        // مشتریان برتر
+        // Top customers
         if (top.isNotEmpty) ...[
-          const SectionTitle('مشتریان برتر این دوره', icon: Icons.emoji_events_outlined),
+          const SectionTitle('Top customers this period', icon: Icons.emoji_events_outlined),
           CardBox(
             child: Column(
               children: [
                 for (var i = 0; i < top.length; i++)
                   InfoRow(
-                    '${Fmt.toFaDigits('${i + 1}')}. ${top[i].key.name}',
+                    '${i + 1}. ${top[i].key.name}',
                     MoneyText(top[i].value),
                   ),
               ],
@@ -223,10 +223,10 @@ class _ReportsPageState extends State<ReportsPage> {
           ),
         ],
 
-        // بدهکاران
-        const SectionTitle('بدهکاران', icon: Icons.account_balance_wallet_outlined),
+        // Debtors
+        const SectionTitle('Debtors', icon: Icons.account_balance_wallet_outlined),
         if (debtors.isEmpty)
-          const CardBox(child: Text('همه‌ی حساب‌ها تسویه است ✅', style: TextStyle(fontSize: 12.5)))
+          const CardBox(child: Text('All accounts are settled ✅', style: TextStyle(fontSize: 12.5)))
         else
           Column(
             children: [
@@ -258,32 +258,32 @@ class _ReportsPageState extends State<ReportsPage> {
             ],
           ),
 
-        // خروجی‌ها
-        const SectionTitle('خروجی گرفتن', icon: Icons.ios_share_rounded),
+        // Exports
+        const SectionTitle('Export', icon: Icons.ios_share_rounded),
         CardBox(
           child: Column(
             children: [
               _exportTile(
                 context,
                 icon: Icons.picture_as_pdf_rounded,
-                title: 'گزارش PDF',
-                subtitle: 'گزارش کامل دوره با نمودار و تراکنش‌ها',
+                title: 'PDF report',
+                subtitle: 'Full period report with charts and transactions',
                 onTap: () => _exportPdf(repo, from, to),
               ),
               Divider(color: Theme.of(context).dividerColor),
               _exportTile(
                 context,
                 icon: Icons.table_chart_outlined,
-                title: 'خروجی CSV (اکسل)',
-                subtitle: 'تراکنش‌های این دوره',
+                title: 'Export CSV (spreadsheet)',
+                subtitle: 'Transactions for this period',
                 onTap: () => _exportCsv(repo, from, to),
               ),
               Divider(color: Theme.of(context).dividerColor),
               _exportTile(
                 context,
                 icon: Icons.groups_outlined,
-                title: 'خروجی CSV مشتریان',
-                subtitle: 'نام، تماس و مانده حساب',
+                title: 'Export customers CSV',
+                subtitle: 'Name, contact, and balance',
                 onTap: () => _exportCustomersCsv(repo),
               ),
             ],
@@ -294,12 +294,12 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 
   String _rangeLabel(_Range r) => switch (r) {
-        _Range.thisMonth => 'این ماه',
-        _Range.lastMonth => 'ماه قبل',
-        _Range.threeMonths => '۳ ماه اخیر',
-        _Range.sixMonths => '۶ ماه اخیر',
-        _Range.thisYear => 'امسال',
-        _Range.all => 'همه',
+        _Range.thisMonth => 'This month',
+        _Range.lastMonth => 'Previous month',
+        _Range.threeMonths => 'Last 3 months',
+        _Range.sixMonths => 'Last 6 months',
+        _Range.thisYear => 'This year',
+        _Range.all => 'All',
       };
 
   int _monthsBetween(DateTime a, DateTime b) {
@@ -331,7 +331,7 @@ class _ReportsPageState extends State<ReportsPage> {
       leading: Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
       title: Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 11.5)),
-      trailing: const Icon(Icons.chevron_left_rounded, size: 18),
+      trailing: const Icon(Icons.chevron_right_rounded, size: 18),
     );
   }
 
@@ -342,7 +342,7 @@ class _ReportsPageState extends State<ReportsPage> {
       await task();
       if (mounted) showSnack(context, successMessage);
     } catch (e) {
-      if (mounted) showSnack(context, 'خطا در ساخت فایل: $e', error: true);
+      if (mounted) showSnack(context, 'Could not create file: $e', error: true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -353,26 +353,26 @@ class _ReportsPageState extends State<ReportsPage> {
       final bytes =
           await PdfService.buildReport(repo: repo, from: from, to: to);
       await Backup.shareBytes(
-        fileName: 'gozaresh-${J.d(from, persian: false)}.pdf',
+        fileName: 'report-${J.d(from, persian: false)}.pdf',
         bytes: bytes,
         mimeType: 'application/pdf',
       );
-    }, 'گزارش PDF ساخته شد');
+    }, 'PDF report created');
   }
 
   Future<void> _exportCsv(AppRepository repo, DateTime from, DateTime to) async {
     await _run(() async {
       final rows = <List<String>>[
         [
-          'تاریخ',
-          'نوع',
-          'مبلغ',
-          'ارز',
-          'معادل تومان',
-          'مشتری',
-          'دسته',
-          'وضعیت پرداخت',
-          'توضیح',
+          'Date',
+          'Type',
+          'Amount',
+          'Currency',
+          'Equivalent in Toman',
+          'Customer',
+          'Category',
+          'Payment status',
+          'Description',
         ],
         for (final t in (Ledger.filter(repo.transactions,
                 from: from, to: to, scope: repo.scopeFilter).toList()
@@ -385,24 +385,24 @@ class _ReportsPageState extends State<ReportsPage> {
             Fmt.number(t.amount * t.rateToBase, persian: false),
             t.customerId == null ? '' : repo.customerName(t.customerId),
             repo.categoryName(t.categoryId),
-            t.kind.isProfitKind ? (t.credit ? 'نسیه' : 'نقدی') : '',
+            t.kind.isProfitKind ? (t.credit ? 'Credit' : 'Cash') : '',
             t.note,
           ],
       ];
       final csv = FileServiceCsv.fromRows(rows);
       await Backup.shareFile(
-        fileName: 'taraakonesh-${J.d(from, persian: false)}.csv',
+        fileName: 'transactions-${J.d(from, persian: false)}.csv',
         content: csv,
         mimeType: 'text/csv',
       );
-    }, 'فایل CSV ساخته شد');
+    }, 'CSV file created');
   }
 
   Future<void> _exportCustomersCsv(AppRepository repo) async {
     await _run(() async {
       final balances = repo.balancesMap();
       final rows = <List<String>>[
-        ['نام', 'تلفن', 'تلگرام', 'مانده (تومان)', 'وضعیت', 'یادداشت'],
+        ['Name', 'Phone', 'Telegram', 'Balance (Toman)', 'Status', 'Note'],
         for (final c in repo.customers)
           [
             c.name,
@@ -410,23 +410,23 @@ class _ReportsPageState extends State<ReportsPage> {
             c.telegram,
             Fmt.number(balances[c.id] ?? 0, persian: false),
             (balances[c.id] ?? 0) > 0.5
-                ? 'بدهکار'
+                ? 'Debtor'
                 : (balances[c.id] ?? 0) < -0.5
-                    ? 'بستانکار'
-                    : 'تسویه',
+                    ? 'Creditor'
+                    : 'Settled',
             c.note,
           ],
       ];
       await Backup.shareFile(
-        fileName: 'moshtari-ha.csv',
+        fileName: 'customers.csv',
         content: FileServiceCsv.fromRows(rows),
         mimeType: 'text/csv',
       );
-    }, 'فایل CSV ساخته شد');
+    }, 'CSV file created');
   }
 }
 
-/// ساخت CSV با BOM تا اکسل فارسی را درست نشان دهد
+/// Add a BOM so spreadsheet apps display Unicode text correctly.
 abstract final class FileServiceCsv {
   static String fromRows(List<List<String>> rows) {
     final sb = StringBuffer('\uFEFF');

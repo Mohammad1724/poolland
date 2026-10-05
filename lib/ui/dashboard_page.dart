@@ -38,14 +38,14 @@ class DashboardPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 100),
       children: [
-        // پیام خوش‌آمد
+        // Welcome message
         Row(
           children: [
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('سلام 👋',
+                  Text('Hello 👋',
                       style: TextStyle(fontSize: 13, color: onSurface.withValues(alpha: 0.6))),
                   const SizedBox(height: 2),
                   Text(J.mLabel(DateTime.now()),
@@ -53,13 +53,13 @@ class DashboardPage extends StatelessWidget {
                 ],
               ),
             ),
-            TagChip('${repo.activeSubsCount} اشتراک فعال',
+            TagChip('${repo.activeSubsCount} active subscriptions',
                 color: const Color(0xFF16A34A), icon: Icons.check_circle_rounded),
           ],
         ),
         const SizedBox(height: 14),
 
-        // فیلتر حوزه (همه / کسب‌وکار / شخصی)
+        // Scope filter (all / business / personal)
         Row(
           children: [
             for (final opt in <TxnScope?>[null, TxnScope.business, TxnScope.personal])
@@ -69,7 +69,7 @@ class DashboardPage extends StatelessWidget {
                   selected: repo.scopeFilter == opt,
                   showCheckmark: false,
                   onSelected: (_) => repo.setScopeFilter(opt),
-                  label: Text(opt == null ? 'همه' : opt.label,
+                  label: Text(opt == null ? 'All' : opt.label,
                       style: const TextStyle(fontSize: 12)),
                 ),
               ),
@@ -77,7 +77,7 @@ class DashboardPage extends StatelessWidget {
         ),
         const SizedBox(height: 12),
 
-        // ثبت سریعِ هزینه‌های پرتکرار
+        // Quick entry for frequent expenses
         if (repo.scopeFilter != TxnScope.business &&
             repo.quickExpenses.isNotEmpty) ...[
           CardBox(
@@ -89,7 +89,7 @@ class DashboardPage extends StatelessWidget {
                   children: [
                     const Icon(Icons.bolt_rounded, size: 16),
                     const SizedBox(width: 6),
-                    Text('ثبت سریع',
+                    Text('Quick add',
                         style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -104,24 +104,24 @@ class DashboardPage extends StatelessWidget {
           const SizedBox(height: 12),
         ],
 
-        // خلاصه‌ی ماه
+        // Monthly summary
         CardBox(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('خلاصه‌ی این ماه',
+              Text('This month',
                   style: TextStyle(fontSize: 12.5, color: onSurface.withValues(alpha: 0.65))),
               const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(
-                    child: _miniStat(context, 'درآمد', monthSummary.income,
+                    child: _miniStat(context, 'Income', monthSummary.income,
                         const Color(0xFF16A34A), Icons.trending_up_rounded),
                   ),
                   Container(width: 1, height: 42, color: Theme.of(context).dividerColor),
                   Expanded(
-                    child: _miniStat(context, 'هزینه', monthSummary.expense,
+                    child: _miniStat(context, 'Expense', monthSummary.expense,
                         const Color(0xFFE11D48), Icons.trending_down_rounded),
                   ),
                 ],
@@ -137,7 +137,7 @@ class DashboardPage extends StatelessWidget {
                           ? const Color(0xFF16A34A)
                           : const Color(0xFFE11D48)),
                   const SizedBox(width: 8),
-                  Text('سود این ماه',
+                  Text('Profit this month',
                       style: TextStyle(fontSize: 12.5, color: onSurface.withValues(alpha: 0.7))),
                   const Spacer(),
                   MoneyText(monthSummary.profit,
@@ -154,7 +154,7 @@ class DashboardPage extends StatelessWidget {
         ),
         const SizedBox(height: 12),
 
-        // طلب و بدهی
+        // Receivables and payables
         Row(
           children: [
             Expanded(
@@ -163,7 +163,7 @@ class DashboardPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('طلب شما از مشتری‌ها',
+                    Text('Receivables',
                         style: TextStyle(fontSize: 11.5, color: onSurface.withValues(alpha: 0.65))),
                     const SizedBox(height: 6),
                     MoneyText(totals.receivable,
@@ -172,7 +172,7 @@ class DashboardPage extends StatelessWidget {
                             fontWeight: FontWeight.w700,
                             color: Color(0xFF0F766E))),
                     const SizedBox(height: 3),
-                    Text('${Fmt.toFaDigits('${totals.debtorsCount}')} مشتری بدهکار',
+                    Text('${totals.debtorsCount} debtors',
                         style: TextStyle(fontSize: 11, color: onSurface.withValues(alpha: 0.55))),
                   ],
                 ),
@@ -185,7 +185,7 @@ class DashboardPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('بدهی شما',
+                    Text('Payables',
                         style: TextStyle(fontSize: 11.5, color: onSurface.withValues(alpha: 0.65))),
                     const SizedBox(height: 6),
                     MoneyText(totals.payable,
@@ -194,7 +194,7 @@ class DashboardPage extends StatelessWidget {
                             fontWeight: FontWeight.w700,
                             color: Color(0xFF2563EB))),
                     const SizedBox(height: 3),
-                    Text('${Fmt.toFaDigits('${totals.creditorsCount}')} طرف حساب',
+                    Text('${totals.creditorsCount} creditors',
                         style: TextStyle(fontSize: 11, color: onSurface.withValues(alpha: 0.55))),
                   ],
                 ),
@@ -210,7 +210,7 @@ class DashboardPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('موجودی صندوق',
+                    Text('Cash balance',
                         style: TextStyle(fontSize: 11.5, color: onSurface.withValues(alpha: 0.65))),
                     const SizedBox(height: 6),
                     MoneyText(repo.cashBalance,
@@ -219,7 +219,7 @@ class DashboardPage extends StatelessWidget {
                             fontWeight: FontWeight.w700,
                             color: Color(0xFF7C3AED))),
                     const SizedBox(height: 3),
-                    Text('نقد + بانک',
+                    Text('Cash + bank',
                         style: TextStyle(fontSize: 11, color: onSurface.withValues(alpha: 0.55))),
                   ],
                 ),
@@ -231,13 +231,13 @@ class DashboardPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('دریافتی این ماه',
+                    Text('Received this month',
                         style: TextStyle(fontSize: 11.5, color: onSurface.withValues(alpha: 0.65))),
                     const SizedBox(height: 6),
                     MoneyText(monthSummary.cashIn,
                         style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 3),
-                    Text('نقد + وصولی',
+                    Text('Cash + collections',
                         style: TextStyle(fontSize: 11, color: onSurface.withValues(alpha: 0.55))),
                   ],
                 ),
@@ -246,7 +246,7 @@ class DashboardPage extends StatelessWidget {
           ],
         ),
 
-        // پیامک‌های بانکی (فقط اندروید)
+        // Bank SMS (Android only)
         if (repo.smsSupported) ...[
           CardBox(
             onTap: () => Navigator.push(
@@ -275,17 +275,17 @@ class DashboardPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('پیامک‌های بانکی',
+                      const Text('Bank SMS',
                           style: TextStyle(
                               fontSize: 13.5, fontWeight: FontWeight.w700)),
                       const SizedBox(height: 3),
                       Text(
                         !repo.smsPermissionGranted
-                            ? 'برای شناسایی خودکار واریزها دسترسی بدهید'
+                            ? 'Grant access to identify incoming payments automatically'
                             : repo.smsPendingCount > 0
-                                ? '${Fmt.toFaDigits('${repo.smsPendingCount}')} '
-                                    'تراکنش در انتظار تأیید'
-                                : 'مورد جدیدی پیدا نشد',
+                                ? '${repo.smsPendingCount} '
+                                    'transactions awaiting review'
+                                : 'No new items found',
                         style: TextStyle(
                             fontSize: 11.5,
                             color: onSurface.withValues(alpha: 0.6)),
@@ -295,21 +295,21 @@ class DashboardPage extends StatelessWidget {
                 ),
                 if (repo.smsPendingCount > 0)
                   TagChip(
-                      Fmt.toFaDigits('${repo.smsPendingCount}'),
+                      '${repo.smsPendingCount}',
                       color: const Color(0xFF16A34A),
                       dense: true)
                 else
-                  const Icon(Icons.chevron_left_rounded, size: 18),
+                  const Icon(Icons.chevron_right_rounded, size: 18),
               ],
             ),
           ),
           const SizedBox(height: 10),
         ],
 
-        // هشدار انقضا
+        // Expiry alerts
         if (alerts.isNotEmpty) ...[
-          SectionTitle('سرویس‌های نزدیک انقضا و منقضی‌شده',
-              icon: Icons.notification_important_outlined, action: 'همه', onAction: () => onNavigate(4)),
+          SectionTitle('Subscriptions expiring soon or expired',
+              icon: Icons.notification_important_outlined, action: 'All', onAction: () => onNavigate(4)),
           ...alerts.take(4).map((s) {
             final customer = repo.customerById(s.customerId);
             final status = Ledger.subStatus(s, reminderDays: repo.settings.reminderDays);
@@ -330,7 +330,7 @@ class DashboardPage extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(customer?.name ?? 'بدون مشتری',
+                          Text(customer?.name ?? 'No customer',
                               style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
                           const SizedBox(height: 3),
                           Text('${s.planName} • ${J.d(s.endDate)}',
@@ -343,7 +343,7 @@ class DashboardPage extends StatelessWidget {
                     TagChip(Fmt.expiryLabel(days), color: status.color, dense: true),
                     const SizedBox(width: 6),
                     IconButton(
-                      tooltip: 'تمدید',
+                      tooltip: 'Renew',
                       visualDensity: VisualDensity.compact,
                       onPressed: () => Navigator.push(context,
                           MaterialPageRoute(builder: (_) => SellSubscriptionPage(renewFrom: s))),
@@ -356,8 +356,8 @@ class DashboardPage extends StatelessWidget {
           }),
         ],
 
-        // نمودار
-        const SectionTitle('روند ۶ ماه گذشته', icon: Icons.bar_chart_rounded),
+        // Chart
+        const SectionTitle('Last 6 months', icon: Icons.bar_chart_rounded),
         CardBox(
           padding: const EdgeInsets.fromLTRB(10, 16, 10, 8),
           child: SizedBox(
@@ -366,14 +366,14 @@ class DashboardPage extends StatelessWidget {
           ),
         ),
 
-        // آخرین تراکنش‌ها
-        SectionTitle('آخرین تراکنش‌ها',
-            icon: Icons.receipt_long_outlined, action: 'همه', onAction: () => onNavigate(4)),
+        // Recent transactions
+        SectionTitle('Recent transactions',
+            icon: Icons.receipt_long_outlined, action: 'All', onAction: () => onNavigate(4)),
         if (recent.isEmpty)
           const EmptyState(
             icon: Icons.receipt_long_outlined,
-            title: 'هنوز تراکنشی ثبت نشده',
-            text: 'با دکمه‌ی + اولین فروش یا هزینه را ثبت کنید.',
+            title: 'No transactions yet',
+            text: 'Tap + to record your first sale or expense.',
           )
         else
           Card(

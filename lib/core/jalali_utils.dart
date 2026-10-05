@@ -2,7 +2,7 @@ import 'package:shamsi_date/shamsi_date.dart';
 
 import 'format_utils.dart';
 
-/// تبدیل و کار با تاریخ شمسی (جلالی).
+/// Utilities for converting and working with Jalali dates.
 class J {
   J._();
 
@@ -17,40 +17,40 @@ class J {
 
   static DateTime dateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
 
-  /// ۱۴۰۵/۰۷/۱۲
-  static String d(DateTime dt, {bool persian = true, String sep = '/'}) {
+  /// Format a Jalali date, e.g. 1405/07/12.
+  static String d(DateTime dt, {bool persian = false, String sep = '/'}) {
     final j = of(dt);
     return Fmt.date(j.year, j.month, j.day, persian: persian, sep: sep);
   }
 
-  /// ۱۲ مهر ۱۴۰۵
-  static String dLong(DateTime dt, {bool persian = true}) {
+  /// Format a long Jalali date, e.g. 12 Mehr 1405.
+  static String dLong(DateTime dt, {bool persian = false}) {
     final j = of(dt);
     return Fmt.dateLong(j.year, j.month, j.day, persian: persian);
   }
 
-  /// چهارشنبه ۱۲ مهر ۱۴۰۵
-  static String dFull(DateTime dt, {bool persian = true}) {
+  /// Format a full Jalali date with weekday, e.g. Wednesday 12 Mehr 1405.
+  static String dFull(DateTime dt, {bool persian = false}) {
     final j = of(dt);
     final s = '${Fmt.weekDayName(j.weekDay)} ${j.day} ${Fmt.monthName(j.month)} ${j.year}';
     return persian ? Fmt.toFaDigits(s) : s;
   }
 
-  /// مهر ۱۴۰۵
-  static String mLabel(DateTime dt, {bool persian = true}) {
+  /// Format a Jalali month and year, e.g. Mehr 1405.
+  static String mLabel(DateTime dt, {bool persian = false}) {
     final j = of(dt);
     return Fmt.monthLabel(j.year, j.month, persian: persian);
   }
 
-  /// ۱۲ مهر
-  static String dShort(DateTime dt, {bool persian = true}) {
+  /// Format a short Jalali date, e.g. 12 Mehr.
+  static String dShort(DateTime dt, {bool persian = false}) {
     final j = of(dt);
     final s = '${j.day} ${Fmt.monthName(j.month)}';
     return persian ? Fmt.toFaDigits(s) : s;
   }
 
-  /// تاریخ و ساعت: ۱۲ مهر ۱۴۰۵ - ۱۴:۳۰
-  static String dTime(DateTime dt, {bool persian = true}) =>
+  /// Format a Jalali date and time.
+  static String dTime(DateTime dt, {bool persian = false}) =>
       '${d(dt, persian: persian)} - ${Fmt.clock(dt, persian: persian)}';
 
   static int jalaliYear(DateTime dt) => of(dt).year;
@@ -88,13 +88,13 @@ class J {
 
   static int monthLength(int year, int month) => Jalali(year, month, 1).monthLength;
 
-  /// شماره روز هفته‌ی جلالی (۱ = شنبه … ۷ = جمعه)
+  /// Return the Jalali weekday (1 = Saturday, 7 = Friday).
   static int weekDay(DateTime dt) => of(dt).weekDay;
 
-  /// فاصله‌ی روزها (مثبت = آینده)
+  /// Return the day difference (positive means the target is in the future).
   static int daysBetween(DateTime from, DateTime to) =>
       dateOnly(to).difference(dateOnly(from)).inDays;
 
-  /// شروع ستون‌های تقویم برای یک ماه: تعداد خانه‌های خالی قبل از روز اول
+  /// Count the empty calendar cells before the first day of a month.
   static int leadingBlanks(int year, int month) => Jalali(year, month, 1).weekDay - 1;
 }

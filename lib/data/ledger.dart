@@ -2,15 +2,15 @@ import '../core/jalali_utils.dart';
 import 'models.dart';
 
 /// ============================================================
-///  منطق حسابداری (توابع خالص و قابل تست)
+///  Accounting logic (pure, testable functions).
 ///
-///  قرارداد علامت‌ها:
-///   • موجودی مثبت  = طرف حساب به ما بدهکار است (طلب ما)
-///   • موجودی منفی = ما به طرف حساب بدهکاریم (بستانکار)
-///   • credit=true در درآمد/هزینه یعنی «نسیه / روی حساب»
+///  Sign convention:
+///   • Positive balance = the contact owes us (receivable).
+///   • Negative balance = we owe the contact (payable).
+///   • credit=true on income or expense means it is charged to the contact’s account.
 /// ============================================================
 
-/// یک نقطه روی نمودار ماهانه
+/// A point on the monthly chart.
 class MonthPoint {
   final DateTime monthStart;
   final double income;
@@ -24,14 +24,14 @@ class MonthPoint {
   double get profit => income - expense;
 }
 
-/// خلاصه‌ی یک بازه‌ی زمانی (همه به ارز پایه تبدیل می‌شوند)
+/// Summary for a date range (all amounts are converted to the base currency).
 class Summary {
-  final double income; // فروش/درآمد (تعهدی)
-  final double expense; // هزینه
-  final double refunds; // برگشت وجه به مشتری
-  final double received; // وصولی از مشتری‌ها
-  final double incomeCash; // فروش‌های نقدی
-  final double expenseCash; // هزینه‌های نقدی
+  final double income; // Sales and income (accrual basis).
+  final double expense; // Expenses.
+  final double refunds; // Refunds to customers.
+  final double received; // Payments collected from customers.
+  final double incomeCash; // Cash sales.
+  final double expenseCash; // Cash expenses.
   final int txnCount;
 
   const Summary({
@@ -52,19 +52,19 @@ class Summary {
   static const empty = Summary();
 
   Map<String, double> get asMap => {
-        'درآمد': income,
-        'هزینه': expense,
-        'برگشت وجه': refunds,
-        'وصولی': received,
-        'سود': profit,
-        'خالص نقد': netCash,
+        'Income': income,
+        'Expenses': expense,
+        'Refunds': refunds,
+        'Received': received,
+        'Profit': profit,
+        'Net cash': netCash,
       };
 }
 
-/// جمع کل همه‌ی حساب‌ها (وضعیت لحظه‌ای)
+/// Totals across all accounts (current balance).
 class Balances {
-  final double receivable; // جمع طلب ما از مشتری‌ها
-  final double payable; // جمع بدهی ما به دیگران
+  final double receivable; // Total receivables from customers.
+  final double payable; // Total amounts owed to others.
   final int debtorsCount;
   final int creditorsCount;
 
@@ -81,7 +81,7 @@ class Balances {
 class Ledger {
   Ledger._();
 
-  /// تبدیل مبلغ تراکنش به ارز پایه با نرخ ثبت‌شده‌ی همان تراکنش
+  /// Convert a transaction amount to the base currency using its recorded exchange rate.
   static double base(Txn t) => t.amount * t.rateToBase;
 
   static bool inRange(DateTime d, DateTime? from, DateTime? to) {
@@ -163,7 +163,7 @@ class Ledger {
     );
   }
 
-  /// اثر یک تراکنش روی موجودی طرف حساب (به ارز پایه)
+  /// Effect of a transaction on a contact balance (in the base currency).
   static double balanceEffect(Txn t) {
     final v = base(t);
     switch (t.kind) {
@@ -182,7 +182,7 @@ class Ledger {
       txns.where((t) => t.customerId == customerId).toList()
         ..sort((a, b) => b.date.compareTo(a.date));
 
-  /// موجودی یک طرف حساب به ارز پایه
+  /// Contact balance in the base currency.
   static double customerBalance(Customer c, Iterable<Txn> allTxns) {
     var bal = c.openingBalance;
     for (final t in allTxns) {
@@ -191,7 +191,7 @@ class Ledger {
     return bal;
   }
 
-  /// موجودی هر طرف حساب: customerId → مبلغ (ارز پایه)
+  /// Balance for each contact: customerId → amount (base currency).
   static Map<String, double> balancesByCustomer(
       List<Customer> customers, List<Txn> txns) {
     final map = <String, double>{for (final c in customers) c.id: c.openingBalance};
@@ -203,7 +203,7 @@ class Ledger {
     return map;
   }
 
-  /// جمع طلب/بدهی کل
+  /// Total receivables and payables.
   static Balances totals(List<Customer> customers, List<Txn> txns) {
     final map = balancesByCustomer(customers, txns);
     double rec = 0, pay = 0;
@@ -222,10 +222,10 @@ class Ledger {
     return Balances(receivable: rec, payable: pay, debtorsCount: dc, creditorsCount: cc);
   }
 
-  /// خالص حساب هر طرف حساب به تفکیک ارز (بدون تبدیل)
+  /// Net balance for each contact by currency (without conversion).
   ///
-  /// نکته: «بدهی/طلب اولیه» به ارز پایه هم لحاظ می‌شود تا مجموعِ تفکیک‌ارز
-  /// با مانده‌ی کلِ نمایش‌داده‌شده یکی باشد.
+  /// Note: the opening balance is also included in the base currency so the per-currency total
+  /// matches the displayed overall balance.
   static Map<String, double> customerCurrencyTotals(
     Customer c,
     Iterable<Txn> txns, {
@@ -245,12 +245,12 @@ class Ledger {
       };
       if (delta != 0) map[t.currency] = (map[t.currency] ?? 0) + delta;
     }
-    // مقادیرِ صفر (تراز‌شده) را حذف می‌کنیم تا چیپِ بی‌ربط نمایش داده نشود
+    // Remove zero balances so irrelevant chips are not displayed.
     map.removeWhere((_, v) => v.abs() < 0.5);
     return map;
   }
 
-  /// سری ماهانه (پیش‌فرض: ۶ ماه شمسی اخیر تا ماه جاری)
+  /// Monthly series (defaults to the last six Jalali months, including the current month).
   static List<MonthPoint> monthlySeries(
     List<Txn> txns, {
     int months = 6,
@@ -269,7 +269,7 @@ class Ledger {
     return points;
   }
 
-  /// جمع به تفکیک دسته‌بندی در یک بازه
+  /// Totals by category for a date range.
   static Map<String, double> byCategory(
     List<Txn> txns,
     List<Category> categories, {
@@ -283,13 +283,13 @@ class Ledger {
     final out = <String, double>{};
     for (final t in filter(txns, from: from, to: to, kind: kind, scope: scope)) {
       if (!t.kind.isProfitKind) continue;
-      final name = t.categoryId == null ? 'بدون دسته' : (names[t.categoryId] ?? 'بدون دسته');
+      final name = t.categoryId == null ? 'Uncategorized' : (names[t.categoryId] ?? 'Uncategorized');
       out[name] = (out[name] ?? 0) + base(t);
     }
     return out;
   }
 
-  /// جمع به تفکیک ارز (مبلغ اصلی، بدون تبدیل)
+  /// Totals by currency (original amounts, without conversion).
   static Map<String, double> byCurrency(
     List<Txn> txns, {
     DateTime? from,
@@ -304,7 +304,7 @@ class Ledger {
     return out;
   }
 
-  /// مشتری‌های برتر بر اساس خرید در یک بازه
+  /// Top customers by purchases for a date range.
   static List<MapEntry<Customer, double>> topCustomers(
     List<Customer> customers,
     List<Txn> txns, {
@@ -333,7 +333,7 @@ class Ledger {
     return list.take(limit).toList();
   }
 
-  /// وضعیت اشتراک
+  /// Subscription status.
   static SubStatus subStatus(Subscription s, {DateTime? now, int reminderDays = 3}) {
     final n = J.startOfDay(now ?? DateTime.now());
     final end = J.startOfDay(s.endDate);
@@ -342,13 +342,13 @@ class Ledger {
     return left <= reminderDays ? SubStatus.expiringSoon : SubStatus.active;
   }
 
-  /// روزهای باقی‌مانده (منفی = گذشته)
+  /// Days remaining (negative means expired).
   static int daysLeft(Subscription s, {DateTime? now}) {
     final n = J.startOfDay(now ?? DateTime.now());
     return J.daysBetween(n, J.startOfDay(s.endDate));
   }
 
-  /// اشتراک‌های نزدیک انقضا یا منقضی‌شده (برای هشدارها)
+  /// Subscriptions nearing expiry or already expired (for alerts).
   static List<Subscription> alerts(
     List<Subscription> subs, {
     DateTime? now,
@@ -368,11 +368,11 @@ class Ledger {
   static int activeCount(List<Subscription> subs, {DateTime? now}) =>
       subs.where((s) => subStatus(s, now: now) != SubStatus.expired).length;
 
-  /// تاریخ پایان پیشنهادی برای تمدید (ماه‌های شمسی)
+  /// Suggested renewal end date (using Jalali months).
   static DateTime suggestEnd(DateTime start, int months) =>
       J.addMonths(start, months);
 
-  /// مجموع خالصِ هزینه‌ها (به ارز پایه) برای یک دسته در یک بازه
+  /// Total expenses for a category and date range (in the base currency).
   static double spentIn(
     List<Txn> txns,
     String categoryId, {
@@ -387,7 +387,7 @@ class Ledger {
     return total;
   }
 
-  /// سری روزانه (از [days] روز پیش تا امروز) — برای نمودار روزانه
+  /// Daily series from [days] ago through today.
   static List<DayPoint> dailySeries(
     List<Txn> txns, {
     int days = 30,
@@ -414,7 +414,7 @@ class Ledger {
     return points;
   }
 
-  /// سری هفتگی (از [weeks] هفته پیش تا این هفته)
+  /// Weekly series from [weeks] ago through the current week.
   static List<DayPoint> weeklySeries(
     List<Txn> txns, {
     int weeks = 12,
@@ -428,13 +428,13 @@ class Ledger {
       final weekStart = J.addDays(weekEnd, -6);
       final s = summarize(txns, from: weekStart, to: J.endOfDay(weekEnd), scope: scope);
       points.add(DayPoint(
-          day: weekStart, income: s.income, expense: s.expense, label: 'هفته'));
+          day: weekStart, income: s.income, expense: s.expense, label: 'Week'));
     }
     return points;
   }
 }
 
-/// یک نقطه روی نمودار روزانه/هفتگی
+/// A point on a daily or weekly chart.
 class DayPoint {
   final DateTime day;
   final double income;
@@ -445,7 +445,7 @@ class DayPoint {
     required this.day,
     required this.income,
     required this.expense,
-    this.label = 'روز',
+    this.label = 'Day',
   });
 
 }

@@ -4,16 +4,16 @@ import 'package:shamsi_date/shamsi_date.dart';
 import '../core/format_utils.dart';
 
 /// ============================================================
-///  مدل‌های داده‌ی «دفتر وی‌پی‌ان»
-///  همه‌ی مدل‌ها به‌صورت Map ذخیره می‌شوند (سازگار با Hive و JSON)
+///  Data models for the VPN ledger.
+///  All models are stored as Maps (compatible with Hive and JSON).
 /// ============================================================
 
-/// ----- ارز -----
+/// ----- Currency -----
 class CurrencyDef {
   final String code; // IRT, USD, USDT, EUR ...
-  final String name; // تومان، دلار ...
-  final String symbol; // تومان، $ ...
-  final double rateToBase; // هر ۱ واحد از این ارز = چند واحد ارز پایه
+  final String name; // Toman, US dollars, etc.
+  final String symbol; // Toman, $, etc.
+  final double rateToBase; // Base-currency value of one unit of this currency.
   final int decimals;
 
   const CurrencyDef({
@@ -52,34 +52,34 @@ class CurrencyDef {
       );
 }
 
-/// ----- تنظیمات برنامه -----
+/// ----- App settings -----
 class AppSettings {
   final String businessName;
-  final String baseCurrency; // کد ارز پایه (پیش‌فرض IRT = تومان)
+  final String baseCurrency; // Base currency code (default: IRT = Toman).
   final List<CurrencyDef> currencies;
   final bool persianDigits;
-  final int reminderDays; // چند روز قبل از انقضا هشدار بده
-  final String? pinHash; // قفل برنامه (اختیاری)
+  final int reminderDays; // Days before expiry to send a reminder.
+  final String? pinHash; // Optional app lock.
   final String themeMode; // system | light | dark
-  final double openingCash; // موجودی نقدی/بانکی اولیه
-  final bool setupDone; // آیا راه‌اندازی اولیه انجام شده؟
+  final double openingCash; // Initial cash/bank balance.
+  final bool setupDone; // Whether initial setup is complete.
 
-  // ---- پیامک بانکی ----
-  final bool smsEnabled; // خواندن پیامک فعال باشد؟
-  final int smsSyncDays; // چند روز گذشته بررسی شود
-  final bool smsAutoApprove; // ثبت خودکار موارد کاملاً مطمئن
-  final int smsLastSyncAt; // آخرین همگام‌سازی (برای به‌روزرسانی افزایشی)
+  // ---- Bank SMS ----
+  final bool smsEnabled; // Whether SMS reading is enabled.
+  final int smsSyncDays; // Number of past days to scan.
+  final bool smsAutoApprove; // Whether high-confidence matches are recorded automatically.
+  final int smsLastSyncAt; // Last sync timestamp (for incremental updates).
 
-  // ---- یادآور روزانه‌ی ثبت هزینه ----
-  final bool dailyReminder; // یادآور روزانه فعال باشد؟
-  final int reminderHour; // ساعت یادآور (۰ تا ۲۳)
-  final int reminderMinute; // دقیقه‌ی یادآور
+  // ---- Daily expense reminder ----
+  final bool dailyReminder; // Whether the daily reminder is enabled.
+  final int reminderHour; // Reminder hour (0–23).
+  final int reminderMinute; // Reminder minute.
 
   const AppSettings({
-    this.businessName = 'فروش وی‌پی‌ان من',
+    this.businessName = 'My VPN Business',
     this.baseCurrency = 'IRT',
     this.currencies = defaultCurrencies,
-    this.persianDigits = true,
+    this.persianDigits = false,
     this.reminderDays = 3,
     this.pinHash,
     this.themeMode = 'system',
@@ -94,19 +94,19 @@ class AppSettings {
     this.reminderMinute = 0,
   });
 
-  /// ارزهای پیش‌فرض: تومان (پایه) + ارزهای رایج برای فروشنده‌ی VPN
+  /// Default currencies: Toman (base) plus currencies commonly used by VPN sellers.
   static const defaultCurrencies = <CurrencyDef>[
-    CurrencyDef(code: 'IRT', name: 'تومان', symbol: 'تومان', rateToBase: 1, decimals: 0),
-    CurrencyDef(code: 'USD', name: 'دلار', symbol: r'$', rateToBase: 130000, decimals: 2),
-    CurrencyDef(code: 'USDT', name: 'تتر', symbol: 'USDT', rateToBase: 130000, decimals: 2),
-    CurrencyDef(code: 'EUR', name: 'یورو', symbol: '€', rateToBase: 140000, decimals: 2),
+    CurrencyDef(code: 'IRT', name: 'Toman', symbol: 'Toman', rateToBase: 1, decimals: 0),
+    CurrencyDef(code: 'USD', name: 'US Dollar', symbol: r'$', rateToBase: 130000, decimals: 2),
+    CurrencyDef(code: 'USDT', name: 'Tether', symbol: 'USDT', rateToBase: 130000, decimals: 2),
+    CurrencyDef(code: 'EUR', name: 'Euro', symbol: '€', rateToBase: 140000, decimals: 2),
   ];
 
   CurrencyDef currency(String code) => currencies.firstWhere(
         (c) => c.code == code,
         orElse: () => currencies.isNotEmpty
             ? currencies.first
-            : const CurrencyDef(code: 'IRT', name: 'تومان', symbol: 'تومان', rateToBase: 1),
+            : const CurrencyDef(code: 'IRT', name: 'Toman', symbol: 'Toman', rateToBase: 1),
       );
 
   CurrencyDef get base => currency(baseCurrency);
@@ -171,13 +171,13 @@ class AppSettings {
       };
 
   factory AppSettings.fromMap(Map map) => AppSettings(
-        businessName: '${map['businessName'] ?? 'فروش وی‌پی‌ان من'}',
+        businessName: '${map['businessName'] ?? 'My VPN Business'}',
         baseCurrency: '${map['baseCurrency'] ?? 'IRT'}',
         currencies: (map['currencies'] as List?)
                 ?.map((e) => CurrencyDef.fromMap(Map.from(e as Map)))
                 .toList() ??
             defaultCurrencies,
-        persianDigits: map['persianDigits'] as bool? ?? true,
+        persianDigits: map['persianDigits'] as bool? ?? false,
         reminderDays: (map['reminderDays'] as num?)?.toInt() ?? 3,
         pinHash: map['pinHash'] as String?,
         themeMode: '${map['themeMode'] ?? 'system'}',
@@ -193,30 +193,30 @@ class AppSettings {
       );
 }
 
-/// ----- حوزه‌ی تراکنش: کسب‌وکار یا زندگی شخصی -----
+/// ----- Transaction scope: business or personal -----
 enum TxnScope {
-  business, // مربوط به کسب‌وکار (فروش وی‌پی‌ان)
-  personal; // مربوط به زندگی شخصی
+  business, // Belongs to the business (VPN sales).
+  personal; // Belongs to personal finances.
 
   String get label => switch (this) {
-        TxnScope.business => 'کسب‌وکار',
-        TxnScope.personal => 'شخصی',
+        TxnScope.business => 'Business',
+        TxnScope.personal => 'Personal',
       };
 
-  /// برای نمایش در فرم‌ها
+  /// Display hint used in forms.
   String get hint => switch (this) {
-        TxnScope.business => 'در سود و زیان کسب‌وکار حساب می‌شود',
-        TxnScope.personal => 'در سود کسب‌وکار لحاظ نمی‌شود',
+        TxnScope.business => 'Included in business profit and loss',
+        TxnScope.personal => 'Excluded from business profit and loss',
       };
 }
 
-/// ----- دسته‌بندی درآمد/هزینه -----
+/// ----- Income and expense category -----
 class Category {
   final String id;
   final String name;
-  final TxnKind kind; // فقط income و expense معنی دارند
+  final TxnKind kind; // Only income and expense are valid here.
   final int sortOrder;
-  final TxnScope scope; // این دسته مربوط به کسب‌وکار است یا زندگی شخصی؟
+  final TxnScope scope; // Whether this category is for business or personal use.
 
   const Category({
     required this.id,
@@ -245,19 +245,19 @@ class Category {
       );
 }
 
-/// ----- طرف حساب (مشتری / تأمین‌کننده) -----
+/// ----- Contact (customer or supplier) -----
 class Customer {
   final String id;
   final String name;
   final String phone;
   final String telegram;
   final String note;
-  final double openingBalance; // + یعنی از قبل بدهکار بوده، − یعنی از قبل بستانکار
+  final double openingBalance; // Positive means they already owed us; negative means we owed them.
   final DateTime createdAt;
   final bool archived;
 
-  /// شناسه‌های بانکی این مشتری برای تطبیق خودکار پیامک‌ها
-  /// (مثلاً ۴ رقم آخر کارت یا شماره کامل کارت)
+  /// Customer bank identifiers used for automatic SMS matching.
+  /// (For example, the last four digits or the full card number.)
   final List<String> bankIdentifiers;
 
   const Customer({
@@ -322,16 +322,16 @@ class Customer {
       );
 }
 
-/// ----- اشتراک -----
+/// ----- Subscription -----
 class Subscription {
   final String id;
   final String customerId;
-  final String? planId; // پلن انتخاب‌شده (اختیاری)
-  final String planName; // مثلاً: ۱ ماهه ۵۰ گیگ - دو کاربره
+  final String? planId; // Selected plan (optional).
+  final String planName; // For example: 1 month, 50 GB, 2 devices.
   final DateTime startDate;
   final DateTime endDate;
-  final double amount; // مبلغ فروش
-  final String currency; // کد ارز
+  final double amount; // Sale amount.
+  final String currency; // Currency code.
   final int deviceCount;
   final String note;
   final bool autoRenew;
@@ -413,12 +413,12 @@ class Subscription {
       );
 }
 
-/// ----- پلن آماده (قالب فروش) -----
+/// ----- Saved plan (sales template) -----
 enum PlanDurationUnit { day, month }
 
 class Plan {
   final String id;
-  final String name; // مثلاً: ۱ ماهه ۵۰ گیگ
+  final String name; // For example: 1 month, 50 GB.
   final double price;
   final String currency;
   final int durationValue;
@@ -440,9 +440,9 @@ class Plan {
   int get durationDays => durationUnit == PlanDurationUnit.day ? durationValue : durationValue * 30;
 
   String get durationLabel =>
-      '${Fmt.toFaDigits('$durationValue')} ${durationUnit == PlanDurationUnit.month ? 'ماه' : 'روز'}';
+      '$durationValue ${durationUnit == PlanDurationUnit.month ? (durationValue == 1 ? 'month' : 'months') : (durationValue == 1 ? 'day' : 'days')}';
 
-  /// تاریخ پایان بر اساس تاریخ شروع (ماه‌ها شمسی هستند)
+  /// Calculate the end date from the start date (months follow the Jalali calendar).
   DateTime endFrom(DateTime start) {
     final s = DateTime(start.year, start.month, start.day);
     if (durationUnit == PlanDurationUnit.day) {
@@ -499,27 +499,27 @@ class Plan {
       );
 }
 
-/// ----- انواع تراکنش -----
+/// ----- Transaction types -----
 enum TxnKind {
-  income, // فروش / درآمد
-  expense, // هزینه
-  receive, // دریافت پول از مشتری (تسویه)
-  refund, // پرداخت/برگشت پول به مشتری
+  income, // Sale or income.
+  expense, // Expense.
+  receive, // Payment received from a customer (settlement).
+  refund, // Payment or refund to a customer.
 }
 
 extension TxnKindX on TxnKind {
   String get label => switch (this) {
-        TxnKind.income => 'فروش / درآمد',
-        TxnKind.expense => 'هزینه',
-        TxnKind.receive => 'دریافت از مشتری',
-        TxnKind.refund => 'پرداخت به مشتری',
+        TxnKind.income => 'Sale / income',
+        TxnKind.expense => 'Expense',
+        TxnKind.receive => 'Customer payment',
+        TxnKind.refund => 'Refund to customer',
       };
 
   String get shortLabel => switch (this) {
-        TxnKind.income => 'درآمد',
-        TxnKind.expense => 'هزینه',
-        TxnKind.receive => 'دریافت',
-        TxnKind.refund => 'پرداخت',
+        TxnKind.income => 'Income',
+        TxnKind.expense => 'Expense',
+        TxnKind.receive => 'Receive',
+        TxnKind.refund => 'Payment',
       };
 
   IconData get icon => switch (this) {
@@ -531,10 +531,10 @@ extension TxnKindX on TxnKind {
 
   bool get isProfitKind => this == TxnKind.income || this == TxnKind.expense;
 
-  /// آیا این تراکنش روی حساب طرف حساب اثر دارد؟
+  /// Does this transaction affect the contact’s balance?
   bool get affectsBalance => this != TxnKind.income && this != TxnKind.expense;
 
-  /// جهت پول نقد: +۱ ورود، −۱ خروج، ۰ بی‌اثر
+  /// Cash direction: +1 inflow, −1 outflow, 0 no effect.
   int get cashDirection => switch (this) {
         TxnKind.receive => 1,
         TxnKind.refund => -1,
@@ -542,19 +542,19 @@ extension TxnKindX on TxnKind {
       };
 }
 
-/// ----- تراکنش -----
+/// ----- Transaction -----
 class Txn {
   final String id;
   final TxnKind kind;
   final double amount;
-  final String currency; // کد ارز تراکنش
-  final double rateToBase; // نرخ ارز به ارز پایه، در لحظه‌ی ثبت (اسنپ‌شات)
+  final String currency; // Transaction currency code.
+  final double rateToBase; // Exchange rate to the base currency when recorded (snapshot).
   final DateTime date;
   final String? categoryId;
   final String? customerId;
   final String? subscriptionId;
-  final bool credit; // برای درآمد/هزینه: true یعنی «نسیه / روی حساب»
-  final TxnScope scope; // کسب‌وکار یا شخصی (سود کسب‌وکار فقط شامل business می‌شود)
+  final bool credit; // For income/expense, true means charged to the customer’s account.
+  final TxnScope scope; // Business or personal (business profit includes business transactions only).
   final String note;
   final DateTime createdAt;
 
@@ -644,14 +644,14 @@ class Txn {
       );
 }
 
-/// ----- وضعیت اشتراک -----
+/// ----- Subscription status -----
 enum SubStatus { active, expiringSoon, expired }
 
 extension SubStatusX on SubStatus {
   String get label => switch (this) {
-        SubStatus.active => 'فعال',
-        SubStatus.expiringSoon => 'نزدیک انقضا',
-        SubStatus.expired => 'منقضی',
+        SubStatus.active => 'Active',
+        SubStatus.expiringSoon => 'Expiring soon',
+        SubStatus.expired => 'Expired',
       };
 
   Color get color => switch (this) {
@@ -662,14 +662,14 @@ extension SubStatusX on SubStatus {
 }
 
 /// ============================================================
-///  حسابداری شخصی
+///  Personal finance
 /// ============================================================
 
-/// ----- بودجه‌ی ماهانه برای یک دسته‌بندی -----
+/// ----- Monthly category budget -----
 class Budget {
   final String id;
   final String categoryId;
-  final double limit; // سقف ماهانه به ارز پایه
+  final double limit; // Monthly limit in the base currency.
   final TxnScope scope;
   final bool enabled;
 
@@ -713,7 +713,7 @@ class Budget {
       );
 }
 
-/// وضعیت مصرف یک بودجه در ماه جاری
+/// Budget usage for the current month.
 class BudgetUsage {
   final Budget budget;
   final String categoryName;
@@ -725,25 +725,25 @@ class BudgetUsage {
     required this.spent,
   });
 
-  /// نسبت مصرف (۰ تا ۱ و بیشتر)
+  /// Usage ratio (0 to 1 and above).
   double get ratio => budget.limit <= 0 ? 0 : spent / budget.limit;
 
   double get remaining => budget.limit - spent;
 
   bool get isOver => spent > budget.limit;
 
-  /// ۰ = خطر ندارد، ۱ = نزدیک سقف، ۲ = رد کرده
+  /// 0 = within limit, 1 = near limit, 2 = over limit.
   int get level => ratio >= 1 ? 2 : (ratio >= 0.8 ? 1 : 0);
 }
 
-/// ----- تراکنش تکرارشونده (اجاره، اینترنت، آبونمان…) -----
+/// ----- Recurring transaction (rent, internet, subscriptions, etc.) -----
 enum RecurringPeriod { monthly, weekly, daily }
 
 extension RecurringPeriodX on RecurringPeriod {
   String get label => switch (this) {
-        RecurringPeriod.monthly => 'ماهانه',
-        RecurringPeriod.weekly => 'هفتگی',
-        RecurringPeriod.daily => 'روزانه',
+        RecurringPeriod.monthly => 'Monthly',
+        RecurringPeriod.weekly => 'Weekly',
+        RecurringPeriod.daily => 'Daily',
       };
 }
 
@@ -760,14 +760,14 @@ class RecurringRule {
 
   final RecurringPeriod period;
 
-  /// روزِ اجرا در ماه شمسی (۱ تا ۳۱) — فقط برای حالت ماهانه
+  /// Day of the Jalali month (1–31), used for monthly rules only.
   final int dayOfMonth;
 
   final DateTime startDate;
   final DateTime? endDate;
   final bool enabled;
 
-  /// آخرین باری که ثبت شده (برای جلوگیری از تکرار)
+  /// Last posting date (prevents duplicates).
   final DateTime? lastPosted;
 
   const RecurringRule({
@@ -824,13 +824,13 @@ class RecurringRule {
         lastPosted: clearLastPosted ? null : (lastPosted ?? this.lastPosted),
       );
 
-  // ---------- محاسبه‌ی سررسید ----------
+  // ---------- Due-date calculations ----------
   static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
-  /// تعداد روزهای ماه شمسی
+  /// Number of days in a Jalali month.
   static int _monthLength(int y, int m) => Jalali(y, m).monthLength;
 
-  /// روزِ اجرا در ماه (با محدود شدن به طول ماه، مثلاً ۳۱ → ۲۹)
+  /// Day of the month, clamped to the month length (for example, 31 → 29).
   int _dayIn(int y, int m) {
     final len = _monthLength(y, m);
     if (dayOfMonth < 1) return 1;
@@ -855,7 +855,7 @@ class RecurringRule {
     }
   }
 
-  /// اولین تاریخ اجرا (با در نظر گرفتن روزِ ماه)
+  /// First occurrence, taking the selected day of the month into account.
   DateTime get _firstOccurrence {
     final start = _dateOnly(startDate);
     if (period != RecurringPeriod.monthly) return start;
@@ -864,7 +864,7 @@ class RecurringRule {
     return candidate.isBefore(start) ? _advance(start) : candidate;
   }
 
-  /// همه‌ی سررسیدهای این قانون از شروع تا [to]
+  /// All occurrences of this rule from the start date through [to].
   List<DateTime> occurrencesUpTo(DateTime to, {int limit = 600}) {
     final out = <DateTime>[];
     final end = _dateOnly(to);
@@ -879,7 +879,7 @@ class RecurringRule {
     return out;
   }
 
-  /// سررسیدهایی که زمان‌شان رسیده ولی هنوز ثبت نشده‌اند
+  /// Due occurrences that have not yet been posted.
   List<DateTime> pendingDues(DateTime now) {
     if (!enabled) return const [];
     final first = _dateOnly(startDate);
@@ -891,7 +891,7 @@ class RecurringRule {
     return occurrencesUpTo(now).where((d) => !d.isBefore(from)).toList();
   }
 
-  /// سررسید بعدی (برای نمایش در رابط کاربری)
+  /// Next due date for display in the UI.
   DateTime? nextDue(DateTime now) {
     if (!enabled) return null;
     final from = lastPosted ?? _dateOnly(startDate);
@@ -951,18 +951,18 @@ class RecurringRule {
       );
 }
 
-/// ----- دکمه‌ی ثبت سریع روی داشبورد -----
+/// ----- Dashboard quick-entry button -----
 class QuickExpense {
   final String id;
   final String label;
 
-  /// اگر صفر باشد، هنگام ثبت مبلغ پرسیده می‌شود
+  /// If zero, ask for an amount when recording.
   final double amount;
   final TxnKind kind;
   final TxnScope scope;
   final String? categoryId;
 
-  /// کدِ آیکون (Icons.xxx.codePoint)
+  /// Icon code point (Icons.xxx.codePoint).
   final int iconCodePoint;
   final int sortOrder;
 
@@ -1023,36 +1023,36 @@ class QuickExpense {
         sortOrder: (map['sortOrder'] as num?)?.toInt() ?? 0,
       );
 
-  /// دکمه‌های پیش‌فرضِ حسابداری شخصی
+  /// Default personal finance quick-entry buttons.
   static List<QuickExpense> defaults() => [
         QuickExpense(
             id: 'q_food',
-            label: 'خوراک',
+            label: 'Food',
             iconCodePoint: 0xf0a6, // Icons.restaurant_outlined
             sortOrder: 0),
         QuickExpense(
             id: 'q_transport',
-            label: 'حمل‌ونقل',
+            label: 'Transport',
             iconCodePoint: 0xf8e9, // Icons.directions_bus_outlined
             sortOrder: 1),
         QuickExpense(
             id: 'q_market',
-            label: 'خرید روزانه',
+            label: 'Daily shopping',
             iconCodePoint: 0xf7bb, // Icons.shopping_bag_outlined
             sortOrder: 2),
         QuickExpense(
             id: 'q_bill',
-            label: 'قبض',
+            label: 'Bills',
             iconCodePoint: 0xf0ac, // Icons.receipt_outlined
             sortOrder: 3),
         QuickExpense(
             id: 'q_cafe',
-            label: 'کافه',
+            label: 'Cafe',
             iconCodePoint: 0xf0a8, // Icons.local_cafe_outlined
             sortOrder: 4),
         QuickExpense(
             id: 'q_health',
-            label: 'سلامت',
+            label: 'Health',
             iconCodePoint: 0xf0ad, // Icons.local_hospital_outlined
             sortOrder: 5),
       ];

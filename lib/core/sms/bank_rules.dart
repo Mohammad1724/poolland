@@ -1,30 +1,30 @@
 // ============================================================
-//  قوانین تشخیص پیامک بانکی
+//  Bank SMS detection rules.
 //
-//  ساختارِ قانون‌محور است تا بتوان بعداً قانون جدید اضافه کرد
-//  (یا از داخل برنامه، قانونِ اختصاصی ساخت).
+//  This rule-based structure makes it easy to add more rules later
+//  (including custom rules created in the app).
 // ============================================================
 
-// واحدِ پیش‌فرضِ مبالغ در پیامک‌های آن بانک
+// Default amount unit used by this bank’s SMS messages.
 enum AmountUnit { rial, toman }
 
 class BankRule {
-  /// شناسه (برای قوانین اختصاصی کاربر)
+  /// Identifier (used for custom user rules).
   final String id;
 
-  /// نام فارسی بانک
+  /// Bank name shown in the app.
   final String bankName;
 
-  /// نشانه‌های فرستنده (مثل BANKMELAT) — با حروف بزرگ مقایسه می‌شود
+  /// Sender hints (such as BANKMELAT); compared in uppercase.
   final List<String> senderHints;
 
-  /// نشانه‌های داخل متن پیامک (مثل «بانک ملت»)
+  /// Hints in the SMS body (for example, a bank name in Persian).
   final List<String> bodyHints;
 
-  /// اگر در پیامک واحد ذکر نشده باشد، مبلغ را چه واحدی فرض کنیم؟
+  /// Which unit to assume when the SMS does not specify one.
   final AmountUnit defaultUnit;
 
-  /// قانونِ ساخته‌شده توسط کاربر (در صورت نیاز قابل حذف است)
+  /// Whether this is a user-created rule (which can be deleted).
   final bool custom;
 
   const BankRule({
@@ -78,137 +78,137 @@ class BankRule {
   );
 }
 
-/// قوانینِ آماده برای بانک‌ها و کیف‌پول‌های رایج ایران
+/// Built-in rules for common Iranian banks and digital wallets.
 const List<BankRule> builtinBankRules = <BankRule>[
   BankRule(
     id: 'melat',
-    bankName: 'بانک ملت',
+    bankName: 'Mellat Bank',
     senderHints: ['BANKMELAT', 'MELLAT', 'ملت'],
     bodyHints: ['بانک ملت'],
   ),
   BankRule(
     id: 'saderat',
-    bankName: 'بانک صادرات',
+    bankName: 'Saderat Bank',
     senderHints: ['BSI', 'SADERAT', 'صادرات'],
     bodyHints: ['بانک صادرات'],
   ),
   BankRule(
     id: 'tejarat',
-    bankName: 'بانک تجارت',
+    bankName: 'Tejarat Bank',
     senderHints: ['TEJARAT', 'تجارت'],
     bodyHints: ['بانک تجارت'],
   ),
   BankRule(
     id: 'melli',
-    bankName: 'بانک ملی',
+    bankName: 'Melli Bank',
     senderHints: ['BANKMELLI', 'MELLIBANK', 'ملی'],
     bodyHints: ['بانک ملی'],
   ),
   BankRule(
     id: 'parsian',
-    bankName: 'بانک پارسیان',
+    bankName: 'Parsian Bank',
     senderHints: ['PARSIAN', 'BPI', 'پارسیان'],
     bodyHints: ['بانک پارسیان'],
   ),
   BankRule(
     id: 'saman',
-    bankName: 'بانک سامان',
+    bankName: 'Saman Bank',
     senderHints: ['SAMAN', 'سامان'],
     bodyHints: ['بانک سامان'],
   ),
   BankRule(
     id: 'pasargad',
-    bankName: 'بانک پاسارگاد',
+    bankName: 'Pasargad Bank',
     senderHints: ['PASARGAD', 'پاسارگاد'],
     bodyHints: ['بانک پاسارگاد'],
   ),
   BankRule(
     id: 'ayandeh',
-    bankName: 'بانک آینده',
+    bankName: 'Ayandeh Bank',
     senderHints: ['AYANDEH', 'ANSAR', 'آینده', 'انصار'],
     bodyHints: ['بانک آینده'],
   ),
   BankRule(
     id: 'resalat',
-    bankName: 'بانک رسالت',
+    bankName: 'Resalat Bank',
     senderHints: ['RESALAT', 'QMB', 'رسالت'],
     bodyHints: ['بانک رسالت'],
   ),
   BankRule(
     id: 'sina',
-    bankName: 'بانک سینا / بلو',
+    bankName: 'Sina Bank / Blu Bank',
     senderHints: ['SINA', 'BLU', 'سینا', 'بلو'],
     bodyHints: ['بانک سینا', 'بلوبانک'],
   ),
   BankRule(
     id: 'keshavarzi',
-    bankName: 'بانک کشاورزی',
+    bankName: 'Keshavarzi Bank',
     senderHints: ['BKI', 'KESHAVARZI', 'AGRI', 'کشاورزی'],
     bodyHints: ['بانک کشاورزی'],
   ),
   BankRule(
     id: 'refah',
-    bankName: 'بانک رفاه',
+    bankName: 'Refah Bank',
     senderHints: ['REFAH', 'رفاه'],
     bodyHints: ['بانک رفاه'],
   ),
   BankRule(
     id: 'shahr',
-    bankName: 'بانک شهر',
+    bankName: 'Shahr Bank',
     senderHints: ['BANK SHAHR', 'SHAHR', 'شهر'],
     bodyHints: ['بانک شهر'],
   ),
   BankRule(
     id: 'karafarin',
-    bankName: 'بانک کارآفرین',
+    bankName: 'Karafarin Bank',
     senderHints: ['KARAFARIN', 'کارآفرین'],
     bodyHints: ['بانک کارآفرین'],
   ),
   BankRule(
     id: 'sarmaye',
-    bankName: 'بانک سرمایه',
+    bankName: 'Sarmayeh Bank',
     senderHints: ['SARMAYEH', 'سرمایه'],
     bodyHints: ['بانک سرمایه'],
   ),
   BankRule(
     id: 'sepah',
-    bankName: 'بانک سپه',
+    bankName: 'Sepah Bank',
     senderHints: ['SEPAH', 'سپه'],
     bodyHints: ['بانک سپه'],
   ),
   BankRule(
     id: 'postbank',
-    bankName: 'پست‌بانک',
+    bankName: 'Post Bank',
     senderHints: ['POSTBANK', 'پست بانک'],
     bodyHints: ['پست بانک'],
   ),
   BankRule(
     id: 'iranzamin',
-    bankName: 'بانک ایران‌زمین',
+    bankName: 'Iran Zamin Bank',
     senderHints: ['IRANZAMIN', 'IZB', 'ایران زمین'],
     bodyHints: ['بانک ایران زمین'],
   ),
   BankRule(
     id: 'day',
-    bankName: 'بانک دی',
+    bankName: 'Day Bank',
     senderHints: ['BANK DAY', 'DAYBANK', 'دی'],
     bodyHints: ['بانک دی'],
   ),
   BankRule(
     id: 'tourism',
-    bankName: 'بانک گردشگری',
+    bankName: 'Tourism Bank',
     senderHints: ['TOURISM', 'GARDESH', 'گردشگری'],
     bodyHints: ['بانک گردشگری'],
   ),
   BankRule(
     id: 'mehr',
-    bankName: 'بانک مهر / قرض‌الحسنه',
+    bankName: 'Mehr Bank / Qarz al-Hasaneh',
     senderHints: ['MEHRBANK', 'QARZ', 'مهر'],
     bodyHints: ['بانک مهر', 'قرض الحسنه'],
   ),
   BankRule(
     id: 'mellat_wallet',
-    bankName: 'کیف‌پول / اپلیکیشن پرداخت',
+    bankName: 'Digital wallet / payment app',
     senderHints: ['JIBJET', 'TOOMAN', 'TOMAN', 'APPAY', 'جیب جت', 'تومن'],
     bodyHints: ['کیف پول', 'جیب جت'],
     defaultUnit: AmountUnit.toman,

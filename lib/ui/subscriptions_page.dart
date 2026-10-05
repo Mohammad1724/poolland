@@ -68,7 +68,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
             children: [
               TextField(
                 decoration: const InputDecoration(
-                  hintText: 'جست‌وجوی مشتری یا نام پلن…',
+                  hintText: 'Search customers or plans...',
                   prefixIcon: Icon(Icons.search_rounded, size: 20),
                 ),
                 onChanged: (v) => setState(() => _q = v.trim()),
@@ -78,13 +78,13 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    _chip('همه', _SubFilter.all, count(_SubFilter.all)),
+                    _chip('All', _SubFilter.all, count(_SubFilter.all)),
                     const SizedBox(width: 8),
-                    _chip('فعال', _SubFilter.active, count(_SubFilter.active)),
+                    _chip('Active', _SubFilter.active, count(_SubFilter.active)),
                     const SizedBox(width: 8),
-                    _chip('نزدیک انقضا', _SubFilter.soon, count(_SubFilter.soon)),
+                    _chip('Expiring soon', _SubFilter.soon, count(_SubFilter.soon)),
                     const SizedBox(width: 8),
-                    _chip('منقضی', _SubFilter.expired, count(_SubFilter.expired)),
+                    _chip('Expired', _SubFilter.expired, count(_SubFilter.expired)),
                   ],
                 ),
               ),
@@ -95,9 +95,9 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
           child: list.isEmpty
               ? EmptyState(
                   icon: Icons.vpn_key_outlined,
-                  title: 'اشتراکی پیدا نشد',
-                  text: 'با ثبت فروش، اشتراک مشتری و تاریخ انقضایش خودکار ثبت می‌شود.',
-                  actionLabel: 'فروش اشتراک جدید',
+                  title: 'No subscriptions found',
+                  text: 'Record a sale to automatically create a customer subscription and expiry date.',
+                  actionLabel: 'Sell a subscription',
                   onAction: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => const SellSubscriptionPage())),
                 )
@@ -124,7 +124,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(c?.name ?? 'بدون مشتری',
+                                    Text(c?.name ?? 'No customer',
                                         style: const TextStyle(
                                             fontSize: 14, fontWeight: FontWeight.w700)),
                                     const SizedBox(height: 3),
@@ -145,7 +145,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                                   const SizedBox(height: 4),
                                   TagChip(
                                     status == SubStatus.expired
-                                        ? 'منقضی ${Fmt.expiryLabel(days)}'
+                                        ? 'Expired ${Fmt.expiryLabel(days)}'
                                         : Fmt.expiryLabel(days),
                                     color: status.color,
                                     dense: true,
@@ -171,7 +171,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                               Icon(Icons.date_range_rounded,
                                   size: 14, color: onSurface.withValues(alpha: 0.5)),
                               const SizedBox(width: 5),
-                              Text('${J.d(s.startDate)} تا ${J.d(s.endDate)}',
+                              Text('${J.d(s.startDate)} to ${J.d(s.endDate)}',
                                   style: TextStyle(
                                       fontSize: 11.5,
                                       color: onSurface.withValues(alpha: 0.6))),
@@ -183,7 +183,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                                         builder: (_) =>
                                             SellSubscriptionPage(renewFrom: s))),
                                 icon: const Icon(Icons.autorenew_rounded, size: 16),
-                                label: const Text('تمدید', style: TextStyle(fontSize: 12)),
+                                label: const Text('Renew', style: TextStyle(fontSize: 12)),
                               ),
                             ],
                           ),
@@ -208,6 +208,6 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
         selected: _filter == value,
         showCheckmark: false,
         onSelected: (_) => setState(() => _filter = value),
-        label: Text('$label (${Fmt.toFaDigits('$n')})'),
+        label: Text('$label ($n)'),
       );
 }

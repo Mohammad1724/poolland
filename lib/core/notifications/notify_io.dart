@@ -2,12 +2,12 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
-/// آیا اعلان روی این پلتفرم پشتیبانی می‌شود؟
+/// Whether notifications are supported on this platform.
 const bool notifyIsSupported = true;
 
 const int _dailyReminderId = 14040101;
 
-/// سرویس یادآور روزانه (اندروید/iOS/macOS/دسکتاپ)
+/// Daily reminder service (Android/iOS/macOS/desktop).
 class ReminderService {
   ReminderService();
 
@@ -19,11 +19,11 @@ class ReminderService {
   static const AndroidNotificationDetails _androidDetails =
       AndroidNotificationDetails(
     'daily_reminder',
-    'یادآور روزانه',
-    channelDescription: 'یادآوریِ ثبت هزینه و درآمد روزانه',
+    'Daily reminder',
+    channelDescription: 'Reminder to record daily expenses and income',
     importance: Importance.defaultImportance,
     priority: Priority.defaultPriority,
-    ticker: 'یادآور پول‌لند',
+    ticker: 'Poolland reminder',
   );
 
   static const DarwinNotificationDetails _darwinDetails =
@@ -43,7 +43,7 @@ class ReminderService {
     try {
       tz.setLocalLocation(tz.getLocation('Asia/Tehran'));
     } catch (_) {
-      // اگر منطقه‌ی زمانی در دسترس نبود، همان مقدار پیش‌فرض سیستم می‌ماند
+      // Keep the system default if the time zone is unavailable.
     }
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const darwin = DarwinInitializationSettings();
@@ -56,7 +56,7 @@ class ReminderService {
     _inited = true;
   }
 
-  /// اجازه‌ی نمایش اعلان را می‌گیرد (اندروید ۱۳+ و iOS/macOS)
+  /// Request permission to show notifications (Android 13+, iOS, and macOS).
   Future<bool> requestPermission() async {
     await init();
     final android = _plugin.resolvePlatformSpecificImplementation<
@@ -79,15 +79,15 @@ class ReminderService {
           await macos.requestPermissions(alert: true, badge: true, sound: true);
       return ok ?? false;
     }
-    return true; // دسکتاپ: نیازی به اجازه نیست
+    return true; // Desktop does not require permission.
   }
 
-  /// زمان‌بندی یادآورِ روزانه در ساعت و دقیقه‌ی مشخص
+  /// Schedule a daily reminder at the specified hour and minute.
   Future<void> scheduleDaily({
     required int hour,
     required int minute,
-    String title = 'یادآوری ثبت هزینه',
-    String body = 'هزینه‌ها و درآمد امروز رو ثبت کردی؟',
+    String title = 'Expense reminder',
+    String body = 'Have you recorded today’s expenses and income?',
   }) async {
     await init();
     await _plugin.cancel(id: _dailyReminderId);
@@ -97,7 +97,7 @@ class ReminderService {
       body: body,
       scheduledDate: _nextInstanceOf(hour, minute),
       notificationDetails: _details,
-      // «نادقیق» انتخاب شده تا نیازی به اجازه‌ی SCHEDULE_EXACT_ALARM نباشد
+      // Inexact scheduling avoids requiring SCHEDULE_EXACT_ALARM permission.
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.time,
     );
@@ -108,7 +108,7 @@ class ReminderService {
     await _plugin.cancel(id: _dailyReminderId);
   }
 
-  /// نمایش فوری (برای تستِ اعلان از صفحه‌ی تنظیمات)
+  /// Show a notification immediately (used by the settings test action).
   Future<void> showNow({required String title, required String body}) async {
     await init();
     await _plugin.show(

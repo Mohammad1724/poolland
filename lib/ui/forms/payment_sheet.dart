@@ -7,7 +7,7 @@ import '../../data/models.dart';
 import '../../data/repository.dart';
 import '../widgets/widgets.dart';
 
-/// پنجره‌ی سریع ثبت دریافت/پرداخت برای یک مشتری
+/// Quick sheet for recording a receipt from or payment to a customer
 Future<bool> showPaymentSheet(
   BuildContext context, {
   required Customer customer,
@@ -85,21 +85,21 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                         color: theme.dividerColor, borderRadius: BorderRadius.circular(2))),
               ),
               const SizedBox(height: 14),
-              Text('${_receive ? 'دریافت از' : 'پرداخت به'} ${widget.customer.name}',
+              Text('${_receive ? 'Receive from' : 'Pay to'} ${widget.customer.name}',
                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
               Text(
                 balance >= 0
-                    ? 'مانده حساب: ${Money.text(balance, signed: true)} (بدهکار)'
-                    : 'مانده حساب: ${Money.text(balance.abs())} (بستانکار)',
+                    ? 'Balance: ${Money.text(balance, signed: true)} (debtor)'
+                    : 'Balance: ${Money.text(balance.abs())} (creditor)',
                 style: TextStyle(
                     fontSize: 12, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
               ),
               const SizedBox(height: 16),
               SegmentedButton<bool>(
                 segments: const [
-                  ButtonSegment(value: true, label: Text('دریافت از مشتری')),
-                  ButtonSegment(value: false, label: Text('پرداخت به مشتری')),
+                  ButtonSegment(value: true, label: Text('Receive from customer')),
+                  ButtonSegment(value: false, label: Text('Pay customer')),
                 ],
                 selected: {_receive},
                 onSelectionChanged: (s) => setState(() => _receive = s.first),
@@ -109,13 +109,13 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: AmountField(controller: _amount, label: 'مبلغ', currency: _currency),
+                    child: AmountField(controller: _amount, label: 'Amount', currency: _currency),
                   ),
                   const SizedBox(width: 8),
                   SizedBox(
                     width: 112,
                     child: SelectField<String>(
-                      label: 'ارز',
+                      label: 'Currency',
                       value: _currency,
                       items: repo.settings.currencies.map((c) => c.code).toList(),
                       labelOf: (c) => Money.symbol(c),
@@ -125,7 +125,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                 ],
               ),
               const SizedBox(height: 12),
-              AppTextField(controller: _note, label: 'توضیح (اختیاری)', icon: Icons.notes_rounded),
+              AppTextField(controller: _note, label: 'Description (optional)', icon: Icons.notes_rounded),
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: () async {
@@ -141,10 +141,10 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                   );
                   if (!context.mounted) return;
                   Navigator.pop(context, true);
-                  showSnack(context, _receive ? 'دریافت ثبت شد' : 'پرداخت ثبت شد');
+                  showSnack(context, _receive ? 'Payment received' : 'Payment made');
                 },
                 icon: Icon(_receive ? Icons.call_received_rounded : Icons.call_made_rounded),
-                label: Text(_receive ? 'ثبت دریافت' : 'ثبت پرداخت'),
+                label: Text(_receive ? 'Record receipt' : 'Record payment'),
               ),
             ],
           ),

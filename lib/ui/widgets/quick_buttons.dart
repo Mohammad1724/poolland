@@ -7,11 +7,11 @@ import '../../data/models.dart';
 import '../../data/repository.dart';
 import 'widgets.dart';
 
-/// آیکون‌های مجاز برای دکمه‌های سریع.
+/// Icons available for quick-entry buttons.
 ///
-/// این فهرست باید `const` باشد تا «تکان‌دادنِ درختِ آیکون‌ها» در نسخه‌ی
-/// انتشار (release) بتواند آیکون‌های استفاده‌شده را تشخیص بدهد؛
-/// ساختنِ پویای IconData با سازنده باعث خطای ساخت می‌شود.
+/// This list must be `const` so icon tree shaking in a release build
+/// can detect which icons are in use.
+/// Creating IconData dynamically with a constructor causes a build error.
 const List<IconData> quickIcons = <IconData>[
   Icons.restaurant_outlined,
   Icons.directions_bus_outlined,
@@ -33,8 +33,8 @@ const List<IconData> quickIcons = <IconData>[
   Icons.account_balance_wallet_outlined,
 ];
 
-/// تبدیل کدِ ذخیره‌شده به یکی از آیکون‌های [quickIcons]
-/// (اگر کد ناشناس بود، آیکونِ پیش‌فرض برگردانده می‌شود)
+/// Convert a saved code point to one of the [quickIcons].
+/// (Returns the default icon if the code is unknown.)
 IconData materialIcon(int? codePoint) {
   if (codePoint != null) {
     for (final ic in quickIcons) {
@@ -44,7 +44,7 @@ IconData materialIcon(int? codePoint) {
   return Icons.receipt_long_outlined;
 }
 
-/// ردیفِ دکمه‌های ثبت سریع (یک لمس = یک هزینه/درآمد)
+/// Row of quick-entry buttons (one tap records an expense or income).
 class QuickButtonsRow extends StatelessWidget {
   const QuickButtonsRow({super.key, this.emptyHint, this.onLongPress});
 
@@ -56,7 +56,7 @@ class QuickButtonsRow extends StatelessWidget {
     final repo = context.watch<AppRepository>();
     if (repo.quickExpenses.isEmpty) {
       return Text(
-        emptyHint ?? 'دکمه‌ای تعریف نشده است.',
+        emptyHint ?? 'No quick buttons configured.',
         style: TextStyle(
             fontSize: 12,
             height: 1.7,
@@ -81,7 +81,7 @@ class QuickButtonsRow extends StatelessWidget {
   }
 }
 
-/// یک دکمه‌ی سریع
+/// A quick-entry button
 class QuickChip extends StatelessWidget {
   const QuickChip({super.key, required this.quick, this.onTap, this.onLongPress});
 
@@ -125,7 +125,7 @@ class QuickChip extends StatelessWidget {
   }
 }
 
-/// ثبت یک هزینه/درآمدِ سریع (اگر مبلغ ثابت نداشته باشد، مبلغ را می‌پرسد)
+/// Record a quick expense or income (asks for an amount if none is fixed).
 Future<void> recordQuickExpense(BuildContext context, QuickExpense q) async {
   final repo = context.read<AppRepository>();
   var amount = q.amount;
@@ -144,16 +144,16 @@ Future<void> recordQuickExpense(BuildContext context, QuickExpense q) async {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(
-      content: Text('${q.label} • ${Money.text(amount)} ثبت شد'),
+      content: Text('${q.label} • ${Money.text(amount)} recorded'),
       duration: const Duration(seconds: 3),
       action: SnackBarAction(
-        label: 'لغو',
+        label: 'Cancel',
         onPressed: () => repo.deleteTxn(txn.id),
       ),
     ));
 }
 
-/// شیتِ گرفتن مبلغ (و تاریخ) برای دکمه‌های بدون مبلغ ثابت
+/// Sheet for entering an amount (and date) for buttons without a fixed amount.
 class QuickAmountSheet extends StatefulWidget {
   const QuickAmountSheet({super.key, required this.quick});
 
@@ -216,7 +216,7 @@ class _QuickAmountSheetState extends State<QuickAmountSheet> {
             AmountField(controller: _ctrl, autofocus: true),
             const SizedBox(height: 10),
             JalaliDateField(
-                label: 'تاریخ',
+                label: 'Date',
                 value: _date,
                 onChanged: (d) => setState(() => _date = d)),
             const SizedBox(height: 16),
@@ -226,7 +226,7 @@ class _QuickAmountSheetState extends State<QuickAmountSheet> {
                 if (v <= 0) return;
                 Navigator.pop(context, v);
               },
-              child: const Text('ثبت'),
+              child: const Text('Record'),
             ),
           ],
         ),

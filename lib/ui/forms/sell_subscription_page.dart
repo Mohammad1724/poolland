@@ -10,7 +10,7 @@ import '../widgets/widgets.dart';
 import 'contact_edit_page.dart';
 import 'plan_edit_page.dart';
 
-/// ثبت فروش اشتراک جدید یا تمدید اشتراک
+/// Record a new subscription sale or renewal
 class SellSubscriptionPage extends StatefulWidget {
   const SellSubscriptionPage({super.key, this.contact, this.plan, this.renewFrom});
 
@@ -49,7 +49,7 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
     final repo = context.read<AppRepository>();
     _currency = repo.settings.baseCurrency;
     _receiveCurrency = repo.settings.baseCurrency;
-    _title.text = 'اشتراک';
+    _title.text = 'Subscription';
     _plan = widget.plan;
 
     final old = widget.renewFrom;
@@ -126,7 +126,7 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
   Future<void> _save() async {
     final repo = context.read<AppRepository>();
     if (_contact == null) {
-      showSnack(context, 'اول مشتری را انتخاب کنید', error: true);
+      showSnack(context, 'Select a customer first.', error: true);
       return;
     }
     if (_formKey.currentState?.validate() != true) return;
@@ -135,7 +135,7 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
     await repo.sellSubscription(
       customer: _contact!,
       plan: _plan,
-      title: _title.text.trim().isEmpty ? 'اشتراک' : _title.text.trim(),
+      title: _title.text.trim().isEmpty ? 'Subscription' : _title.text.trim(),
       price: price,
       currencyCode: _currency,
       start: _start,
@@ -147,7 +147,7 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
       categoryId: _categoryId,
     );
     if (!mounted) return;
-    showSnack(context, isRenew ? 'اشتراک تمدید شد' : 'فروش ثبت شد');
+    showSnack(context, isRenew ? 'Subscription renewed' : 'Sale recorded');
     Navigator.pop(context);
   }
 
@@ -160,34 +160,34 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isRenew ? 'تمدید اشتراک' : 'فروش اشتراک جدید'),
+        title: Text(isRenew ? 'Renew subscription' : 'Sell a subscription'),
       ),
       body: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
           children: [
-            // ---------- مشتری ----------
+            // ---------- Customer ----------
             Row(
               children: [
                 Expanded(
                   child: SelectField<Customer>(
-                    label: 'مشتری',
+                    label: 'Customer',
                     icon: Icons.person_outline_rounded,
                     value: _contact,
                     items: repo.activeCustomers,
                     labelOf: (c) => c.name,
                     subOf: (c) =>
-                        (repo.balanceOf(c)).abs() < 1 ? (c.phone.isEmpty ? 'تسویه' : c.phone) : '${c.phone.isEmpty ? '' : '${c.phone} • '}${Money.text(repo.balanceOf(c), signed: true)}',
+                        (repo.balanceOf(c)).abs() < 1 ? (c.phone.isEmpty ? 'Settled' : c.phone) : '${c.phone.isEmpty ? '' : '${c.phone} • '}${Money.text(repo.balanceOf(c), signed: true)}',
                     clearable: false,
-                    sheetTitle: 'انتخاب مشتری',
-                    searchHint: 'نام مشتری…',
+                    sheetTitle: 'Select customer',
+                    searchHint: 'Customer name...',
                     onChanged: (c) => setState(() => _contact = c),
                   ),
                 ),
                 const SizedBox(width: 8),
                 IconButton.filledTonal(
-                  tooltip: 'مشتری جدید',
+                  tooltip: 'New customer',
                   onPressed: () async {
                     final created = await Navigator.push<Customer>(
                       context,
@@ -201,16 +201,16 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
             ),
             const SizedBox(height: 14),
 
-            // ---------- پلن آماده ----------
+            // ---------- Saved plan ----------
             SelectField<Plan>(
-              label: 'پلن آماده (اختیاری)',
+              label: 'Saved plan (optional)',
               icon: Icons.local_offer_outlined,
               value: _plan,
               items: repo.activePlans,
               clearable: true,
               labelOf: (p) => p.name,
               subOf: (p) => '${Money.text(p.price, currency: p.currency)} • ${p.durationLabel}',
-              extraActionLabel: 'مدیریت پلن‌ها',
+              extraActionLabel: 'Manage plans',
               onExtraAction: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const PlansPage())),
               onChanged: _applyPlan,
@@ -219,25 +219,25 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
 
             AppTextField(
               controller: _title,
-              label: 'عنوان سرویس',
-              hint: 'مثلاً: یک‌ماهه نامحدود - دو کاربره',
+              label: 'Service name',
+              hint: 'e.g. 1-month unlimited - 2 devices',
               icon: Icons.vpn_key_outlined,
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'عنوان را وارد کنید' : null,
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter a service name' : null,
             ),
             const SizedBox(height: 14),
 
-            // ---------- قیمت ----------
+            // ---------- Price ----------
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: AmountField(controller: _price, label: 'مبلغ فروش', currency: _currency),
+                  child: AmountField(controller: _price, label: 'Sale amount', currency: _currency),
                 ),
                 const SizedBox(width: 8),
                 SizedBox(
                   width: 112,
                   child: SelectField<String>(
-                    label: 'ارز',
+                    label: 'Currency',
                     value: _currency,
                     items: currencies.map((c) => c.code).toList(),
                     labelOf: (code) => Money.symbol(code),
@@ -251,12 +251,12 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
             ),
             const SizedBox(height: 14),
 
-            // ---------- مدت ----------
+            // ---------- Duration ----------
             CardBox(
               child: Column(
                 children: [
                   JalaliDateField(
-                    label: 'تاریخ شروع',
+                    label: 'Start date',
                     value: _start,
                     onChanged: (d) => setState(() {
                       _start = d;
@@ -266,7 +266,7 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      const Text('مدت:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      const Text('Duration:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                       const SizedBox(width: 10),
                       IconButton.outlined(
                         onPressed: _durationValue > 1
@@ -282,7 +282,7 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                       Expanded(
                         child: Center(
                           child: Text(
-                            '${Fmt.toFaDigits('$_durationValue')} ${_unitIsMonth ? 'ماه' : 'روز'}',
+                            '$_durationValue ${_unitIsMonth ? 'month' : 'day'}',
                             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                           ),
                         ),
@@ -301,8 +301,8 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                   const SizedBox(height: 6),
                   SegmentedButton<bool>(
                     segments: const [
-                      ButtonSegment(value: true, label: Text('ماه')),
-                      ButtonSegment(value: false, label: Text('روز')),
+                      ButtonSegment(value: true, label: Text('month')),
+                      ButtonSegment(value: false, label: Text('day')),
                     ],
                     selected: {_unitIsMonth},
                     onSelectionChanged: (s) => setState(() {
@@ -313,9 +313,9 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                   ),
                   const SizedBox(height: 12),
                   JalaliDateField(
-                    label: 'تاریخ پایان (قابل تغییر)',
+                    label: 'End date (editable)',
                     value: _end,
-                    helper: '${Fmt.toFaDigits('${_end.difference(J.dateOnly(_start)).inDays + 1}')} روز',
+                    helper: '${_end.difference(J.dateOnly(_start)).inDays + 1} days',
                     onChanged: (d) => setState(() {
                       _end = d;
                       _manualEnd = true;
@@ -326,15 +326,15 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
             ),
             const SizedBox(height: 14),
 
-            // ---------- دریافت ----------
-            SectionTitle('پرداخت', icon: Icons.payments_outlined),
+            // ---------- Payment received ----------
+            SectionTitle('Payment', icon: Icons.payments_outlined),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: AmountField(
                     controller: _received,
-                    label: 'همین حالا دریافت شد',
+                    label: 'Received now',
                     currency: _receiveCurrency,
                     validator: (_) => null,
                   ),
@@ -343,7 +343,7 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                 SizedBox(
                   width: 112,
                   child: SelectField<String>(
-                    label: 'ارز',
+                    label: 'Currency',
                     value: _receiveCurrency,
                     items: currencies.map((c) => c.code).toList(),
                     labelOf: (code) => Money.symbol(code),
@@ -368,8 +368,8 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                     const SizedBox(width: 6),
                     Text(
                       remaining <= 0
-                          ? 'تسویه شد'
-                          : 'باقی‌مانده به‌صورت بدهی مشتری ثبت می‌شود: ${Money.text(remaining, currency: _currency)}',
+                          ? 'Paid in full'
+                          : 'The remaining balance will be recorded as customer debt: ${Money.text(remaining, currency: _currency)}',
                       style: TextStyle(
                         fontSize: 11.5,
                         color: remaining <= 0
@@ -383,7 +383,7 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
             const SizedBox(height: 14),
 
             SelectField<Category>(
-              label: 'دسته‌بندی درآمد',
+              label: 'Income category',
               icon: Icons.category_outlined,
               value: repo.categoryById(_categoryId),
               items: repo.categoriesOf(TxnKind.income),
@@ -392,19 +392,19 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
             ),
             const SizedBox(height: 14),
 
-            AppTextField(controller: _note, label: 'یادداشت', icon: Icons.notes_rounded, maxLines: 2),
+            AppTextField(controller: _note, label: 'Note', icon: Icons.notes_rounded, maxLines: 2),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: _autoRenew,
               onChanged: (v) => setState(() => _autoRenew = v),
-              title: const Text('تمدید خودکار', style: TextStyle(fontSize: 13.5)),
-              subtitle: const Text('فقط به‌عنوان یادآوری است', style: TextStyle(fontSize: 11.5)),
+              title: const Text('Auto-renew', style: TextStyle(fontSize: 13.5)),
+              subtitle: const Text('Reminder only', style: TextStyle(fontSize: 11.5)),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: _save,
               icon: Icon(isRenew ? Icons.autorenew_rounded : Icons.check_rounded),
-              label: Text(isRenew ? 'ثبت تمدید' : 'ثبت فروش'),
+              label: Text(isRenew ? 'Record renewal' : 'Record sale'),
             ),
           ],
         ),

@@ -10,7 +10,7 @@ import 'ledger.dart';
 import 'models.dart';
 import 'repository.dart';
 
-/// ساخت گزارش PDF و صورت‌حساب مشتری
+/// Generate PDF reports and customer statements.
 class PdfService {
   static pw.Font? _regular;
   static pw.Font? _bold;
@@ -47,7 +47,7 @@ class PdfService {
             children: headers
                 .map((h) => pw.Padding(
                     padding: const pw.EdgeInsets.all(5),
-                    child: _t(h, bold: true, align: pw.TextAlign.right)))
+                    child: _t(h, bold: true, align: pw.TextAlign.left)))
                 .toList(),
           );
 
@@ -63,7 +63,7 @@ class PdfService {
             children: r
                 .map((c) => pw.Padding(
                     padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 4),
-                    child: _t(c, align: pw.TextAlign.right)))
+                    child: _t(c, align: pw.TextAlign.left)))
                 .toList(),
           ),
       ],
@@ -98,7 +98,7 @@ class PdfService {
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
               _t(businessName, bold: true, size: 14),
-              _t('دفتر وی‌پی‌ان', size: 9, color: const PdfColor.fromInt(0xFF64748B)),
+              _t('Poolland Ledger', size: 9, color: const PdfColor.fromInt(0xFF64748B)),
             ],
           ),
           pw.SizedBox(height: 2),
@@ -109,7 +109,7 @@ class PdfService {
         ],
       );
 
-  // ---------------- گزارش دوره ----------------
+  // ---------------- Period report ----------------
   static Future<Uint8List> buildReport({
     required AppRepository repo,
     required DateTime from,
@@ -138,30 +138,30 @@ class PdfService {
     doc.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(28),
-      textDirection: pw.TextDirection.rtl,
+      textDirection: pw.TextDirection.ltr,
       header: (ctx) => ctx.pageNumber == 1
           ? pw.SizedBox()
           : pw.Padding(
               padding: const pw.EdgeInsets.only(bottom: 8),
-              child: _t('${s.businessName} - گزارش ${J.d(from, persian: persian)} تا ${J.d(to, persian: persian)}',
+              child: _t('${s.businessName} - Report ${J.d(from, persian: persian)} to ${J.d(to, persian: persian)}',
                   size: 8, color: const PdfColor.fromInt(0xFF64748B))),
       footer: (ctx) => pw.Container(
-        alignment: pw.Alignment.centerRight,
-        child: _t('صفحه ${persian ? Fmt.toFaDigits('${ctx.pageNumber}') : ctx.pageNumber} از ${persian ? Fmt.toFaDigits('${ctx.pagesCount}') : ctx.pagesCount}',
+        alignment: pw.Alignment.centerLeft,
+        child: _t('Page ${persian ? Fmt.toFaDigits('${ctx.pageNumber}') : ctx.pageNumber} of ${persian ? Fmt.toFaDigits('${ctx.pagesCount}') : ctx.pagesCount}',
             size: 8, color: const PdfColor.fromInt(0xFF94A3B8)),
       ),
       build: (ctx) => [
         _header(
           s.businessName,
-          'گزارش حساب و عملکرد',
-          'از ${J.dFull(from, persian: persian)}  تا  ${J.dFull(to, persian: persian)}  •  تاریخ صدور: ${J.d(DateTime.now(), persian: persian)}',
+          'Financial and performance report',
+          'From ${J.dFull(from, persian: persian)} to ${J.dFull(to, persian: persian)} • Issued: ${J.d(DateTime.now(), persian: persian)}',
         ),
         pw.SizedBox(height: 10),
         pw.Row(children: [
-          _box(label: 'درآمد (فروش)', value: money(summary.income), color: const PdfColor.fromInt(0xFF16A34A)),
-          _box(label: 'هزینه', value: money(summary.expense), color: const PdfColor.fromInt(0xFFDC2626)),
+          _box(label: 'Income (sales)', value: money(summary.income), color: const PdfColor.fromInt(0xFF16A34A)),
+          _box(label: 'Expenses', value: money(summary.expense), color: const PdfColor.fromInt(0xFFDC2626)),
           _box(
-              label: 'سود خالص',
+              label: 'Net profit',
               value: money(summary.profit),
               color: summary.profit >= 0
                   ? const PdfColor.fromInt(0xFF16A34A)
@@ -169,22 +169,22 @@ class PdfService {
         ]),
         pw.SizedBox(height: 2),
         pw.Row(children: [
-          _box(label: 'وصولی از مشتری‌ها', value: money(summary.received)),
-          _box(label: 'نقد دریافتی', value: money(summary.cashIn)),
-          _box(label: 'نقد پرداختی', value: money(summary.cashOut)),
+          _box(label: 'Received from customers', value: money(summary.received)),
+          _box(label: 'Cash received', value: money(summary.cashIn)),
+          _box(label: 'Cash paid', value: money(summary.cashOut)),
         ]),
         pw.SizedBox(height: 2),
         pw.Row(children: [
-          _box(label: 'جمع طلب از مشتری‌ها', value: money(totals.receivable)),
-          _box(label: 'جمع بدهی ما', value: money(totals.payable)),
-          _box(label: 'تعداد تراکنش', value: persian ? Fmt.toFaDigits('${summary.txnCount}') : '${summary.txnCount}'),
+          _box(label: 'Total receivables', value: money(totals.receivable)),
+          _box(label: 'Total payables', value: money(totals.payable)),
+          _box(label: 'Transactions', value: persian ? Fmt.toFaDigits('${summary.txnCount}') : '${summary.txnCount}'),
         ]),
         pw.SizedBox(height: 14),
         if (byCategory.isNotEmpty) ...[
-          _t('هزینه‌ها به تفکیک دسته‌بندی', bold: true, size: 11),
+          _t('Expenses by category', bold: true, size: 11),
           pw.SizedBox(height: 5),
           _table(
-            headers: const ['دسته', 'مبلغ', 'سهم'],
+            headers: const ['Category', 'Amount', 'Share'],
             widths: const [2.4, 1.4, 0.8],
             rows: (byCategory.entries.toList()..sort((a, b) => b.value.compareTo(a.value)))
                 .map((e) => [
@@ -197,22 +197,22 @@ class PdfService {
           pw.SizedBox(height: 14),
         ],
         if (topCustomers.isNotEmpty) ...[
-          _t('مشتریان برتر این دوره', bold: true, size: 11),
+          _t('Top customers this period', bold: true, size: 11),
           pw.SizedBox(height: 5),
           _table(
-            headers: const ['مشتری', 'مبلغ خرید'],
+            headers: const ['Customer', 'Purchase amount'],
             widths: const [2.4, 1.6],
             rows: topCustomers.map((e) => [e.key.name, money(e.value)]).toList(),
           ),
           pw.SizedBox(height: 14),
         ],
-        _t('ریز تراکنش‌ها', bold: true, size: 11),
+        _t('Transaction details', bold: true, size: 11),
         pw.SizedBox(height: 5),
         if (rows.isEmpty)
-          _t('در این بازه تراکنشی ثبت نشده است.', size: 9, color: const PdfColor.fromInt(0xFF64748B))
+          _t('No transactions were recorded in this period.', size: 9, color: const PdfColor.fromInt(0xFF64748B))
         else
           _table(
-            headers: const ['تاریخ', 'نوع', 'شرح', 'طرف حساب', 'مبلغ', 'ارز', 'وضعیت'],
+            headers: const ['Date', 'Type', 'Description', 'Contact', 'Amount', 'Currency', 'Status'],
             widths: const [1.15, 1.05, 2.2, 1.5, 1.25, 0.6, 0.95],
             rows: rows
                 .map((t) => [
@@ -222,7 +222,7 @@ class PdfService {
                       t.customerId == null ? '-' : repo.customerName(t.customerId),
                       money(t.amount),
                       t.currency,
-                      t.kind.isProfitKind ? (t.credit ? 'نسیه' : 'نقدی') : '-',
+                      t.kind.isProfitKind ? (t.credit ? 'Credit' : 'Cash') : '-',
                     ])
                 .toList(),
           ),
@@ -231,7 +231,7 @@ class PdfService {
     return doc.save();
   }
 
-  // ---------------- صورت‌حساب مشتری ----------------
+  // ---------------- Customer statement ----------------
   static Future<Uint8List> buildCustomerStatement({
     required AppRepository repo,
     required Customer customer,
@@ -252,7 +252,7 @@ class PdfService {
     String money(num v, {String? cur}) => Fmt.money(v,
         symbol: cur ?? symbol, persian: persian, withSymbol: false);
 
-    // مانده‌ی ابتدای دوره = بدهی اولیه + همه‌ی اثرها قبل از بازه
+    // Opening balance = initial balance plus all effects before the period.
     var running = customer.openingBalance;
     for (final t in repo.txnsOfCustomer(customer.id)) {
       if (t.date.isBefore(J.startOfDay(from))) {
@@ -284,36 +284,36 @@ class PdfService {
     doc.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(28),
-      textDirection: pw.TextDirection.rtl,
+      textDirection: pw.TextDirection.ltr,
       footer: (ctx) => pw.Container(
-        alignment: pw.Alignment.centerRight,
-        child: _t('این صورت‌حساب با «دفتر وی‌پی‌ان» ساخته شده است — صفحه ${persian ? Fmt.toFaDigits('${ctx.pageNumber}') : ctx.pageNumber}',
+        alignment: pw.Alignment.centerLeft,
+        child: _t('Generated with Poolland Ledger — page ${persian ? Fmt.toFaDigits('${ctx.pageNumber}') : ctx.pageNumber}',
             size: 8, color: const PdfColor.fromInt(0xFF94A3B8)),
       ),
       build: (ctx) => [
         _header(
           s.businessName,
-          'صورت‌حساب ${customer.name}',
-          'دوره: ${J.d(from, persian: persian)} تا ${J.d(to, persian: persian)}  •  تاریخ صدور: ${J.d(DateTime.now(), persian: persian)}',
+          'Statement for ${customer.name}',
+          'Period: ${J.d(from, persian: persian)} to ${J.d(to, persian: persian)} • Issued: ${J.d(DateTime.now(), persian: persian)}',
         ),
         if (customer.phone.isNotEmpty || customer.note.isNotEmpty) ...[
           pw.SizedBox(height: 6),
           _t([
-            if (customer.phone.isNotEmpty) 'تلفن: ${persian ? Fmt.toFaDigits(customer.phone) : customer.phone}',
-            if (customer.note.isNotEmpty) 'یادداشت: ${customer.note}',
+            if (customer.phone.isNotEmpty) 'Phone: ${persian ? Fmt.toFaDigits(customer.phone) : customer.phone}',
+            if (customer.note.isNotEmpty) 'Note: ${customer.note}',
           ].join('   •   '), size: 9, color: const PdfColor.fromInt(0xFF64748B)),
         ],
         pw.SizedBox(height: 10),
         pw.Row(children: [
-          _box(label: 'مانده ابتدای دوره', value: money(opening)),
-          _box(label: 'جمع بدهکار دوره', value: money(debitTotal)),
-          _box(label: 'جمع بستانکار دوره', value: money(creditTotal)),
+          _box(label: 'Opening balance', value: money(opening)),
+          _box(label: 'Total debits', value: money(debitTotal)),
+          _box(label: 'Total credits', value: money(creditTotal)),
         ]),
         pw.SizedBox(height: 2),
         pw.Row(children: [
-          _box(label: 'تعداد تراکنش', value: persian ? Fmt.toFaDigits('${txns.length}') : '${txns.length}'),
+          _box(label: 'Transactions', value: persian ? Fmt.toFaDigits('${txns.length}') : '${txns.length}'),
           _box(
-              label: balance >= 0 ? 'مانده فعلی (بدهکار)' : 'مانده فعلی (بستانکار)',
+              label: balance >= 0 ? 'Current balance (debit)' : 'Current balance (credit)',
               value: money(balance.abs()),
               color: balance >= 0
                   ? const PdfColor.fromInt(0xFFDC2626)
@@ -321,15 +321,15 @@ class PdfService {
         ]),
         pw.SizedBox(height: 12),
         if (rows.isEmpty)
-          _t('در این بازه تراکنشی ثبت نشده است.', size: 9, color: const PdfColor.fromInt(0xFF64748B))
+          _t('No transactions were recorded in this period.', size: 9, color: const PdfColor.fromInt(0xFF64748B))
         else
           _table(
-            headers: const ['تاریخ', 'شرح', 'بدهکار', 'بستانکار', 'مانده'],
+            headers: const ['Date', 'Description', 'Debit', 'Credit', 'Balance'],
             widths: const [1.1, 2.6, 1.2, 1.2, 1.2],
             rows: rows,
           ),
         pw.SizedBox(height: 10),
-        _t('مانده مثبت = بدهی مشتری به شما  |  مانده منفی = طلب مشتری از شما',
+        _t('Positive balance = customer owes you  |  Negative balance = you owe the customer',
             size: 8, color: const PdfColor.fromInt(0xFF64748B)),
       ],
     ));

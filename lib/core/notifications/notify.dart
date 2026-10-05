@@ -1,5 +1,5 @@
-// سرویس اعلانِ یادآور روزانه.
+// Daily reminder notification service.
 //
-// وب از `notify_stub` استفاده می‌کند (هیچ کاری انجام نمی‌دهد) چون
-// اعلانِ زمان‌بندی‌شده روی وب پشتیبانی نمی‌شود.
+// Web uses `notify_stub` (a no-op implementation) because
+// scheduled notifications are not supported there.
 export 'notify_stub.dart' if (dart.library.io) 'notify_io.dart';

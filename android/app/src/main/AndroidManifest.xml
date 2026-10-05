@@ -1,9 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- خواندن پیامک‌های بانکی (فقط روی دستگاه کاربر، بدون ارسال به هیچ سروری) -->
+    <!-- Bank SMS is read on-device only and is never sent to a server. -->
     <uses-permission android:name="android.permission.READ_SMS"/>
     <uses-permission android:name="android.permission.RECEIVE_SMS"/>
 
-    <!-- یادآور روزانه‌ی ثبت هزینه -->
+    <!-- Daily expense reminder -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
@@ -11,7 +11,7 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
 
     <application
-        android:label="پول‌لند"
+        android:label="Poolland"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -42,7 +42,7 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- یادآور روزانه: برنامه‌ریزیِ دوباره بعد از راه‌اندازی دستگاه -->
+        <!-- Reschedule reminders after the device restarts -->
         <receiver android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
             android:exported="false">
             <intent-filter>
@@ -53,7 +53,7 @@
             </intent-filter>
         </receiver>
 
-        <!-- دریافت پیامک‌های جدید در لحظه -->
+        <!-- Deliver new SMS messages to the app -->
         <receiver
             android:name=".SmsReceiver"
             android:exported="true"

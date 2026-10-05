@@ -1,8 +1,8 @@
-# راهنمای مشارکت 🤝
+# Contributing 🤝
 
-خوش آمدی! پول‌لند یک پروژه‌ی ساده و آفلاین است و هر کمکی ارزشمند است.
+Welcome! Poolland is a simple, offline-first project, and every contribution is appreciated.
 
-## راه‌اندازی محیط
+## Set up the development environment
 
 ```bash
 git clone https://github.com/Mohammad1724/poolland.git
@@ -11,17 +11,17 @@ flutter pub get
 flutter run
 ```
 
-## قبل از فرستادن تغییرات
+## Before submitting changes
 
 ```bash
-flutter analyze   # باید بگوید No issues found
-flutter test      # باید همه‌ی تست‌ها پاس شوند
+flutter analyze   # Should report: No issues found
+flutter test      # All tests should pass
 ```
 
-## قواعد ساده
+## Guidelines
 
-- منطق حسابداری را فقط در `lib/data/ledger.dart` بنویس (تابع خالص، بدون UI).
-- برای هر تغییر در محاسبات، حتماً تست در `test/ledger_test.dart` اضافه کن.
-- متن‌های رابط کاربری فارسی و دوستانه باشند.
-- هیچ وابستگی به سرور یا سرویس ابری اضافه نکن (اپ باید ۱۰۰٪ آفلاین بماند).
-- اگر کد جدیدی می‌نویسی، برای ویجت‌های تکراری از `lib/ui/widgets/` استفاده کن.
+- Keep accounting logic in `lib/data/ledger.dart` (pure functions, no UI).
+- Add tests in `test/ledger_test.dart` for changes to calculations.
+- Keep interface copy clear, concise, and friendly.
+- Do not add server or cloud-service dependencies; the app must remain 100% offline.
+- Reuse widgets from `lib/ui/widgets/` when adding repeated UI patterns.

@@ -1,21 +1,21 @@
-# تصاویر برنامه
+# App screenshots
 
-برای افزودن اسکرین‌شات‌ها:
+To add screenshots:
 
-1. برنامه را روی گوشی اجرا کن (`flutter run`)
-2. از صفحه‌های داشبورد، مشتری‌ها، اشتراک‌ها، تراکنش‌ها و گزارش‌ها عکس بگیر
-3. فایل‌ها را با نام‌های زیر در همین پوشه بگذار:
+1. Run the app on a phone (`flutter run`).
+2. Capture the dashboard, customers, subscriptions, transactions, and reports screens.
+3. Place the files in this folder using the names below:
 
-| فایل | صفحه |
+| File | Screen |
 |---|---|
-| `shot-dashboard.png` | داشبورد |
-| `shot-customers.png` | مشتری‌ها |
-| `shot-subscriptions.png` | اشتراک‌ها و انقضا |
-| `shot-transactions.png` | تراکنش‌ها |
-| `shot-reports.png` | گزارش‌ها |
-| `shot-statement.png` | صورت‌حساب PDF |
+| `shot-dashboard.png` | Dashboard |
+| `shot-customers.png` | Customers |
+| `shot-subscriptions.png` | Subscriptions and expiry |
+| `shot-transactions.png` | Transactions |
+| `shot-reports.png` | Reports |
+| `shot-statement.png` | PDF statement |
 
-سپس در `README.md` بخش «تصاویر» را از حالت کامنت خارج کن:
+Then uncomment the “Screenshots” section in `README.md`:
 
 ```html
 <p align="center">

@@ -6,13 +6,13 @@ import android.content.Intent
 import android.provider.Telephony
 
 /**
- * گیرنده‌ی پیامک جدید.
- * وقتی پیامکی می‌رسد، آن را از طریق MethodChannel به بخش فلاتر می‌فرستد
- * تا در صف بررسی نمایش داده شود.
+ * Receives new SMS messages.
+ * When a message arrives, forwards it to Flutter through the MethodChannel
+ * so it can appear in the review queue.
  *
- * نکته: این گیرنده فقط زمانی اجرا می‌شود که فرآیند برنامه زنده باشد.
- * برای پیامک‌هایی که در زمان بسته بودن برنامه رسیده‌اند،
- * در شروع برنامه صندوقِ پیامک‌ها خوانده می‌شود (readInbox).
+ * Note: this receiver runs only while the app process is alive.
+ * Messages received while the app is closed are loaded
+ * from the inbox at startup (readInbox).
  */
 class SmsReceiver : BroadcastReceiver() {
 
@@ -22,7 +22,7 @@ class SmsReceiver : BroadcastReceiver() {
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
         if (messages.isEmpty()) return
 
-        // پیامک‌های چندبخشی را به هم می‌چسبانیم
+        // Join multipart SMS message bodies.
         val body = messages.joinToString(separator = "") { it.messageBody ?: "" }
         val address = messages.firstOrNull()?.originatingAddress ?: ""
         val timestamp = messages.firstOrNull()?.timestampMillis ?: System.currentTimeMillis()

@@ -25,12 +25,12 @@ class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
   static const _titles = [
-    'داشبورد',
-    'شخصی',
-    'مشتری‌ها',
-    'اشتراک‌ها',
-    'تراکنش‌ها',
-    'گزارش‌ها'
+    'Dashboard',
+    'Personal',
+    'Customers',
+    'Subscriptions',
+    'Transactions',
+    'Reports'
   ];
 
   @override
@@ -40,18 +40,18 @@ class _HomeShellState extends State<HomeShell> {
       final repo = context.read<AppRepository>();
       if (!repo.isReady) await repo.init();
 
-      // ثبت خودکارِ تراکنش‌های تکرارشونده‌ی سررسیدشده (اجاره، اینترنت…)
-      // هیچ خطایی نباید جلوی بالا آمدنِ برنامه را بگیرد
+      // Automatically post due recurring transactions (rent, internet, and so on).
+      // Errors here must never prevent the app from starting.
       try {
         await repo.postDueRecurring();
       } catch (_) {
-        // نادیده گرفتن: کاربر می‌تواند بعداً دوباره تلاش کند
+        // Ignore the error; the user can try again later.
       }
 
-      // یادآور روزانه (فقط اگر کاربر آن را روشن کرده باشد)
+      // Schedule the daily reminder only when enabled by the user.
       await repo.scheduleDailyReminder();
 
-      // آماده‌سازی گیرنده‌ی پیامک و همگام‌سازی اولیه (فقط اندروید)
+      // Initialize the SMS receiver and perform the initial sync (Android only).
       repo.initSms();
       await repo.refreshSmsPermission();
       if (repo.smsPermissionGranted &&
@@ -85,18 +85,18 @@ class _HomeShellState extends State<HomeShell> {
                     borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 16),
             const Align(
-              alignment: Alignment.centerRight,
-              child: Text('چه کاری انجام دهیم؟',
+              alignment: Alignment.centerLeft,
+              child: Text('What would you like to do?',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
             ),
             const SizedBox(height: 10),
-            _menuTile(ctx, 'فروش اشتراک جدید', Icons.vpn_key_rounded, 'sale_sub'),
-            _menuTile(ctx, 'ثبت درآمد (بدون اشتراک)', Icons.trending_up_rounded, 'income'),
-            _menuTile(ctx, 'دریافت پول از مشتری', Icons.call_received_rounded, 'receive'),
-            _menuTile(ctx, 'ثبت هزینه', Icons.trending_down_rounded, 'expense'),
-            _menuTile(ctx, 'هزینه‌ی شخصی', Icons.person_outline_rounded, 'p_expense'),
-            _menuTile(ctx, 'درآمد شخصی', Icons.savings_outlined, 'p_income'),
-            _menuTile(ctx, 'پرداخت / برگشت وجه', Icons.call_made_rounded, 'refund'),
+            _menuTile(ctx, 'Sell a subscription', Icons.vpn_key_rounded, 'sale_sub'),
+            _menuTile(ctx, 'Record income (no subscription)', Icons.trending_up_rounded, 'income'),
+            _menuTile(ctx, 'Receive from customer', Icons.call_received_rounded, 'receive'),
+            _menuTile(ctx, 'Record expense', Icons.trending_down_rounded, 'expense'),
+            _menuTile(ctx, 'Personal expense', Icons.person_outline_rounded, 'p_expense'),
+            _menuTile(ctx, 'Personal income', Icons.savings_outlined, 'p_income'),
+            _menuTile(ctx, 'Payment / refund', Icons.call_made_rounded, 'refund'),
           ],
         ),
       ),
@@ -150,7 +150,7 @@ class _HomeShellState extends State<HomeShell> {
           child: Icon(icon, size: 18, color: Theme.of(ctx).colorScheme.primary),
         ),
         title: Text(title),
-        trailing: const Icon(Icons.chevron_left_rounded, size: 18),
+        trailing: const Icon(Icons.chevron_right_rounded, size: 18),
         onTap: () => Navigator.pop(ctx, value),
       );
 
@@ -173,7 +173,7 @@ class _HomeShellState extends State<HomeShell> {
               ),
             ),
           IconButton(
-            tooltip: 'تنظیمات',
+            tooltip: 'Settings',
             icon: const Icon(Icons.settings_outlined),
             onPressed: () =>
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage())),
@@ -200,7 +200,7 @@ class _HomeShellState extends State<HomeShell> {
                   onPressed: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => const ContactEditPage())),
                   icon: const Icon(Icons.person_add_alt_1_rounded),
-                  label: const Text('مشتری جدید'),
+                  label: const Text('New customer'),
                 )
               : _index == 1
                   ? FloatingActionButton.extended(
@@ -211,11 +211,11 @@ class _HomeShellState extends State<HomeShell> {
                                   initialKind: TxnKind.expense,
                                   initialScope: TxnScope.personal))),
                       icon: const Icon(Icons.remove_rounded),
-                      label: const Text('هزینه‌ی شخصی'),
+                      label: const Text('Personal expense'),
                     )
                   : FloatingActionButton(
                       onPressed: _quickAdd,
-                      tooltip: 'ثبت سریع',
+                      tooltip: 'Quick add',
                       child: const Icon(Icons.add_rounded),
                     ),
       bottomNavigationBar: NavigationBar(
@@ -225,27 +225,27 @@ class _HomeShellState extends State<HomeShell> {
           NavigationDestination(
               icon: Icon(Icons.dashboard_outlined),
               selectedIcon: Icon(Icons.dashboard_rounded),
-              label: 'داشبورد'),
+              label: 'Dashboard'),
           NavigationDestination(
               icon: Icon(Icons.person_outline_rounded),
               selectedIcon: Icon(Icons.person_rounded),
-              label: 'شخصی'),
+              label: 'Personal'),
           NavigationDestination(
               icon: Icon(Icons.people_outline_rounded),
               selectedIcon: Icon(Icons.people_rounded),
-              label: 'مشتری‌ها'),
+              label: 'Customers'),
           NavigationDestination(
               icon: Icon(Icons.vpn_key_outlined),
               selectedIcon: Icon(Icons.vpn_key_rounded),
-              label: 'اشتراک‌ها'),
+              label: 'Subscriptions'),
           NavigationDestination(
               icon: Icon(Icons.receipt_long_outlined),
               selectedIcon: Icon(Icons.receipt_long_rounded),
-              label: 'تراکنش‌ها'),
+              label: 'Transactions'),
           NavigationDestination(
               icon: Icon(Icons.insights_outlined),
               selectedIcon: Icon(Icons.insights_rounded),
-              label: 'گزارش‌ها'),
+              label: 'Reports'),
         ],
       ),
     );

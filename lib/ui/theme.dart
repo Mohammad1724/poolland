@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 
-/// تم برنامه (روشن و تاریک) با فونت وزیرمتن
+/// Light and dark app themes using the Vazirmatn font
 class AppTheme {
   AppTheme._();
 
-  static const seed = Color(0xFF0EA5A4); // فیروزه‌ای
+  static const seed = Color(0xFF0EA5A4); // Teal
   static const revenue = Color(0xFF16A34A);
   static const expense = Color(0xFFE11D48);
   static const warning = Color(0xFFF59E0B);
-  static const receivable = Color(0xFF0F766E); // طلب ما
-  static const payable = Color(0xFF2563EB); // بدهی ما
+  static const receivable = Color(0xFF0F766E); // Receivable
+  static const payable = Color(0xFF2563EB); // Payable
   static const cash = Color(0xFF7C3AED);
 
   static ThemeData light() {

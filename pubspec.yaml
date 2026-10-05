@@ -1,5 +1,5 @@
 name: poolland
-description: "پول‌لند — دفتر حسابداری ساده و آفلاین برای فروشندگان VPN: مشتری‌ها، اشتراک‌ها، بدهکار/بستانکار، درآمد و هزینه (چند ارزی)"
+description: "Poolland — a simple offline ledger for VPN sellers: customers, subscriptions, receivables, payables, income, and expenses across multiple currencies."
 publish_to: 'none'
 
 version: 1.2.0+3
@@ -13,30 +13,30 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
-  # مدیریت وضعیت
+  # State management
   provider: ^6.1.5
 
-  # ذخیره‌سازی محلی (Hive Community Edition)
+  # Local storage (Hive Community Edition)
   hive_ce: ^2.20.1
   hive_ce_flutter: ^2.4.0
 
-  # فایل، اشتراک‌گذاری و انتخاب فایل
+  # Files, sharing, and file selection
   path_provider: ^2.1.6
   share_plus: ^13.3.1
   file_picker: ^13.1.0
 
-  # نمودار
+  # Charts
   fl_chart: ^1.2.0
 
-  # تاریخ شمسی و قالب‌بندی اعداد
+  # Jalali calendar and number formatting
   shamsi_date: ^1.1.1
   intl: ^0.20.3
 
-  # اعلانِ یادآور روزانه + منطقه‌ی زمانی (برای زمان‌بندی دقیق)
+  # Daily reminder notifications and time zones
   flutter_local_notifications: ^22.3.1
   timezone: ^0.11.1
 
-  # ابزارها
+  # Utilities
   uuid: ^4.6.0
   crypto: ^3.0.6
   pdf: ^3.13.1

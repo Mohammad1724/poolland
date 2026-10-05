@@ -5,8 +5,8 @@ import '../../core/format_utils.dart';
 import '../../core/money.dart';
 import '../../data/ledger.dart';
 
-/// نمودار ستونیِ درآمد/هزینه برای نقاطِ زمانیِ دلخواه
-/// (روزانه، هفتگی، ماهانه)
+/// Income and expense bar chart for selected time periods
+/// (daily, weekly, or monthly)
 class PeriodBarChart extends StatelessWidget {
   const PeriodBarChart({
     super.key,
@@ -76,7 +76,7 @@ class PeriodBarChart extends StatelessWidget {
                 getTitlesWidget: (value, meta) {
                   final i = value.toInt();
                   if (i < 0 || i >= points.length) return const SizedBox.shrink();
-                  // برای جلوگیری از شلوغی، برچسب‌ها را یک‌درمیان نشان می‌دهیم
+                  // Show every other label to avoid clutter.
                   if (points.length > 16 && i % 2 != 0) {
                     return const SizedBox.shrink();
                   }
@@ -132,10 +132,10 @@ class PeriodBarChart extends StatelessWidget {
 
   String _short(double v) {
     if (v >= 1000000000) {
-      return '${Fmt.toFaDigits((v / 1000000000).toStringAsFixed(1))}م';
+      return '${(v / 1000000000).toStringAsFixed(1)}B';
     }
-    if (v >= 1000000) return '${Fmt.toFaDigits((v / 1000000).toStringAsFixed(1))}م';
-    if (v >= 1000) return '${Fmt.toFaDigits((v / 1000).toStringAsFixed(0))}ه';
-    return Fmt.toFaDigits(v.toStringAsFixed(0));
+    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
+    if (v >= 1000) return '${(v / 1000).toStringAsFixed(0)}K';
+    return v.toStringAsFixed(0);
   }
 }

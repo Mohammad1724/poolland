@@ -1,25 +1,25 @@
 // ============================================================
-//  مدل‌های مربوط به پیامک‌های بانکی
-//  بدون وابستگی به فلاتر و پلتفرم (کاملاً قابل تست)
+//  Models for bank SMS messages.
+//  Platform-independent and testable without Flutter.
 // ============================================================
 
-// جهت حرکت پول در پیامک
+// Direction of money movement in an SMS.
 enum SmsDirection {
-  deposit, // واریز به حساب ما (پول وارد شده)
-  withdraw, // برداشت / خرید / پرداخت (پول خارج شده)
+  deposit, // Money credited to our account.
+  withdraw, // Withdrawal, purchase, or payment from our account.
   unknown;
 
   String get label => switch (this) {
-    SmsDirection.deposit => 'واریز',
-    SmsDirection.withdraw => 'برداشت / خرید',
-    SmsDirection.unknown => 'نامشخص',
+    SmsDirection.deposit => 'Deposit',
+    SmsDirection.withdraw => 'Withdrawal / purchase',
+    SmsDirection.unknown => 'Unknown',
   };
 }
 
-/// یک پیامک خامِ خوانده‌شده از دستگاه (اندروید)
+/// A raw SMS message read from the device (Android).
 class SmsMessage {
   final String id;
-  final String address; // فرستنده: BANKMELAT یا شماره
+  final String address; // Sender ID (for example, BANKMELAT) or phone number.
   final String body;
   final DateTime date;
 
@@ -30,11 +30,11 @@ class SmsMessage {
     required this.date,
   });
 
-  /// کلید یکتا برای تشخیص تکراری‌ها
+  /// Unique key used to identify duplicate messages.
   ///
-  /// نکتهٔ مهم: این کلید بر اساس «محتوا» ساخته می‌شود نه شناسه‌ی پیامک،
-  /// چون یک پیامک ممکن است دو بار (یک بار از گیرنده و یک بار از صندوق پیامک‌ها)
-  /// به برنامه برسد و شناسه‌های متفاوتی داشته باشد.
+  /// Important: this key is based on message content, not its SMS ID,
+  /// because a message may be received twice (once from the receiver and once from the inbox)
+  /// with different IDs.
   String get key {
     final minuteBucket = date.millisecondsSinceEpoch ~/ 60000;
     return '${address.trim()}|$minuteBucket|$body';
@@ -57,37 +57,37 @@ class SmsMessage {
   };
 }
 
-/// نتیجه‌ی تجزیه‌ی یک پیامک
+/// Result of parsing an SMS message.
 class ParsedSms {
   final SmsMessage message;
 
-  /// نام بانک (اگر شناسایی شده باشد)
+  /// Bank name, if identified.
   final String? bankName;
 
-  /// مبلغ به «تومان» (اگر پیامک به ریال بوده، تبدیل شده است)
+  /// Amount in Tomans (converted if the SMS used Rials).
   final double amount;
 
-  /// ارز مبلغ (معمولاً IRT)
+  /// Currency of the amount (usually IRT).
   final String currency;
 
   final SmsDirection direction;
 
-  /// شماره کارت به صورت ماسک‌شده (مثل 6104********1234)
+  /// Masked card number (for example, 6104********1234).
   final String? cardMask;
 
-  /// ارقام خالصِ کارت (برای تطبیق با مشتری)
+  /// Card digits used to match the message to a customer.
   final String cardDigits;
 
-  /// مانده‌ی اعلام‌شده در پیامک (به تومان)
+  /// Balance reported in the SMS (in Tomans).
   final double? balance;
 
-  /// شماره پیگیری / مرجع (در صورت وجود)
+  /// Tracking or reference number, if present.
   final String? reference;
 
-  /// آیا پارسینگ به اندازه‌ی کافی مطمئن است؟
+  /// Is the parsing result sufficiently reliable?
   final bool confident;
 
-  /// توضیح کوتاه درباره‌ی نحوه‌ی تشخیص
+  /// Short explanation of how the message was interpreted.
   final String note;
 
   const ParsedSms({
@@ -106,14 +106,14 @@ class ParsedSms {
 
   String get key => message.key;
 
-  /// آیا اصلاً یک تراکنش مالی است؟ (قابل نمایش در صف بررسی)
+  /// Whether this is a financial transaction that can appear in the review queue.
   bool get isTransaction => amount > 0 && direction != SmsDirection.unknown;
 
-  /// نوع تراکنش پیشنهادی در دفتر
-  /// واریز → دریافت از مشتری / درآمد · برداشت → هزینه
+  /// Suggested transaction type for the ledger.
+  /// Deposit → customer receipt or income; withdrawal → expense.
   String get suggestedKindLabel => switch (direction) {
-    SmsDirection.deposit => 'دریافت از مشتری',
-    SmsDirection.withdraw => 'هزینه',
-    SmsDirection.unknown => 'نامشخص',
+    SmsDirection.deposit => 'Receive from customer',
+    SmsDirection.withdraw => 'Expense',
+    SmsDirection.unknown => 'Unknown',
   };
 }

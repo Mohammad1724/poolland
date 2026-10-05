@@ -10,9 +10,9 @@ import 'package:poolland/ui/personal_page.dart';
 import 'package:poolland/ui/theme.dart';
 import 'package:provider/provider.dart';
 
-/// تست دودِ صفحه‌ی حسابداری شخصی:
-/// صفحه (با دکمه‌های سریع، بودجه، قوانین تکرار و نمودار) باید
-/// بدون استثنا رندر شود.
+/// Smoke test for the personal finance page:
+/// The page (quick buttons, budgets, recurring rules, and chart) should
+/// render without exceptions.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -35,8 +35,8 @@ void main() {
   Widget wrap(Widget child) => ChangeNotifierProvider<AppRepository>.value(
         value: repo,
         child: MaterialApp(
-          locale: const Locale('fa', 'IR'),
-          supportedLocales: const [Locale('fa', 'IR'), Locale('en')],
+          locale: const Locale('en'),
+          supportedLocales: const [Locale('en')],
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
@@ -44,25 +44,25 @@ void main() {
           ],
           theme: AppTheme.light(),
           builder: (context, c) => Directionality(
-              textDirection: TextDirection.rtl, child: c ?? const SizedBox()),
+              textDirection: TextDirection.ltr, child: c ?? const SizedBox()),
           home: Scaffold(body: child),
         ),
       );
 
-  testWidgets('صفحه‌ی شخصی رندر می‌شود', (tester) async {
+  testWidgets('Personal finance page renders', (tester) async {
     await tester.pumpWidget(wrap(const PersonalPage()));
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('ثبت سریع'), findsOneWidget);
+    expect(find.text('Quick add'), findsOneWidget);
     expect(repo.quickExpenses.length, 6);
-    expect(find.text('بودجه‌ی ماهانه'), findsOneWidget);
-    expect(find.text('تراکنش‌های تکرارشونده'), findsOneWidget);
+    expect(find.text('Monthly budgets'), findsOneWidget);
+    expect(find.text('Recurring transactions'), findsOneWidget);
   });
 
 
-  testWidgets('صفحه‌ی شخصی با داده‌ی نمونه رندر می‌شود', (tester) async {
-    // بارگذاریِ داده‌ی نمونه شامل IO واقعی است
+  testWidgets('Personal finance page renders with sample data', (tester) async {
+    // Loading sample data performs real I/O.
     await tester.runAsync(() async {
       await repo.loadDemoData();
     });

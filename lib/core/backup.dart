@@ -6,9 +6,9 @@ import 'package:share_plus/share_plus.dart';
 
 import 'file_saver_stub.dart' if (dart.library.io) 'file_saver_io.dart' as saver;
 
-/// خروجی/ورودی فایل پشتیبان و خروجی‌های CSV.
+/// Backup file import/export and CSV exports.
 abstract final class Backup {
-  /// فایل را در حافظه‌ی دستگاه ذخیره می‌کند (کاربر محل را انتخاب می‌کند)
+  /// Save the file on the device (the user chooses a location).
   static Future<bool> saveToDevice({
     required String fileName,
     required String content,
@@ -22,7 +22,7 @@ abstract final class Backup {
     return uri != null;
   }
 
-  /// فایل را می‌سازد و پنجره‌ی اشتراک‌گذاری (تلگرام، واتس‌اپ، …) باز می‌کند
+  /// Create the file and open the system share sheet.
   static Future<bool> shareFile({
     required String fileName,
     required String content,
@@ -41,7 +41,7 @@ abstract final class Backup {
     return result.status != ShareResultStatus.dismissed;
   }
 
-  /// ذخیره‌ی فایل باینری (مثل PDF) روی دستگاه
+  /// Save a binary file (such as a PDF) on the device.
   static Future<bool> saveBytes({
     required String fileName,
     required List<int> bytes,
@@ -55,7 +55,7 @@ abstract final class Backup {
     return uri != null;
   }
 
-  /// ساخت فایل باینری و باز کردن پنجره‌ی اشتراک‌گذاری
+  /// Create a binary file and open the system share sheet.
   static Future<bool> shareBytes({
     required String fileName,
     required List<int> bytes,
@@ -74,7 +74,7 @@ abstract final class Backup {
     return result.status != ShareResultStatus.dismissed;
   }
 
-  /// خواندن محتوای یک فایل JSON انتخاب‌شده
+  /// Read the contents of a selected JSON file.
   static Future<Map<String, dynamic>?> pickJsonContent() async {
     final file = await FilePicker.pickFile(
       type: FileType.custom,

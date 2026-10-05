@@ -1,4 +1,4 @@
-name: ساخت APK
+name: Build APK
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: ساخت APK و انتشار
+    name: Build and publish APK
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,19 +23,19 @@ jobs:
           channel: stable
           cache: true
 
-      - name: آماده‌سازی
+      - name: Prepare Flutter project
         run: flutter pub get
 
-      - name: تست‌ها
+      - name: Run tests
         run: flutter test --concurrency=1
 
-      - name: ساخت APK
+      - name: Build split APKs
         run: flutter build apk --release --split-per-abi
 
-      - name: ساخت APK همه‌کاره
+      - name: Build universal APK
         run: flutter build apk --release
 
-      - name: نام‌گذاری فایل‌ها
+      - name: Name APK files
         run: |
           mkdir -p artifacts
           VERSION="${GITHUB_REF_NAME:-dev}"
@@ -47,13 +47,13 @@ jobs:
           done
           ls -la artifacts
 
-      - name: آپلود به‌عنوان آرتیفکت
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
           name: poolland-apk
           path: artifacts/*.apk
 
-      - name: انتشار در Releases
+      - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:

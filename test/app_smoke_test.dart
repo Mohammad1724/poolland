@@ -24,7 +24,7 @@ import 'package:poolland/ui/subscriptions_page.dart';
 import 'package:poolland/ui/theme.dart';
 import 'package:poolland/ui/transactions_page.dart';
 
-/// تست دود: همه‌ی صفحه‌ها باید بدون خطا رندر شوند
+/// Smoke test: all pages should render without errors.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -47,8 +47,8 @@ void main() {
   Widget wrap(Widget child) => ChangeNotifierProvider<AppRepository>.value(
         value: repo,
         child: MaterialApp(
-          locale: const Locale('fa', 'IR'),
-          supportedLocales: const [Locale('fa', 'IR'), Locale('en')],
+          locale: const Locale('en'),
+          supportedLocales: const [Locale('en')],
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
@@ -56,24 +56,24 @@ void main() {
           ],
           theme: AppTheme.light(),
           builder: (context, c) =>
-              Directionality(textDirection: TextDirection.rtl, child: c ?? const SizedBox()),
+              Directionality(textDirection: TextDirection.ltr, child: c ?? const SizedBox()),
           home: Scaffold(body: child),
         ),
       );
 
-  testWidgets('داشبورد با داده‌ی نمونه رندر می‌شود', (tester) async {
+  testWidgets('Dashboard renders with sample data', (tester) async {
     await tester.pumpWidget(wrap(DashboardPage(onNavigate: (_) {})));
     await tester.pumpAndSettle();
 
-    expect(find.text('خلاصه‌ی این ماه'), findsOneWidget);
-    expect(find.text('طلب شما از مشتری‌ها'), findsOneWidget);
-    expect(find.text('موجودی صندوق'), findsOneWidget);
+    expect(find.text('This month'), findsOneWidget);
+    expect(find.text('Receivables'), findsOneWidget);
+    expect(find.text('Cash balance'), findsOneWidget);
   });
 
-  testWidgets('پوسته‌ی اصلی: جابه‌جایی بین تب‌ها', (tester) async {
+  testWidgets('Main shell navigates between tabs', (tester) async {
     await tester.pumpWidget(wrap(const HomeShell()));
-    // کارهای راه‌اندازی (ثبتِ خودکارِ تراکنش‌های تکرارشونده) شامل IO واقعی
-    // است؛ در تست‌های ویجتی باید با runAsync به آن‌ها فرصتِ اجرا بدهیم.
+    // Startup tasks (posting due recurring transactions) perform real I/O.
+    // Widget tests must use runAsync to let them complete.
     await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 400)));
     await tester.pump();
@@ -81,21 +81,21 @@ void main() {
     expect(tester.takeException(), isNull);
 
     for (final tab in [
-      'شخصی',
-      'مشتری‌ها',
-      'اشتراک‌ها',
-      'تراکنش‌ها',
-      'گزارش‌ها',
-      'داشبورد'
+      'Personal',
+      'Customers',
+      'Subscriptions',
+      'Transactions',
+      'Reports',
+      'Dashboard'
     ]) {
       await tester.tap(find.text(tab).last);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
-      expect(tester.takeException(), isNull, reason: 'تب $tab خطا داد');
+      expect(tester.takeException(), isNull, reason: 'Tab $tab threw an exception');
     }
   });
 
-  testWidgets('فهرست مشتری‌ها و جزئیات مشتری', (tester) async {
+  testWidgets('Customer list and details render', (tester) async {
     await tester.pumpWidget(wrap(const CustomersPage()));
     await tester.pumpAndSettle();
     expect(find.byType(Card), findsWidgets);
@@ -106,11 +106,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text(customer.name), findsWidgets);
-    expect(find.text('سرویس‌ها (${_fa('${repo.subsOfCustomer(customer.id).length}')})'),
+    expect(find.text('Subscriptions (${repo.subsOfCustomer(customer.id).length})'),
         findsOneWidget);
   });
 
-  testWidgets('صفحه‌های اشتراک و تراکنش و گزارش', (tester) async {
+  testWidgets('Subscription, transaction, and report pages render', (tester) async {
     for (final page in [
       const PersonalPage(),
       const SubscriptionsPage(),
@@ -120,11 +120,11 @@ void main() {
       await tester.pumpWidget(wrap(page));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
-      expect(tester.takeException(), isNull, reason: '${page.runtimeType} خطا داد');
+      expect(tester.takeException(), isNull, reason: '${page.runtimeType} threw an exception');
     }
   });
 
-  testWidgets('تنظیمات و زیرصفحه‌ها', (tester) async {
+  testWidgets('Settings and subpages render', (tester) async {
     for (final page in [
       const SettingsPage(),
       const PlansPage(),
@@ -134,52 +134,42 @@ void main() {
       await tester.pumpWidget(wrap(page));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
-      expect(tester.takeException(), isNull, reason: '${page.runtimeType} خطا داد');
+      expect(tester.takeException(), isNull, reason: '${page.runtimeType} threw an exception');
     }
   });
 
-  testWidgets('فرم فروش اشتراک', (tester) async {
+  testWidgets('Subscription sale form renders', (tester) async {
     await tester.pumpWidget(wrap(SellSubscriptionPage(contact: repo.customers.first)));
     await tester.pumpAndSettle();
-    expect(find.text('عنوان سرویس'), findsOneWidget);
-    expect(find.text('مدت:'), findsOneWidget);
+    expect(find.text('Service name'), findsOneWidget);
+    expect(find.text('Duration:'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('فرم تراکنش و فرم مشتری جدید', (tester) async {
+  testWidgets('Transaction and new-customer forms render', (tester) async {
     await tester.pumpWidget(wrap(const TransactionEditPage(initialKind: TxnKind.expense)));
     await tester.pumpAndSettle();
-    expect(find.text('دسته‌بندی'), findsOneWidget);
+    expect(find.text('Category'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(wrap(const ContactEditPage()));
     await tester.pumpAndSettle();
-    expect(find.text('بدهی/طلب قبلی'), findsOneWidget);
+    expect(find.text('Opening balance'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('صفحه‌ی پیامک‌های بانکی', (tester) async {
+  testWidgets('Bank SMS page renders', (tester) async {
     await tester.pumpWidget(wrap(const SmsPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('صفحه‌ی خوش‌آمدگویی', (tester) async {
+  testWidgets('Onboarding page renders', (tester) async {
     await tester.pumpWidget(wrap(const OnboardingPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('دفتر وی‌پی‌ان'), findsOneWidget);
+    expect(find.text('Poolland Ledger'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
-}
-
-String _fa(String s) {
-  const fa = '۰۱۲۳۴۵۶۷۸۹';
-  final sb = StringBuffer();
-  for (final ch in s.split('')) {
-    final i = '0123456789'.indexOf(ch);
-    sb.write(i >= 0 ? fa[i] : ch);
-  }
-  return sb.toString();
 }

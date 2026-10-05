@@ -1,2 +1,2 @@
-/// نسخه‌ی وب — پیامک در دسترس نیست
+/// Web implementation; SMS is unavailable.
 bool get platformIsAndroid => false;

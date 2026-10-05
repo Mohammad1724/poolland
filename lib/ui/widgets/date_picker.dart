@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/format_utils.dart';
 import '../../core/jalali_utils.dart';
 
-/// انتخابگر تاریخ شمسی (بدون وابستگی به پکیج‌های اضافه)
+/// Jalali date picker with no additional package dependencies
 Future<DateTime?> showJalaliPicker(
   BuildContext context, {
   required DateTime initial,
@@ -76,41 +76,41 @@ class _JalaliPickerDialogState extends State<_JalaliPickerDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // انتخاب سال و ماه
+            // Year and month selection
             Row(
               children: [
                 IconButton(
-                  tooltip: 'سال قبل',
+                  tooltip: 'Previous year',
                   onPressed: () => setState(() => year--),
-                  icon: const Icon(Icons.keyboard_double_arrow_right_rounded, size: 20),
+                  icon: const Icon(Icons.keyboard_double_arrow_left_rounded, size: 20),
                 ),
                 IconButton(
-                  tooltip: 'ماه قبل',
+                  tooltip: 'Previous month',
                   onPressed: () => _shiftMonth(-1),
-                  icon: const Icon(Icons.chevron_right_rounded),
+                  icon: const Icon(Icons.chevron_left_rounded),
                 ),
                 Expanded(
                   child: Center(
                     child: Text(
-                      '${Fmt.monthName(month)} ${Fmt.toFaDigits('$year')}',
+                      '${Fmt.monthName(month)} $year',
                       style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                     ),
                   ),
                 ),
                 IconButton(
-                  tooltip: 'ماه بعد',
+                  tooltip: 'Next month',
                   onPressed: () => _shiftMonth(1),
-                  icon: const Icon(Icons.chevron_left_rounded),
+                  icon: const Icon(Icons.chevron_right_rounded),
                 ),
                 IconButton(
-                  tooltip: 'سال بعد',
+                  tooltip: 'Next year',
                   onPressed: () => setState(() => year++),
-                  icon: const Icon(Icons.keyboard_double_arrow_left_rounded, size: 20),
+                  icon: const Icon(Icons.keyboard_double_arrow_right_rounded, size: 20),
                 ),
               ],
             ),
             const SizedBox(height: 6),
-            // نام روزهای هفته
+            // Weekday names
             Row(
               children: [
                 for (final w in Fmt.weekDays)
@@ -126,7 +126,7 @@ class _JalaliPickerDialogState extends State<_JalaliPickerDialog> {
               ],
             ),
             const SizedBox(height: 6),
-            // روزها
+            // Days
             SizedBox(
               height: 240,
               child: GridView.count(
@@ -154,11 +154,11 @@ class _JalaliPickerDialogState extends State<_JalaliPickerDialog> {
                 TextButton.icon(
                   onPressed: () => Navigator.pop(context, J.today),
                   icon: const Icon(Icons.today_rounded, size: 17),
-                  label: const Text('امروز'),
+                  label: const Text('Today'),
                 ),
                 const Spacer(),
                 TextButton(
-                    onPressed: () => Navigator.pop(context), child: const Text('انصراف')),
+                    onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
               ],
             ),
           ],
@@ -200,7 +200,7 @@ class _DayCell extends StatelessWidget {
           ),
           child: Center(
             child: Text(
-              Fmt.toFaDigits('$day'),
+              '$day',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: isSelected || isToday ? FontWeight.w700 : FontWeight.w500,

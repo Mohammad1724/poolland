@@ -7,7 +7,7 @@ import '../../core/money.dart';
 import '../../data/models.dart';
 import 'date_picker.dart';
 
-/// ---------------- نمایش مبلغ ----------------
+/// ---------------- Amount display ----------------
 class MoneyText extends StatelessWidget {
   const MoneyText(
     this.amount, {
@@ -45,7 +45,7 @@ class MoneyText extends StatelessWidget {
   }
 }
 
-/// ---------------- کارت ----------------
+/// ---------------- Card ----------------
 class CardBox extends StatelessWidget {
   const CardBox({super.key, required this.child, this.padding = const EdgeInsets.all(14), this.onTap});
 
@@ -97,7 +97,7 @@ class SectionTitle extends StatelessWidget {
   }
 }
 
-/// ---------------- برچسب رنگی ----------------
+/// ---------------- Colored tag ----------------
 class TagChip extends StatelessWidget {
   const TagChip(this.text, {super.key, required this.color, this.icon, this.dense = false});
 
@@ -131,7 +131,7 @@ class TagChip extends StatelessWidget {
   }
 }
 
-/// ---------------- حالت خالی ----------------
+/// ---------------- Empty state ----------------
 class EmptyState extends StatelessWidget {
   const EmptyState({
     super.key,
@@ -184,12 +184,12 @@ class EmptyState extends StatelessWidget {
   }
 }
 
-/// ---------------- فیلد مبلغ ----------------
+/// ---------------- Amount field ----------------
 class AmountField extends StatelessWidget {
   const AmountField({
     super.key,
     required this.controller,
-    this.label = 'مبلغ',
+    this.label = 'Amount',
     this.currency = 'IRT',
     this.autofocus = false,
     this.validator,
@@ -221,7 +221,7 @@ class AmountField extends StatelessWidget {
       onChanged: (_) => onChanged?.call(),
       validator: (v) {
         if (validator != null) return validator!(v);
-        if (parseAmount(v ?? '') <= 0) return 'مبلغ را وارد کنید';
+        if (parseAmount(v ?? '') <= 0) return 'Enter an amount';
         return null;
       },
       onTapOutside: (_) => FocusScope.of(context).unfocus(),
@@ -242,7 +242,7 @@ class AmountField extends StatelessWidget {
   }
 }
 
-/// ---------------- فیلد تاریخ شمسی ----------------
+/// ---------------- Jalali date field ----------------
 class JalaliDateField extends StatelessWidget {
   const JalaliDateField({
     super.key,
@@ -276,7 +276,7 @@ class JalaliDateField extends StatelessWidget {
   }
 }
 
-/// ---------------- فیلد انتخاب عمومی ----------------
+/// ---------------- Generic selection field ----------------
 class SelectField<T> extends StatelessWidget {
   const SelectField({
     super.key,
@@ -288,9 +288,9 @@ class SelectField<T> extends StatelessWidget {
     this.subOf,
     this.iconOf,
     this.icon,
-    this.placeholder = 'انتخاب کنید',
+    this.placeholder = 'Select',
     this.clearable = false,
-    this.searchHint = 'جست‌وجو…',
+    this.searchHint = 'Search...',
     this.sheetTitle,
     this.extraActionLabel,
     this.onExtraAction,
@@ -379,7 +379,7 @@ class _PickSheet<T> extends StatefulWidget {
     this.subOf,
     this.iconOf,
     this.clearable = false,
-    this.searchHint = 'جست‌وجو…',
+    this.searchHint = 'Search...',
     this.extraActionLabel,
   });
 
@@ -457,7 +457,7 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
                   if (widget.clearable)
                     ListTile(
                       leading: const Icon(Icons.block_rounded, size: 20),
-                      title: const Text('بدون انتخاب'),
+                      title: const Text('None'),
                       onTap: () => Navigator.pop(context, const _PickResult(null, cleared: true)),
                     ),
                   for (final item in items)
@@ -493,7 +493,7 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
   }
 }
 
-/// ---------------- فیلد متن ساده ----------------
+/// ---------------- Plain text field ----------------
 class AppTextField extends StatelessWidget {
   const AppTextField({
     super.key,
@@ -531,13 +531,13 @@ class AppTextField extends StatelessWidget {
   }
 }
 
-/// ---------------- دیالوگ تأیید ----------------
+/// ---------------- Confirmation dialog ----------------
 Future<bool> confirmDialog(
   BuildContext context, {
   required String title,
   required String message,
-  String okLabel = 'تأیید',
-  String cancelLabel = 'انصراف',
+  String okLabel = 'Confirm',
+  String cancelLabel = 'Cancel',
   bool danger = false,
 }) async {
   final res = await showDialog<bool>(
@@ -568,7 +568,7 @@ void showSnack(BuildContext context, String message, {bool error = false}) {
     ));
 }
 
-/// یک ردیف «برچسب: مقدار»
+/// A row formatted as “label: value”.
 class InfoRow extends StatelessWidget {
   const InfoRow(this.label, this.value, {super.key, this.valueColor, this.icon});
 
@@ -600,14 +600,14 @@ class InfoRow extends StatelessWidget {
   }
 }
 
-/// ردیف تراکنش (مشترک بین صفحه‌ها)
+/// Transaction row shared across pages
 class TxnTile extends StatelessWidget {
   const TxnTile({
     super.key,
     required this.txn,
     required this.categoryName,
     this.customerName,
-    this.symbol = 'تومان',
+    this.symbol = 'Toman',
     this.onTap,
     this.showCustomer = true,
   });
@@ -633,7 +633,7 @@ class TxnTile extends StatelessWidget {
     final sub = <String>[
       J.d(txn.date),
       if (showCustomer && customerName != null) customerName!,
-      if (txn.kind.isProfitKind) (txn.credit ? 'نسیه' : 'نقدی'),
+      if (txn.kind.isProfitKind) (txn.credit ? 'Credit' : 'Cash'),
     ].join(' • ');
 
     return ListTile(

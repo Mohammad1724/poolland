@@ -10,7 +10,7 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        // برای اعلان‌های زمان‌بندی‌شده (یادآور روزانه)
+        // Required for scheduled notifications (daily reminders).
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

@@ -17,7 +17,7 @@ class TransactionsPage extends StatefulWidget {
 }
 
 class _TransactionsPageState extends State<TransactionsPage> {
-  int _monthOffset = 0; // 0 = ماه جاری
+  int _monthOffset = 0; // 0 = current month
   TxnKind? _kind;
   String _q = '';
 
@@ -45,7 +45,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
           .toList();
     }
 
-    // گروه‌بندی بر اساس تاریخ
+    // Group by date
     final groups = <String, List<Txn>>{};
     for (final t in list) {
       final key = J.d(t.date);
@@ -54,15 +54,15 @@ class _TransactionsPageState extends State<TransactionsPage> {
 
     return Column(
       children: [
-        // نوار ماه
+        // Month navigation bar
         Container(
           padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
           child: Row(
             children: [
               IconButton(
-                tooltip: 'ماه قبل',
+                tooltip: 'Previous month',
                 onPressed: () => setState(() => _monthOffset--),
-                icon: const Icon(Icons.chevron_right_rounded),
+                icon: const Icon(Icons.chevron_left_rounded),
               ),
               Expanded(
                 child: Center(
@@ -72,7 +72,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                       const SizedBox(height: 2),
                       Text(
-                        'درآمد ${Money.text(summary.income, compact: true)} • هزینه ${Money.text(summary.expense, compact: true)}',
+                        'Income ${Money.text(summary.income, compact: true)} • Expense ${Money.text(summary.expense, compact: true)}',
                         style: TextStyle(
                             fontSize: 11, color: onSurface.withValues(alpha: 0.6)),
                       ),
@@ -81,11 +81,11 @@ class _TransactionsPageState extends State<TransactionsPage> {
                 ),
               ),
               IconButton(
-                tooltip: 'ماه بعد',
+                tooltip: 'Next month',
                 onPressed: _monthOffset < 0
                     ? () => setState(() => _monthOffset++)
                     : null,
-                icon: const Icon(Icons.chevron_left_rounded),
+                icon: const Icon(Icons.chevron_right_rounded),
               ),
             ],
           ),
@@ -96,7 +96,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
             children: [
               TextField(
                 decoration: const InputDecoration(
-                  hintText: 'جست‌وجو در توضیح، مشتری، دسته…',
+                  hintText: 'Search descriptions, customers, and categories...',
                   prefixIcon: Icon(Icons.search_rounded, size: 20),
                   isDense: true,
                 ),
@@ -115,7 +115,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                       Padding(
                         padding: const EdgeInsets.only(left: 6),
                         child: ChoiceChip(
-                          label: Text(opt == null ? 'همه' : opt.label,
+                          label: Text(opt == null ? 'All' : opt.label,
                               style: const TextStyle(fontSize: 12)),
                           showCheckmark: false,
                           selected: repo.scopeFilter == opt,
@@ -131,7 +131,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                 child: Row(
                   children: [
                     ChoiceChip(
-                      label: const Text('همه'),
+                      label: const Text('All'),
                       showCheckmark: false,
                       selected: _kind == null,
                       onSelected: (_) => setState(() => _kind = null),
@@ -157,8 +157,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
           child: list.isEmpty
               ? const EmptyState(
                   icon: Icons.receipt_long_outlined,
-                  title: 'تراکنشی در این ماه نیست',
-                  text: 'با دکمه‌ی + یک فروش، دریافت یا هزینه ثبت کنید.',
+                  title: 'No transactions this month',
+                  text: 'Tap + to record a sale, receipt, or expense.',
                 )
               : ListView(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),

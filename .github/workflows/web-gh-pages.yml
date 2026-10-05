@@ -1,4 +1,4 @@
-name: سایت وب (شاخه gh-pages)
+name: GitHub Pages site (gh-pages branch)
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   publish-web:
-    name: ساخت و انتشار سایت
+    name: Build and publish website
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,18 +20,18 @@ jobs:
           channel: stable
           cache: true
 
-      - name: آماده‌سازی
+      - name: Prepare Flutter project
         run: flutter pub get
 
-      - name: ساخت نسخه‌ی وب
+      - name: Build web app
         run: flutter build web --release --base-href=/poolland/ --no-web-resources-cdn
 
-      - name: افزودن .nojekyll
+      - name: Add .nojekyll marker
         run: |
           touch build/web/.nojekyll
           echo "poolland" > build/web/CNAME.txt || true
 
-      - name: انتشار در شاخه‌ی gh-pages
+      - name: Publish to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -40,4 +40,4 @@ jobs:
           force_orphan: true
           user_name: github-actions[bot]
           user_email: github-actions[bot]@users.noreply.github.com
-          commit_message: 'ساخت خودکار سایت از کامیت ${{ github.sha }}'
+          commit_message: 'Automatically publish site from commit ${{ github.sha }}'

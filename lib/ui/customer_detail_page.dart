@@ -44,7 +44,7 @@ class CustomerDetailPage extends StatelessWidget {
         title: Text(c.name),
         actions: [
           IconButton(
-            tooltip: 'ویرایش',
+            tooltip: 'Edit',
             icon: const Icon(Icons.edit_outlined),
             onPressed: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => ContactEditPage(existing: c))),
@@ -60,18 +60,18 @@ class CustomerDetailPage extends StatelessWidget {
                     to: DateTime.now(),
                   );
                   final ok = await Backup.shareBytes(
-                    fileName: 'soorat-hesab-${c.name}.pdf',
+                    fileName: 'statement-${c.name}.pdf',
                     bytes: bytes,
                     mimeType: 'application/pdf',
                   );
-                  if (ok && context.mounted) showSnack(context, 'صورت‌حساب ساخته شد');
+                  if (ok && context.mounted) showSnack(context, 'Statement created');
                   break;
                 case 'delete':
                   final ok = await confirmDialog(context,
-                      title: 'حذف مشتری',
+                      title: 'Delete customer',
                       message:
-                          'مشتری «${c.name}» با ${txns.length} تراکنش و ${subs.length} اشتراک حذف شود؟ این کار قابل بازگشت نیست.',
-                      okLabel: 'حذف',
+                          'Delete customer "${c.name}" with ${txns.length} transactions and ${subs.length} subscriptions? This cannot be undone.',
+                      okLabel: 'Delete',
                       danger: true);
                   if (!ok) return;
                   await repo.deleteCustomer(c.id);
@@ -80,8 +80,8 @@ class CustomerDetailPage extends StatelessWidget {
               }
             },
             itemBuilder: (_) => const [
-              PopupMenuItem(value: 'statement', child: Text('صورت‌حساب PDF')),
-              PopupMenuItem(value: 'delete', child: Text('حذف مشتری')),
+              PopupMenuItem(value: 'statement', child: Text('PDF statement')),
+              PopupMenuItem(value: 'delete', child: Text('Delete customer')),
             ],
           ),
         ],
@@ -89,7 +89,7 @@ class CustomerDetailPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
         children: [
-          // ---------- مانده حساب ----------
+          // ---------- Account balance ----------
           CardBox(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -103,10 +103,10 @@ class CustomerDetailPage extends StatelessWidget {
                         children: [
                           Text(
                             balance.abs() < 1
-                                ? 'تسویه شده'
+                                ? 'Settled'
                                 : balance > 0
-                                    ? 'به شما بدهکار است'
-                                    : 'شما به او بدهکارید',
+                                    ? 'Owes you'
+                                    : 'You owe them',
                             style: TextStyle(
                                 fontSize: 12, color: onSurface.withValues(alpha: 0.65)),
                           ),
@@ -125,14 +125,14 @@ class CustomerDetailPage extends StatelessWidget {
                     ),
                     if (c.phone.isNotEmpty)
                       IconButton.filledTonal(
-                        tooltip: 'تماس',
+                        tooltip: 'Call',
                         onPressed: () => launchUrl(Uri.parse('tel:${c.phone}')),
                         icon: const Icon(Icons.call_rounded, size: 20),
                       ),
                     const SizedBox(width: 6),
                     if (c.telegram.isNotEmpty || c.phone.isNotEmpty)
                       IconButton.filledTonal(
-                        tooltip: 'پیام در تلگرام',
+                        tooltip: 'Message on Telegram',
                         onPressed: () async {
                           final uname = c.telegram.replaceAll('@', '');
                           final uri = uname.isNotEmpty
@@ -148,7 +148,7 @@ class CustomerDetailPage extends StatelessWidget {
                   const SizedBox(height: 10),
                   Divider(color: Theme.of(context).dividerColor),
                   const SizedBox(height: 8),
-                  Text('به تفکیک ارز',
+                  Text('By currency',
                       style: TextStyle(
                           fontSize: 11.5, color: onSurface.withValues(alpha: 0.6))),
                   const SizedBox(height: 4),
@@ -157,7 +157,7 @@ class CustomerDetailPage extends StatelessWidget {
                     runSpacing: 6,
                     children: currencyTotals.entries
                         .map((e) => TagChip(
-                              '${Money.text(e.value, currency: e.key)} ${e.value >= 0 ? 'بدهکار' : 'بستانکار'}',
+                              '${Money.text(e.value, currency: e.key)} ${e.value >= 0 ? 'Debtor' : 'Creditor'}',
                               color: e.value >= 0
                                   ? const Color(0xFF0F766E)
                                   : const Color(0xFF2563EB),
@@ -171,14 +171,14 @@ class CustomerDetailPage extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // ---------- دکمه‌های عملیات ----------
+          // ---------- Actions ----------
           Row(
             children: [
               Expanded(
                 child: FilledButton.tonalIcon(
                   onPressed: () => showPaymentSheet(context, customer: c),
                   icon: const Icon(Icons.call_received_rounded, size: 18),
-                  label: const Text('دریافت'),
+                  label: const Text('Receive'),
                 ),
               ),
               const SizedBox(width: 8),
@@ -187,7 +187,7 @@ class CustomerDetailPage extends StatelessWidget {
                   onPressed: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => SellSubscriptionPage(contact: c))),
                   icon: const Icon(Icons.vpn_key_rounded, size: 18),
-                  label: const Text('فروش'),
+                  label: const Text('Sale'),
                 ),
               ),
             ],
@@ -203,7 +203,7 @@ class CustomerDetailPage extends StatelessWidget {
                           builder: (_) => TransactionEditPage(
                               initialKind: TxnKind.receive, customer: c))),
                   icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('تراکنش دستی'),
+                  label: const Text('Manual transaction'),
                 ),
               ),
               const SizedBox(width: 8),
@@ -212,11 +212,11 @@ class CustomerDetailPage extends StatelessWidget {
                   onPressed: () {
                     Clipboard.setData(ClipboardData(
                         text:
-                            '${c.name}\nمانده: ${Money.text(balance.abs())} ${balance.abs() < 1 ? '' : balance > 0 ? '(بدهکار)' : '(بستانکار)'}\nسرویس‌ها: ${subs.length}'));
-                    showSnack(context, 'اطلاعات کپی شد');
+                            '${c.name}\nBalance: ${Money.text(balance.abs())} ${balance.abs() < 1 ? '' : balance > 0 ? '(Debtor)' : '(Creditor)'}\nSubscriptions: ${subs.length}'));
+                    showSnack(context, 'Details copied');
                   },
                   icon: const Icon(Icons.copy_rounded, size: 18),
-                  label: const Text('کپی خلاصه'),
+                  label: const Text('Copy summary'),
                 ),
               ),
             ],
@@ -235,24 +235,24 @@ class CustomerDetailPage extends StatelessWidget {
             ),
           ],
 
-          // ---------- خلاصه ۱۲ ماه ----------
-          const SectionTitle('خلاصه ۱۲ ماه اخیر', icon: Icons.insights_rounded),
+          // ---------- 12-month summary ----------
+          const SectionTitle('12-month summary', icon: Icons.insights_rounded),
           CardBox(
             child: Column(
               children: [
-                InfoRow('جمع خرید', MoneyText(customerSummary.income, withSymbol: true)),
-                InfoRow('جمع دریافتی', MoneyText(customerSummary.received)),
-                InfoRow('تعداد تراکنش', Text(Fmt.toFaDigits('${customerSummary.txnCount}'))),
+                InfoRow('Total purchases', MoneyText(customerSummary.income, withSymbol: true)),
+                InfoRow('Total received', MoneyText(customerSummary.received)),
+                InfoRow('Transactions', Text('${customerSummary.txnCount}')),
               ],
             ),
           ),
 
-          // ---------- اشتراک‌ها ----------
-          SectionTitle('سرویس‌ها (${Fmt.toFaDigits('${subs.length}')})',
+          // ---------- Subscriptions ----------
+          SectionTitle('Subscriptions (${subs.length})',
               icon: Icons.vpn_key_outlined),
           if (subs.isEmpty)
             const CardBox(
-              child: Text('هنوز سرویسی ثبت نشده است.',
+              child: Text('No subscriptions recorded yet.',
                   style: TextStyle(fontSize: 12.5)),
             )
           else
@@ -274,7 +274,7 @@ class CustomerDetailPage extends StatelessWidget {
                           ),
                           TagChip(
                             status == SubStatus.expired
-                                ? 'منقضی'
+                                ? 'Expired'
                                 : Fmt.expiryLabel(days),
                             color: status.color,
                             dense: true,
@@ -287,7 +287,7 @@ class CustomerDetailPage extends StatelessWidget {
                           Icon(Icons.date_range_rounded,
                               size: 14, color: onSurface.withValues(alpha: 0.5)),
                           const SizedBox(width: 6),
-                          Text('${J.d(s.startDate)} تا ${J.d(s.endDate)}',
+                          Text('${J.d(s.startDate)} to ${J.d(s.endDate)}',
                               style: TextStyle(
                                   fontSize: 11.5,
                                   color: onSurface.withValues(alpha: 0.65))),
@@ -309,18 +309,18 @@ class CustomerDetailPage extends StatelessWidget {
                                       builder: (_) =>
                                           SellSubscriptionPage(renewFrom: s))),
                               icon: const Icon(Icons.autorenew_rounded, size: 16),
-                              label: const Text('تمدید'),
+                              label: const Text('Renew'),
                             ),
                           ),
                           const SizedBox(width: 8),
                           IconButton.outlined(
-                            tooltip: 'حذف',
+                            tooltip: 'Delete',
                             onPressed: () async {
                               final ok = await confirmDialog(context,
-                                  title: 'حذف اشتراک',
+                                  title: 'Delete subscription',
                                   message:
-                                      'این اشتراک حذف شود؟ (تراکنش‌های مالی باقی می‌مانند)',
-                                  okLabel: 'حذف',
+                                      'Delete this subscription? (Financial transactions will remain.)',
+                                  okLabel: 'Delete',
                                   danger: true);
                               if (!ok) return;
                               await repo.deleteSubscription(s.id);
@@ -335,11 +335,11 @@ class CustomerDetailPage extends StatelessWidget {
               );
             }),
 
-          // ---------- تراکنش‌ها ----------
-          SectionTitle('تراکنش‌ها (${Fmt.toFaDigits('${txns.length}')})',
+          // ---------- Transactions ----------
+          SectionTitle('Transactions (${txns.length})',
               icon: Icons.receipt_long_outlined),
           if (txns.isEmpty)
-            const CardBox(child: Text('تراکنشی ثبت نشده است.', style: TextStyle(fontSize: 12.5)))
+            const CardBox(child: Text('No transactions recorded.', style: TextStyle(fontSize: 12.5)))
           else
             Card(
               child: Column(
