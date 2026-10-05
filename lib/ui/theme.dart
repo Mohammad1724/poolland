@@ -91,7 +91,21 @@ class AppTheme {
             color: scheme.onSurface.withValues(alpha: 0.45)),
       ),
       chipTheme: ChipThemeData(
-        labelStyle: const TextStyle(fontFamily: 'Vazirmatn', fontSize: 12),
+        backgroundColor: card,
+        selectedColor: scheme.primaryContainer,
+        secondarySelectedColor: scheme.primaryContainer,
+        labelStyle: TextStyle(
+          fontFamily: 'Vazirmatn',
+          fontSize: 12,
+          color: scheme.onSurface,
+        ),
+        secondaryLabelStyle: TextStyle(
+          fontFamily: 'Vazirmatn',
+          fontSize: 12,
+          color: scheme.onPrimaryContainer,
+        ),
+        checkmarkColor: scheme.onPrimaryContainer,
+        iconTheme: IconThemeData(color: scheme.onSurfaceVariant),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         side: BorderSide(color: isDark ? const Color(0xFF2A3A5A) : const Color(0xFFE1E6F0)),
       ),
@@ -129,10 +143,18 @@ class AppTheme {
               fontFamily: 'Vazirmatn', fontSize: 13, fontWeight: FontWeight.w700),
         ),
       ),
-      listTileTheme: const ListTileThemeData(
+      listTileTheme: ListTileThemeData(
         titleTextStyle: TextStyle(
-            fontFamily: 'Vazirmatn', fontSize: 14, fontWeight: FontWeight.w600),
-        subtitleTextStyle: TextStyle(fontFamily: 'Vazirmatn', fontSize: 12),
+          fontFamily: 'Vazirmatn',
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: scheme.onSurface,
+        ),
+        subtitleTextStyle: TextStyle(
+          fontFamily: 'Vazirmatn',
+          fontSize: 12,
+          color: scheme.onSurfaceVariant,
+        ),
       ),
       dialogTheme: DialogThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -154,6 +176,10 @@ class AppTheme {
       ),
       segmentedButtonTheme: SegmentedButtonThemeData(
         style: ButtonStyle(
+          foregroundColor: WidgetStateProperty.resolveWith((states) =>
+              states.contains(WidgetState.selected)
+                  ? scheme.onPrimaryContainer
+                  : scheme.onSurface),
           textStyle: WidgetStateProperty.all(
             const TextStyle(fontFamily: 'Vazirmatn', fontSize: 12, fontWeight: FontWeight.w600),
           ),

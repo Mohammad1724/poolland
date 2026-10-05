@@ -158,95 +158,103 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_titles[_index]),
-        actions: [
-          if (repo.settings.businessName.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: Center(
-                child: Text(repo.settings.businessName,
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55))),
+    return PopScope<Object?>(
+      canPop: _index == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _index != 0) {
+          setState(() => _index = 0);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(_titles[_index]),
+          actions: [
+            if (repo.settings.businessName.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Center(
+                  child: Text(repo.settings.businessName,
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55))),
+                ),
               ),
+            IconButton(
+              tooltip: 'Settings',
+              icon: const Icon(Icons.settings_outlined),
+              onPressed: () =>
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage())),
             ),
-          IconButton(
-            tooltip: 'Settings',
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () =>
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage())),
-          ),
-        ],
-      ),
-      body: !repo.isReady
-          ? const Center(child: CircularProgressIndicator())
-          : IndexedStack(
-              index: _index,
-              children: [
-                DashboardPage(onNavigate: _goTo),
-                const PersonalPage(),
-                const CustomersPage(),
-                const SubscriptionsPage(),
-                const TransactionsPage(),
-                const ReportsPage(),
-              ],
-            ),
-      floatingActionButton: !repo.isReady
-          ? null
-          : _index == 2
-              ? FloatingActionButton.extended(
-                  onPressed: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const ContactEditPage())),
-                  icon: const Icon(Icons.person_add_alt_1_rounded),
-                  label: const Text('New customer'),
-                )
-              : _index == 1
-                  ? FloatingActionButton.extended(
-                      onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const TransactionEditPage(
-                                  initialKind: TxnKind.expense,
-                                  initialScope: TxnScope.personal))),
-                      icon: const Icon(Icons.remove_rounded),
-                      label: const Text('Personal expense'),
-                    )
-                  : FloatingActionButton(
-                      onPressed: _quickAdd,
-                      tooltip: 'Quick add',
-                      child: const Icon(Icons.add_rounded),
-                    ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: _goTo,
-        destinations: const [
-          NavigationDestination(
-              icon: Icon(Icons.dashboard_outlined),
-              selectedIcon: Icon(Icons.dashboard_rounded),
-              label: 'Dashboard'),
-          NavigationDestination(
-              icon: Icon(Icons.person_outline_rounded),
-              selectedIcon: Icon(Icons.person_rounded),
-              label: 'Personal'),
-          NavigationDestination(
-              icon: Icon(Icons.people_outline_rounded),
-              selectedIcon: Icon(Icons.people_rounded),
-              label: 'Customers'),
-          NavigationDestination(
-              icon: Icon(Icons.vpn_key_outlined),
-              selectedIcon: Icon(Icons.vpn_key_rounded),
-              label: 'Subscriptions'),
-          NavigationDestination(
-              icon: Icon(Icons.receipt_long_outlined),
-              selectedIcon: Icon(Icons.receipt_long_rounded),
-              label: 'Transactions'),
-          NavigationDestination(
-              icon: Icon(Icons.insights_outlined),
-              selectedIcon: Icon(Icons.insights_rounded),
-              label: 'Reports'),
-        ],
+          ],
+        ),
+        body: !repo.isReady
+            ? const Center(child: CircularProgressIndicator())
+            : IndexedStack(
+                index: _index,
+                children: [
+                  DashboardPage(onNavigate: _goTo),
+                  const PersonalPage(),
+                  const CustomersPage(),
+                  const SubscriptionsPage(),
+                  const TransactionsPage(),
+                  const ReportsPage(),
+                ],
+              ),
+        floatingActionButton: !repo.isReady
+            ? null
+            : _index == 2
+                ? FloatingActionButton.extended(
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const ContactEditPage())),
+                    icon: const Icon(Icons.person_add_alt_1_rounded),
+                    label: const Text('New customer'),
+                  )
+                : _index == 1
+                    ? FloatingActionButton.extended(
+                        onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const TransactionEditPage(
+                                    initialKind: TxnKind.expense,
+                                    initialScope: TxnScope.personal))),
+                        icon: const Icon(Icons.remove_rounded),
+                        label: const Text('Personal expense'),
+                      )
+                    : FloatingActionButton(
+                        onPressed: _quickAdd,
+                        tooltip: 'Quick add',
+                        child: const Icon(Icons.add_rounded),
+                      ),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _index,
+          onDestinationSelected: _goTo,
+          destinations: const [
+            NavigationDestination(
+                icon: Icon(Icons.dashboard_outlined),
+                selectedIcon: Icon(Icons.dashboard_rounded),
+                label: 'Dashboard'),
+            NavigationDestination(
+                icon: Icon(Icons.person_outline_rounded),
+                selectedIcon: Icon(Icons.person_rounded),
+                label: 'Personal'),
+            NavigationDestination(
+                icon: Icon(Icons.people_outline_rounded),
+                selectedIcon: Icon(Icons.people_rounded),
+                label: 'Customers'),
+            NavigationDestination(
+                icon: Icon(Icons.vpn_key_outlined),
+                selectedIcon: Icon(Icons.vpn_key_rounded),
+                label: 'Subscriptions'),
+            NavigationDestination(
+                icon: Icon(Icons.receipt_long_outlined),
+                selectedIcon: Icon(Icons.receipt_long_rounded),
+                label: 'Transactions'),
+            NavigationDestination(
+                icon: Icon(Icons.insights_outlined),
+                selectedIcon: Icon(Icons.insights_rounded),
+                label: 'Reports'),
+          ],
+        ),
       ),
     );
   }
