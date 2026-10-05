@@ -157,7 +157,7 @@ class _ReportsPageState extends State<ReportsPage> {
                   Expanded(
                     child: _kv(
                       context,
-                      'Income (sales)',
+                      'Income received',
                       Money.text(s.income),
                       const Color(0xFF16A34A),
                     ),

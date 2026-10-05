@@ -304,7 +304,7 @@ class CustomerDetailPage extends StatelessWidget {
               children: [
                 InfoRow(
                   'Total purchases',
-                  MoneyText(customerSummary.income, withSymbol: true),
+                  MoneyText(customerSummary.sales, withSymbol: true),
                 ),
                 InfoRow('Total received', MoneyText(customerSummary.received)),
                 InfoRow('Transactions', Text('${customerSummary.txnCount}')),

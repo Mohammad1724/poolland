@@ -263,6 +263,14 @@ class PdfService {
     );
 
     final summary = repo.summary(from: from, to: to, scope: reportScope);
+    final incomeByCategory = Ledger.byCategory(
+      scopedTransactions,
+      repo.categories,
+      from: from,
+      to: to,
+      kind: TxnKind.income,
+      scope: reportScope,
+    );
     final byCategory = Ledger.byCategory(
       scopedTransactions,
       repo.categories,
@@ -357,7 +365,7 @@ class PdfService {
           pw.Row(
             children: [
               pdfBox(
-                label: 'Income (sales)',
+                label: 'Income received',
                 value: money(summary.income),
                 color: const PdfColor.fromInt(0xFF16A34A),
               ),
@@ -409,6 +417,31 @@ class PdfService {
             ],
           ),
           pw.SizedBox(height: 14),
+          if (incomeByCategory.isNotEmpty) ...[
+            pdfText('Income sources', bold: true, size: 11),
+            pw.SizedBox(height: 5),
+            pdfTable(
+              headers: const ['Category', 'Amount', 'Share'],
+              widths: const [2.4, 1.4, 0.8],
+              rows:
+                  (incomeByCategory.entries.toList()
+                        ..sort((a, b) => b.value.compareTo(a.value)))
+                      .map(
+                        (e) => [
+                          e.key,
+                          money(e.value),
+                          summary.income > 0
+                              ? Fmt.percent(
+                                  e.value / summary.income,
+                                  persian: persianDigits,
+                                )
+                              : '-',
+                        ],
+                      )
+                      .toList(),
+            ),
+            pw.SizedBox(height: 14),
+          ],
           if (byCategory.isNotEmpty) ...[
             pdfText('Expenses by category', bold: true, size: 11),
             pw.SizedBox(height: 5),

@@ -17,6 +17,10 @@ class AppLocalization {
     'Reports': 'گزارش‌ها',
     'Settings': 'تنظیمات',
     'Business': 'کسب‌وکار',
+    'VPN business': 'کسب‌وکار VPN',
+    'Record this in': 'ثبت در کدام بخش؟',
+    'Choose where this transaction belongs before recording':
+        'پیش از ثبت، مشخص کنید این تراکنش متعلق به کدام بخش است',
     'All': 'همه',
     'Save': 'ذخیره',
     'Cancel': 'انصراف',
@@ -82,6 +86,7 @@ class AppLocalization {
     'Note': 'یادداشت',
     'Category': 'دسته‌بندی',
     'Income category': 'دسته‌بندی درآمد',
+    'Expense category': 'دسته‌بندی هزینه',
     'Contact (optional)': 'مخاطب (اختیاری)',
     'Customer': 'مشتری',
     'Customer name...': 'نام مشتری…',
@@ -215,10 +220,9 @@ class AppLocalization {
     'Reject all': 'رد همه',
     'Reject all suggestions? ': 'همهٔ پیشنهادها رد شوند؟ ',
     'Review again': 'بررسی دوباره',
-    'Automatically approve high-confidence matches':
-        'تأیید خودکار تطبیق‌های مطمئن',
-    'Transactions will be recorded without your approval (off by default)':
-        'تراکنش‌ها بدون تأیید شما ثبت می‌شوند (به‌طور پیش‌فرض خاموش)',
+    'Manual SMS review is required': 'ثبت پیامک نیازمند بررسی دستی است',
+    'Choose VPN business or personal before recording each SMS transaction.':
+        'پیش از ثبت هر پیامک، کسب‌وکار VPN یا بخش شخصی را انتخاب کنید.',
     'Deposits and withdrawals are detected automatically ':
         'واریزها و برداشت‌ها خودکار شناسایی می‌شوند ',
     'SMS lookback period': 'بازهٔ بررسی پیامک‌ها',
@@ -516,7 +520,7 @@ class AppLocalization {
         'گزارش کامل این بازه همراه با نمودارها و تراکنش‌ها',
     'Transactions for this period': 'تراکنش‌های این بازه',
     'Enter a service name': 'نام سرویس را وارد کنید',
-    'Income (sales)': 'درآمد (فروش)',
+    'Income received': 'درآمد دریافت‌شده',
     'Profit margin': 'حاشیهٔ سود',
     'Received from customers': 'دریافت از مشتریان',
     'Cash paid': 'پرداخت نقدی',

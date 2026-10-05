@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:poolland/core/jalali_utils.dart';
 import 'package:poolland/core/sms/bank_rules.dart';
+import 'package:poolland/core/sms/sms_models.dart';
+import 'package:poolland/core/sms/sms_parser.dart';
 import 'package:poolland/data/models.dart';
 import 'package:poolland/data/repository.dart';
 import 'package:poolland/data/store.dart';
@@ -57,10 +59,95 @@ void main() {
     expect(repo.subsOfCustomer(customer.id).length, 1);
 
     final s = repo.summary();
-    expect(s.income, 500000);
+    expect(s.income, 200000);
+    expect(s.sales, 500000);
     expect(s.received, 200000);
-    expect(s.profit, 500000);
+    expect(s.profit, 200000);
     expect(s.cashIn, 200000);
+  });
+
+  test('An unrecognized SMS cannot be approved as a transaction', () async {
+    final sms = SmsParser.parse(
+      SmsMessage(
+        id: 'unknown-sms',
+        address: 'UNKNOWN-SENDER',
+        body: 'واریز مبلغ 100,000 تومان',
+        date: J.today,
+      ),
+    );
+
+    expect(sms.isTransaction, isFalse);
+    expect(
+      await repo.approveSms(sms, scope: TxnScope.business),
+      isNull,
+    );
+    expect(repo.transactions, isEmpty);
+  });
+
+  test('A received SMS is recorded in the selected personal scope', () async {
+    final incomeCategory = repo
+        .categoriesOf(TxnKind.income, scope: TxnScope.personal)
+        .first;
+    final businessCategory = repo.categoriesOf(TxnKind.income).first;
+    final sms = SmsParser.parse(
+      SmsMessage(
+        id: 'personal-sms',
+        address: 'BANKMELAT',
+        body: 'واریز مبلغ 100,000 تومان',
+        date: J.today,
+      ),
+    );
+
+    final txn = (await repo.approveSms(
+      sms,
+      kind: TxnKind.income,
+      categoryId: businessCategory.id,
+      scope: TxnScope.personal,
+    ))!;
+
+    expect(txn.scope, TxnScope.personal);
+    expect(txn.kind, TxnKind.income);
+    expect(txn.categoryId, incomeCategory.id);
+    expect(repo.summary(scope: TxnScope.personal).income, 100000);
+    expect(repo.summary(scope: TxnScope.business).income, 0);
+  });
+
+  test('A customer SMS receipt clears debt and is recognized as income', () async {
+    final customer = await repo.addCustomer(
+      name: 'SMS customer',
+      bankIdentifiers: ['1234'],
+    );
+    await repo.sellSubscription(
+      customer: customer,
+      title: 'One month VPN',
+      price: 500000,
+      currencyCode: 'IRT',
+      start: J.today,
+      end: J.addDays(J.today, 30),
+    );
+    final incomeCategory = repo.categoriesOf(TxnKind.income).first;
+    final sms = SmsParser.parse(
+      SmsMessage(
+        id: 'business-sms',
+        address: 'BANKMELAT',
+        body: 'واریز مبلغ 200,000 تومان کارت 6104********1234',
+        date: J.today,
+      ),
+    );
+
+    final txn = (await repo.approveSms(
+      sms,
+      categoryId: incomeCategory.id,
+      amount: 200000,
+      scope: TxnScope.business,
+    ))!;
+
+    expect(txn.kind, TxnKind.receive);
+    expect(txn.scope, TxnScope.business);
+    expect(txn.categoryId, incomeCategory.id);
+    expect(repo.balanceOf(repo.customerById(customer.id)!), 300000);
+    expect(repo.summary(scope: TxnScope.business).income, 200000);
+    expect(repo.summary(scope: TxnScope.business).sales, 500000);
   });
 
   test('Renewal starts the day after the previous subscription ends', () async {

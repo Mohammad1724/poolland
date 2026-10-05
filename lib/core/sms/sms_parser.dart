@@ -164,10 +164,12 @@ class SmsParser {
     final ref = _extractReference(body);
     final cardDigits = card == null ? '' : digitsOnly(card);
 
+    // Only a message matched to a built-in or custom bank rule is considered
+    // a recognized bank transaction.
     final confident =
+        rule != null &&
         direction != SmsDirection.unknown &&
-        amount.value > 0 &&
-        (rule != null || amount.unit != '');
+        amount.value > 0;
 
     return ParsedSms(
       message: msg,

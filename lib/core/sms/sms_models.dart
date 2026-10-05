@@ -108,8 +108,11 @@ class ParsedSms {
 
   String get key => message.key;
 
-  /// Whether this is a financial transaction that can appear in the review queue.
-  bool get isTransaction => amount > 0 && direction != SmsDirection.unknown;
+  /// Whether this is a recognized bank/payment-provider transaction that can
+  /// appear in the review queue. Merely containing a payment keyword and amount
+  /// is not enough: a built-in or user-defined sender/body rule must match.
+  bool get isTransaction =>
+      bankName != null && amount > 0 && direction != SmsDirection.unknown;
 
   /// Suggested transaction type for the ledger.
   /// Deposit → customer receipt or income; withdrawal → expense.

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:poolland/core/sms/bank_rules.dart';
 import 'package:poolland/core/sms/sms_models.dart';
 import 'package:poolland/core/sms/sms_parser.dart';
 
@@ -29,6 +30,23 @@ void main() {
     test('Identify a bank from the body when the sender is unknown', () {
       final r = p('بانک سامان\nواریز مبلغ 50,000 ریال', address: '982000');
       expect(r.bankName, 'Saman Bank');
+      expect(r.isTransaction, isTrue);
+    });
+
+    test('A custom sender rule is accepted as a recognized bank', () {
+      final r = SmsParser.parse(
+        msg('واریز مبلغ 250,000 تومان', address: 'MYBANK'),
+        extraRules: const [
+          BankRule(
+            id: 'my_bank',
+            bankName: 'My Bank',
+            senderHints: ['MYBANK'],
+          ),
+        ],
+      );
+      expect(r.bankName, 'My Bank');
+      expect(r.isTransaction, isTrue);
+      expect(r.confident, isTrue);
     });
 
     test('Unknown sender', () {
@@ -118,6 +136,20 @@ void main() {
 
     test('A balance notification is not a transaction', () {
       expect(p('موجودی حساب شما 5,000,000 ریال است').isTransaction, isFalse);
+    });
+
+    test('A payment-like message from an unknown sender is not a bank SMS', () {
+      final r = p(
+        'پرداخت مبلغ 250,000 تومان بابت خرید اشتراک اینترنت',
+        address: '30001234',
+      );
+      // The parser may understand its amount and direction, but it must not
+      // enter the bank review queue without a matching bank rule.
+      expect(r.amount, 250000);
+      expect(r.direction, SmsDirection.withdraw);
+      expect(r.bankName, isNull);
+      expect(r.isTransaction, isFalse);
+      expect(r.confident, isFalse);
     });
   });
 

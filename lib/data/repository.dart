@@ -288,6 +288,9 @@ class AppRepository extends ChangeNotifier {
     String? categoryId,
     int deviceCount = 1,
   }) async {
+    final saleCategoryId = (categoryId == null || categoryId.isEmpty)
+        ? defaultIncomeCategoryId
+        : categoryId;
     final s = Subscription(
       id: LocalStore.newId(),
       customerId: customer.id,
@@ -313,9 +316,7 @@ class AppRepository extends ChangeNotifier {
           currency: currencyCode,
           rateToBase: settings.currency(currencyCode).rateToBase,
           date: J.dateOnly(start),
-          categoryId: (categoryId == null || categoryId.isEmpty)
-              ? defaultIncomeCategoryId
-              : categoryId,
+          categoryId: saleCategoryId,
           customerId: customer.id,
           subscriptionId: s.id,
           credit: true, // The full amount is charged to the customer’s balance.
@@ -335,6 +336,7 @@ class AppRepository extends ChangeNotifier {
           currency: cur,
           rateToBase: settings.currency(cur).rateToBase,
           date: J.dateOnly(start),
+          categoryId: saleCategoryId,
           customerId: customer.id,
           subscriptionId: s.id,
           note: 'Payment for $title',
@@ -620,6 +622,7 @@ class AppRepository extends ChangeNotifier {
       currency: currencyCode,
       rateToBase: settings.currency(currencyCode).rateToBase,
       date: date,
+      categoryId: isReceive ? defaultIncomeCategoryId : null,
       customerId: customer.id,
       note: note.isEmpty
           ? (isReceive
@@ -787,7 +790,7 @@ class AppRepository extends ChangeNotifier {
     SmsService.onSmsReceived = _onIncomingSms;
   }
 
-  Future<void> _onIncomingSms(SmsMessage msg) async {
+  void _onIncomingSms(SmsMessage msg) {
     final parsed = SmsParser.parse(msg, extraRules: smsRules);
     if (!parsed.isTransaction) return;
     final state = store.loadSmsState();
@@ -798,10 +801,6 @@ class AppRepository extends ChangeNotifier {
       ...smsSuggestions.where((e) => e.key != parsed.key),
     ]..sort((a, b) => b.message.date.compareTo(a.message.date));
     notifyListeners();
-
-    if (settings.smsAutoApprove && parsed.confident) {
-      await approveSms(parsed);
-    }
   }
 
   Future<bool> refreshSmsPermission() async {
@@ -873,26 +872,45 @@ class AppRepository extends ChangeNotifier {
     return null;
   }
 
-  /// Approve a suggestion and convert it into a ledger transaction.
+  /// Approve an SMS as a transaction in the selected personal/business scope.
   Future<Txn?> approveSms(
     ParsedSms sms, {
     Customer? customer,
     TxnKind? kind,
     String? categoryId,
     double? amount,
+    required TxnScope scope,
   }) async {
-    final cust = customer ?? matchCustomerForSms(sms);
-    final k =
-        kind ??
-        (sms.direction == SmsDirection.deposit
-            ? (cust != null ? TxnKind.receive : TxnKind.income)
-            : TxnKind.expense);
+    if (!sms.isTransaction) return null;
 
-    String? cat = categoryId;
-    if (cat == null || cat.isEmpty) {
-      cat = k == TxnKind.expense
-          ? defaultExpenseCategoryId
-          : defaultIncomeCategoryId;
+    final cust = scope == TxnScope.business
+        ? (customer ?? matchCustomerForSms(sms))
+        : null;
+    final suggestedKind = sms.direction == SmsDirection.deposit
+        ? (scope == TxnScope.business &&
+                  cust != null &&
+                  balanceOf(cust) > 0.5
+              ? TxnKind.receive
+              : TxnKind.income)
+        : TxnKind.expense;
+    var k = kind ?? suggestedKind;
+    if (scope == TxnScope.personal &&
+        k != TxnKind.income &&
+        k != TxnKind.expense) {
+      k = suggestedKind;
+    }
+
+    final categoryKind = switch (k) {
+      TxnKind.expense => TxnKind.expense,
+      TxnKind.income || TxnKind.receive => TxnKind.income,
+      _ => null,
+    };
+    var cat = categoryId;
+    if (categoryKind != null) {
+      final categoriesForScope = categoriesOf(categoryKind, scope: scope);
+      if (cat == null || !categoriesForScope.any((c) => c.id == cat)) {
+        cat = defaultCategoryId(categoryKind, scope: scope);
+      }
     }
 
     final cur = sms.currency;
@@ -903,9 +921,10 @@ class AppRepository extends ChangeNotifier {
       currency: cur,
       rateToBase: settings.currency(cur).rateToBase,
       date: sms.message.date,
-      categoryId: (k == TxnKind.income || k == TxnKind.expense) ? cat : null,
+      categoryId: categoryKind == null ? null : cat,
       customerId: cust?.id,
       credit: false,
+      scope: scope,
       note: _smsNote(sms),
       createdAt: DateTime.now(),
     );

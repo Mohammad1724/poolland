@@ -153,7 +153,7 @@ class DashboardPage extends StatelessWidget {
                   Expanded(
                     child: _miniStat(
                       context,
-                      'Income',
+                      'Income received',
                       monthSummary.income,
                       const Color(0xFF16A34A),
                       Icons.trending_up_rounded,

@@ -43,15 +43,37 @@ void main() {
       ];
       final s = Ledger.summarize(txns);
 
-      expect(s.income, 1500000);
+      expect(s.income, 700000);
+      expect(s.sales, 1500000);
       expect(s.expense, 300000);
-      expect(s.profit, 1200000);
+      expect(s.profit, 400000);
       expect(s.received, 200000);
       expect(s.incomeCash, 500000);
       expect(s.cashIn, 700000); // 500 cash income + 200 collected
       expect(s.cashOut, 300000);
       expect(s.netCash, 400000);
       expect(s.txnCount, 4);
+    });
+
+    test('Credit-sale income is recognized as payments arrive', () {
+      final c = customer();
+      final sale = txn(
+        kind: TxnKind.income,
+        amount: 500000,
+        credit: true,
+      );
+      final payment = txn(kind: TxnKind.receive, amount: 200000);
+      final partial = Ledger.summarize([sale, payment]);
+
+      expect(partial.sales, 500000);
+      expect(partial.income, 200000);
+      expect(partial.profit, 200000);
+      expect(Ledger.customerBalance(c, [sale, payment]), 300000);
+
+      final unpaid = Ledger.summarize([sale]);
+      expect(unpaid.income, 0);
+      expect(unpaid.profit, 0);
+      expect(unpaid.sales, 500000);
     });
 
     test('Refunds are subtracted from profit', () {
@@ -317,6 +339,34 @@ void main() {
       final byCat = Ledger.byCategory(withCat, cats);
       expect(byCat['Server'], 400000);
       expect(byCat['Uncategorized'], 100000);
+    });
+
+    test('Income categories include receipts but exclude unpaid credit sales', () {
+      const cats = [
+        Category(id: 'income', name: 'VPN sales', kind: TxnKind.income),
+      ];
+      final txns = [
+        txn(
+          kind: TxnKind.income,
+          amount: 500000,
+          credit: true,
+        ).copyWith(categoryId: 'income'),
+        txn(
+          kind: TxnKind.receive,
+          amount: 200000,
+        ).copyWith(categoryId: 'income'),
+        txn(
+          kind: TxnKind.income,
+          amount: 100000,
+        ).copyWith(categoryId: 'income'),
+      ];
+
+      final byCat = Ledger.byCategory(
+        txns,
+        cats,
+        kind: TxnKind.income,
+      );
+      expect(byCat['VPN sales'], 300000);
     });
   });
 }

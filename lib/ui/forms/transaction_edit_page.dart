@@ -157,6 +157,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
             amount: settled,
             currency: _settleCurrency,
             date: _date,
+            categoryId: _kind == TxnKind.income ? _category?.id : null,
             customerId: _customer!.id,
             subscriptionId: _subscription?.id,
             note: _kind == TxnKind.income ? 'Cash received' : 'Cash paid',

@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:poolland/core/localization.dart';
+import 'package:poolland/core/sms/sms_models.dart';
 import 'package:poolland/data/models.dart';
 import 'package:poolland/data/repository.dart';
 import 'package:poolland/data/store.dart';
@@ -290,6 +291,39 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('SMS review requires a scope before recording', (tester) async {
+    final sms = ParsedSms(
+      message: SmsMessage(
+        id: 'review-sms',
+        address: 'BANK',
+        body: 'واریز مبلغ 100,000 تومان',
+        date: DateTime.now(),
+      ),
+      bankName: 'Test Bank',
+      amount: 100000,
+      direction: SmsDirection.deposit,
+      confident: true,
+    );
+
+    await tester.pumpWidget(wrap(SmsReviewSheet(sms: sms)));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Choose where this transaction belongs before recording'),
+      findsOneWidget,
+    );
+    expect(find.text('Amount'), findsNothing);
+    final buttonFinder =
+        find.widgetWithText(FilledButton, 'Record transaction');
+    expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNull);
+
+    await tester.tap(find.text('VPN business'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Amount'), findsOneWidget);
+    expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
   });
 
   testWidgets('Onboarding page renders', (tester) async {

@@ -26,18 +26,23 @@ class MonthPoint {
 
 /// Summary for a date range (all amounts are converted to the base currency).
 class Summary {
-  final double income; // Sales and income (accrual basis).
+  /// Income recognized when cash is received: cash sales plus customer receipts.
+  final double income;
+
+  /// Total recorded sales/income, including unpaid credit sales.
+  final double sales;
   final double expense; // Expenses.
   final double refunds; // Refunds to customers.
   final double received; // Payments collected from customers.
   final double
   payablePayments; // Cash paid to settle previously recorded payables.
-  final double incomeCash; // Cash sales.
+  final double incomeCash; // Direct cash sales (excludes customer collections).
   final double expenseCash; // Cash expenses.
   final int txnCount;
 
   const Summary({
     this.income = 0,
+    this.sales = 0,
     this.expense = 0,
     this.refunds = 0,
     this.received = 0,
@@ -55,7 +60,8 @@ class Summary {
   static const empty = Summary();
 
   Map<String, double> get asMap => {
-    'Income': income,
+    'Income received': income,
+    'Sales recorded': sales,
     'Expenses': expense,
     'Refunds': refunds,
     'Received': received,
@@ -129,6 +135,7 @@ class Ledger {
     TxnScope? scope,
   }) {
     double income = 0,
+        sales = 0,
         expense = 0,
         refunds = 0,
         received = 0,
@@ -147,8 +154,12 @@ class Ledger {
       count++;
       switch (t.kind) {
         case TxnKind.income:
-          income += v;
-          if (!t.credit) incomeCash += v;
+          sales += v;
+          // Credit sales stay in receivables; they are not realized income yet.
+          if (!t.credit) {
+            income += v;
+            incomeCash += v;
+          }
           break;
         case TxnKind.expense:
           expense += v;
@@ -156,6 +167,8 @@ class Ledger {
           break;
         case TxnKind.receive:
           received += v;
+          // Recognize revenue only when customer money is actually received.
+          income += v;
           break;
         case TxnKind.refund:
           refunds += v;
@@ -167,6 +180,7 @@ class Ledger {
     }
     return Summary(
       income: income,
+      sales: sales,
       expense: expense,
       refunds: refunds,
       received: received,
@@ -309,14 +323,18 @@ class Ledger {
   }) {
     final names = {for (final c in categories) c.id: c.name};
     final out = <String, double>{};
-    for (final t in filter(
-      txns,
-      from: from,
-      to: to,
-      kind: kind,
-      scope: scope,
-    )) {
-      if (!t.kind.isProfitKind) continue;
+    for (final t in filter(txns, from: from, to: to, scope: scope)) {
+      final recognizedIncome =
+          (t.kind == TxnKind.income && !t.credit) ||
+          t.kind == TxnKind.receive;
+      final isExpense = t.kind == TxnKind.expense;
+      final include = switch (kind) {
+        TxnKind.income => recognizedIncome,
+        TxnKind.expense => isExpense,
+        null => recognizedIncome || isExpense,
+        _ => false,
+      };
+      if (!include) continue;
       final name = t.categoryId == null
           ? 'Uncategorized'
           : (names[t.categoryId] ?? 'Uncategorized');

@@ -72,8 +72,6 @@ class AppSettings {
   // ---- Bank SMS ----
   final bool smsEnabled; // Whether SMS reading is enabled.
   final int smsSyncDays; // Number of past days to scan.
-  final bool
-  smsAutoApprove; // Whether high-confidence matches are recorded automatically.
   final int smsLastSyncAt; // Last sync timestamp (for incremental updates).
 
   // ---- Daily expense reminder ----
@@ -94,7 +92,6 @@ class AppSettings {
     this.setupDone = false,
     this.smsEnabled = false,
     this.smsSyncDays = 90,
-    this.smsAutoApprove = false,
     this.smsLastSyncAt = 0,
     this.dailyReminder = false,
     this.reminderHour = 21,
@@ -163,7 +160,6 @@ class AppSettings {
     bool? setupDone,
     bool? smsEnabled,
     int? smsSyncDays,
-    bool? smsAutoApprove,
     int? smsLastSyncAt,
     bool? dailyReminder,
     int? reminderHour,
@@ -181,7 +177,6 @@ class AppSettings {
     setupDone: setupDone ?? this.setupDone,
     smsEnabled: smsEnabled ?? this.smsEnabled,
     smsSyncDays: smsSyncDays ?? this.smsSyncDays,
-    smsAutoApprove: smsAutoApprove ?? this.smsAutoApprove,
     smsLastSyncAt: smsLastSyncAt ?? this.smsLastSyncAt,
     dailyReminder: dailyReminder ?? this.dailyReminder,
     reminderHour: reminderHour ?? this.reminderHour,
@@ -201,7 +196,6 @@ class AppSettings {
     'setupDone': setupDone,
     'smsEnabled': smsEnabled,
     'smsSyncDays': smsSyncDays,
-    'smsAutoApprove': smsAutoApprove,
     'smsLastSyncAt': smsLastSyncAt,
     'dailyReminder': dailyReminder,
     'reminderHour': reminderHour,
@@ -225,7 +219,6 @@ class AppSettings {
     setupDone: map['setupDone'] as bool? ?? false,
     smsEnabled: map['smsEnabled'] as bool? ?? false,
     smsSyncDays: (map['smsSyncDays'] as num?)?.toInt() ?? 90,
-    smsAutoApprove: map['smsAutoApprove'] as bool? ?? false,
     smsLastSyncAt: (map['smsLastSyncAt'] as num?)?.toInt() ?? 0,
     dailyReminder: map['dailyReminder'] as bool? ?? false,
     reminderHour: (map['reminderHour'] as num?)?.toInt() ?? 21,

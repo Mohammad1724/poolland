@@ -483,26 +483,80 @@ class SmsReviewSheet extends StatefulWidget {
 class _SmsReviewSheetState extends State<SmsReviewSheet> {
   late TextEditingController _amount;
   Customer? _customer;
-  TxnKind _kind = TxnKind.receive;
+  TxnKind _kind = TxnKind.income;
+  TxnScope? _scope;
   String? _categoryId;
 
   @override
   void initState() {
     super.initState();
-    final repo = context.read<AppRepository>();
+    _scope = null;
     _customer = widget.initialCustomer;
-    _kind = widget.sms.direction == SmsDirection.deposit
-        ? (_customer != null ? TxnKind.receive : TxnKind.income)
-        : TxnKind.expense;
     _amount = TextEditingController(
       text: groupedNumber(
         widget.sms.amount,
         decimals: Money.decimals(widget.sms.currency),
       ),
     );
-    _categoryId = _kind == TxnKind.expense
-        ? repo.defaultExpenseCategoryId
-        : repo.defaultIncomeCategoryId;
+  }
+
+  TxnKind _suggestedKind(AppRepository repo, TxnScope scope) {
+    if (widget.sms.direction == SmsDirection.deposit) {
+      if (scope == TxnScope.business &&
+          _customer != null &&
+          repo.balanceOf(_customer!) > 0.5) {
+        return TxnKind.receive;
+      }
+      return TxnKind.income;
+    }
+    return TxnKind.expense;
+  }
+
+  TxnKind? _categoryKind(TxnKind kind) => switch (kind) {
+    TxnKind.income || TxnKind.receive => TxnKind.income,
+    TxnKind.expense => TxnKind.expense,
+    _ => null,
+  };
+
+  String? _suggestedCategoryId(AppRepository repo, TxnScope scope) {
+    final kind = _categoryKind(_kind);
+    return kind == null ? null : repo.defaultCategoryId(kind, scope: scope);
+  }
+
+  List<TxnKind> _availableKinds(AppRepository repo, TxnScope scope) {
+    if (scope == TxnScope.personal) {
+      return [
+        widget.sms.direction == SmsDirection.deposit
+            ? TxnKind.income
+            : TxnKind.expense,
+      ];
+    }
+    if (widget.sms.direction == SmsDirection.deposit) {
+      return [
+        TxnKind.income,
+        if (_customer != null && repo.balanceOf(_customer!) > 0.5)
+          TxnKind.receive,
+      ];
+    }
+    if (widget.sms.direction == SmsDirection.withdraw) {
+      return [
+        TxnKind.expense,
+        if (_customer != null) TxnKind.refund,
+        if (_customer != null && repo.balanceOf(_customer!) < -0.5)
+          TxnKind.payablePayment,
+      ];
+    }
+    return [TxnKind.income, TxnKind.expense];
+  }
+
+  void _changeScope(AppRepository repo, TxnScope scope) {
+    if (_scope == scope) return;
+    setState(() {
+      _scope = scope;
+      _customer = scope == TxnScope.business ? widget.initialCustomer : null;
+      _kind = _suggestedKind(repo, scope);
+      _categoryId = _suggestedCategoryId(repo, scope);
+    });
   }
 
   @override
@@ -515,7 +569,13 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
     final sms = widget.sms;
-    final isProfit = _kind == TxnKind.income || _kind == TxnKind.expense;
+    final scope = _scope;
+    final categoryKind = scope == null ? null : _categoryKind(_kind);
+    final categories = scope == null || categoryKind == null
+        ? <Category>[]
+        : repo.categoriesOf(categoryKind, scope: scope);
+    final availableKinds =
+        scope == null ? <TxnKind>[] : _availableKinds(repo, scope);
 
     return Container(
       decoration: BoxDecoration(
@@ -556,63 +616,110 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Transaction type
+            Text(
+              'Record this in'.tr,
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: [
-                for (final k in [
-                  TxnKind.receive,
-                  TxnKind.income,
-                  TxnKind.expense,
-                  TxnKind.refund,
-                  TxnKind.payablePayment,
-                ])
-                  ChoiceChip(
-                    selected: _kind == k,
-                    avatar: Icon(k.icon, size: 16),
-                    label: Text(k.shortLabel),
-                    onSelected: (_) => setState(() {
-                      _kind = k;
-                      _categoryId = k == TxnKind.expense
-                          ? repo.defaultExpenseCategoryId
-                          : repo.defaultIncomeCategoryId;
-                    }),
-                  ),
+                ChoiceChip(
+                  selected: scope == TxnScope.business,
+                  avatar: const Icon(Icons.vpn_key_rounded, size: 17),
+                  label: Text('VPN business'.tr),
+                  onSelected: (_) => _changeScope(repo, TxnScope.business),
+                ),
+                ChoiceChip(
+                  selected: scope == TxnScope.personal,
+                  avatar: const Icon(Icons.person_outline_rounded, size: 17),
+                  label: Text('Personal'.tr),
+                  onSelected: (_) => _changeScope(repo, TxnScope.personal),
+                ),
               ],
             ),
-            const SizedBox(height: 14),
-
-            AmountField(
-              controller: _amount,
-              label: 'Amount'.tr,
-              currency: sms.currency,
-            ),
-            const SizedBox(height: 14),
-
-            SelectField<Customer>(
-              label: 'Contact (optional)'.tr,
-              icon: Icons.person_outline_rounded,
-              value: _customer,
-              items: repo.activeCustomers,
-              clearable: true,
-              labelOf: (c) => c.name,
-              subOf: (c) => c.phone,
-              searchHint: 'Customer name...'.tr,
-              sheetTitle: 'Select contact'.tr,
-              onChanged: (c) => setState(() => _customer = c),
-            ),
-
-            if (isProfit) ...[
-              const SizedBox(height: 14),
-              SelectField<Category>(
-                label: 'Category'.tr,
-                icon: Icons.category_outlined,
-                value: repo.categoryById(_categoryId),
-                items: repo.categoriesOf(_kind),
-                labelOf: (c) => c.name,
-                onChanged: (c) => setState(() => _categoryId = c?.id),
+            if (scope == null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Choose where this transaction belongs before recording'.tr,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: Theme.of(context).colorScheme.onSurface
+                      .withValues(alpha: 0.65),
+                ),
               ),
+            ] else ...[
+              const SizedBox(height: 14),
+
+              // Default transaction type follows the SMS direction; only
+              // relevant business settlement choices remain available.
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final k in availableKinds)
+                    ChoiceChip(
+                      selected: _kind == k,
+                      avatar: Icon(k.icon, size: 16),
+                      label: Text(k.shortLabel),
+                      onSelected: (_) => setState(() {
+                        _kind = k;
+                        _categoryId = _suggestedCategoryId(repo, scope);
+                      }),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              AmountField(
+                controller: _amount,
+                label: 'Amount'.tr,
+                currency: sms.currency,
+              ),
+              const SizedBox(height: 14),
+
+              if (scope == TxnScope.business)
+                SelectField<Customer>(
+                  label: 'Contact (optional)'.tr,
+                  icon: Icons.person_outline_rounded,
+                  value: _customer,
+                  items: repo.activeCustomers,
+                  clearable: true,
+                  labelOf: (c) => c.name,
+                  subOf: (c) => c.phone,
+                  searchHint: 'Customer name...'.tr,
+                  sheetTitle: 'Select contact'.tr,
+                  onChanged: (c) => setState(() {
+                    _customer = c;
+                    if (widget.sms.direction == SmsDirection.deposit) {
+                      _kind = _suggestedKind(repo, TxnScope.business);
+                      _categoryId = _suggestedCategoryId(
+                        repo,
+                        TxnScope.business,
+                      );
+                    }
+                  }),
+                ),
+
+              if (categoryKind != null) ...[
+                const SizedBox(height: 14),
+                SelectField<Category>(
+                  label: (categoryKind == TxnKind.expense
+                          ? 'Expense category'
+                          : 'Income category')
+                      .tr,
+                  icon: Icons.category_outlined,
+                  value: categories
+                      .where((c) => c.id == _categoryId)
+                      .firstOrNull,
+                  items: categories,
+                  labelOf: (c) => c.name,
+                  onChanged: (c) => setState(() => _categoryId = c?.id),
+                ),
+              ],
             ],
 
             const SizedBox(height: 18),
@@ -628,21 +735,30 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                 Expanded(
                   flex: 2,
                   child: FilledButton.icon(
-                    onPressed: () async {
-                      final value = parseAmount(_amount.text);
-                      if (value <= 0) {
-                        showSnack(context, 'Enter an amount', error: true);
-                        return;
-                      }
-                      await repo.approveSms(
-                        sms,
-                        customer: _customer,
-                        kind: _kind,
-                        categoryId: _categoryId,
-                        amount: value,
-                      );
-                      if (context.mounted) Navigator.pop(context, true);
-                    },
+                    onPressed: scope == null
+                        ? null
+                        : () async {
+                            final value = parseAmount(_amount.text);
+                            if (value <= 0) {
+                              showSnack(
+                                context,
+                                'Enter an amount',
+                                error: true,
+                              );
+                              return;
+                            }
+                            await repo.approveSms(
+                              sms,
+                              customer: _customer,
+                              kind: _kind,
+                              categoryId: _categoryId,
+                              amount: value,
+                              scope: scope,
+                            );
+                            if (context.mounted) {
+                              Navigator.pop(context, true);
+                            }
+                          },
                     icon: const Icon(Icons.check_rounded, size: 18),
                     label: Text('Record transaction'.tr),
                   ),

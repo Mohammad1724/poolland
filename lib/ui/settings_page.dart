@@ -367,20 +367,18 @@ class SettingsPage extends StatelessWidget {
                     ),
                   ),
                   Divider(color: Theme.of(context).dividerColor),
-                  SwitchListTile(
+                  ListTile(
                     contentPadding: EdgeInsets.zero,
-                    value: s.smsAutoApprove,
+                    leading: const Icon(Icons.info_outline_rounded, size: 20),
                     title: Text(
-                      'Automatically approve high-confidence matches'.tr,
+                      'Manual SMS review is required'.tr,
                       style: TextStyle(fontSize: 13.5),
                     ),
                     subtitle: Text(
-                      'Transactions will be recorded without your approval (off by default)'
+                      'Choose VPN business or personal before recording each SMS transaction.'
                           .tr,
                       style: TextStyle(fontSize: 11.5),
                     ),
-                    onChanged: (v) =>
-                        repo.updateSettings(s.copyWith(smsAutoApprove: v)),
                   ),
                 ],
               ),
