@@ -10,6 +10,8 @@ import 'customer_detail_page.dart';
 import 'forms/sell_subscription_page.dart';
 import 'widgets/widgets.dart';
 
+import '../core/localization.dart';
+
 class SubscriptionsPage extends StatefulWidget {
   const SubscriptionsPage({super.key});
 
@@ -32,8 +34,11 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     var list = [...repo.subscriptions];
     if (_q.isNotEmpty) {
       list = list
-          .where((s) =>
-              repo.customerName(s.customerId).contains(_q) || s.planName.contains(_q))
+          .where(
+            (s) =>
+                repo.customerName(s.customerId).contains(_q) ||
+                s.planName.contains(_q),
+          )
           .toList();
     }
     list = list.where((s) {
@@ -44,19 +49,21 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
         _SubFilter.soon => st == SubStatus.expiringSoon,
         _SubFilter.expired => st == SubStatus.expired,
       };
-    }).toList()
-      ..sort((a, b) => a.endDate.compareTo(b.endDate));
+    }).toList()..sort((a, b) => a.endDate.compareTo(b.endDate));
 
     int count(_SubFilter f) {
       if (f == _SubFilter.all) return repo.subscriptions.length;
       return repo.subscriptions
-          .where((s) => Ledger.subStatus(s, reminderDays: reminder) ==
-              switch (f) {
-                _SubFilter.active => SubStatus.active,
-                _SubFilter.soon => SubStatus.expiringSoon,
-                _SubFilter.expired => SubStatus.expired,
-                _ => SubStatus.active,
-              })
+          .where(
+            (s) =>
+                Ledger.subStatus(s, reminderDays: reminder) ==
+                switch (f) {
+                  _SubFilter.active => SubStatus.active,
+                  _SubFilter.soon => SubStatus.expiringSoon,
+                  _SubFilter.expired => SubStatus.expired,
+                  _ => SubStatus.active,
+                },
+          )
           .length;
     }
 
@@ -80,11 +87,23 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                   children: [
                     _chip('All', _SubFilter.all, count(_SubFilter.all)),
                     const SizedBox(width: 8),
-                    _chip('Active', _SubFilter.active, count(_SubFilter.active)),
+                    _chip(
+                      'Active',
+                      _SubFilter.active,
+                      count(_SubFilter.active),
+                    ),
                     const SizedBox(width: 8),
-                    _chip('Expiring soon', _SubFilter.soon, count(_SubFilter.soon)),
+                    _chip(
+                      'Expiring soon',
+                      _SubFilter.soon,
+                      count(_SubFilter.soon),
+                    ),
                     const SizedBox(width: 8),
-                    _chip('Expired', _SubFilter.expired, count(_SubFilter.expired)),
+                    _chip(
+                      'Expired',
+                      _SubFilter.expired,
+                      count(_SubFilter.expired),
+                    ),
                   ],
                 ),
               ),
@@ -95,11 +114,15 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
           child: list.isEmpty
               ? EmptyState(
                   icon: Icons.vpn_key_outlined,
-                  title: 'No subscriptions found',
+                  title: 'No subscriptions found'.tr,
                   text: 'Record a sale to automatically create a customer subscription and expiry date.',
                   actionLabel: 'Sell a subscription',
-                  onAction: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const SellSubscriptionPage())),
+                  onAction: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const SellSubscriptionPage(),
+                    ),
+                  ),
                 )
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 6, 16, 100),
@@ -114,8 +137,12 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                     return CardBox(
                       onTap: c == null
                           ? null
-                          : () => Navigator.push(context,
-                              MaterialPageRoute(builder: (_) => CustomerDetailPage(customer: c))),
+                          : () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => CustomerDetailPage(customer: c),
+                              ),
+                            ),
                       child: Column(
                         children: [
                           Row(
@@ -124,28 +151,41 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(c?.name ?? 'No customer',
-                                        style: const TextStyle(
-                                            fontSize: 14, fontWeight: FontWeight.w700)),
+                                    Text(
+                                      c?.name ?? 'No customer'.tr,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                                     const SizedBox(height: 3),
-                                    Text(s.planName,
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            color: onSurface.withValues(alpha: 0.65))),
+                                    Text(
+                                      s.planName,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: onSurface.withValues(
+                                          alpha: 0.65,
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
-                                  MoneyText(s.amount,
-                                      currency: s.currency,
-                                      style: const TextStyle(
-                                          fontSize: 13.5, fontWeight: FontWeight.w700)),
+                                  MoneyText(
+                                    s.amount,
+                                    currency: s.currency,
+                                    style: const TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
                                   const SizedBox(height: 4),
                                   TagChip(
                                     status == SubStatus.expired
-                                        ? 'Expired ${Fmt.expiryLabel(days)}'
+                                        ? '${'Expired'.tr} ${Fmt.expiryLabel(days)}'
                                         : Fmt.expiryLabel(days),
                                     color: status.color,
                                     dense: true,
@@ -160,30 +200,49 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                             child: LinearProgressIndicator(
                               value: progress,
                               minHeight: 5,
-                              backgroundColor:
-                                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                              backgroundColor: Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withValues(alpha: 0.1),
                               valueColor: AlwaysStoppedAnimation(status.color),
                             ),
                           ),
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              Icon(Icons.date_range_rounded,
-                                  size: 14, color: onSurface.withValues(alpha: 0.5)),
+                              Icon(
+                                Icons.date_range_rounded,
+                                size: 14,
+                                color: onSurface.withValues(alpha: 0.5),
+                              ),
                               const SizedBox(width: 5),
-                              Text('${J.d(s.startDate)} to ${J.d(s.endDate)}',
-                                  style: TextStyle(
-                                      fontSize: 11.5,
-                                      color: onSurface.withValues(alpha: 0.6))),
+                              Text(
+                                '{from} to {to}'.trArgs({
+                                  'from': J.d(s.startDate),
+                                  'to': J.d(s.endDate),
+                                }),
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: onSurface.withValues(alpha: 0.6),
+                                ),
+                              ),
                               const Spacer(),
                               TextButton.icon(
                                 onPressed: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) =>
-                                            SellSubscriptionPage(renewFrom: s))),
-                                icon: const Icon(Icons.autorenew_rounded, size: 16),
-                                label: const Text('Renew', style: TextStyle(fontSize: 12)),
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        SellSubscriptionPage(renewFrom: s),
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Icons.autorenew_rounded,
+                                  size: 16,
+                                ),
+                                label: Text(
+                                  'Renew'.tr,
+                                  style: TextStyle(fontSize: 12),
+                                ),
                               ),
                             ],
                           ),
@@ -205,9 +264,9 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
   }
 
   Widget _chip(String label, _SubFilter value, int n) => ChoiceChip(
-        selected: _filter == value,
-        showCheckmark: false,
-        onSelected: (_) => setState(() => _filter = value),
-        label: Text('$label ($n)'),
-      );
+    selected: _filter == value,
+    showCheckmark: false,
+    onSelected: (_) => setState(() => _filter = value),
+    label: Text('${label.tr} ($n)'),
+  );
 }

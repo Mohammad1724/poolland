@@ -64,21 +64,32 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         indicatorColor: scheme.primary.withValues(alpha: 0.15),
         labelTextStyle: WidgetStateProperty.all(
-          const TextStyle(fontFamily: 'Vazirmatn', fontSize: 11, fontWeight: FontWeight.w600),
+          const TextStyle(
+            fontFamily: 'Vazirmatn',
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         height: 66,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: isDark ? const Color(0xFF1B2540) : const Color(0xFFF5F7FB),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: isDark ? const Color(0xFF2A3A5A) : const Color(0xFFE1E6F0)),
+          borderSide: BorderSide(
+            color: isDark ? const Color(0xFF2A3A5A) : const Color(0xFFE1E6F0),
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: isDark ? const Color(0xFF2A3A5A) : const Color(0xFFE1E6F0)),
+          borderSide: BorderSide(
+            color: isDark ? const Color(0xFF2A3A5A) : const Color(0xFFE1E6F0),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -86,9 +97,10 @@ class AppTheme {
         ),
         labelStyle: const TextStyle(fontFamily: 'Vazirmatn', fontSize: 13),
         hintStyle: TextStyle(
-            fontFamily: 'Vazirmatn',
-            fontSize: 13,
-            color: scheme.onSurface.withValues(alpha: 0.45)),
+          fontFamily: 'Vazirmatn',
+          fontSize: 13,
+          color: scheme.onSurface.withValues(alpha: 0.45),
+        ),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: card,
@@ -107,7 +119,9 @@ class AppTheme {
         checkmarkColor: scheme.onPrimaryContainer,
         iconTheme: IconThemeData(color: scheme.onSurfaceVariant),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        side: BorderSide(color: isDark ? const Color(0xFF2A3A5A) : const Color(0xFFE1E6F0)),
+        side: BorderSide(
+          color: isDark ? const Color(0xFF2A3A5A) : const Color(0xFFE1E6F0),
+        ),
       ),
       dividerTheme: DividerThemeData(
         color: isDark ? const Color(0xFF243149) : const Color(0xFFE9EDF5),
@@ -116,31 +130,51 @@ class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: isDark ? const Color(0xFF23304A) : const Color(0xFF1F2937),
-        contentTextStyle: const TextStyle(fontFamily: 'Vazirmatn', fontSize: 13),
+        backgroundColor: isDark
+            ? const Color(0xFF23304A)
+            : const Color(0xFF1F2937),
+        contentTextStyle: const TextStyle(
+          fontFamily: 'Vazirmatn',
+          fontSize: 13,
+        ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size.fromHeight(50),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           textStyle: const TextStyle(
-              fontFamily: 'Vazirmatn', fontSize: 14, fontWeight: FontWeight.w700),
+            fontFamily: 'Vazirmatn',
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           minimumSize: const Size.fromHeight(48),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          side: BorderSide(color: isDark ? const Color(0xFF2A3A5A) : const Color(0xFFDCE2EE)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          side: BorderSide(
+            color: isDark ? const Color(0xFF2A3A5A) : const Color(0xFFDCE2EE),
+          ),
           textStyle: const TextStyle(
-              fontFamily: 'Vazirmatn', fontSize: 13, fontWeight: FontWeight.w600),
+            fontFamily: 'Vazirmatn',
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           textStyle: const TextStyle(
-              fontFamily: 'Vazirmatn', fontSize: 13, fontWeight: FontWeight.w700),
+            fontFamily: 'Vazirmatn',
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       listTileTheme: ListTileThemeData(
@@ -159,12 +193,16 @@ class AppTheme {
       dialogTheme: DialogThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         titleTextStyle: TextStyle(
-            fontFamily: 'Vazirmatn',
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: scheme.onSurface),
+          fontFamily: 'Vazirmatn',
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          color: scheme.onSurface,
+        ),
         contentTextStyle: TextStyle(
-            fontFamily: 'Vazirmatn', fontSize: 13, color: scheme.onSurface),
+          fontFamily: 'Vazirmatn',
+          fontSize: 13,
+          color: scheme.onSurface,
+        ),
       ),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: Colors.transparent,
@@ -176,12 +214,17 @@ class AppTheme {
       ),
       segmentedButtonTheme: SegmentedButtonThemeData(
         style: ButtonStyle(
-          foregroundColor: WidgetStateProperty.resolveWith((states) =>
-              states.contains(WidgetState.selected)
-                  ? scheme.onPrimaryContainer
-                  : scheme.onSurface),
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? scheme.onPrimaryContainer
+                : scheme.onSurface,
+          ),
           textStyle: WidgetStateProperty.all(
-            const TextStyle(fontFamily: 'Vazirmatn', fontSize: 12, fontWeight: FontWeight.w600),
+            const TextStyle(
+              fontFamily: 'Vazirmatn',
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),

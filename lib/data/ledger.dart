@@ -30,6 +30,8 @@ class Summary {
   final double expense; // Expenses.
   final double refunds; // Refunds to customers.
   final double received; // Payments collected from customers.
+  final double
+  payablePayments; // Cash paid to settle previously recorded payables.
   final double incomeCash; // Cash sales.
   final double expenseCash; // Cash expenses.
   final int txnCount;
@@ -39,6 +41,7 @@ class Summary {
     this.expense = 0,
     this.refunds = 0,
     this.received = 0,
+    this.payablePayments = 0,
     this.incomeCash = 0,
     this.expenseCash = 0,
     this.txnCount = 0,
@@ -46,19 +49,20 @@ class Summary {
 
   double get profit => income - expense - refunds;
   double get cashIn => incomeCash + received;
-  double get cashOut => expenseCash + refunds;
+  double get cashOut => expenseCash + refunds + payablePayments;
   double get netCash => cashIn - cashOut;
 
   static const empty = Summary();
 
   Map<String, double> get asMap => {
-        'Income': income,
-        'Expenses': expense,
-        'Refunds': refunds,
-        'Received': received,
-        'Profit': profit,
-        'Net cash': netCash,
-      };
+    'Income': income,
+    'Expenses': expense,
+    'Refunds': refunds,
+    'Received': received,
+    'Payable payments': payablePayments,
+    'Profit': profit,
+    'Net cash': netCash,
+  };
 }
 
 /// Totals across all accounts (current balance).
@@ -117,12 +121,18 @@ class Ledger {
     });
   }
 
-  static Summary summarize(Iterable<Txn> txns,
-      {DateTime? from, DateTime? to, String? customerId, TxnScope? scope}) {
+  static Summary summarize(
+    Iterable<Txn> txns, {
+    DateTime? from,
+    DateTime? to,
+    String? customerId,
+    TxnScope? scope,
+  }) {
     double income = 0,
         expense = 0,
         refunds = 0,
         received = 0,
+        payablePayments = 0,
         incomeCash = 0,
         expenseCash = 0;
     var count = 0;
@@ -150,6 +160,9 @@ class Ledger {
         case TxnKind.refund:
           refunds += v;
           break;
+        case TxnKind.payablePayment:
+          payablePayments += v;
+          break;
       }
     }
     return Summary(
@@ -157,6 +170,7 @@ class Ledger {
       expense: expense,
       refunds: refunds,
       received: received,
+      payablePayments: payablePayments,
       incomeCash: incomeCash,
       expenseCash: expenseCash,
       txnCount: count,
@@ -175,6 +189,8 @@ class Ledger {
         return -v;
       case TxnKind.refund:
         return -v;
+      case TxnKind.payablePayment:
+        return v;
     }
   }
 
@@ -193,8 +209,12 @@ class Ledger {
 
   /// Balance for each contact: customerId → amount (base currency).
   static Map<String, double> balancesByCustomer(
-      List<Customer> customers, List<Txn> txns) {
-    final map = <String, double>{for (final c in customers) c.id: c.openingBalance};
+    List<Customer> customers,
+    List<Txn> txns,
+  ) {
+    final map = <String, double>{
+      for (final c in customers) c.id: c.openingBalance,
+    };
     for (final t in txns) {
       final id = t.customerId;
       if (id == null || !map.containsKey(id)) continue;
@@ -219,7 +239,12 @@ class Ledger {
         cc++;
       }
     }
-    return Balances(receivable: rec, payable: pay, debtorsCount: dc, creditorsCount: cc);
+    return Balances(
+      receivable: rec,
+      payable: pay,
+      debtorsCount: dc,
+      creditorsCount: cc,
+    );
   }
 
   /// Net balance for each contact by currency (without conversion).
@@ -242,6 +267,7 @@ class Ledger {
         TxnKind.expense => t.credit ? -t.amount : 0.0,
         TxnKind.receive => -t.amount,
         TxnKind.refund => -t.amount,
+        TxnKind.payablePayment => t.amount,
       };
       if (delta != 0) map[t.currency] = (map[t.currency] ?? 0) + delta;
     }
@@ -264,7 +290,9 @@ class Ledger {
       final mStart = J.addMonths(start, i);
       final mEnd = J.endOfMonth(mStart);
       final s = summarize(txns, from: mStart, to: mEnd, scope: scope);
-      points.add(MonthPoint(monthStart: mStart, income: s.income, expense: s.expense));
+      points.add(
+        MonthPoint(monthStart: mStart, income: s.income, expense: s.expense),
+      );
     }
     return points;
   }
@@ -281,9 +309,17 @@ class Ledger {
   }) {
     final names = {for (final c in categories) c.id: c.name};
     final out = <String, double>{};
-    for (final t in filter(txns, from: from, to: to, kind: kind, scope: scope)) {
+    for (final t in filter(
+      txns,
+      from: from,
+      to: to,
+      kind: kind,
+      scope: scope,
+    )) {
       if (!t.kind.isProfitKind) continue;
-      final name = t.categoryId == null ? 'Uncategorized' : (names[t.categoryId] ?? 'Uncategorized');
+      final name = t.categoryId == null
+          ? 'Uncategorized'
+          : (names[t.categoryId] ?? 'Uncategorized');
       out[name] = (out[name] ?? 0) + base(t);
     }
     return out;
@@ -298,7 +334,13 @@ class Ledger {
     TxnScope? scope,
   }) {
     final out = <String, double>{};
-    for (final t in filter(txns, from: from, to: to, kind: kind, scope: scope)) {
+    for (final t in filter(
+      txns,
+      from: from,
+      to: to,
+      kind: kind,
+      scope: scope,
+    )) {
       out[t.currency] = (out[t.currency] ?? 0) + t.amount;
     }
     return out;
@@ -326,15 +368,18 @@ class Ledger {
       if (id == null || !byId.containsKey(id)) continue;
       sums[id] = (sums[id] ?? 0) + base(t);
     }
-    final list = sums.entries
-        .map((e) => MapEntry(byId[e.key]!, e.value))
-        .toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final list =
+        sums.entries.map((e) => MapEntry(byId[e.key]!, e.value)).toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
     return list.take(limit).toList();
   }
 
   /// Subscription status.
-  static SubStatus subStatus(Subscription s, {DateTime? now, int reminderDays = 3}) {
+  static SubStatus subStatus(
+    Subscription s, {
+    DateTime? now,
+    int reminderDays = 3,
+  }) {
     final n = J.startOfDay(now ?? DateTime.now());
     final end = J.startOfDay(s.endDate);
     if (end.isBefore(n)) return SubStatus.expired;
@@ -360,8 +405,7 @@ class Ledger {
       final left = J.daysBetween(n, J.startOfDay(s.endDate));
       if (left >= 0) return left <= reminderDays;
       return -left <= expiredWithinDays;
-    }).toList()
-      ..sort((a, b) => a.endDate.compareTo(b.endDate));
+    }).toList()..sort((a, b) => a.endDate.compareTo(b.endDate));
     return out;
   }
 
@@ -401,12 +445,22 @@ class Ledger {
       final day = J.addDays(start, i);
       final dayEnd = DateTime(day.year, day.month, day.day, 23, 59, 59, 999);
       double expense = 0, income = 0;
-      for (final t in filter(txns,
-          from: day, to: dayEnd, kind: TxnKind.expense, scope: scope)) {
+      for (final t in filter(
+        txns,
+        from: day,
+        to: dayEnd,
+        kind: TxnKind.expense,
+        scope: scope,
+      )) {
         expense += base(t);
       }
-      for (final t in filter(txns,
-          from: day, to: dayEnd, kind: TxnKind.income, scope: scope)) {
+      for (final t in filter(
+        txns,
+        from: day,
+        to: dayEnd,
+        kind: TxnKind.income,
+        scope: scope,
+      )) {
         income += base(t);
       }
       points.add(DayPoint(day: day, income: income, expense: expense));
@@ -426,9 +480,20 @@ class Ledger {
     for (var i = weeks - 1; i >= 0; i--) {
       final weekEnd = J.addDays(end, -7 * i);
       final weekStart = J.addDays(weekEnd, -6);
-      final s = summarize(txns, from: weekStart, to: J.endOfDay(weekEnd), scope: scope);
-      points.add(DayPoint(
-          day: weekStart, income: s.income, expense: s.expense, label: 'Week'));
+      final s = summarize(
+        txns,
+        from: weekStart,
+        to: J.endOfDay(weekEnd),
+        scope: scope,
+      );
+      points.add(
+        DayPoint(
+          day: weekStart,
+          income: s.income,
+          expense: s.expense,
+          label: 'Week',
+        ),
+      );
     }
     return points;
   }
@@ -447,5 +512,4 @@ class DayPoint {
     required this.expense,
     this.label = 'Day',
   });
-
 }

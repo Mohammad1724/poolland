@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/format_utils.dart';
+import '../../core/localization.dart';
 import '../../core/jalali_utils.dart';
 import '../../core/money.dart';
 import '../../data/ledger.dart';
@@ -30,18 +31,26 @@ class MonthlyBarChart extends StatelessWidget {
           touchTooltipData: BarTouchTooltipData(
             getTooltipColor: (group) =>
                 Theme.of(context).brightness == Brightness.dark
-                    ? const Color(0xFF23304A)
-                    : const Color(0xFF1F2937),
-            getTooltipItem: (group, groupIndex, rod, rodIndex) => BarTooltipItem(
-              Money.text(rod.toY, compact: true, withSymbol: false),
-              const TextStyle(
-                  fontFamily: 'Vazirmatn', color: Colors.white, fontSize: 11),
-            ),
+                ? const Color(0xFF23304A)
+                : const Color(0xFF1F2937),
+            getTooltipItem: (group, groupIndex, rod, rodIndex) =>
+                BarTooltipItem(
+                  Money.text(rod.toY, compact: true, withSymbol: false),
+                  const TextStyle(
+                    fontFamily: 'Vazirmatn',
+                    color: Colors.white,
+                    fontSize: 11,
+                  ),
+                ),
           ),
         ),
         titlesData: FlTitlesData(
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -50,7 +59,10 @@ class MonthlyBarChart extends StatelessWidget {
                 if (value == 0) return const SizedBox.shrink();
                 return Text(
                   _short(value),
-                  style: TextStyle(fontSize: 9.5, color: onSurface.withValues(alpha: 0.55)),
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    color: onSurface.withValues(alpha: 0.55),
+                  ),
                   textAlign: TextAlign.left,
                 );
               },
@@ -68,7 +80,10 @@ class MonthlyBarChart extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
                     Fmt.monthName(j.month),
-                    style: TextStyle(fontSize: 10, color: onSurface.withValues(alpha: 0.7)),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: onSurface.withValues(alpha: 0.7),
+                    ),
                   ),
                 );
               },
@@ -78,10 +93,8 @@ class MonthlyBarChart extends StatelessWidget {
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
-          getDrawingHorizontalLine: (value) => FlLine(
-            color: onSurface.withValues(alpha: 0.08),
-            strokeWidth: 1,
-          ),
+          getDrawingHorizontalLine: (value) =>
+              FlLine(color: onSurface.withValues(alpha: 0.08), strokeWidth: 1),
         ),
         borderData: FlBorderData(show: false),
         barGroups: [
@@ -94,13 +107,17 @@ class MonthlyBarChart extends StatelessWidget {
                   toY: points[i].income,
                   color: const Color(0xFF16A34A),
                   width: 11,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(4),
+                  ),
                 ),
                 BarChartRodData(
                   toY: points[i].expense,
                   color: const Color(0xFFE11D48),
                   width: 11,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(4),
+                  ),
                 ),
               ],
             ),
@@ -159,12 +176,16 @@ class CategoryPieChart extends StatelessWidget {
                     color: _palette[i % _palette.length],
                     radius: size * 0.2,
                     showTitle: entries[i].value / total > 0.08,
-                    title: Fmt.percent(entries[i].value / total, persian: false),
+                    title: Fmt.percent(
+                      entries[i].value / total,
+                      persian: false,
+                    ),
                     titleStyle: const TextStyle(
-                        fontFamily: 'Vazirmatn',
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white),
+                      fontFamily: 'Vazirmatn',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
                   ),
               ],
             ),
@@ -190,16 +211,25 @@ class CategoryPieChart extends StatelessWidget {
                       ),
                       const SizedBox(width: 7),
                       Expanded(
-                        child: Text(entries[i].key,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11.5)),
+                        child: Text(
+                          entries[i].key.tr,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11.5),
+                        ),
                       ),
-                      Text(Money.text(entries[i].value, compact: true, withSymbol: false),
-                          style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: onSurface.withValues(alpha: 0.75))),
+                      Text(
+                        Money.text(
+                          entries[i].value,
+                          compact: true,
+                          withSymbol: false,
+                        ),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: onSurface.withValues(alpha: 0.75),
+                        ),
+                      ),
                     ],
                   ),
                 ),

@@ -413,9 +413,15 @@ class SmsParser {
   static String _buildNote(BankRule? rule, _Amount amount, SmsDirection dir) {
     final parts = <String>[];
     if (rule != null) parts.add(rule.bankName);
-    if (amount.unit == 'rial') parts.add('Amount converted from Rials to Tomans');
-    if (amount.unit == 'rial?') parts.add('Amount assumed to be in Rials (bank rule)');
-    if (dir == SmsDirection.unknown) parts.add('Transaction direction could not be determined');
+    if (amount.unit == 'rial') {
+      parts.add('Amount converted from Rials to Tomans');
+    }
+    if (amount.unit == 'rial?') {
+      parts.add('Amount assumed to be in Rials (bank rule)');
+    }
+    if (dir == SmsDirection.unknown) {
+      parts.add('Transaction direction could not be determined');
+    }
     return parts.join(' · ');
   }
 }

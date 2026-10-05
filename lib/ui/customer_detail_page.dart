@@ -17,6 +17,8 @@ import 'forms/sell_subscription_page.dart';
 import 'forms/transaction_edit_page.dart';
 import 'widgets/widgets.dart';
 
+import '../core/localization.dart';
+
 class CustomerDetailPage extends StatelessWidget {
   const CustomerDetailPage({super.key, required this.customer});
 
@@ -31,11 +33,14 @@ class CustomerDetailPage extends StatelessWidget {
     final txns = repo.txnsOfCustomer(c.id);
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final monthStart = J.startOfMonth(J.addMonths(DateTime.now(), -11));
-    final customerSummary = Ledger.summarize(repo.transactions,
-        from: monthStart, customerId: c.id);
+    final customerSummary = Ledger.summarize(
+      repo.transactions,
+      from: monthStart,
+      customerId: c.id,
+    );
     final currencyTotals = Ledger.customerCurrencyTotals(
       c,
-      repo.transactions,
+      repo.businessTxns,
       baseCurrency: repo.settings.baseCurrency,
     );
 
@@ -44,10 +49,12 @@ class CustomerDetailPage extends StatelessWidget {
         title: Text(c.name),
         actions: [
           IconButton(
-            tooltip: 'Edit',
+            tooltip: 'Edit'.tr,
             icon: const Icon(Icons.edit_outlined),
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => ContactEditPage(existing: c))),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => ContactEditPage(existing: c)),
+            ),
           ),
           PopupMenuButton<String>(
             onSelected: (v) async {
@@ -64,24 +71,35 @@ class CustomerDetailPage extends StatelessWidget {
                     bytes: bytes,
                     mimeType: 'application/pdf',
                   );
-                  if (ok && context.mounted) showSnack(context, 'Statement created');
+                  if (ok && context.mounted) {
+                    showSnack(context, 'Statement created');
+                  }
                   break;
                 case 'delete':
-                  final ok = await confirmDialog(context,
-                      title: 'Delete customer',
-                      message:
-                          'Delete customer "${c.name}" with ${txns.length} transactions and ${subs.length} subscriptions? This cannot be undone.',
-                      okLabel: 'Delete',
-                      danger: true);
+                  final ok = await confirmDialog(
+                    context,
+                    title: 'Delete customer'.tr,
+                    message: 'Delete customer "{name}" with {transactions} transactions and {subscriptions} subscriptions? This cannot be undone.'
+                        .trArgs({
+                          'name': c.name,
+                          'transactions': txns.length,
+                          'subscriptions': subs.length,
+                        }),
+                    okLabel: 'Delete'.tr,
+                    danger: true,
+                  );
                   if (!ok) return;
                   await repo.deleteCustomer(c.id);
                   if (context.mounted) Navigator.pop(context);
                   break;
               }
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'statement', child: Text('PDF statement')),
-              PopupMenuItem(value: 'delete', child: Text('Delete customer')),
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'statement',
+                child: Text('PDF statement'.tr),
+              ),
+              PopupMenuItem(value: 'delete', child: Text('Delete customer'.tr)),
             ],
           ),
         ],
@@ -105,40 +123,48 @@ class CustomerDetailPage extends StatelessWidget {
                             balance.abs() < 1
                                 ? 'Settled'
                                 : balance > 0
-                                    ? 'Owes you'
-                                    : 'You owe them',
+                                ? 'Owes you'
+                                : 'You owe them',
                             style: TextStyle(
-                                fontSize: 12, color: onSurface.withValues(alpha: 0.65)),
+                              fontSize: 12,
+                              color: onSurface.withValues(alpha: 0.65),
+                            ),
                           ),
                           const SizedBox(height: 6),
-                          MoneyText(balance.abs(),
-                              style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w700,
-                                  color: balance.abs() < 1
-                                      ? onSurface.withValues(alpha: 0.5)
-                                      : balance > 0
-                                          ? const Color(0xFF0F766E)
-                                          : const Color(0xFF2563EB))),
+                          MoneyText(
+                            balance.abs(),
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                              color: balance.abs() < 1
+                                  ? onSurface.withValues(alpha: 0.5)
+                                  : balance > 0
+                                  ? const Color(0xFF0F766E)
+                                  : const Color(0xFF2563EB),
+                            ),
+                          ),
                         ],
                       ),
                     ),
                     if (c.phone.isNotEmpty)
                       IconButton.filledTonal(
-                        tooltip: 'Call',
+                        tooltip: 'Call'.tr,
                         onPressed: () => launchUrl(Uri.parse('tel:${c.phone}')),
                         icon: const Icon(Icons.call_rounded, size: 20),
                       ),
                     const SizedBox(width: 6),
                     if (c.telegram.isNotEmpty || c.phone.isNotEmpty)
                       IconButton.filledTonal(
-                        tooltip: 'Message on Telegram',
+                        tooltip: 'Message on Telegram'.tr,
                         onPressed: () async {
                           final uname = c.telegram.replaceAll('@', '');
                           final uri = uname.isNotEmpty
                               ? Uri.parse('https://t.me/$uname')
                               : Uri.parse('https://wa.me/${c.phone}');
-                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          await launchUrl(
+                            uri,
+                            mode: LaunchMode.externalApplication,
+                          );
                         },
                         icon: const Icon(Icons.send_rounded, size: 19),
                       ),
@@ -148,21 +174,32 @@ class CustomerDetailPage extends StatelessWidget {
                   const SizedBox(height: 10),
                   Divider(color: Theme.of(context).dividerColor),
                   const SizedBox(height: 8),
-                  Text('By currency',
-                      style: TextStyle(
-                          fontSize: 11.5, color: onSurface.withValues(alpha: 0.6))),
+                  Text(
+                    'By currency'.tr,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   Wrap(
                     spacing: 8,
                     runSpacing: 6,
                     children: currencyTotals.entries
-                        .map((e) => TagChip(
-                              '${Money.text(e.value, currency: e.key)} ${e.value >= 0 ? 'Debtor' : 'Creditor'}',
-                              color: e.value >= 0
-                                  ? const Color(0xFF0F766E)
-                                  : const Color(0xFF2563EB),
-                              dense: true,
-                            ))
+                        .map(
+                          (e) => TagChip(
+                            '{amount} {status}'.trArgs({
+                              'amount': Money.text(e.value, currency: e.key),
+                              'status': e.value >= 0
+                                  ? 'Debtor'.tr
+                                  : 'Creditor'.tr,
+                            }),
+                            color: e.value >= 0
+                                ? const Color(0xFF0F766E)
+                                : const Color(0xFF2563EB),
+                            dense: true,
+                          ),
+                        )
                         .toList(),
                   ),
                 ],
@@ -178,16 +215,20 @@ class CustomerDetailPage extends StatelessWidget {
                 child: FilledButton.tonalIcon(
                   onPressed: () => showPaymentSheet(context, customer: c),
                   icon: const Icon(Icons.call_received_rounded, size: 18),
-                  label: const Text('Receive'),
+                  label: Text('Receive'.tr),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => SellSubscriptionPage(contact: c))),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SellSubscriptionPage(contact: c),
+                    ),
+                  ),
                   icon: const Icon(Icons.vpn_key_rounded, size: 18),
-                  label: const Text('Sale'),
+                  label: Text('Sale'.tr),
                 ),
               ),
             ],
@@ -198,25 +239,41 @@ class CustomerDetailPage extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => TransactionEditPage(
-                              initialKind: TxnKind.receive, customer: c))),
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TransactionEditPage(
+                        initialKind: TxnKind.receive,
+                        customer: c,
+                      ),
+                    ),
+                  ),
                   icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('Manual transaction'),
+                  label: Text('Manual transaction'.tr),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    Clipboard.setData(ClipboardData(
-                        text:
-                            '${c.name}\nBalance: ${Money.text(balance.abs())} ${balance.abs() < 1 ? '' : balance > 0 ? '(Debtor)' : '(Creditor)'}\nSubscriptions: ${subs.length}'));
+                    Clipboard.setData(
+                      ClipboardData(
+                        text: '{name}\nBalance: {amount} {status}\nSubscriptions: {count}'
+                            .trArgs({
+                              'name': c.name,
+                              'amount': Money.text(balance.abs()),
+                              'status': balance.abs() < 1
+                                  ? 'Settled'.tr
+                                  : balance > 0
+                                  ? 'Debtor'.tr
+                                  : 'Creditor'.tr,
+                              'count': subs.length,
+                            }),
+                      ),
+                    );
                     showSnack(context, 'Details copied');
                   },
                   icon: const Icon(Icons.copy_rounded, size: 18),
-                  label: const Text('Copy summary'),
+                  label: Text('Copy summary'.tr),
                 ),
               ),
             ],
@@ -226,10 +283,15 @@ class CustomerDetailPage extends StatelessWidget {
             CardBox(
               child: Row(
                 children: [
-                  Icon(Icons.notes_rounded,
-                      size: 17, color: onSurface.withValues(alpha: 0.5)),
+                  Icon(
+                    Icons.notes_rounded,
+                    size: 17,
+                    color: onSurface.withValues(alpha: 0.5),
+                  ),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(c.note, style: const TextStyle(fontSize: 12.5))),
+                  Expanded(
+                    child: Text(c.note, style: const TextStyle(fontSize: 12.5)),
+                  ),
                 ],
               ),
             ),
@@ -240,7 +302,10 @@ class CustomerDetailPage extends StatelessWidget {
           CardBox(
             child: Column(
               children: [
-                InfoRow('Total purchases', MoneyText(customerSummary.income, withSymbol: true)),
+                InfoRow(
+                  'Total purchases',
+                  MoneyText(customerSummary.income, withSymbol: true),
+                ),
                 InfoRow('Total received', MoneyText(customerSummary.received)),
                 InfoRow('Transactions', Text('${customerSummary.txnCount}')),
               ],
@@ -248,17 +313,23 @@ class CustomerDetailPage extends StatelessWidget {
           ),
 
           // ---------- Subscriptions ----------
-          SectionTitle('Subscriptions (${subs.length})',
-              icon: Icons.vpn_key_outlined),
+          SectionTitle(
+            'Subscriptions ({count})'.trArgs({'count': subs.length}),
+            icon: Icons.vpn_key_outlined,
+          ),
           if (subs.isEmpty)
-            const CardBox(
-              child: Text('No subscriptions recorded yet.',
-                  style: TextStyle(fontSize: 12.5)),
+            CardBox(
+              child: Text(
+                'No subscriptions recorded yet.'.tr,
+                style: TextStyle(fontSize: 12.5),
+              ),
             )
           else
             ...subs.map((s) {
-              final status =
-                  Ledger.subStatus(s, reminderDays: repo.settings.reminderDays);
+              final status = Ledger.subStatus(
+                s,
+                reminderDays: repo.settings.reminderDays,
+              );
               final days = Ledger.daysLeft(s);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -268,9 +339,13 @@ class CustomerDetailPage extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: Text(s.planName,
-                                style: const TextStyle(
-                                    fontSize: 13.5, fontWeight: FontWeight.w700)),
+                            child: Text(
+                              s.planName,
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
                           TagChip(
                             status == SubStatus.expired
@@ -284,18 +359,31 @@ class CustomerDetailPage extends StatelessWidget {
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          Icon(Icons.date_range_rounded,
-                              size: 14, color: onSurface.withValues(alpha: 0.5)),
+                          Icon(
+                            Icons.date_range_rounded,
+                            size: 14,
+                            color: onSurface.withValues(alpha: 0.5),
+                          ),
                           const SizedBox(width: 6),
-                          Text('${J.d(s.startDate)} to ${J.d(s.endDate)}',
-                              style: TextStyle(
-                                  fontSize: 11.5,
-                                  color: onSurface.withValues(alpha: 0.65))),
+                          Text(
+                            '{from} to {to}'.trArgs({
+                              'from': J.d(s.startDate),
+                              'to': J.d(s.endDate),
+                            }),
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: onSurface.withValues(alpha: 0.65),
+                            ),
+                          ),
                           const Spacer(),
-                          MoneyText(s.amount,
-                              currency: s.currency,
-                              style: const TextStyle(
-                                  fontSize: 12.5, fontWeight: FontWeight.w700)),
+                          MoneyText(
+                            s.amount,
+                            currency: s.currency,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -304,28 +392,38 @@ class CustomerDetailPage extends StatelessWidget {
                           Expanded(
                             child: OutlinedButton.icon(
                               onPressed: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) =>
-                                          SellSubscriptionPage(renewFrom: s))),
-                              icon: const Icon(Icons.autorenew_rounded, size: 16),
-                              label: const Text('Renew'),
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      SellSubscriptionPage(renewFrom: s),
+                                ),
+                              ),
+                              icon: const Icon(
+                                Icons.autorenew_rounded,
+                                size: 16,
+                              ),
+                              label: Text('Renew'.tr),
                             ),
                           ),
                           const SizedBox(width: 8),
                           IconButton.outlined(
-                            tooltip: 'Delete',
+                            tooltip: 'Delete'.tr,
                             onPressed: () async {
-                              final ok = await confirmDialog(context,
-                                  title: 'Delete subscription',
-                                  message:
-                                      'Delete this subscription? (Financial transactions will remain.)',
-                                  okLabel: 'Delete',
-                                  danger: true);
+                              final ok = await confirmDialog(
+                                context,
+                                title: 'Delete subscription'.tr,
+                                message: 'Delete this subscription? (Financial transactions will remain.)'
+                                    .tr,
+                                okLabel: 'Delete'.tr,
+                                danger: true,
+                              );
                               if (!ok) return;
                               await repo.deleteSubscription(s.id);
                             },
-                            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                            icon: const Icon(
+                              Icons.delete_outline_rounded,
+                              size: 18,
+                            ),
                           ),
                         ],
                       ),
@@ -336,10 +434,17 @@ class CustomerDetailPage extends StatelessWidget {
             }),
 
           // ---------- Transactions ----------
-          SectionTitle('Transactions (${txns.length})',
-              icon: Icons.receipt_long_outlined),
+          SectionTitle(
+            'Transactions ({count})'.trArgs({'count': txns.length}),
+            icon: Icons.receipt_long_outlined,
+          ),
           if (txns.isEmpty)
-            const CardBox(child: Text('No transactions recorded.', style: TextStyle(fontSize: 12.5)))
+            CardBox(
+              child: Text(
+                'No transactions recorded.'.tr,
+                style: TextStyle(fontSize: 12.5),
+              ),
+            )
           else
             Card(
               child: Column(
@@ -350,9 +455,12 @@ class CustomerDetailPage extends StatelessWidget {
                       categoryName: repo.categoryName(txns[i].categoryId),
                       showCustomer: false,
                       onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => TransactionEditPage(existing: txns[i]))),
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              TransactionEditPage(existing: txns[i]),
+                        ),
+                      ),
                     ),
                     if (i != txns.length - 1)
                       Divider(height: 1, color: Theme.of(context).dividerColor),

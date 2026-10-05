@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../core/format_utils.dart';
 import '../../core/jalali_utils.dart';
 
+import '../../core/localization.dart';
+
 /// Jalali date picker with no additional package dependencies
 Future<DateTime?> showJalaliPicker(
   BuildContext context, {
@@ -21,7 +23,11 @@ Future<DateTime?> showJalaliPicker(
 }
 
 class _JalaliPickerDialog extends StatefulWidget {
-  const _JalaliPickerDialog({required this.initial, this.firstDate, this.lastDate});
+  const _JalaliPickerDialog({
+    required this.initial,
+    this.firstDate,
+    this.lastDate,
+  });
 
   final DateTime initial;
   final DateTime? firstDate;
@@ -55,8 +61,13 @@ class _JalaliPickerDialogState extends State<_JalaliPickerDialog> {
 
   bool _allowed(int y, int m, int d) {
     final dt = J.toDate(y, m, d);
-    if (widget.firstDate != null && dt.isBefore(J.dateOnly(widget.firstDate!))) return false;
-    if (widget.lastDate != null && dt.isAfter(J.dateOnly(widget.lastDate!))) return false;
+    if (widget.firstDate != null &&
+        dt.isBefore(J.dateOnly(widget.firstDate!))) {
+      return false;
+    }
+    if (widget.lastDate != null && dt.isAfter(J.dateOnly(widget.lastDate!))) {
+      return false;
+    }
     return true;
   }
 
@@ -80,12 +91,15 @@ class _JalaliPickerDialogState extends State<_JalaliPickerDialog> {
             Row(
               children: [
                 IconButton(
-                  tooltip: 'Previous year',
+                  tooltip: 'Previous year'.tr,
                   onPressed: () => setState(() => year--),
-                  icon: const Icon(Icons.keyboard_double_arrow_left_rounded, size: 20),
+                  icon: const Icon(
+                    Icons.keyboard_double_arrow_left_rounded,
+                    size: 20,
+                  ),
                 ),
                 IconButton(
-                  tooltip: 'Previous month',
+                  tooltip: 'Previous month'.tr,
                   onPressed: () => _shiftMonth(-1),
                   icon: const Icon(Icons.chevron_left_rounded),
                 ),
@@ -93,19 +107,25 @@ class _JalaliPickerDialogState extends State<_JalaliPickerDialog> {
                   child: Center(
                     child: Text(
                       '${Fmt.monthName(month)} $year',
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Next month',
+                  tooltip: 'Next month'.tr,
                   onPressed: () => _shiftMonth(1),
                   icon: const Icon(Icons.chevron_right_rounded),
                 ),
                 IconButton(
-                  tooltip: 'Next year',
+                  tooltip: 'Next year'.tr,
                   onPressed: () => setState(() => year++),
-                  icon: const Icon(Icons.keyboard_double_arrow_right_rounded, size: 20),
+                  icon: const Icon(
+                    Icons.keyboard_double_arrow_right_rounded,
+                    size: 20,
+                  ),
                 ),
               ],
             ),
@@ -116,11 +136,14 @@ class _JalaliPickerDialogState extends State<_JalaliPickerDialog> {
                 for (final w in Fmt.weekDays)
                   Expanded(
                     child: Center(
-                      child: Text(w.substring(0, w.contains('\u200c') ? 1 : 1),
-                          style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                              color: onSurface.withValues(alpha: 0.55))),
+                      child: Text(
+                        w.substring(0, w.contains('\u200c') ? 1 : 1),
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: onSurface.withValues(alpha: 0.55),
+                        ),
+                      ),
                     ),
                   ),
               ],
@@ -139,11 +162,13 @@ class _JalaliPickerDialogState extends State<_JalaliPickerDialog> {
                     _DayCell(
                       day: d,
                       enabled: _allowed(year, month, d),
-                      isSelected: selectedJ.year == year &&
+                      isSelected:
+                          selectedJ.year == year &&
                           selectedJ.month == month &&
                           selectedJ.day == d,
                       isToday: J.sameDay(today, J.toDate(year, month, d)),
-                      onTap: () => Navigator.pop(context, J.toDate(year, month, d)),
+                      onTap: () =>
+                          Navigator.pop(context, J.toDate(year, month, d)),
                     ),
                 ],
               ),
@@ -154,11 +179,13 @@ class _JalaliPickerDialogState extends State<_JalaliPickerDialog> {
                 TextButton.icon(
                   onPressed: () => Navigator.pop(context, J.today),
                   icon: const Icon(Icons.today_rounded, size: 17),
-                  label: const Text('Today'),
+                  label: Text('Today'.tr),
                 ),
                 const Spacer(),
                 TextButton(
-                    onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel'.tr),
+                ),
               ],
             ),
           ],
@@ -203,12 +230,14 @@ class _DayCell extends StatelessWidget {
               '$day',
               style: TextStyle(
                 fontSize: 13,
-                fontWeight: isSelected || isToday ? FontWeight.w700 : FontWeight.w500,
+                fontWeight: isSelected || isToday
+                    ? FontWeight.w700
+                    : FontWeight.w500,
                 color: isSelected
                     ? Colors.white
                     : enabled
-                        ? onSurface
-                        : onSurface.withValues(alpha: 0.3),
+                    ? onSurface
+                    : onSurface.withValues(alpha: 0.3),
               ),
             ),
           ),

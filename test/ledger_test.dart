@@ -7,11 +7,11 @@ import 'package:poolland/data/models.dart';
 void main() {
   final now = DateTime(2026, 10, 4); // 1405/07/12
 
-  Customer customer(
-          {String id = 'c1',
-          double opening = 0,
-          String name = 'Alex'}) =>
-      Customer(id: id, name: name, createdAt: now, openingBalance: opening);
+  Customer customer({
+    String id = 'c1',
+    double opening = 0,
+    String name = 'Alex',
+  }) => Customer(id: id, name: name, createdAt: now, openingBalance: opening);
 
   Txn txn({
     required TxnKind kind,
@@ -21,18 +21,17 @@ void main() {
     bool credit = false,
     String currency = 'IRT',
     double rate = 1,
-  }) =>
-      Txn(
-        id: 't${DateTime.now().microsecondsSinceEpoch}${amount.hashCode}',
-        kind: kind,
-        amount: amount,
-        currency: currency,
-        rateToBase: rate,
-        date: date ?? now,
-        customerId: customerId,
-        credit: credit,
-        createdAt: now,
-      );
+  }) => Txn(
+    id: 't${DateTime.now().microsecondsSinceEpoch}${amount.hashCode}',
+    kind: kind,
+    amount: amount,
+    currency: currency,
+    rateToBase: rate,
+    date: date ?? now,
+    customerId: customerId,
+    credit: credit,
+    createdAt: now,
+  );
 
   group('Period summary', () {
     test('Income, expenses, and profit are calculated correctly', () {
@@ -64,6 +63,17 @@ void main() {
       expect(s.cashOut, 400000);
     });
 
+    test('Payable settlements reduce cash but do not change profit', () {
+      final s = Ledger.summarize([
+        txn(kind: TxnKind.expense, amount: 200000, credit: true),
+        txn(kind: TxnKind.payablePayment, amount: 80000),
+      ]);
+      expect(s.expense, 200000);
+      expect(s.payablePayments, 80000);
+      expect(s.profit, -200000);
+      expect(s.cashOut, 80000);
+    });
+
     test('Currency conversion uses the recorded rate', () {
       final s = Ledger.summarize([
         txn(kind: TxnKind.income, amount: 10, currency: 'USD', rate: 130000),
@@ -72,7 +82,11 @@ void main() {
     });
 
     test('Date-range filtering', () {
-      final outOfRange = txn(kind: TxnKind.income, amount: 999, date: DateTime(2026, 5, 1));
+      final outOfRange = txn(
+        kind: TxnKind.income,
+        amount: 999,
+        date: DateTime(2026, 5, 1),
+      );
       final s = Ledger.summarize(
         [outOfRange, txn(kind: TxnKind.income, amount: 1000)],
         from: J.startOfMonth(now),
@@ -123,8 +137,18 @@ void main() {
       final a = customer(id: 'a', name: 'A');
       final b = customer(id: 'b', name: 'B');
       final txns = [
-        txn(kind: TxnKind.income, amount: 500000, credit: true, customerId: 'a'),
-        txn(kind: TxnKind.expense, amount: 200000, credit: true, customerId: 'b'),
+        txn(
+          kind: TxnKind.income,
+          amount: 500000,
+          credit: true,
+          customerId: 'a',
+        ),
+        txn(
+          kind: TxnKind.expense,
+          amount: 200000,
+          credit: true,
+          customerId: 'b',
+        ),
       ];
       final totals = Ledger.totals([a, b], txns);
       expect(totals.receivable, 500000);
@@ -134,22 +158,31 @@ void main() {
       expect(totals.creditorsCount, 1);
     });
 
+    test('Payable settlement reduces the contact balance', () {
+      final c = customer();
+      final txns = [
+        txn(kind: TxnKind.expense, amount: 200000, credit: true),
+        txn(kind: TxnKind.payablePayment, amount: 80000),
+      ];
+      expect(Ledger.customerBalance(c, txns), -120000);
+      expect(Ledger.customerCurrencyTotals(c, txns)['IRT'], -120000);
+    });
+
     test('Per-currency totals include the opening balance', () {
       final c = customer(opening: 250000);
-      final txns = [
-        txn(kind: TxnKind.income, amount: 100000, credit: true),
-      ];
+      final txns = [txn(kind: TxnKind.income, amount: 100000, credit: true)];
       final map = Ledger.customerCurrencyTotals(c, txns);
       expect(map['IRT'], 350000);
-      expect(Ledger.customerBalance(c, txns), 350000,
-          reason: 'Per-currency totals should match the overall balance');
+      expect(
+        Ledger.customerBalance(c, txns),
+        350000,
+        reason: 'Per-currency totals should match the overall balance',
+      );
     });
 
     test('Settled balances are omitted from per-currency totals', () {
       final c = customer(opening: 250000);
-      final txns = [
-        txn(kind: TxnKind.receive, amount: 250000),
-      ];
+      final txns = [txn(kind: TxnKind.receive, amount: 250000)];
       final map = Ledger.customerCurrencyTotals(c, txns);
       expect(map.containsKey('IRT'), isFalse, reason: 'The balance is zero');
       expect(Ledger.customerBalance(c, txns), 0);
@@ -158,7 +191,13 @@ void main() {
     test('Summary by currency', () {
       final c = customer();
       final txns = [
-        txn(kind: TxnKind.income, amount: 20, currency: 'USD', rate: 130000, credit: true),
+        txn(
+          kind: TxnKind.income,
+          amount: 20,
+          currency: 'USD',
+          rate: 130000,
+          credit: true,
+        ),
         txn(kind: TxnKind.receive, amount: 10, currency: 'USDT', rate: 129000),
       ];
       final map = Ledger.customerCurrencyTotals(c, txns);
@@ -184,21 +223,27 @@ void main() {
 
   group('Subscription status', () {
     Subscription sub({required int daysFromNow}) => Subscription(
-          id: 's1',
-          customerId: 'c1',
-          planName: 'Test plan',
-          startDate: J.addDays(now, -30),
-          endDate: J.addDays(now, daysFromNow),
-          createdAt: now,
-        );
+      id: 's1',
+      customerId: 'c1',
+      planName: 'Test plan',
+      startDate: J.addDays(now, -30),
+      endDate: J.addDays(now, daysFromNow),
+      createdAt: now,
+    );
 
     test('Active, expiring soon, and expired states', () {
-      expect(Ledger.subStatus(sub(daysFromNow: 30), now: now),
-          SubStatus.active);
-      expect(Ledger.subStatus(sub(daysFromNow: 2), now: now),
-          SubStatus.expiringSoon);
-      expect(Ledger.subStatus(sub(daysFromNow: -1), now: now),
-          SubStatus.expired);
+      expect(
+        Ledger.subStatus(sub(daysFromNow: 30), now: now),
+        SubStatus.active,
+      );
+      expect(
+        Ledger.subStatus(sub(daysFromNow: 2), now: now),
+        SubStatus.expiringSoon,
+      );
+      expect(
+        Ledger.subStatus(sub(daysFromNow: -1), now: now),
+        SubStatus.expired,
+      );
     });
 
     test('Days remaining are counted correctly', () {
@@ -206,19 +251,22 @@ void main() {
       expect(Ledger.daysLeft(sub(daysFromNow: -3), now: now), -3);
     });
 
-    test('Alerts include soon-to-expire and recently expired subscriptions', () {
-      final alerts = Ledger.alerts(
-        [
-          sub(daysFromNow: 40),
-          sub(daysFromNow: 1),
-          sub(daysFromNow: -5),
-          sub(daysFromNow: -60),
-        ],
-        now: now,
-        reminderDays: 3,
-      );
-      expect(alerts.length, 2);
-    });
+    test(
+      'Alerts include soon-to-expire and recently expired subscriptions',
+      () {
+        final alerts = Ledger.alerts(
+          [
+            sub(daysFromNow: 40),
+            sub(daysFromNow: 1),
+            sub(daysFromNow: -5),
+            sub(daysFromNow: -60),
+          ],
+          now: now,
+          reminderDays: 3,
+        );
+        expect(alerts.length, 2);
+      },
+    );
   });
 
   group('Plans', () {
@@ -249,7 +297,11 @@ void main() {
 
     test('Daily plan duration', () {
       final p = Plan(
-          id: 'p1', name: 'One week', durationValue: 7, durationUnit: PlanDurationUnit.day);
+        id: 'p1',
+        name: 'One week',
+        durationValue: 7,
+        durationUnit: PlanDurationUnit.day,
+      );
       final end = J.of(p.endFrom(J.toDate(1405, 7, 12)));
       expect([end.year, end.month, end.day], [1405, 7, 18]);
     });

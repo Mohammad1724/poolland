@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart' show ChangeNotifier;
 
 import '../core/jalali_utils.dart';
+import '../core/localization.dart';
 import '../core/money.dart';
 import '../core/notifications/notify.dart';
 import '../core/sms/bank_rules.dart';
@@ -43,7 +44,7 @@ class AppRepository extends ChangeNotifier {
   List<QuickExpense> quickExpenses = [];
 
   /// UI scope filter (null = all).
-  TxnScope? scopeFilter;
+  TxnScope? scopeFilter = TxnScope.business;
 
   void setScopeFilter(TxnScope? scope) {
     scopeFilter = scope;
@@ -102,7 +103,7 @@ class AppRepository extends ChangeNotifier {
     return null;
   }
 
-  String customerName(String? id) => customerById(id)?.name ?? 'No customer';
+  String customerName(String? id) => customerById(id)?.name ?? 'No customer'.tr;
 
   Subscription? subscriptionById(String? id) {
     if (id == null) return null;
@@ -128,23 +129,23 @@ class AppRepository extends ChangeNotifier {
     return null;
   }
 
-  String categoryName(String? id) => categoryById(id)?.name ?? 'Uncategorized';
+  String categoryName(String? id) =>
+      categoryById(id)?.name.tr ?? 'Uncategorized'.tr;
 
-  List<Category> categoriesOf(TxnKind kind, {TxnScope? scope}) =>
-      categories
-          .where((c) => c.kind == kind && c.scope == (scope ?? TxnScope.business))
-          .toList();
+  List<Category> categoriesOf(TxnKind kind, {TxnScope? scope}) => categories
+      .where((c) => c.kind == kind && c.scope == (scope ?? TxnScope.business))
+      .toList();
 
   List<Subscription> subsOfCustomer(String customerId) =>
       subscriptions.where((s) => s.customerId == customerId).toList()
         ..sort((a, b) => b.endDate.compareTo(a.endDate));
 
   List<Txn> txnsOfCustomer(String customerId) =>
-      Ledger.forCustomer(transactions, customerId);
+      Ledger.forCustomer(businessTxns, customerId);
 
-  double balanceOf(Customer c) => Ledger.customerBalance(c, transactions);
+  double balanceOf(Customer c) => Ledger.customerBalance(c, businessTxns);
 
-  Balances get totals => Ledger.totals(customers, transactions);
+  Balances get totals => Ledger.totals(customers, businessTxns);
 
   /// Transactions in a given scope (all scopes when null).
   List<Txn> scopeTxns(TxnScope? scope) => scope == null
@@ -178,11 +179,12 @@ class AppRepository extends ChangeNotifier {
   /// Sorted list of debtors (contacts who owe us).
   List<MapEntry<Customer, double>> debtorsList() {
     final map = balancesMap();
-    final list = activeCustomers
-        .map((c) => MapEntry(c, map[c.id] ?? 0))
-        .where((e) => e.value > 0.5)
-        .toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final list =
+        activeCustomers
+            .map((c) => MapEntry(c, map[c.id] ?? 0))
+            .where((e) => e.value > 0.5)
+            .toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
     return list;
   }
 
@@ -228,17 +230,28 @@ class AppRepository extends ChangeNotifier {
 
   /// Delete a customer; [withData] also deletes their transactions and subscriptions.
   Future<void> deleteCustomer(String id, {bool withData = true}) async {
-    if (withData) {
-      for (final t in transactions.where((t) => t.customerId == id).toList()) {
+    final subscriptionIds = subscriptions
+        .where((s) => s.customerId == id)
+        .map((s) => s.id)
+        .toSet();
+    for (final t in transactions.where(
+      (t) =>
+          t.customerId == id ||
+          (withData && subscriptionIds.contains(t.subscriptionId)),
+    )) {
+      if (withData) {
         await store.deleteTxn(t.id);
-      }
-    } else {
-      for (final t in transactions.where((t) => t.customerId == id).toList()) {
-        await store.putTxn(t.copyWith(clearCustomer: true));
+      } else {
+        await store.putTxn(
+          t.copyWith(
+            clearCustomer: t.customerId == id,
+            clearSubscription: subscriptionIds.contains(t.subscriptionId),
+          ),
+        );
       }
     }
-    for (final s in subscriptions.where((s) => s.customerId == id).toList()) {
-      await store.deleteSubscription(s.id);
+    for (final subscriptionId in subscriptionIds) {
+      await store.deleteSubscription(subscriptionId);
     }
     await store.deleteCustomer(id);
     await reload();
@@ -252,6 +265,9 @@ class AppRepository extends ChangeNotifier {
   }
 
   Future<void> deleteSubscription(String id) async {
+    for (final txn in transactions.where((t) => t.subscriptionId == id)) {
+      await store.putTxn(txn.copyWith(clearSubscription: true));
+    }
     await store.deleteSubscription(id);
     await reload();
   }
@@ -289,38 +305,42 @@ class AppRepository extends ChangeNotifier {
     await store.putSubscription(s);
 
     if (price > 0) {
-      await store.putTxn(Txn(
-        id: LocalStore.newId(),
-        kind: TxnKind.income,
-        amount: price,
-        currency: currencyCode,
-        rateToBase: settings.currency(currencyCode).rateToBase,
-        date: J.dateOnly(start),
-        categoryId: (categoryId == null || categoryId.isEmpty)
-            ? defaultIncomeCategoryId
-            : categoryId,
-        customerId: customer.id,
-        subscriptionId: s.id,
-        credit: true, // The full amount is charged to the customer’s balance.
-        note: note.isEmpty ? 'Sale: $title' : note,
-        createdAt: DateTime.now(),
-      ));
+      await store.putTxn(
+        Txn(
+          id: LocalStore.newId(),
+          kind: TxnKind.income,
+          amount: price,
+          currency: currencyCode,
+          rateToBase: settings.currency(currencyCode).rateToBase,
+          date: J.dateOnly(start),
+          categoryId: (categoryId == null || categoryId.isEmpty)
+              ? defaultIncomeCategoryId
+              : categoryId,
+          customerId: customer.id,
+          subscriptionId: s.id,
+          credit: true, // The full amount is charged to the customer’s balance.
+          note: note.isEmpty ? 'Sale: $title' : note,
+          createdAt: DateTime.now(),
+        ),
+      );
     }
 
     final cur = receiveCurrency ?? currencyCode;
     if (received > 0) {
-      await store.putTxn(Txn(
-        id: LocalStore.newId(),
-        kind: TxnKind.receive,
-        amount: received,
-        currency: cur,
-        rateToBase: settings.currency(cur).rateToBase,
-        date: J.dateOnly(start),
-        customerId: customer.id,
-        subscriptionId: s.id,
-        note: 'Payment for $title',
-        createdAt: DateTime.now(),
-      ));
+      await store.putTxn(
+        Txn(
+          id: LocalStore.newId(),
+          kind: TxnKind.receive,
+          amount: received,
+          currency: cur,
+          rateToBase: settings.currency(cur).rateToBase,
+          date: J.dateOnly(start),
+          customerId: customer.id,
+          subscriptionId: s.id,
+          note: 'Payment for $title',
+          createdAt: DateTime.now(),
+        ),
+      );
     }
 
     await reload();
@@ -366,7 +386,10 @@ class AppRepository extends ChangeNotifier {
   String? get defaultExpenseCategoryId => defaultCategoryId(TxnKind.expense);
 
   /// First suitable category for a transaction type and scope.
-  String? defaultCategoryId(TxnKind kind, {TxnScope scope = TxnScope.business}) {
+  String? defaultCategoryId(
+    TxnKind kind, {
+    TxnScope scope = TxnScope.business,
+  }) {
     final list = categoriesOf(kind, scope: scope);
     if (list.isEmpty) return null;
     if (kind == TxnKind.income) {
@@ -389,26 +412,26 @@ class AppRepository extends ChangeNotifier {
     String? subscriptionId,
     bool credit = false,
     String note = '',
-  }) =>
-      Txn(
-        id: LocalStore.newId(),
-        kind: kind,
-        amount: amount,
-        currency: currency,
-        rateToBase: settings.currency(currency).rateToBase,
-        date: date,
-        categoryId: categoryId,
-        customerId: customerId,
-        subscriptionId: subscriptionId,
-        credit: credit,
-        note: note,
-        scope: scope,
-        createdAt: DateTime.now(),
-      );
+  }) => Txn(
+    id: LocalStore.newId(),
+    kind: kind,
+    amount: amount,
+    currency: currency,
+    rateToBase: settings.currency(currency).rateToBase,
+    date: date,
+    categoryId: categoryId,
+    customerId: customerId,
+    subscriptionId: subscriptionId,
+    credit: credit,
+    note: note,
+    scope: scope,
+    createdAt: DateTime.now(),
+  );
 
   Future<Txn> addTxn(Txn t) async {
     await store.putTxn(t);
-    transactions = [...transactions, t]..sort((a, b) => b.date.compareTo(a.date));
+    transactions = [...transactions, t]
+      ..sort((a, b) => b.date.compareTo(a.date));
     notifyListeners();
     return t;
   }
@@ -430,7 +453,12 @@ class AppRepository extends ChangeNotifier {
     final j = J.of(d);
     final start = J.toDate(j.year, j.month, 1);
     final end = J.endOfDay(J.addDays(J.addMonths(start, 1), -1));
-    return DateTimeRangeOfMonth(start: start, end: end, year: j.year, month: j.month);
+    return DateTimeRangeOfMonth(
+      start: start,
+      end: end,
+      year: j.year,
+      month: j.month,
+    );
   }
 
   /// Usage for all budgets in the current month.
@@ -448,8 +476,7 @@ class AppRepository extends ChangeNotifier {
           to: range.end,
         ),
       );
-    }).toList()
-      ..sort((a, b) => b.ratio.compareTo(a.ratio));
+    }).toList()..sort((a, b) => b.ratio.compareTo(a.ratio));
   }
 
   Future<void> addBudget(Budget b) async {
@@ -477,8 +504,7 @@ class AppRepository extends ChangeNotifier {
   }
 
   Future<void> updateRecurring(RecurringRule r) async {
-    recurringRules =
-        recurringRules.map((e) => e.id == r.id ? r : e).toList();
+    recurringRules = recurringRules.map((e) => e.id == r.id ? r : e).toList();
     await store.putRecurring(r);
     notifyListeners();
   }
@@ -498,19 +524,25 @@ class AppRepository extends ChangeNotifier {
       final dues = r.pendingDues(today);
       if (dues.isEmpty) continue;
       for (final d in dues) {
-        await store.putTxn(Txn(
-          id: LocalStore.newId(),
-          kind: r.kind,
-          amount: r.amount,
-          currency: r.currency,
-          rateToBase: settings.currency(r.currency).rateToBase,
-          date: d,
-          categoryId: r.categoryId,
-          customerId: r.customerId,
-          note: r.note.isEmpty ? r.title : r.note,
-          scope: r.scope,
-          createdAt: DateTime.now(),
-        ));
+        // Deterministic occurrence IDs make posting idempotent if the app closes
+        // after writing a transaction but before advancing lastPosted.
+        final occurrenceId = 'rec:${r.id}:${d.millisecondsSinceEpoch}';
+        if (store.transactions.containsKey(occurrenceId)) continue;
+        await store.putTxn(
+          Txn(
+            id: occurrenceId,
+            kind: r.kind,
+            amount: r.amount,
+            currency: r.currency,
+            rateToBase: settings.currency(r.currency).rateToBase,
+            date: d,
+            categoryId: r.categoryId,
+            customerId: r.customerId,
+            note: r.note.isEmpty ? r.title : r.note,
+            scope: r.scope,
+            createdAt: DateTime.now(),
+          ),
+        );
         created++;
       }
       final updated = r.copyWith(lastPosted: dues.last);
@@ -527,23 +559,30 @@ class AppRepository extends ChangeNotifier {
   }
 
   /// Record a quick expense or income from a dashboard button.
-  Future<Txn> addQuickExpense(QuickExpense q, {double? amount, DateTime? date}) {
-    return addTxn(Txn(
-      id: LocalStore.newId(),
-      kind: q.kind,
-      amount: amount ?? q.amount,
-      currency: 'IRT',
-      rateToBase: settings.currency('IRT').rateToBase,
-      date: date ?? DateTime.now(),
-      categoryId: q.categoryId,
-      note: q.label,
-      scope: q.scope,
-      createdAt: DateTime.now(),
-    ));
+  Future<Txn> addQuickExpense(
+    QuickExpense q, {
+    double? amount,
+    DateTime? date,
+  }) {
+    return addTxn(
+      Txn(
+        id: LocalStore.newId(),
+        kind: q.kind,
+        amount: amount ?? q.amount,
+        currency: 'IRT',
+        rateToBase: settings.currency('IRT').rateToBase,
+        date: date ?? DateTime.now(),
+        categoryId: q.categoryId,
+        note: q.label,
+        scope: q.scope,
+        createdAt: DateTime.now(),
+      ),
+    );
   }
 
   Future<void> addQuickButton(QuickExpense q) async {
-    quickExpenses = [...quickExpenses, q]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    quickExpenses = [...quickExpenses, q]
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     await store.putQuickExpense(q);
     notifyListeners();
   }
@@ -569,40 +608,59 @@ class AppRepository extends ChangeNotifier {
     required DateTime date,
     bool isReceive = true,
     String note = '',
-  }) =>
-      addTxn(Txn(
-        id: LocalStore.newId(),
-        kind: isReceive ? TxnKind.receive : TxnKind.refund,
-        amount: amount,
-        currency: currencyCode,
-        rateToBase: settings.currency(currencyCode).rateToBase,
-        date: date,
-        customerId: customer.id,
-        note: note.isEmpty ? (isReceive ? 'Payment received' : 'Payment made') : note,
-        createdAt: DateTime.now(),
-      ));
+  }) => addTxn(
+    Txn(
+      id: LocalStore.newId(),
+      kind: isReceive
+          ? TxnKind.receive
+          : (balanceOf(customer) < -0.5
+                ? TxnKind.payablePayment
+                : TxnKind.refund),
+      amount: amount,
+      currency: currencyCode,
+      rateToBase: settings.currency(currencyCode).rateToBase,
+      date: date,
+      customerId: customer.id,
+      note: note.isEmpty
+          ? (isReceive
+                ? 'Payment received'
+                : (balanceOf(customer) < -0.5
+                      ? 'Payable settlement'
+                      : 'Refund to customer'))
+          : note,
+      createdAt: DateTime.now(),
+    ),
+  );
 
   // ---------------- Categories ----------------
-  Future<void> addCategory(String name, TxnKind kind,
-      {TxnScope scope = TxnScope.business}) async {
+  Future<void> addCategory(
+    String name,
+    TxnKind kind, {
+    TxnScope scope = TxnScope.business,
+  }) async {
     final list = categoriesOf(kind, scope: scope);
-    await store.putCategory(Category(
-      id: LocalStore.newId(),
-      name: name.trim(),
-      kind: kind,
-      sortOrder: list.isEmpty ? 0 : list.last.sortOrder + 1,
-      scope: scope,
-    ));
+    await store.putCategory(
+      Category(
+        id: LocalStore.newId(),
+        name: name.trim(),
+        kind: kind,
+        sortOrder: list.isEmpty ? 0 : list.last.sortOrder + 1,
+        scope: scope,
+      ),
+    );
     await reload();
   }
 
   Future<void> renameCategory(Category c, String newName) async {
-    await store.putCategory(Category(
+    await store.putCategory(
+      Category(
         id: c.id,
         name: newName.trim(),
         kind: c.kind,
         sortOrder: c.sortOrder,
-        scope: c.scope));
+        scope: c.scope,
+      ),
+    );
     await reload();
   }
 
@@ -636,13 +694,22 @@ class AppRepository extends ChangeNotifier {
   }
 
   Future<void> deletePlan(String id) async {
-    await store.deletePlan(id);
+    final plan = planById(id);
+    final isInUse = subscriptions.any((s) => s.planId == id);
+    if (plan != null && isInUse) {
+      // Keep the plan available to existing subscriptions (renewal pricing and
+      // duration still depend on it), while hiding it from new sales.
+      await store.putPlan(plan.copyWith(archived: true));
+    } else {
+      await store.deletePlan(id);
+    }
     await reload();
   }
 
   // ---------------- Settings ----------------
   Future<void> updateSettings(AppSettings s) async {
-    final reminderChanged = s.dailyReminder != settings.dailyReminder ||
+    final reminderChanged =
+        s.dailyReminder != settings.dailyReminder ||
         s.reminderHour != settings.reminderHour ||
         s.reminderMinute != settings.reminderMinute;
     final wasEnabled = settings.dailyReminder;
@@ -726,8 +793,10 @@ class AppRepository extends ChangeNotifier {
     final state = store.loadSmsState();
     if (state.containsKey(parsed.key)) return;
 
-    smsSuggestions = [parsed, ...smsSuggestions.where((e) => e.key != parsed.key)]
-      ..sort((a, b) => b.message.date.compareTo(a.message.date));
+    smsSuggestions = [
+      parsed,
+      ...smsSuggestions.where((e) => e.key != parsed.key),
+    ]..sort((a, b) => b.message.date.compareTo(a.message.date));
     notifyListeners();
 
     if (settings.smsAutoApprove && parsed.confident) {
@@ -785,7 +854,8 @@ class AppRepository extends ChangeNotifier {
       smsSuggestions = merged;
 
       await updateSettings(
-          settings.copyWith(smsLastSyncAt: DateTime.now().millisecondsSinceEpoch));
+        settings.copyWith(smsLastSyncAt: DateTime.now().millisecondsSinceEpoch),
+      );
       notifyListeners();
       return pending.length;
     } finally {
@@ -812,14 +882,17 @@ class AppRepository extends ChangeNotifier {
     double? amount,
   }) async {
     final cust = customer ?? matchCustomerForSms(sms);
-    final k = kind ??
+    final k =
+        kind ??
         (sms.direction == SmsDirection.deposit
             ? (cust != null ? TxnKind.receive : TxnKind.income)
             : TxnKind.expense);
 
     String? cat = categoryId;
     if (cat == null || cat.isEmpty) {
-      cat = k == TxnKind.expense ? defaultExpenseCategoryId : defaultIncomeCategoryId;
+      cat = k == TxnKind.expense
+          ? defaultExpenseCategoryId
+          : defaultIncomeCategoryId;
     }
 
     final cur = sms.currency;
@@ -878,8 +951,12 @@ class AppRepository extends ChangeNotifier {
 
   static String _smsNote(ParsedSms sms) {
     final parts = <String>[];
-    if (sms.bankName != null && sms.bankName!.isNotEmpty) parts.add(sms.bankName!);
-    if (sms.cardMask != null && sms.cardMask!.isNotEmpty) parts.add('Card ${sms.cardMask}');
+    if (sms.bankName != null && sms.bankName!.isNotEmpty) {
+      parts.add(sms.bankName!);
+    }
+    if (sms.cardMask != null && sms.cardMask!.isNotEmpty) {
+      parts.add('Card ${sms.cardMask}');
+    }
     if (sms.reference != null && sms.reference!.isNotEmpty) {
       parts.add('Reference ${sms.reference}');
     }
@@ -970,34 +1047,40 @@ class AppRepository extends ChangeNotifier {
           createdAt: start,
         );
         await store.putSubscription(sub);
-        await store.putTxn(Txn(
-          id: LocalStore.newId(),
-          kind: TxnKind.income,
-          amount: plan.price,
-          currency: plan.currency,
-          rateToBase: settings.currency(plan.currency).rateToBase,
-          date: J.dateOnly(start),
-          categoryId: defaultIncomeCategoryId,
-          customerId: c.id,
-          subscriptionId: sub.id,
-          credit: true,
-          note: 'Sale: ${plan.name}',
-          createdAt: start,
-        ));
-        final paid = rnd.nextDouble();
-        if (paid < 0.75) {
-          final amount = paid < 0.45 ? plan.price : (plan.price / 2).roundToDouble();
-          await store.putTxn(Txn(
+        await store.putTxn(
+          Txn(
             id: LocalStore.newId(),
-            kind: TxnKind.receive,
-            amount: amount,
+            kind: TxnKind.income,
+            amount: plan.price,
             currency: plan.currency,
             rateToBase: settings.currency(plan.currency).rateToBase,
-            date: J.addDays(start, 1 + rnd.nextInt(12)),
+            date: J.dateOnly(start),
+            categoryId: defaultIncomeCategoryId,
             customerId: c.id,
-            note: amount == plan.price ? 'Paid in full' : 'Partial payment',
+            subscriptionId: sub.id,
+            credit: true,
+            note: 'Sale: ${plan.name}',
             createdAt: start,
-          ));
+          ),
+        );
+        final paid = rnd.nextDouble();
+        if (paid < 0.75) {
+          final amount = paid < 0.45
+              ? plan.price
+              : (plan.price / 2).roundToDouble();
+          await store.putTxn(
+            Txn(
+              id: LocalStore.newId(),
+              kind: TxnKind.receive,
+              amount: amount,
+              currency: plan.currency,
+              rateToBase: settings.currency(plan.currency).rateToBase,
+              date: J.addDays(start, 1 + rnd.nextInt(12)),
+              customerId: c.id,
+              note: amount == plan.price ? 'Paid in full' : 'Partial payment',
+              createdAt: start,
+            ),
+          );
         }
         start = J.addDays(end, 1);
         if (start.isAfter(now)) break;
@@ -1017,37 +1100,42 @@ class AppRepository extends ChangeNotifier {
         final cat = categoriesOf(TxnKind.expense)
             .where((c) => c.name == e.key)
             .toList();
-        await store.putTxn(Txn(
-          id: LocalStore.newId(),
-          kind: TxnKind.expense,
-          amount: e.value * (0.85 + rnd.nextDouble() * 0.3),
-          currency: 'IRT',
-          rateToBase: 1,
-          date: J.addDays(J.addMonths(now, -m), -rnd.nextInt(20)),
-          categoryId: cat.isEmpty ? defaultExpenseCategoryId : cat.first.id,
-          note: e.key,
-          createdAt: now,
-        ));
+        await store.putTxn(
+          Txn(
+            id: LocalStore.newId(),
+            kind: TxnKind.expense,
+            amount: e.value * (0.85 + rnd.nextDouble() * 0.3),
+            currency: 'IRT',
+            rateToBase: 1,
+            date: J.addDays(J.addMonths(now, -m), -rnd.nextInt(20)),
+            categoryId: cat.isEmpty ? defaultExpenseCategoryId : cat.first.id,
+            note: e.key,
+            createdAt: now,
+          ),
+        );
       }
     }
 
     // Add a few USDT and USD sales to demonstrate multiple currencies.
     for (final cur in ['USD', 'USDT']) {
-      if (settings.currencies.any((c) => c.code == cur) && createdCustomers.isNotEmpty) {
+      if (settings.currencies.any((c) => c.code == cur) &&
+          createdCustomers.isNotEmpty) {
         final c = createdCustomers[rnd.nextInt(createdCustomers.length)];
-        await store.putTxn(Txn(
-          id: LocalStore.newId(),
-          kind: TxnKind.income,
-          amount: 15,
-          currency: cur,
-          rateToBase: settings.currency(cur).rateToBase,
-          date: J.addDays(now, -rnd.nextInt(40)),
-          categoryId: defaultIncomeCategoryId,
-          customerId: c.id,
-          credit: false,
-          note: 'Configuration sale (paid in $cur)',
-          createdAt: now,
-        ));
+        await store.putTxn(
+          Txn(
+            id: LocalStore.newId(),
+            kind: TxnKind.income,
+            amount: 15,
+            currency: cur,
+            rateToBase: settings.currency(cur).rateToBase,
+            date: J.addDays(now, -rnd.nextInt(40)),
+            categoryId: defaultIncomeCategoryId,
+            customerId: c.id,
+            credit: false,
+            note: 'Configuration sale (paid in $cur)',
+            createdAt: now,
+          ),
+        );
       }
     }
 
@@ -1061,74 +1149,89 @@ class AppRepository extends ChangeNotifier {
       'Personal shopping and clothing': 600000,
     };
     for (final e in personalExp.entries) {
-      final cat = categoriesOf(TxnKind.expense, scope: TxnScope.personal)
-          .where((c) => c.name == e.key)
-          .toList();
+      final cat = categoriesOf(
+        TxnKind.expense,
+        scope: TxnScope.personal,
+      ).where((c) => c.name == e.key).toList();
       final count = 2 + rnd.nextInt(4);
       for (var k = 0; k < count; k++) {
-        await store.putTxn(Txn(
-          id: LocalStore.newId(),
-          kind: TxnKind.expense,
-          amount: e.value * (0.4 + rnd.nextDouble() * 1.2),
-          currency: 'IRT',
-          rateToBase: 1,
-          date: J.addDays(now, -rnd.nextInt(40)),
-          categoryId: cat.isEmpty ? null : cat.first.id,
-          note: e.key,
-          scope: TxnScope.personal,
-          createdAt: now,
-        ));
+        await store.putTxn(
+          Txn(
+            id: LocalStore.newId(),
+            kind: TxnKind.expense,
+            amount: e.value * (0.4 + rnd.nextDouble() * 1.2),
+            currency: 'IRT',
+            rateToBase: 1,
+            date: J.addDays(now, -rnd.nextInt(40)),
+            categoryId: cat.isEmpty ? null : cat.first.id,
+            note: e.key,
+            scope: TxnScope.personal,
+            createdAt: now,
+          ),
+        );
       }
     }
 
     // Monthly salary (personal income).
-    final salaryCat = categoriesOf(TxnKind.income, scope: TxnScope.personal)
-        .where((c) => c.name == 'Salary')
-        .toList();
+    final salaryCat = categoriesOf(
+      TxnKind.income,
+      scope: TxnScope.personal,
+    ).where((c) => c.name == 'Salary').toList();
     for (var m = 0; m < 3; m++) {
-      await store.putTxn(Txn(
-        id: LocalStore.newId(),
-        kind: TxnKind.income,
-        amount: 25000000,
-        currency: 'IRT',
-        rateToBase: 1,
-        date: J.toDate(J.of(J.addMonths(now, -m)).year,
-            J.of(J.addMonths(now, -m)).month, 28),
-        categoryId: salaryCat.isEmpty ? null : salaryCat.first.id,
-        note: 'Monthly salary',
-        scope: TxnScope.personal,
-        createdAt: now,
-      ));
+      await store.putTxn(
+        Txn(
+          id: LocalStore.newId(),
+          kind: TxnKind.income,
+          amount: 25000000,
+          currency: 'IRT',
+          rateToBase: 1,
+          date: J.toDate(
+            J.of(J.addMonths(now, -m)).year,
+            J.of(J.addMonths(now, -m)).month,
+            28,
+          ),
+          categoryId: salaryCat.isEmpty ? null : salaryCat.first.id,
+          note: 'Monthly salary',
+          scope: TxnScope.personal,
+          createdAt: now,
+        ),
+      );
     }
 
     // A sample food budget.
-    final foodCat = categoriesOf(TxnKind.expense, scope: TxnScope.personal)
-        .where((c) => c.name.toLowerCase().contains('food'))
-        .toList();
+    final foodCat = categoriesOf(
+      TxnKind.expense,
+      scope: TxnScope.personal,
+    ).where((c) => c.name.toLowerCase().contains('food')).toList();
     if (foodCat.isNotEmpty) {
-      await store.putBudget(Budget(
-        id: LocalStore.newId(),
-        categoryId: foodCat.first.id,
-        limit: 3000000,
-      ));
+      await store.putBudget(
+        Budget(
+          id: LocalStore.newId(),
+          categoryId: foodCat.first.id,
+          limit: 3000000,
+        ),
+      );
     }
 
     // A sample recurring rule that started last month.
-    final rentCat = categoriesOf(TxnKind.expense, scope: TxnScope.personal)
-        .where((c) => c.name.toLowerCase().contains('housing'))
-        .toList();
+    final rentCat = categoriesOf(
+      TxnKind.expense,
+      scope: TxnScope.personal,
+    ).where((c) => c.name.toLowerCase().contains('housing')).toList();
     // Set lastPosted to today so loading sample data does not suddenly
     // create several rent transactions (the next one is posted automatically next month).
-    await store.putRecurring(RecurringRule(
-      id: LocalStore.newId(),
-      title: 'Home rent',
-      amount: 8000000,
-      categoryId: rentCat.isEmpty ? null : rentCat.first.id,
-      period: RecurringPeriod.monthly,
-      dayOfMonth: 5,
-      startDate: J.addMonths(now, -1),
-      lastPosted: now,
-    ));
+    await store.putRecurring(
+      RecurringRule(
+        id: LocalStore.newId(),
+        title: 'Home rent',
+        amount: 8000000,
+        categoryId: rentCat.isEmpty ? null : rentCat.first.id,
+        period: RecurringPeriod.monthly,
+        dayOfMonth: 5,
+        startDate: J.addMonths(now, -1),
+        lastPosted: now,
+      ),
+    );
 
     await reload();
   }

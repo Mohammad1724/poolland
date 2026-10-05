@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shamsi_date/shamsi_date.dart';
 
-import '../core/format_utils.dart';
+import '../core/localization.dart';
 
 /// ============================================================
 ///  Data models for the VPN ledger.
@@ -26,30 +26,34 @@ class CurrencyDef {
 
   bool get isBase => rateToBase == 1;
 
-  CurrencyDef copyWith({String? name, String? symbol, double? rateToBase, int? decimals}) =>
-      CurrencyDef(
-        code: code,
-        name: name ?? this.name,
-        symbol: symbol ?? this.symbol,
-        rateToBase: rateToBase ?? this.rateToBase,
-        decimals: decimals ?? this.decimals,
-      );
+  CurrencyDef copyWith({
+    String? name,
+    String? symbol,
+    double? rateToBase,
+    int? decimals,
+  }) => CurrencyDef(
+    code: code,
+    name: name ?? this.name,
+    symbol: symbol ?? this.symbol,
+    rateToBase: rateToBase ?? this.rateToBase,
+    decimals: decimals ?? this.decimals,
+  );
 
   Map<String, dynamic> toMap() => {
-        'code': code,
-        'name': name,
-        'symbol': symbol,
-        'rateToBase': rateToBase,
-        'decimals': decimals,
-      };
+    'code': code,
+    'name': name,
+    'symbol': symbol,
+    'rateToBase': rateToBase,
+    'decimals': decimals,
+  };
 
   factory CurrencyDef.fromMap(Map map) => CurrencyDef(
-        code: '${map['code']}',
-        name: '${map['name'] ?? map['code']}',
-        symbol: '${map['symbol'] ?? map['code']}',
-        rateToBase: (map['rateToBase'] as num?)?.toDouble() ?? 1,
-        decimals: (map['decimals'] as num?)?.toInt() ?? 0,
-      );
+    code: '${map['code']}',
+    name: '${map['name'] ?? map['code']}',
+    symbol: '${map['symbol'] ?? map['code']}',
+    rateToBase: (map['rateToBase'] as num?)?.toDouble() ?? 1,
+    decimals: (map['decimals'] as num?)?.toInt() ?? 0,
+  );
 }
 
 /// ----- App settings -----
@@ -58,6 +62,7 @@ class AppSettings {
   final String baseCurrency; // Base currency code (default: IRT = Toman).
   final List<CurrencyDef> currencies;
   final bool persianDigits;
+  final String languageCode; // fa (default) | en
   final int reminderDays; // Days before expiry to send a reminder.
   final String? pinHash; // Optional app lock.
   final String themeMode; // system | light | dark
@@ -67,7 +72,8 @@ class AppSettings {
   // ---- Bank SMS ----
   final bool smsEnabled; // Whether SMS reading is enabled.
   final int smsSyncDays; // Number of past days to scan.
-  final bool smsAutoApprove; // Whether high-confidence matches are recorded automatically.
+  final bool
+  smsAutoApprove; // Whether high-confidence matches are recorded automatically.
   final int smsLastSyncAt; // Last sync timestamp (for incremental updates).
 
   // ---- Daily expense reminder ----
@@ -80,6 +86,7 @@ class AppSettings {
     this.baseCurrency = 'IRT',
     this.currencies = defaultCurrencies,
     this.persianDigits = false,
+    this.languageCode = 'fa',
     this.reminderDays = 3,
     this.pinHash,
     this.themeMode = 'system',
@@ -96,18 +103,47 @@ class AppSettings {
 
   /// Default currencies: Toman (base) plus currencies commonly used by VPN sellers.
   static const defaultCurrencies = <CurrencyDef>[
-    CurrencyDef(code: 'IRT', name: 'Toman', symbol: 'Toman', rateToBase: 1, decimals: 0),
-    CurrencyDef(code: 'USD', name: 'US Dollar', symbol: r'$', rateToBase: 130000, decimals: 2),
-    CurrencyDef(code: 'USDT', name: 'Tether', symbol: 'USDT', rateToBase: 130000, decimals: 2),
-    CurrencyDef(code: 'EUR', name: 'Euro', symbol: '€', rateToBase: 140000, decimals: 2),
+    CurrencyDef(
+      code: 'IRT',
+      name: 'Toman',
+      symbol: 'Toman',
+      rateToBase: 1,
+      decimals: 0,
+    ),
+    CurrencyDef(
+      code: 'USD',
+      name: 'US Dollar',
+      symbol: r'$',
+      rateToBase: 130000,
+      decimals: 2,
+    ),
+    CurrencyDef(
+      code: 'USDT',
+      name: 'Tether',
+      symbol: 'USDT',
+      rateToBase: 130000,
+      decimals: 2,
+    ),
+    CurrencyDef(
+      code: 'EUR',
+      name: 'Euro',
+      symbol: '€',
+      rateToBase: 140000,
+      decimals: 2,
+    ),
   ];
 
   CurrencyDef currency(String code) => currencies.firstWhere(
-        (c) => c.code == code,
-        orElse: () => currencies.isNotEmpty
-            ? currencies.first
-            : const CurrencyDef(code: 'IRT', name: 'Toman', symbol: 'Toman', rateToBase: 1),
-      );
+    (c) => c.code == code,
+    orElse: () => currencies.isNotEmpty
+        ? currencies.first
+        : const CurrencyDef(
+            code: 'IRT',
+            name: 'Toman',
+            symbol: 'Toman',
+            rateToBase: 1,
+          ),
+  );
 
   CurrencyDef get base => currency(baseCurrency);
 
@@ -118,6 +154,7 @@ class AppSettings {
     String? baseCurrency,
     List<CurrencyDef>? currencies,
     bool? persianDigits,
+    String? languageCode,
     int? reminderDays,
     String? pinHash,
     bool clearPin = false,
@@ -131,66 +168,69 @@ class AppSettings {
     bool? dailyReminder,
     int? reminderHour,
     int? reminderMinute,
-  }) =>
-      AppSettings(
-        businessName: businessName ?? this.businessName,
-        baseCurrency: baseCurrency ?? this.baseCurrency,
-        currencies: currencies ?? this.currencies,
-        persianDigits: persianDigits ?? this.persianDigits,
-        reminderDays: reminderDays ?? this.reminderDays,
-        pinHash: clearPin ? null : (pinHash ?? this.pinHash),
-        themeMode: themeMode ?? this.themeMode,
-        openingCash: openingCash ?? this.openingCash,
-        setupDone: setupDone ?? this.setupDone,
-        smsEnabled: smsEnabled ?? this.smsEnabled,
-        smsSyncDays: smsSyncDays ?? this.smsSyncDays,
-        smsAutoApprove: smsAutoApprove ?? this.smsAutoApprove,
-        smsLastSyncAt: smsLastSyncAt ?? this.smsLastSyncAt,
-        dailyReminder: dailyReminder ?? this.dailyReminder,
-        reminderHour: reminderHour ?? this.reminderHour,
-        reminderMinute: reminderMinute ?? this.reminderMinute,
-      );
+  }) => AppSettings(
+    businessName: businessName ?? this.businessName,
+    baseCurrency: baseCurrency ?? this.baseCurrency,
+    currencies: currencies ?? this.currencies,
+    persianDigits: persianDigits ?? this.persianDigits,
+    languageCode: languageCode ?? this.languageCode,
+    reminderDays: reminderDays ?? this.reminderDays,
+    pinHash: clearPin ? null : (pinHash ?? this.pinHash),
+    themeMode: themeMode ?? this.themeMode,
+    openingCash: openingCash ?? this.openingCash,
+    setupDone: setupDone ?? this.setupDone,
+    smsEnabled: smsEnabled ?? this.smsEnabled,
+    smsSyncDays: smsSyncDays ?? this.smsSyncDays,
+    smsAutoApprove: smsAutoApprove ?? this.smsAutoApprove,
+    smsLastSyncAt: smsLastSyncAt ?? this.smsLastSyncAt,
+    dailyReminder: dailyReminder ?? this.dailyReminder,
+    reminderHour: reminderHour ?? this.reminderHour,
+    reminderMinute: reminderMinute ?? this.reminderMinute,
+  );
 
   Map<String, dynamic> toMap() => {
-        'businessName': businessName,
-        'baseCurrency': baseCurrency,
-        'currencies': currencies.map((e) => e.toMap()).toList(),
-        'persianDigits': persianDigits,
-        'reminderDays': reminderDays,
-        'pinHash': pinHash,
-        'themeMode': themeMode,
-        'openingCash': openingCash,
-        'setupDone': setupDone,
-        'smsEnabled': smsEnabled,
-        'smsSyncDays': smsSyncDays,
-        'smsAutoApprove': smsAutoApprove,
-        'smsLastSyncAt': smsLastSyncAt,
-        'dailyReminder': dailyReminder,
-        'reminderHour': reminderHour,
-        'reminderMinute': reminderMinute,
-      };
+    'businessName': businessName,
+    'baseCurrency': baseCurrency,
+    'currencies': currencies.map((e) => e.toMap()).toList(),
+    'persianDigits': persianDigits,
+    'languageCode': languageCode,
+    'reminderDays': reminderDays,
+    'pinHash': pinHash,
+    'themeMode': themeMode,
+    'openingCash': openingCash,
+    'setupDone': setupDone,
+    'smsEnabled': smsEnabled,
+    'smsSyncDays': smsSyncDays,
+    'smsAutoApprove': smsAutoApprove,
+    'smsLastSyncAt': smsLastSyncAt,
+    'dailyReminder': dailyReminder,
+    'reminderHour': reminderHour,
+    'reminderMinute': reminderMinute,
+  };
 
   factory AppSettings.fromMap(Map map) => AppSettings(
-        businessName: '${map['businessName'] ?? 'My VPN Business'}',
-        baseCurrency: '${map['baseCurrency'] ?? 'IRT'}',
-        currencies: (map['currencies'] as List?)
-                ?.map((e) => CurrencyDef.fromMap(Map.from(e as Map)))
-                .toList() ??
-            defaultCurrencies,
-        persianDigits: map['persianDigits'] as bool? ?? false,
-        reminderDays: (map['reminderDays'] as num?)?.toInt() ?? 3,
-        pinHash: map['pinHash'] as String?,
-        themeMode: '${map['themeMode'] ?? 'system'}',
-        openingCash: (map['openingCash'] as num?)?.toDouble() ?? 0,
-        setupDone: map['setupDone'] as bool? ?? false,
-        smsEnabled: map['smsEnabled'] as bool? ?? false,
-        smsSyncDays: (map['smsSyncDays'] as num?)?.toInt() ?? 90,
-        smsAutoApprove: map['smsAutoApprove'] as bool? ?? false,
-        smsLastSyncAt: (map['smsLastSyncAt'] as num?)?.toInt() ?? 0,
-        dailyReminder: map['dailyReminder'] as bool? ?? false,
-        reminderHour: (map['reminderHour'] as num?)?.toInt() ?? 21,
-        reminderMinute: (map['reminderMinute'] as num?)?.toInt() ?? 0,
-      );
+    businessName: '${map['businessName'] ?? 'My VPN Business'}',
+    baseCurrency: '${map['baseCurrency'] ?? 'IRT'}',
+    currencies:
+        (map['currencies'] as List?)
+            ?.map((e) => CurrencyDef.fromMap(Map.from(e as Map)))
+            .toList() ??
+        defaultCurrencies,
+    persianDigits: map['persianDigits'] as bool? ?? false,
+    languageCode: map['languageCode'] == 'en' ? 'en' : 'fa',
+    reminderDays: (map['reminderDays'] as num?)?.toInt() ?? 3,
+    pinHash: map['pinHash'] as String?,
+    themeMode: '${map['themeMode'] ?? 'system'}',
+    openingCash: (map['openingCash'] as num?)?.toDouble() ?? 0,
+    setupDone: map['setupDone'] as bool? ?? false,
+    smsEnabled: map['smsEnabled'] as bool? ?? false,
+    smsSyncDays: (map['smsSyncDays'] as num?)?.toInt() ?? 90,
+    smsAutoApprove: map['smsAutoApprove'] as bool? ?? false,
+    smsLastSyncAt: (map['smsLastSyncAt'] as num?)?.toInt() ?? 0,
+    dailyReminder: map['dailyReminder'] as bool? ?? false,
+    reminderHour: (map['reminderHour'] as num?)?.toInt() ?? 21,
+    reminderMinute: (map['reminderMinute'] as num?)?.toInt() ?? 0,
+  );
 }
 
 /// ----- Transaction scope: business or personal -----
@@ -199,15 +239,15 @@ enum TxnScope {
   personal; // Belongs to personal finances.
 
   String get label => switch (this) {
-        TxnScope.business => 'Business',
-        TxnScope.personal => 'Personal',
-      };
+    TxnScope.business => 'Business',
+    TxnScope.personal => 'Personal',
+  }.tr;
 
   /// Display hint used in forms.
   String get hint => switch (this) {
-        TxnScope.business => 'Included in business profit and loss',
-        TxnScope.personal => 'Excluded from business profit and loss',
-      };
+    TxnScope.business => 'Included in business profit and loss',
+    TxnScope.personal => 'Excluded from business profit and loss',
+  }.tr;
 }
 
 /// ----- Income and expense category -----
@@ -216,7 +256,8 @@ class Category {
   final String name;
   final TxnKind kind; // Only income and expense are valid here.
   final int sortOrder;
-  final TxnScope scope; // Whether this category is for business or personal use.
+  final TxnScope
+  scope; // Whether this category is for business or personal use.
 
   const Category({
     required this.id,
@@ -227,22 +268,26 @@ class Category {
   });
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'name': name,
-        'kind': kind.name,
-        'sortOrder': sortOrder,
-        'scope': scope.name,
-      };
+    'id': id,
+    'name': name,
+    'kind': kind.name,
+    'sortOrder': sortOrder,
+    'scope': scope.name,
+  };
 
   factory Category.fromMap(Map map) => Category(
-        id: '${map['id']}',
-        name: '${map['name']}',
-        kind: TxnKind.values.firstWhere((k) => k.name == map['kind'],
-            orElse: () => TxnKind.expense),
-        sortOrder: (map['sortOrder'] as num?)?.toInt() ?? 0,
-        scope: TxnScope.values.firstWhere((v) => v.name == map['scope'],
-            orElse: () => TxnScope.business),
-      );
+    id: '${map['id']}',
+    name: '${map['name']}',
+    kind: TxnKind.values.firstWhere(
+      (k) => k.name == map['kind'],
+      orElse: () => TxnKind.expense,
+    ),
+    sortOrder: (map['sortOrder'] as num?)?.toInt() ?? 0,
+    scope: TxnScope.values.firstWhere(
+      (v) => v.name == map['scope'],
+      orElse: () => TxnScope.business,
+    ),
+  );
 }
 
 /// ----- Contact (customer or supplier) -----
@@ -280,46 +325,47 @@ class Customer {
     double? openingBalance,
     bool? archived,
     List<String>? bankIdentifiers,
-  }) =>
-      Customer(
-        id: id,
-        name: name ?? this.name,
-        phone: phone ?? this.phone,
-        telegram: telegram ?? this.telegram,
-        note: note ?? this.note,
-        openingBalance: openingBalance ?? this.openingBalance,
-        createdAt: createdAt,
-        archived: archived ?? this.archived,
-        bankIdentifiers: bankIdentifiers ?? this.bankIdentifiers,
-      );
+  }) => Customer(
+    id: id,
+    name: name ?? this.name,
+    phone: phone ?? this.phone,
+    telegram: telegram ?? this.telegram,
+    note: note ?? this.note,
+    openingBalance: openingBalance ?? this.openingBalance,
+    createdAt: createdAt,
+    archived: archived ?? this.archived,
+    bankIdentifiers: bankIdentifiers ?? this.bankIdentifiers,
+  );
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'name': name,
-        'phone': phone,
-        'telegram': telegram,
-        'note': note,
-        'openingBalance': openingBalance,
-        'createdAt': createdAt.millisecondsSinceEpoch,
-        'archived': archived,
-        'bankIdentifiers': bankIdentifiers,
-      };
+    'id': id,
+    'name': name,
+    'phone': phone,
+    'telegram': telegram,
+    'note': note,
+    'openingBalance': openingBalance,
+    'createdAt': createdAt.millisecondsSinceEpoch,
+    'archived': archived,
+    'bankIdentifiers': bankIdentifiers,
+  };
 
   factory Customer.fromMap(Map map) => Customer(
-        id: '${map['id']}',
-        name: '${map['name']}',
-        phone: '${map['phone'] ?? ''}',
-        telegram: '${map['telegram'] ?? ''}',
-        note: '${map['note'] ?? ''}',
-        openingBalance: (map['openingBalance'] as num?)?.toDouble() ?? 0,
-        createdAt: DateTime.fromMillisecondsSinceEpoch(
-            (map['createdAt'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch),
-        archived: map['archived'] as bool? ?? false,
-        bankIdentifiers: (map['bankIdentifiers'] as List? ?? const [])
-            .map((e) => '$e')
-            .where((e) => e.trim().isNotEmpty)
-            .toList(),
-      );
+    id: '${map['id']}',
+    name: '${map['name']}',
+    phone: '${map['phone'] ?? ''}',
+    telegram: '${map['telegram'] ?? ''}',
+    note: '${map['note'] ?? ''}',
+    openingBalance: (map['openingBalance'] as num?)?.toDouble() ?? 0,
+    createdAt: DateTime.fromMillisecondsSinceEpoch(
+      (map['createdAt'] as num?)?.toInt() ??
+          DateTime.now().millisecondsSinceEpoch,
+    ),
+    archived: map['archived'] as bool? ?? false,
+    bankIdentifiers: (map['bankIdentifiers'] as List? ?? const [])
+        .map((e) => '$e')
+        .where((e) => e.trim().isNotEmpty)
+        .toList(),
+  );
 }
 
 /// ----- Subscription -----
@@ -365,52 +411,57 @@ class Subscription {
     int? deviceCount,
     String? note,
     bool? autoRenew,
-  }) =>
-      Subscription(
-        id: id,
-        customerId: customerId ?? this.customerId,
-        planId: planId ?? this.planId,
-        planName: planName ?? this.planName,
-        startDate: startDate ?? this.startDate,
-        endDate: endDate ?? this.endDate,
-        amount: amount ?? this.amount,
-        currency: currency ?? this.currency,
-        deviceCount: deviceCount ?? this.deviceCount,
-        note: note ?? this.note,
-        autoRenew: autoRenew ?? this.autoRenew,
-        createdAt: createdAt,
-      );
+  }) => Subscription(
+    id: id,
+    customerId: customerId ?? this.customerId,
+    planId: planId ?? this.planId,
+    planName: planName ?? this.planName,
+    startDate: startDate ?? this.startDate,
+    endDate: endDate ?? this.endDate,
+    amount: amount ?? this.amount,
+    currency: currency ?? this.currency,
+    deviceCount: deviceCount ?? this.deviceCount,
+    note: note ?? this.note,
+    autoRenew: autoRenew ?? this.autoRenew,
+    createdAt: createdAt,
+  );
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'customerId': customerId,
-        'planId': planId,
-        'planName': planName,
-        'startDate': startDate.millisecondsSinceEpoch,
-        'endDate': endDate.millisecondsSinceEpoch,
-        'amount': amount,
-        'currency': currency,
-        'deviceCount': deviceCount,
-        'note': note,
-        'autoRenew': autoRenew,
-        'createdAt': createdAt.millisecondsSinceEpoch,
-      };
+    'id': id,
+    'customerId': customerId,
+    'planId': planId,
+    'planName': planName,
+    'startDate': startDate.millisecondsSinceEpoch,
+    'endDate': endDate.millisecondsSinceEpoch,
+    'amount': amount,
+    'currency': currency,
+    'deviceCount': deviceCount,
+    'note': note,
+    'autoRenew': autoRenew,
+    'createdAt': createdAt.millisecondsSinceEpoch,
+  };
 
   factory Subscription.fromMap(Map map) => Subscription(
-        id: '${map['id']}',
-        customerId: '${map['customerId']}',
-        planId: map['planId'] as String?,
-        planName: '${map['planName'] ?? ''}',
-        startDate: DateTime.fromMillisecondsSinceEpoch((map['startDate'] as num).toInt()),
-        endDate: DateTime.fromMillisecondsSinceEpoch((map['endDate'] as num).toInt()),
-        amount: (map['amount'] as num?)?.toDouble() ?? 0,
-        currency: '${map['currency'] ?? 'IRT'}',
-        deviceCount: (map['deviceCount'] as num?)?.toInt() ?? 1,
-        note: '${map['note'] ?? ''}',
-        autoRenew: map['autoRenew'] as bool? ?? false,
-        createdAt: DateTime.fromMillisecondsSinceEpoch(
-            (map['createdAt'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch),
-      );
+    id: '${map['id']}',
+    customerId: '${map['customerId']}',
+    planId: map['planId'] as String?,
+    planName: '${map['planName'] ?? ''}',
+    startDate: DateTime.fromMillisecondsSinceEpoch(
+      (map['startDate'] as num).toInt(),
+    ),
+    endDate: DateTime.fromMillisecondsSinceEpoch(
+      (map['endDate'] as num).toInt(),
+    ),
+    amount: (map['amount'] as num?)?.toDouble() ?? 0,
+    currency: '${map['currency'] ?? 'IRT'}',
+    deviceCount: (map['deviceCount'] as num?)?.toInt() ?? 1,
+    note: '${map['note'] ?? ''}',
+    autoRenew: map['autoRenew'] as bool? ?? false,
+    createdAt: DateTime.fromMillisecondsSinceEpoch(
+      (map['createdAt'] as num?)?.toInt() ??
+          DateTime.now().millisecondsSinceEpoch,
+    ),
+  );
 }
 
 /// ----- Saved plan (sales template) -----
@@ -437,10 +488,12 @@ class Plan {
     this.archived = false,
   });
 
-  int get durationDays => durationUnit == PlanDurationUnit.day ? durationValue : durationValue * 30;
+  int get durationDays =>
+      durationUnit == PlanDurationUnit.day ? durationValue : durationValue * 30;
 
   String get durationLabel =>
-      '$durationValue ${durationUnit == PlanDurationUnit.month ? (durationValue == 1 ? 'month' : 'months') : (durationValue == 1 ? 'day' : 'days')}';
+      '$durationValue ${durationUnit == PlanDurationUnit.month ? (durationValue == 1 ? 'month' : 'months') : (durationValue == 1 ? 'day' : 'days')}'
+          .tr;
 
   /// Calculate the end date from the start date (months follow the Jalali calendar).
   DateTime endFrom(DateTime start) {
@@ -462,41 +515,41 @@ class Plan {
     PlanDurationUnit? durationUnit,
     String? note,
     bool? archived,
-  }) =>
-      Plan(
-        id: id,
-        name: name ?? this.name,
-        price: price ?? this.price,
-        currency: currency ?? this.currency,
-        durationValue: durationValue ?? this.durationValue,
-        durationUnit: durationUnit ?? this.durationUnit,
-        note: note ?? this.note,
-        archived: archived ?? this.archived,
-      );
+  }) => Plan(
+    id: id,
+    name: name ?? this.name,
+    price: price ?? this.price,
+    currency: currency ?? this.currency,
+    durationValue: durationValue ?? this.durationValue,
+    durationUnit: durationUnit ?? this.durationUnit,
+    note: note ?? this.note,
+    archived: archived ?? this.archived,
+  );
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'name': name,
-        'price': price,
-        'currency': currency,
-        'durationValue': durationValue,
-        'durationUnit': durationUnit.name,
-        'note': note,
-        'archived': archived,
-      };
+    'id': id,
+    'name': name,
+    'price': price,
+    'currency': currency,
+    'durationValue': durationValue,
+    'durationUnit': durationUnit.name,
+    'note': note,
+    'archived': archived,
+  };
 
   factory Plan.fromMap(Map map) => Plan(
-        id: '${map['id']}',
-        name: '${map['name']}',
-        price: (map['price'] as num?)?.toDouble() ?? 0,
-        currency: '${map['currency'] ?? 'IRT'}',
-        durationValue: (map['durationValue'] as num?)?.toInt() ?? 1,
-        durationUnit: PlanDurationUnit.values.firstWhere(
-            (u) => u.name == map['durationUnit'],
-            orElse: () => PlanDurationUnit.month),
-        note: '${map['note'] ?? ''}',
-        archived: map['archived'] as bool? ?? false,
-      );
+    id: '${map['id']}',
+    name: '${map['name']}',
+    price: (map['price'] as num?)?.toDouble() ?? 0,
+    currency: '${map['currency'] ?? 'IRT'}',
+    durationValue: (map['durationValue'] as num?)?.toInt() ?? 1,
+    durationUnit: PlanDurationUnit.values.firstWhere(
+      (u) => u.name == map['durationUnit'],
+      orElse: () => PlanDurationUnit.month,
+    ),
+    note: '${map['note'] ?? ''}',
+    archived: map['archived'] as bool? ?? false,
+  );
 }
 
 /// ----- Transaction types -----
@@ -504,30 +557,34 @@ enum TxnKind {
   income, // Sale or income.
   expense, // Expense.
   receive, // Payment received from a customer (settlement).
-  refund, // Payment or refund to a customer.
+  refund, // Customer refund; reduces revenue and receivable.
+  payablePayment, // Cash paid to settle a supplier/contact payable.
 }
 
 extension TxnKindX on TxnKind {
   String get label => switch (this) {
-        TxnKind.income => 'Sale / income',
-        TxnKind.expense => 'Expense',
-        TxnKind.receive => 'Customer payment',
-        TxnKind.refund => 'Refund to customer',
-      };
+    TxnKind.income => 'Sale / income',
+    TxnKind.expense => 'Expense',
+    TxnKind.receive => 'Customer payment',
+    TxnKind.refund => 'Refund to customer',
+    TxnKind.payablePayment => 'Payable settlement',
+  }.tr;
 
   String get shortLabel => switch (this) {
-        TxnKind.income => 'Income',
-        TxnKind.expense => 'Expense',
-        TxnKind.receive => 'Receive',
-        TxnKind.refund => 'Payment',
-      };
+    TxnKind.income => 'Income',
+    TxnKind.expense => 'Expense',
+    TxnKind.receive => 'Receive',
+    TxnKind.refund => 'Refund',
+    TxnKind.payablePayment => 'Paid out',
+  }.tr;
 
   IconData get icon => switch (this) {
-        TxnKind.income => Icons.trending_up_rounded,
-        TxnKind.expense => Icons.trending_down_rounded,
-        TxnKind.receive => Icons.call_received_rounded,
-        TxnKind.refund => Icons.call_made_rounded,
-      };
+    TxnKind.income => Icons.trending_up_rounded,
+    TxnKind.expense => Icons.trending_down_rounded,
+    TxnKind.receive => Icons.call_received_rounded,
+    TxnKind.refund => Icons.currency_exchange_rounded,
+    TxnKind.payablePayment => Icons.payments_outlined,
+  };
 
   bool get isProfitKind => this == TxnKind.income || this == TxnKind.expense;
 
@@ -536,10 +593,10 @@ extension TxnKindX on TxnKind {
 
   /// Cash direction: +1 inflow, −1 outflow, 0 no effect.
   int get cashDirection => switch (this) {
-        TxnKind.receive => 1,
-        TxnKind.refund => -1,
-        _ => 0,
-      };
+    TxnKind.receive => 1,
+    TxnKind.refund || TxnKind.payablePayment => -1,
+    _ => 0,
+  };
 }
 
 /// ----- Transaction -----
@@ -548,12 +605,14 @@ class Txn {
   final TxnKind kind;
   final double amount;
   final String currency; // Transaction currency code.
-  final double rateToBase; // Exchange rate to the base currency when recorded (snapshot).
+  final double
+  rateToBase; // Exchange rate to the base currency when recorded (snapshot).
   final DateTime date;
   final String? categoryId;
   final String? customerId;
   final String? subscriptionId;
-  final bool credit; // For income/expense, true means charged to the customer’s account.
+  final bool
+  credit; // For income/expense, true means charged to the customer’s account.
   final TxnScope scope; // Business or personal (business profit includes business transactions only).
   final String note;
   final DateTime createdAt;
@@ -591,57 +650,64 @@ class Txn {
     bool clearCustomer = false,
     bool clearCategory = false,
     bool clearSubscription = false,
-  }) =>
-      Txn(
-        id: id,
-        kind: kind ?? this.kind,
-        amount: amount ?? this.amount,
-        currency: currency ?? this.currency,
-        rateToBase: rateToBase ?? this.rateToBase,
-        date: date ?? this.date,
-        categoryId: clearCategory ? null : (categoryId ?? this.categoryId),
-        customerId: clearCustomer ? null : (customerId ?? this.customerId),
-        subscriptionId: clearSubscription ? null : (subscriptionId ?? this.subscriptionId),
-        credit: credit ?? this.credit,
-        scope: scope ?? this.scope,
-        note: note ?? this.note,
-        createdAt: createdAt,
-      );
+  }) => Txn(
+    id: id,
+    kind: kind ?? this.kind,
+    amount: amount ?? this.amount,
+    currency: currency ?? this.currency,
+    rateToBase: rateToBase ?? this.rateToBase,
+    date: date ?? this.date,
+    categoryId: clearCategory ? null : (categoryId ?? this.categoryId),
+    customerId: clearCustomer ? null : (customerId ?? this.customerId),
+    subscriptionId: clearSubscription
+        ? null
+        : (subscriptionId ?? this.subscriptionId),
+    credit: credit ?? this.credit,
+    scope: scope ?? this.scope,
+    note: note ?? this.note,
+    createdAt: createdAt,
+  );
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'kind': kind.name,
-        'amount': amount,
-        'currency': currency,
-        'rateToBase': rateToBase,
-        'date': date.millisecondsSinceEpoch,
-        'categoryId': categoryId,
-        'customerId': customerId,
-        'subscriptionId': subscriptionId,
-        'credit': credit,
-        'scope': scope.name,
-        'note': note,
-        'createdAt': createdAt.millisecondsSinceEpoch,
-      };
+    'id': id,
+    'kind': kind.name,
+    'amount': amount,
+    'currency': currency,
+    'rateToBase': rateToBase,
+    'date': date.millisecondsSinceEpoch,
+    'categoryId': categoryId,
+    'customerId': customerId,
+    'subscriptionId': subscriptionId,
+    'credit': credit,
+    'scope': scope.name,
+    'note': note,
+    'createdAt': createdAt.millisecondsSinceEpoch,
+  };
 
   factory Txn.fromMap(Map map) => Txn(
-        id: '${map['id']}',
-        kind: TxnKind.values.firstWhere((k) => k.name == map['kind'],
-            orElse: () => TxnKind.income),
-        amount: (map['amount'] as num?)?.toDouble() ?? 0,
-        currency: '${map['currency'] ?? 'IRT'}',
-        rateToBase: (map['rateToBase'] as num?)?.toDouble() ?? 1,
-        date: DateTime.fromMillisecondsSinceEpoch((map['date'] as num).toInt()),
-        categoryId: map['categoryId'] as String?,
-        customerId: map['customerId'] as String?,
-        subscriptionId: map['subscriptionId'] as String?,
-        credit: map['credit'] as bool? ?? false,
-        scope: TxnScope.values.firstWhere((v) => v.name == map['scope'],
-            orElse: () => TxnScope.business),
-        note: '${map['note'] ?? ''}',
-        createdAt: DateTime.fromMillisecondsSinceEpoch(
-            (map['createdAt'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch),
-      );
+    id: '${map['id']}',
+    kind: TxnKind.values.firstWhere(
+      (k) => k.name == map['kind'],
+      orElse: () => TxnKind.income,
+    ),
+    amount: (map['amount'] as num?)?.toDouble() ?? 0,
+    currency: '${map['currency'] ?? 'IRT'}',
+    rateToBase: (map['rateToBase'] as num?)?.toDouble() ?? 1,
+    date: DateTime.fromMillisecondsSinceEpoch((map['date'] as num).toInt()),
+    categoryId: map['categoryId'] as String?,
+    customerId: map['customerId'] as String?,
+    subscriptionId: map['subscriptionId'] as String?,
+    credit: map['credit'] as bool? ?? false,
+    scope: TxnScope.values.firstWhere(
+      (v) => v.name == map['scope'],
+      orElse: () => TxnScope.business,
+    ),
+    note: '${map['note'] ?? ''}',
+    createdAt: DateTime.fromMillisecondsSinceEpoch(
+      (map['createdAt'] as num?)?.toInt() ??
+          DateTime.now().millisecondsSinceEpoch,
+    ),
+  );
 }
 
 /// ----- Subscription status -----
@@ -649,16 +715,16 @@ enum SubStatus { active, expiringSoon, expired }
 
 extension SubStatusX on SubStatus {
   String get label => switch (this) {
-        SubStatus.active => 'Active',
-        SubStatus.expiringSoon => 'Expiring soon',
-        SubStatus.expired => 'Expired',
-      };
+    SubStatus.active => 'Active',
+    SubStatus.expiringSoon => 'Expiring soon',
+    SubStatus.expired => 'Expired',
+  }.tr;
 
   Color get color => switch (this) {
-        SubStatus.active => const Color(0xFF16A34A),
-        SubStatus.expiringSoon => const Color(0xFFF59E0B),
-        SubStatus.expired => const Color(0xFFDC2626),
-      };
+    SubStatus.active => const Color(0xFF16A34A),
+    SubStatus.expiringSoon => const Color(0xFFF59E0B),
+    SubStatus.expired => const Color(0xFFDC2626),
+  };
 }
 
 /// ============================================================
@@ -686,31 +752,32 @@ class Budget {
     double? limit,
     TxnScope? scope,
     bool? enabled,
-  }) =>
-      Budget(
-        id: id,
-        categoryId: categoryId ?? this.categoryId,
-        limit: limit ?? this.limit,
-        scope: scope ?? this.scope,
-        enabled: enabled ?? this.enabled,
-      );
+  }) => Budget(
+    id: id,
+    categoryId: categoryId ?? this.categoryId,
+    limit: limit ?? this.limit,
+    scope: scope ?? this.scope,
+    enabled: enabled ?? this.enabled,
+  );
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'categoryId': categoryId,
-        'limit': limit,
-        'scope': scope.name,
-        'enabled': enabled,
-      };
+    'id': id,
+    'categoryId': categoryId,
+    'limit': limit,
+    'scope': scope.name,
+    'enabled': enabled,
+  };
 
   factory Budget.fromMap(Map map) => Budget(
-        id: '${map['id']}',
-        categoryId: '${map['categoryId'] ?? ''}',
-        limit: (map['limit'] as num?)?.toDouble() ?? 0,
-        scope: TxnScope.values.firstWhere((v) => v.name == map['scope'],
-            orElse: () => TxnScope.personal),
-        enabled: map['enabled'] as bool? ?? true,
-      );
+    id: '${map['id']}',
+    categoryId: '${map['categoryId'] ?? ''}',
+    limit: (map['limit'] as num?)?.toDouble() ?? 0,
+    scope: TxnScope.values.firstWhere(
+      (v) => v.name == map['scope'],
+      orElse: () => TxnScope.personal,
+    ),
+    enabled: map['enabled'] as bool? ?? true,
+  );
 }
 
 /// Budget usage for the current month.
@@ -741,10 +808,10 @@ enum RecurringPeriod { monthly, weekly, daily }
 
 extension RecurringPeriodX on RecurringPeriod {
   String get label => switch (this) {
-        RecurringPeriod.monthly => 'Monthly',
-        RecurringPeriod.weekly => 'Weekly',
-        RecurringPeriod.daily => 'Daily',
-      };
+    RecurringPeriod.monthly => 'Monthly',
+    RecurringPeriod.weekly => 'Weekly',
+    RecurringPeriod.daily => 'Daily',
+  }.tr;
 }
 
 class RecurringRule {
@@ -805,24 +872,23 @@ class RecurringRule {
     bool clearEndDate = false,
     DateTime? lastPosted,
     bool clearLastPosted = false,
-  }) =>
-      RecurringRule(
-        id: id,
-        title: title ?? this.title,
-        kind: kind ?? this.kind,
-        amount: amount ?? this.amount,
-        scope: scope ?? this.scope,
-        currency: currency ?? this.currency,
-        categoryId: categoryId ?? this.categoryId,
-        customerId: customerId ?? this.customerId,
-        note: note ?? this.note,
-        period: period ?? this.period,
-        dayOfMonth: dayOfMonth ?? this.dayOfMonth,
-        startDate: startDate ?? this.startDate,
-        endDate: clearEndDate ? null : (endDate ?? this.endDate),
-        enabled: enabled ?? this.enabled,
-        lastPosted: clearLastPosted ? null : (lastPosted ?? this.lastPosted),
-      );
+  }) => RecurringRule(
+    id: id,
+    title: title ?? this.title,
+    kind: kind ?? this.kind,
+    amount: amount ?? this.amount,
+    scope: scope ?? this.scope,
+    currency: currency ?? this.currency,
+    categoryId: categoryId ?? this.categoryId,
+    customerId: customerId ?? this.customerId,
+    note: note ?? this.note,
+    period: period ?? this.period,
+    dayOfMonth: dayOfMonth ?? this.dayOfMonth,
+    startDate: startDate ?? this.startDate,
+    endDate: clearEndDate ? null : (endDate ?? this.endDate),
+    enabled: enabled ?? this.enabled,
+    lastPosted: clearLastPosted ? null : (lastPosted ?? this.lastPosted),
+  );
 
   // ---------- Due-date calculations ----------
   static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
@@ -860,7 +926,11 @@ class RecurringRule {
     final start = _dateOnly(startDate);
     if (period != RecurringPeriod.monthly) return start;
     final j = Jalali.fromDateTime(start);
-    final candidate = Jalali(j.year, j.month, _dayIn(j.year, j.month)).toDateTime();
+    final candidate = Jalali(
+      j.year,
+      j.month,
+      _dayIn(j.year, j.month),
+    ).toDateTime();
     return candidate.isBefore(start) ? _advance(start) : candidate;
   }
 
@@ -885,9 +955,15 @@ class RecurringRule {
     final first = _dateOnly(startDate);
     final from = lastPosted == null
         ? first
-        : Jalali.fromDateTime(_dateOnly(DateTime(
-                lastPosted!.year, lastPosted!.month, lastPosted!.day + 1)))
-            .toDateTime();
+        : Jalali.fromDateTime(
+            _dateOnly(
+              DateTime(
+                lastPosted!.year,
+                lastPosted!.month,
+                lastPosted!.day + 1,
+              ),
+            ),
+          ).toDateTime();
     return occurrencesUpTo(now).where((d) => !d.isBefore(from)).toList();
   }
 
@@ -895,8 +971,10 @@ class RecurringRule {
   DateTime? nextDue(DateTime now) {
     if (!enabled) return null;
     final from = lastPosted ?? _dateOnly(startDate);
-    final list = occurrencesUpTo(DateTime(now.year, now.month + 1, now.day),
-        limit: 60);
+    final list = occurrencesUpTo(
+      DateTime(now.year, now.month + 1, now.day),
+      limit: 60,
+    );
     for (final d in list) {
       if (d.isAfter(_dateOnly(from))) return d;
     }
@@ -904,51 +982,58 @@ class RecurringRule {
   }
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'title': title,
-        'kind': kind.name,
-        'amount': amount,
-        'scope': scope.name,
-        'currency': currency,
-        'categoryId': categoryId,
-        'customerId': customerId,
-        'note': note,
-        'period': period.name,
-        'dayOfMonth': dayOfMonth,
-        'startDate': startDate.millisecondsSinceEpoch,
-        'endDate': endDate?.millisecondsSinceEpoch,
-        'enabled': enabled,
-        'lastPosted': lastPosted?.millisecondsSinceEpoch,
-      };
+    'id': id,
+    'title': title,
+    'kind': kind.name,
+    'amount': amount,
+    'scope': scope.name,
+    'currency': currency,
+    'categoryId': categoryId,
+    'customerId': customerId,
+    'note': note,
+    'period': period.name,
+    'dayOfMonth': dayOfMonth,
+    'startDate': startDate.millisecondsSinceEpoch,
+    'endDate': endDate?.millisecondsSinceEpoch,
+    'enabled': enabled,
+    'lastPosted': lastPosted?.millisecondsSinceEpoch,
+  };
 
   factory RecurringRule.fromMap(Map map) => RecurringRule(
-        id: '${map['id']}',
-        title: '${map['title'] ?? ''}',
-        kind: TxnKind.values.firstWhere((k) => k.name == map['kind'],
-            orElse: () => TxnKind.expense),
-        amount: (map['amount'] as num?)?.toDouble() ?? 0,
-        scope: TxnScope.values.firstWhere((v) => v.name == map['scope'],
-            orElse: () => TxnScope.personal),
-        currency: '${map['currency'] ?? 'IRT'}',
-        categoryId: map['categoryId'] as String?,
-        customerId: map['customerId'] as String?,
-        note: '${map['note'] ?? ''}',
-        period: RecurringPeriod.values.firstWhere(
-            (p) => p.name == map['period'],
-            orElse: () => RecurringPeriod.monthly),
-        dayOfMonth: (map['dayOfMonth'] as num?)?.toInt() ?? 1,
-        startDate: DateTime.fromMillisecondsSinceEpoch(
-            (map['startDate'] as num?)?.toInt() ??
-                DateTime.now().millisecondsSinceEpoch),
-        endDate: (map['endDate'] as num?) == null
-            ? null
-            : DateTime.fromMillisecondsSinceEpoch((map['endDate'] as num).toInt()),
-        enabled: map['enabled'] as bool? ?? true,
-        lastPosted: (map['lastPosted'] as num?) == null
-            ? null
-            : DateTime.fromMillisecondsSinceEpoch(
-                (map['lastPosted'] as num).toInt()),
-      );
+    id: '${map['id']}',
+    title: '${map['title'] ?? ''}',
+    kind: TxnKind.values.firstWhere(
+      (k) => k.name == map['kind'],
+      orElse: () => TxnKind.expense,
+    ),
+    amount: (map['amount'] as num?)?.toDouble() ?? 0,
+    scope: TxnScope.values.firstWhere(
+      (v) => v.name == map['scope'],
+      orElse: () => TxnScope.personal,
+    ),
+    currency: '${map['currency'] ?? 'IRT'}',
+    categoryId: map['categoryId'] as String?,
+    customerId: map['customerId'] as String?,
+    note: '${map['note'] ?? ''}',
+    period: RecurringPeriod.values.firstWhere(
+      (p) => p.name == map['period'],
+      orElse: () => RecurringPeriod.monthly,
+    ),
+    dayOfMonth: (map['dayOfMonth'] as num?)?.toInt() ?? 1,
+    startDate: DateTime.fromMillisecondsSinceEpoch(
+      (map['startDate'] as num?)?.toInt() ??
+          DateTime.now().millisecondsSinceEpoch,
+    ),
+    endDate: (map['endDate'] as num?) == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch((map['endDate'] as num).toInt()),
+    enabled: map['enabled'] as bool? ?? true,
+    lastPosted: (map['lastPosted'] as num?) == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(
+            (map['lastPosted'] as num).toInt(),
+          ),
+  );
 }
 
 /// ----- Dashboard quick-entry button -----
@@ -987,73 +1072,82 @@ class QuickExpense {
     String? categoryId,
     int? iconCodePoint,
     int? sortOrder,
-  }) =>
-      QuickExpense(
-        id: id,
-        label: label ?? this.label,
-        amount: amount ?? this.amount,
-        kind: kind ?? this.kind,
-        scope: scope ?? this.scope,
-        categoryId: categoryId ?? this.categoryId,
-        iconCodePoint: iconCodePoint ?? this.iconCodePoint,
-        sortOrder: sortOrder ?? this.sortOrder,
-      );
+  }) => QuickExpense(
+    id: id,
+    label: label ?? this.label,
+    amount: amount ?? this.amount,
+    kind: kind ?? this.kind,
+    scope: scope ?? this.scope,
+    categoryId: categoryId ?? this.categoryId,
+    iconCodePoint: iconCodePoint ?? this.iconCodePoint,
+    sortOrder: sortOrder ?? this.sortOrder,
+  );
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'label': label,
-        'amount': amount,
-        'kind': kind.name,
-        'scope': scope.name,
-        'categoryId': categoryId,
-        'iconCodePoint': iconCodePoint,
-        'sortOrder': sortOrder,
-      };
+    'id': id,
+    'label': label,
+    'amount': amount,
+    'kind': kind.name,
+    'scope': scope.name,
+    'categoryId': categoryId,
+    'iconCodePoint': iconCodePoint,
+    'sortOrder': sortOrder,
+  };
 
   factory QuickExpense.fromMap(Map map) => QuickExpense(
-        id: '${map['id']}',
-        label: '${map['label'] ?? ''}',
-        amount: (map['amount'] as num?)?.toDouble() ?? 0,
-        kind: TxnKind.values.firstWhere((k) => k.name == map['kind'],
-            orElse: () => TxnKind.expense),
-        scope: TxnScope.values.firstWhere((v) => v.name == map['scope'],
-            orElse: () => TxnScope.personal),
-        categoryId: map['categoryId'] as String?,
-        iconCodePoint: (map['iconCodePoint'] as num?)?.toInt() ?? 0xe15b,
-        sortOrder: (map['sortOrder'] as num?)?.toInt() ?? 0,
-      );
+    id: '${map['id']}',
+    label: '${map['label'] ?? ''}',
+    amount: (map['amount'] as num?)?.toDouble() ?? 0,
+    kind: TxnKind.values.firstWhere(
+      (k) => k.name == map['kind'],
+      orElse: () => TxnKind.expense,
+    ),
+    scope: TxnScope.values.firstWhere(
+      (v) => v.name == map['scope'],
+      orElse: () => TxnScope.personal,
+    ),
+    categoryId: map['categoryId'] as String?,
+    iconCodePoint: (map['iconCodePoint'] as num?)?.toInt() ?? 0xe15b,
+    sortOrder: (map['sortOrder'] as num?)?.toInt() ?? 0,
+  );
 
   /// Default personal finance quick-entry buttons.
   static List<QuickExpense> defaults() => [
-        QuickExpense(
-            id: 'q_food',
-            label: 'Food',
-            iconCodePoint: 0xf0a6, // Icons.restaurant_outlined
-            sortOrder: 0),
-        QuickExpense(
-            id: 'q_transport',
-            label: 'Transport',
-            iconCodePoint: 0xf8e9, // Icons.directions_bus_outlined
-            sortOrder: 1),
-        QuickExpense(
-            id: 'q_market',
-            label: 'Daily shopping',
-            iconCodePoint: 0xf7bb, // Icons.shopping_bag_outlined
-            sortOrder: 2),
-        QuickExpense(
-            id: 'q_bill',
-            label: 'Bills',
-            iconCodePoint: 0xf0ac, // Icons.receipt_outlined
-            sortOrder: 3),
-        QuickExpense(
-            id: 'q_cafe',
-            label: 'Cafe',
-            iconCodePoint: 0xf0a8, // Icons.local_cafe_outlined
-            sortOrder: 4),
-        QuickExpense(
-            id: 'q_health',
-            label: 'Health',
-            iconCodePoint: 0xf0ad, // Icons.local_hospital_outlined
-            sortOrder: 5),
-      ];
+    QuickExpense(
+      id: 'q_food',
+      label: 'Food',
+      iconCodePoint: 0xf0a6, // Icons.restaurant_outlined
+      sortOrder: 0,
+    ),
+    QuickExpense(
+      id: 'q_transport',
+      label: 'Transport',
+      iconCodePoint: 0xf8e9, // Icons.directions_bus_outlined
+      sortOrder: 1,
+    ),
+    QuickExpense(
+      id: 'q_market',
+      label: 'Daily shopping',
+      iconCodePoint: 0xf7bb, // Icons.shopping_bag_outlined
+      sortOrder: 2,
+    ),
+    QuickExpense(
+      id: 'q_bill',
+      label: 'Bills',
+      iconCodePoint: 0xf0ac, // Icons.receipt_outlined
+      sortOrder: 3,
+    ),
+    QuickExpense(
+      id: 'q_cafe',
+      label: 'Cafe',
+      iconCodePoint: 0xf0a8, // Icons.local_cafe_outlined
+      sortOrder: 4,
+    ),
+    QuickExpense(
+      id: 'q_health',
+      label: 'Health',
+      iconCodePoint: 0xf0ad, // Icons.local_hospital_outlined
+      sortOrder: 5,
+    ),
+  ];
 }

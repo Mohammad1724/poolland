@@ -12,6 +12,8 @@ import 'widgets/period_chart.dart';
 import 'widgets/quick_buttons.dart';
 import 'widgets/widgets.dart';
 
+import '../core/localization.dart';
+
 /// Personal finance page: quick entry, budgeting,
 /// recurring transactions, and daily, weekly, and monthly charts.
 class PersonalPage extends StatelessWidget {
@@ -23,10 +25,14 @@ class PersonalPage extends StatelessWidget {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final range = AppRepository.monthOf(DateTime.now());
     final month = repo.summary(
-        from: range.start, to: range.end, scope: TxnScope.personal);
+      from: range.start,
+      to: range.end,
+      scope: TxnScope.personal,
+    );
     final usages = repo.budgetUsages();
-    final personal =
-        repo.transactions.where((t) => t.scope == TxnScope.personal).toList();
+    final personal = repo.transactions
+        .where((t) => t.scope == TxnScope.personal)
+        .toList();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
@@ -41,24 +47,43 @@ class PersonalPage extends StatelessWidget {
                 children: [
                   const Icon(Icons.person_outline_rounded, size: 17),
                   const SizedBox(width: 6),
-                  Text('Personal summary — ${J.mLabel(DateTime.now())}',
-                      style: const TextStyle(
-                          fontSize: 13.5, fontWeight: FontWeight.w700)),
+                  Text(
+                    'Personal summary — {month}'.trArgs({
+                      'month': J.mLabel(DateTime.now()),
+                    }),
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
-                      child: _miniStat(context, 'Income', month.income,
-                          const Color(0xFF16A34A), Icons.trending_up_rounded)),
+                    child: _miniStat(
+                      context,
+                      'Income',
+                      month.income,
+                      const Color(0xFF16A34A),
+                      Icons.trending_up_rounded,
+                    ),
+                  ),
                   Container(
-                      width: 1,
-                      height: 42,
-                      color: Theme.of(context).dividerColor),
+                    width: 1,
+                    height: 42,
+                    color: Theme.of(context).dividerColor,
+                  ),
                   Expanded(
-                      child: _miniStat(context, 'Expense', month.expense,
-                          const Color(0xFFE11D48), Icons.trending_down_rounded)),
+                    child: _miniStat(
+                      context,
+                      'Expense',
+                      month.expense,
+                      const Color(0xFFE11D48),
+                      Icons.trending_down_rounded,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -68,18 +93,24 @@ class PersonalPage extends StatelessWidget {
                 children: [
                   const Icon(Icons.account_balance_wallet_rounded, size: 18),
                   const SizedBox(width: 8),
-                  Text('Balance',
-                      style: TextStyle(
-                          fontSize: 12.5,
-                          color: onSurface.withValues(alpha: 0.7))),
+                  Text(
+                    'Balance'.tr,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
                   const Spacer(),
-                  MoneyText(month.profit,
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: month.profit >= 0
-                              ? const Color(0xFF16A34A)
-                              : const Color(0xFFE11D48))),
+                  MoneyText(
+                    month.profit,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: month.profit >= 0
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFFE11D48),
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -94,8 +125,8 @@ class PersonalPage extends StatelessWidget {
           onAction: () => _manageQuick(context),
         ),
         QuickButtonsRow(
-          emptyHint: 'No quick buttons yet. Use “Manage” to add the buttons you need '
-              '(food, taxi, bills...) and record expenses with one tap.',
+          emptyHint: 'No quick buttons yet. Use “Manage” to add the buttons you need (food, taxi, bills...) and record expenses with one tap.'
+              .tr,
           onLongPress: (q) => _editQuick(context, q),
         ),
 
@@ -103,105 +134,133 @@ class PersonalPage extends StatelessWidget {
         SectionTitle(
           'Monthly budgets',
           icon: Icons.pie_chart_outline_rounded,
-          action: 'Add',
+          action: 'Add'.tr,
           onAction: () => _editBudget(context, null),
         ),
         if (usages.isEmpty)
           CardBox(
             child: Text(
-              'Set a monthly limit for each category (such as food or transport); '
-              'this page will show how much of each limit remains.',
+              'Set a monthly limit for each category (such as food or transport); this page will show how much of each limit remains.'
+                  .tr,
               style: TextStyle(
-                  fontSize: 12,
-                  height: 1.7,
-                  color: onSurface.withValues(alpha: 0.65)),
+                fontSize: 12,
+                height: 1.7,
+                color: onSurface.withValues(alpha: 0.65),
+              ),
             ),
           )
         else
-          ...usages.map((u) => _BudgetTile(
-                usage: u,
-                onEdit: () => _editBudget(context, u.budget),
-                onDelete: () async {
-                  final ok = await confirmDialog(context,
-                      title: 'Delete budget',
-                      message: 'Delete the budget for “${u.categoryName}”?',
-                      okLabel: 'Delete',
-                      danger: true);
-                  if (ok && context.mounted) {
-                    await context.read<AppRepository>().deleteBudget(u.budget.id);
-                  }
-                },
-              )),
+          ...usages.map(
+            (u) => _BudgetTile(
+              usage: u,
+              onEdit: () => _editBudget(context, u.budget),
+              onDelete: () async {
+                final ok = await confirmDialog(
+                  context,
+                  title: 'Delete budget'.tr,
+                  message: 'Delete the budget for “{category}”?'.trArgs({
+                    'category': u.categoryName.tr,
+                  }),
+                  okLabel: 'Delete'.tr,
+                  danger: true,
+                );
+                if (ok && context.mounted) {
+                  await context.read<AppRepository>().deleteBudget(u.budget.id);
+                }
+              },
+            ),
+          ),
 
         // ---- Recurring transactions ----
         SectionTitle(
           'Recurring transactions',
           icon: Icons.autorenew_rounded,
-          action: 'Add',
+          action: 'Add'.tr,
           onAction: () => _editRecurring(context, null),
         ),
         if (repo.recurringRules.isEmpty)
           CardBox(
             child: Text(
-              'Set up rent, internet, subscriptions, and salary once; '
-              'the app will record them automatically on schedule.',
+              'Set up rent, internet, subscriptions, and salary once; the app will record them automatically on schedule.'
+                  .tr,
               style: TextStyle(
-                  fontSize: 12,
-                  height: 1.7,
-                  color: onSurface.withValues(alpha: 0.65)),
+                fontSize: 12,
+                height: 1.7,
+                color: onSurface.withValues(alpha: 0.65),
+              ),
             ),
           )
         else
-          ...repo.recurringRules.map((r) => _RecurringTile(
-                rule: r,
-                onEdit: () => _editRecurring(context, r),
-                onDelete: () async {
-                  final ok = await confirmDialog(context,
-                      title: 'Delete rule',
-                      message: 'Delete “${r.title}”? Existing transactions will remain.',
-                      okLabel: 'Delete',
-                      danger: true);
-                  if (ok && context.mounted) {
-                    await context
-                        .read<AppRepository>()
-                        .deleteRecurring(r.id);
-                  }
-                },
-              )),
+          ...repo.recurringRules.map(
+            (r) => _RecurringTile(
+              rule: r,
+              onEdit: () => _editRecurring(context, r),
+              onDelete: () async {
+                final ok = await confirmDialog(
+                  context,
+                  title: 'Delete rule'.tr,
+                  message:
+                      'Delete “{title}”? Existing transactions will remain.'
+                          .trArgs({'title': r.title}),
+                  okLabel: 'Delete'.tr,
+                  danger: true,
+                );
+                if (ok && context.mounted) {
+                  await context.read<AppRepository>().deleteRecurring(r.id);
+                }
+              },
+            ),
+          ),
         if (repo.recurringRules.isNotEmpty) ...[
           const SizedBox(height: 6),
           OutlinedButton.icon(
             onPressed: () async {
-              final n =
-                  await context.read<AppRepository>().postDueRecurring();
+              final n = await context.read<AppRepository>().postDueRecurring();
               if (!context.mounted) return;
-              showSnack(context,
-                  n == 0 ? 'No due items found' : '$n transactions recorded');
+              showSnack(
+                context,
+                n == 0
+                    ? 'No due items found'.tr
+                    : '{count} transactions recorded'.trArgs({'count': n}),
+              );
             },
             icon: const Icon(Icons.play_arrow_rounded, size: 18),
-            label: const Text('Post due items'),
+            label: Text('Post due items'.tr),
           ),
         ],
 
         // ---- Charts ----
-        const SectionTitle('Income and expense trend', icon: Icons.bar_chart_rounded),
+        const SectionTitle(
+          'Income and expense trend',
+          icon: Icons.bar_chart_rounded,
+        ),
         _PeriodChartCard(
-          daily: Ledger.dailySeries(repo.transactions,
-              days: 30, scope: TxnScope.personal),
-          weekly: Ledger.weeklySeries(repo.transactions,
-              weeks: 12, scope: TxnScope.personal),
+          daily: Ledger.dailySeries(
+            repo.transactions,
+            days: 30,
+            scope: TxnScope.personal,
+          ),
+          weekly: Ledger.weeklySeries(
+            repo.transactions,
+            weeks: 12,
+            scope: TxnScope.personal,
+          ),
           monthly: repo.series(months: 6, scope: TxnScope.personal),
         ),
 
         // ---- Recent personal transactions ----
-        SectionTitle('Recent personal transactions',
-            icon: Icons.receipt_long_outlined),
+        SectionTitle(
+          'Recent personal transactions',
+          icon: Icons.receipt_long_outlined,
+        ),
         if (personal.isEmpty)
           CardBox(
             child: Text(
-              'Nothing recorded yet. Start with the buttons above.',
+              'Nothing recorded yet. Start with the buttons above.'.tr,
               style: TextStyle(
-                  fontSize: 12, color: onSurface.withValues(alpha: 0.65)),
+                fontSize: 12,
+                color: onSurface.withValues(alpha: 0.65),
+              ),
             ),
           )
         else
@@ -212,7 +271,8 @@ class PersonalPage extends StatelessWidget {
                 for (final t in personal.take(8))
                   TxnTile(
                     txn: t,
-                    categoryName: repo.categories
+                    categoryName:
+                        repo.categories
                             .where((c) => c.id == t.categoryId)
                             .firstOrNull
                             ?.name ??
@@ -226,29 +286,36 @@ class PersonalPage extends StatelessWidget {
     );
   }
 
-  Widget _miniStat(BuildContext context, String label, double value, Color color,
-          IconData icon) =>
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _miniStat(
+    BuildContext context,
+    String label,
+    double value,
+    Color color,
+    IconData icon,
+  ) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
         children: [
-          Row(
-            children: [
-              Icon(icon, size: 15, color: color),
-              const SizedBox(width: 5),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 11.5,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.6))),
-            ],
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label.tr,
+            style: TextStyle(
+              fontSize: 11.5,
+              color: Theme.of(context).colorScheme.onSurface
+                  .withValues(alpha: 0.6),
+            ),
           ),
-          const SizedBox(height: 5),
-          MoneyText(value,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
         ],
-      );
+      ),
+      const SizedBox(height: 5),
+      MoneyText(
+        value,
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+      ),
+    ],
+  );
 
   // ---------- Actions ----------
   Future<void> _manageQuick(BuildContext context) async {
@@ -290,8 +357,11 @@ class PersonalPage extends StatelessWidget {
 
 /// ---------------- Budget card ----------------
 class _BudgetTile extends StatelessWidget {
-  const _BudgetTile(
-      {required this.usage, required this.onEdit, required this.onDelete});
+  const _BudgetTile({
+    required this.usage,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final BudgetUsage usage;
   final VoidCallback onEdit;
@@ -303,8 +373,8 @@ class _BudgetTile extends StatelessWidget {
     final color = usage.level == 2
         ? const Color(0xFFE11D48)
         : usage.level == 1
-            ? const Color(0xFFD97706)
-            : const Color(0xFF16A34A);
+        ? const Color(0xFFD97706)
+        : const Color(0xFF16A34A);
     final pct = usage.ratio > 1 ? 1.0 : usage.ratio;
 
     return Padding(
@@ -317,25 +387,39 @@ class _BudgetTile extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(usage.categoryName,
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w700)),
+                  child: Text(
+                    usage.categoryName,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-                MoneyText(usage.spent, compact: true,
-                    style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: color)),
-                Text(' / ${Money.text(usage.budget.limit, compact: true)}',
-                    style: TextStyle(
-                        fontSize: 11.5,
-                        color: onSurface.withValues(alpha: 0.55))),
+                MoneyText(
+                  usage.spent,
+                  compact: true,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+                Text(
+                  ' / ${Money.text(usage.budget.limit, compact: true)}',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: onSurface.withValues(alpha: 0.55),
+                  ),
+                ),
                 const SizedBox(width: 4),
                 InkWell(
                   onTap: onDelete,
                   borderRadius: BorderRadius.circular(8),
-                  child: Icon(Icons.delete_outline_rounded,
-                      size: 17, color: onSurface.withValues(alpha: 0.4)),
+                  child: Icon(
+                    Icons.delete_outline_rounded,
+                    size: 17,
+                    color: onSurface.withValues(alpha: 0.4),
+                  ),
                 ),
               ],
             ),
@@ -349,7 +433,7 @@ class _BudgetTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
               ),
               child: FractionallySizedBox(
-                alignment: Alignment.centerLeft,
+                alignment: AlignmentDirectional.centerStart,
                 widthFactor: pct < 0 ? 0 : (pct > 1 ? 1 : pct),
                 child: Container(
                   decoration: BoxDecoration(
@@ -362,11 +446,17 @@ class _BudgetTile extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               usage.isOver
-                  ? '${Money.text(-usage.remaining, compact: true)} over budget'
-                  : '${Money.text(usage.remaining, compact: true)} remaining • '
-                      '${Fmt.percent(usage.ratio, persian: false)}',
+                  ? '{amount} over budget'.trArgs({
+                      'amount': Money.text(-usage.remaining, compact: true),
+                    })
+                  : '{amount} remaining • {percent}'.trArgs({
+                      'amount': Money.text(usage.remaining, compact: true),
+                      'percent': Fmt.percent(usage.ratio, persian: false),
+                    }),
               style: TextStyle(
-                  fontSize: 11, color: onSurface.withValues(alpha: 0.6)),
+                fontSize: 11,
+                color: onSurface.withValues(alpha: 0.6),
+              ),
             ),
           ],
         ),
@@ -377,8 +467,11 @@ class _BudgetTile extends StatelessWidget {
 
 /// ---------------- Recurring rule card ----------------
 class _RecurringTile extends StatelessWidget {
-  const _RecurringTile(
-      {required this.rule, required this.onEdit, required this.onDelete});
+  const _RecurringTile({
+    required this.rule,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final RecurringRule rule;
   final VoidCallback onEdit;
@@ -410,29 +503,48 @@ class _RecurringTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(rule.title,
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w700)),
+                  Text(
+                    rule.title,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 3),
                   Text(
-                    '${rule.period.label} • ${Money.text(rule.amount)}'
-                    '${next == null ? '' : ' • Next: ${J.d(next)}'}',
+                    next == null
+                        ? '{period} • {amount}'.trArgs({
+                            'period': rule.period.label,
+                            'amount': Money.text(rule.amount),
+                          })
+                        : '{period} • {amount} • Next: {date}'.trArgs({
+                            'period': rule.period.label,
+                            'amount': Money.text(rule.amount),
+                            'date': J.d(next),
+                          }),
                     style: TextStyle(
-                        fontSize: 11.5,
-                        color: onSurface.withValues(alpha: 0.6)),
+                      fontSize: 11.5,
+                      color: onSurface.withValues(alpha: 0.6),
+                    ),
                   ),
                 ],
               ),
             ),
             if (!rule.enabled)
-              TagChip('Inactive',
-                  color: onSurface.withValues(alpha: 0.5), dense: true),
+              TagChip(
+                'Inactive',
+                color: onSurface.withValues(alpha: 0.5),
+                dense: true,
+              ),
             const SizedBox(width: 6),
             InkWell(
               onTap: onDelete,
               borderRadius: BorderRadius.circular(8),
-              child: Icon(Icons.delete_outline_rounded,
-                  size: 17, color: onSurface.withValues(alpha: 0.4)),
+              child: Icon(
+                Icons.delete_outline_rounded,
+                size: 17,
+                color: onSurface.withValues(alpha: 0.4),
+              ),
             ),
           ],
         ),
@@ -467,10 +579,10 @@ class _PeriodChartCardState extends State<_PeriodChartCard> {
       child: Column(
         children: [
           SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(value: 0, label: Text('Daily')),
-              ButtonSegment(value: 1, label: Text('Weekly')),
-              ButtonSegment(value: 2, label: Text('Monthly')),
+            segments: [
+              ButtonSegment(value: 0, label: Text('Daily'.tr)),
+              ButtonSegment(value: 1, label: Text('Weekly'.tr)),
+              ButtonSegment(value: 2, label: Text('Monthly'.tr)),
             ],
             selected: {_mode},
             onSelectionChanged: (s) => setState(() => _mode = s.first),
@@ -488,14 +600,17 @@ class _PeriodChartCardState extends State<_PeriodChartCard> {
           else if (_mode == 1)
             PeriodBarChart(
               points: widget.weekly,
-              labelOf: (p) =>
-                  '${J.of(p.day).day}/${J.of(p.day).month}',
+              labelOf: (p) => '${J.of(p.day).day}/${J.of(p.day).month}',
             )
           else
             PeriodBarChart(
               points: [
                 for (final m in widget.monthly)
-                  DayPoint(day: m.monthStart, income: m.income, expense: m.expense),
+                  DayPoint(
+                    day: m.monthStart,
+                    income: m.income,
+                    expense: m.expense,
+                  ),
               ],
               labelOf: (p) => Fmt.monthName(J.of(p.day).month),
             ),
@@ -555,25 +670,31 @@ class _BudgetSheetState extends State<_BudgetSheet> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                      color: Theme.of(context).dividerColor,
-                      borderRadius: BorderRadius.circular(2))),
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).dividerColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
               const SizedBox(height: 16),
-              Text(widget.initial == null ? 'New budget' : 'Edit budget',
-                  style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w700)),
+              Text(
+                widget.initial == null ? 'New budget' : 'Edit budget',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               const SizedBox(height: 14),
               SelectField<Category>(
-                label: 'Category',
+                label: 'Category'.tr,
                 value: cats.where((c) => c.id == _categoryId).firstOrNull,
                 items: cats,
                 labelOf: (c) => c.name,
                 onChanged: (c) => setState(() => _categoryId = c?.id),
               ),
               const SizedBox(height: 12),
-              AmountField(controller: _limit, label: 'Monthly limit'),
+              AmountField(controller: _limit, label: 'Monthly limit'.tr),
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: () async {
@@ -592,7 +713,7 @@ class _BudgetSheetState extends State<_BudgetSheet> {
                   }
                   if (context.mounted) Navigator.pop(context);
                 },
-                child: const Text('Save'),
+                child: Text('Save'.tr),
               ),
             ],
           ),
@@ -649,9 +770,12 @@ class _RecurringSheetState extends State<_RecurringSheet> {
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
     final cats = repo.categories
-        .where((c) =>
-            c.scope == TxnScope.personal &&
-            c.kind == (_kind == TxnKind.income ? TxnKind.income : TxnKind.expense))
+        .where(
+          (c) =>
+              c.scope == TxnScope.personal &&
+              c.kind ==
+                  (_kind == TxnKind.income ? TxnKind.income : TxnKind.expense),
+        )
         .toList();
     final bottom = MediaQuery.of(context).viewInsets.bottom;
 
@@ -669,36 +793,52 @@ class _RecurringSheetState extends State<_RecurringSheet> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                      color: Theme.of(context).dividerColor,
-                      borderRadius: BorderRadius.circular(2))),
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).dividerColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
               const SizedBox(height: 16),
-              Text(widget.initial == null ? 'New rule' : 'Edit rule',
-                  style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w700)),
+              Text(
+                widget.initial == null ? 'New rule' : 'Edit rule',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               const SizedBox(height: 14),
               AppTextField(
-                  controller: _title,
-                  label: 'Title',
-                  hint: 'e.g. Home rent',
-                  icon: Icons.title_rounded),
+                controller: _title,
+                label: 'Title'.tr,
+                hint: 'e.g. Home rent'.tr,
+                icon: Icons.title_rounded,
+              ),
               const SizedBox(height: 12),
               AmountField(controller: _amount),
               const SizedBox(height: 12),
               SegmentedButton<TxnKind>(
-                segments: const [
-                  ButtonSegment(value: TxnKind.expense, label: Text('Expense')),
-                  ButtonSegment(value: TxnKind.income, label: Text('Income')),
+                segments: [
+                  ButtonSegment(
+                    value: TxnKind.expense,
+                    label: Text('Expense'.tr),
+                  ),
+                  ButtonSegment(
+                    value: TxnKind.income,
+                    label: Text('Income'.tr),
+                  ),
                 ],
                 selected: {_kind},
-                onSelectionChanged: (s) =>
-                    setState(() => _kind = s.first == TxnKind.income ? TxnKind.income : TxnKind.expense),
+                onSelectionChanged: (s) => setState(
+                  () => _kind = s.first == TxnKind.income
+                      ? TxnKind.income
+                      : TxnKind.expense,
+                ),
               ),
               const SizedBox(height: 12),
               SelectField<Category>(
-                label: 'Category',
+                label: 'Category'.tr,
                 value: cats.where((c) => c.id == _categoryId).firstOrNull,
                 items: cats,
                 labelOf: (c) => c.name,
@@ -707,7 +847,7 @@ class _RecurringSheetState extends State<_RecurringSheet> {
               ),
               const SizedBox(height: 12),
               SelectField<RecurringPeriod>(
-                label: 'Repeat interval',
+                label: 'Repeat interval'.tr,
                 value: _period,
                 items: RecurringPeriod.values,
                 labelOf: (p) => p.label,
@@ -717,16 +857,13 @@ class _RecurringSheetState extends State<_RecurringSheet> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    const Text('Day of month:',
-                        style: TextStyle(fontSize: 12.5)),
+                    Text('Day of month:'.tr, style: TextStyle(fontSize: 12.5)),
                     const SizedBox(width: 10),
                     DropdownButton<int>(
                       value: _dayOfMonth,
                       items: [
                         for (var d = 1; d <= 30; d++)
-                          DropdownMenuItem(
-                              value: d,
-                              child: Text('$d')),
+                          DropdownMenuItem(value: d, child: Text('$d')),
                       ],
                       onChanged: (v) => setState(() => _dayOfMonth = v ?? 1),
                     ),
@@ -735,29 +872,31 @@ class _RecurringSheetState extends State<_RecurringSheet> {
               ],
               const SizedBox(height: 12),
               JalaliDateField(
-                  label: 'Start',
-                  value: _start,
-                  onChanged: (d) => setState(() => _start = d)),
+                label: 'Start'.tr,
+                value: _start,
+                onChanged: (d) => setState(() => _start = d),
+              ),
               const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
                     child: Text(
                       _end == null
-                          ? 'End: Never'
-                          : 'End: ${J.d(_end!)}',
+                          ? 'End: Never'.tr
+                          : 'End: {date}'.trArgs({'date': J.d(_end!)}),
                       style: const TextStyle(fontSize: 12.5),
                     ),
                   ),
                   if (_end != null)
                     TextButton(
-                        onPressed: () => setState(() => _end = null),
-                        child: const Text('Never')),
+                      onPressed: () => setState(() => _end = null),
+                      child: Text('Never'.tr),
+                    ),
                 ],
               ),
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Active', style: TextStyle(fontSize: 13)),
+                title: Text('Active'.tr, style: TextStyle(fontSize: 13)),
                 value: _enabled,
                 onChanged: (v) => setState(() => _enabled = v),
               ),
@@ -787,7 +926,7 @@ class _RecurringSheetState extends State<_RecurringSheet> {
                   }
                   if (context.mounted) Navigator.pop(context);
                 },
-                child: const Text('Save'),
+                child: Text('Save'.tr),
               ),
             ],
           ),
@@ -817,19 +956,26 @@ class _QuickManagerSheet extends StatelessWidget {
           children: [
             const SizedBox(height: 10),
             Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: Theme.of(context).dividerColor,
-                    borderRadius: BorderRadius.circular(2))),
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).dividerColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
               child: Row(
                 children: [
-                  const Expanded(
-                      child: Text('Quick-entry buttons',
-                          style: TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w700))),
+                  Expanded(
+                    child: Text(
+                      'Quick-entry buttons'.tr,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close_rounded, size: 20),
@@ -844,28 +990,39 @@ class _QuickManagerSheet extends StatelessWidget {
                   for (final q in repo.quickExpenses)
                     ListTile(
                       leading: Icon(materialIcon(q.iconCodePoint), size: 20),
-                      title: Text(q.label),
-                      subtitle: Text(q.hasFixedAmount
-                          ? Money.text(q.amount)
-                          : 'Ask for an amount when recording'),
+                      title: Text(q.label.tr),
+                      subtitle: Text(
+                        q.hasFixedAmount
+                            ? Money.text(q.amount)
+                            : 'Ask for an amount when recording',
+                      ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
                             icon: const Icon(Icons.edit_outlined, size: 19),
-                            onPressed: () => Navigator.push(context,
-                                MaterialPageRoute(
-                                    builder: (_) => _QuickEditPage(initial: q))),
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => _QuickEditPage(initial: q),
+                              ),
+                            ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.delete_outline_rounded,
-                                size: 19),
+                            icon: const Icon(
+                              Icons.delete_outline_rounded,
+                              size: 19,
+                            ),
                             onPressed: () async {
-                              final ok = await confirmDialog(context,
-                                  title: 'Delete button',
-                                  message: 'Delete “${q.label}”?',
-                                  okLabel: 'Delete',
-                                  danger: true);
+                              final ok = await confirmDialog(
+                                context,
+                                title: 'Delete button'.tr,
+                                message: 'Delete “{label}”?'.trArgs({
+                                  'label': q.label.tr,
+                                }),
+                                okLabel: 'Delete'.tr,
+                                danger: true,
+                              );
                               if (ok && context.mounted) {
                                 await context
                                     .read<AppRepository>()
@@ -880,11 +1037,13 @@ class _QuickManagerSheet extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
                     child: FilledButton.tonalIcon(
                       onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const _QuickEditPage())),
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const _QuickEditPage(),
+                        ),
+                      ),
                       icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('New button'),
+                      label: Text('New button'.tr),
                     ),
                   ),
                 ],
@@ -904,10 +1063,8 @@ class _QuickEditSheet extends StatelessWidget {
   final QuickExpense? initial;
 
   @override
-  Widget build(BuildContext context) => _QuickEditPage(
-        initial: initial,
-        asSheet: true,
-      );
+  Widget build(BuildContext context) =>
+      _QuickEditPage(initial: initial, asSheet: true);
 }
 
 class _QuickEditPage extends StatefulWidget {
@@ -935,7 +1092,9 @@ class _QuickEditPageState extends State<_QuickEditPage> {
     super.initState();
     final q = widget.initial;
     _label.text = q?.label ?? '';
-    _amount.text = q == null || !q.hasFixedAmount ? '' : groupedNumber(q.amount);
+    _amount.text = q == null || !q.hasFixedAmount
+        ? ''
+        : groupedNumber(q.amount);
     _kind = q?.kind ?? TxnKind.expense;
     _categoryId = q?.categoryId;
     _iconCodePoint = q?.iconCodePoint ?? 0xe15b;
@@ -952,44 +1111,58 @@ class _QuickEditPageState extends State<_QuickEditPage> {
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
     final cats = repo.categories
-        .where((c) =>
-            c.scope == TxnScope.personal &&
-            c.kind == (_kind == TxnKind.income ? TxnKind.income : TxnKind.expense))
+        .where(
+          (c) =>
+              c.scope == TxnScope.personal &&
+              c.kind ==
+                  (_kind == TxnKind.income ? TxnKind.income : TxnKind.expense),
+        )
         .toList();
 
     final body = ListView(
       padding: EdgeInsets.fromLTRB(
-          18, widget.asSheet ? 12 : 12, 18, 24 + MediaQuery.of(context).viewInsets.bottom),
+        18,
+        widget.asSheet ? 12 : 12,
+        18,
+        24 + MediaQuery.of(context).viewInsets.bottom,
+      ),
       children: [
-        AppTextField(controller: _label, label: 'Button label', hint: 'e.g. Taxi'),
+        AppTextField(
+          controller: _label,
+          label: 'Button label'.tr,
+          hint: 'e.g. Taxi'.tr,
+        ),
         const SizedBox(height: 12),
         AmountField(
-            controller: _amount,
-            label: 'Fixed amount (optional)',
-            validator: (_) => null),
+          controller: _amount,
+          label: 'Fixed amount (optional)'.tr,
+          validator: (_) => null,
+        ),
         const SizedBox(height: 4),
         Text(
-          'If left blank, the app will ask for an amount when recording.',
+          'If left blank, the app will ask for an amount when recording.'.tr,
           style: TextStyle(
-              fontSize: 11,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.55)),
+            fontSize: 11,
+            color: Theme.of(context).colorScheme.onSurface
+                .withValues(alpha: 0.55),
+          ),
         ),
         const SizedBox(height: 14),
         SegmentedButton<TxnKind>(
-          segments: const [
-            ButtonSegment(value: TxnKind.expense, label: Text('Expense')),
-            ButtonSegment(value: TxnKind.income, label: Text('Income')),
+          segments: [
+            ButtonSegment(value: TxnKind.expense, label: Text('Expense'.tr)),
+            ButtonSegment(value: TxnKind.income, label: Text('Income'.tr)),
           ],
           selected: {_kind},
-          onSelectionChanged: (s) => setState(() =>
-              _kind = s.first == TxnKind.income ? TxnKind.income : TxnKind.expense),
+          onSelectionChanged: (s) => setState(
+            () => _kind = s.first == TxnKind.income
+                ? TxnKind.income
+                : TxnKind.expense,
+          ),
         ),
         const SizedBox(height: 14),
         SelectField<Category>(
-          label: 'Category',
+          label: 'Category'.tr,
           value: cats.where((c) => c.id == _categoryId).firstOrNull,
           items: cats,
           labelOf: (c) => c.name,
@@ -997,7 +1170,7 @@ class _QuickEditPageState extends State<_QuickEditPage> {
           onChanged: (c) => setState(() => _categoryId = c?.id),
         ),
         const SizedBox(height: 14),
-        const Text('Icon', style: TextStyle(fontSize: 12.5)),
+        Text('Icon'.tr, style: TextStyle(fontSize: 12.5)),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -1011,11 +1184,10 @@ class _QuickEditPageState extends State<_QuickEditPage> {
                   padding: const EdgeInsets.all(9),
                   decoration: BoxDecoration(
                     color: _iconCodePoint == ic.codePoint
-                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.18)
-                        : Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.05),
+                        ? Theme.of(context).colorScheme.primary
+                              .withValues(alpha: 0.18)
+                        : Theme.of(context).colorScheme.onSurface
+                              .withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: _iconCodePoint == ic.codePoint
@@ -1040,7 +1212,8 @@ class _QuickEditPageState extends State<_QuickEditPage> {
               kind: _kind,
               categoryId: _categoryId,
               iconCodePoint: _iconCodePoint,
-              sortOrder: widget.initial?.sortOrder ??
+              sortOrder:
+                  widget.initial?.sortOrder ??
                   (repo.quickExpenses.isEmpty
                       ? 0
                       : repo.quickExpenses.last.sortOrder + 1),
@@ -1052,7 +1225,7 @@ class _QuickEditPageState extends State<_QuickEditPage> {
             }
             if (context.mounted) Navigator.pop(context);
           },
-          child: const Text('Save'),
+          child: Text('Save'.tr),
         ),
       ],
     );
@@ -1068,11 +1241,13 @@ class _QuickEditPageState extends State<_QuickEditPage> {
           children: [
             const SizedBox(height: 10),
             Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: Theme.of(context).dividerColor,
-                    borderRadius: BorderRadius.circular(2))),
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).dividerColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             Flexible(child: body),
           ],
         ),
@@ -1080,7 +1255,9 @@ class _QuickEditPageState extends State<_QuickEditPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.initial == null ? 'New button' : 'Edit button')),
+      appBar: AppBar(
+        title: Text((widget.initial == null ? 'New button' : 'Edit button').tr),
+      ),
       body: body,
     );
   }

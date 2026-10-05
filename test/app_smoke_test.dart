@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:poolland/core/localization.dart';
 import 'package:poolland/data/models.dart';
 import 'package:poolland/data/repository.dart';
 import 'package:poolland/data/store.dart';
@@ -44,38 +45,79 @@ void main() {
     await tmp.delete(recursive: true);
   });
 
-  Widget wrap(Widget child) => ChangeNotifierProvider<AppRepository>.value(
-        value: repo,
-        child: MaterialApp(
-          locale: const Locale('en'),
-          supportedLocales: const [Locale('en')],
-          localizationsDelegates: const [
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          theme: AppTheme.light(),
-          builder: (context, c) =>
-              Directionality(textDirection: TextDirection.ltr, child: c ?? const SizedBox()),
-          home: Scaffold(body: child),
+  Widget wrap(Widget child) {
+    AppLocalization.languageCode = 'en';
+    return ChangeNotifierProvider<AppRepository>.value(
+      value: repo,
+      child: MaterialApp(
+        locale: const Locale('en'),
+        supportedLocales: const [Locale('en')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        theme: AppTheme.light(),
+        builder: (context, c) => Directionality(
+          textDirection: TextDirection.ltr,
+          child: c ?? const SizedBox(),
         ),
-      );
+        home: Scaffold(body: child),
+      ),
+    );
+  }
+
+  Widget wrapShell() {
+    AppLocalization.languageCode = 'en';
+    return ChangeNotifierProvider<AppRepository>.value(
+      value: repo,
+      child: MaterialApp(
+        locale: const Locale('en'),
+        supportedLocales: const [Locale('en')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        theme: AppTheme.light(),
+        builder: (context, c) => Directionality(
+          textDirection: TextDirection.ltr,
+          child: c ?? const SizedBox(),
+        ),
+        home: const HomeShell(),
+      ),
+    );
+  }
 
   testWidgets('Dashboard renders with sample data', (tester) async {
     await tester.pumpWidget(wrap(DashboardPage(onNavigate: (_) {})));
     await tester.pumpAndSettle();
 
     expect(find.text('This month'), findsOneWidget);
-    expect(find.text('Receivables'), findsOneWidget);
-    expect(find.text('Cash balance'), findsOneWidget);
+    expect(find.text('Business receivables'), findsOneWidget);
+    expect(find.text('Business cash balance'), findsOneWidget);
+  });
+
+  testWidgets('Personal-only dashboard hides business-only balances', (
+    tester,
+  ) async {
+    repo.setScopeFilter(TxnScope.personal);
+    await tester.pumpWidget(wrap(DashboardPage(onNavigate: (_) {})));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Business receivables'), findsNothing);
+    expect(find.text('Business payables'), findsNothing);
+    expect(find.text('Business cash balance'), findsNothing);
+    expect(find.text('Personal'), findsOneWidget);
   });
 
   testWidgets('Main shell navigates between tabs', (tester) async {
-    await tester.pumpWidget(wrap(const HomeShell()));
+    await tester.pumpWidget(wrapShell());
     // Startup tasks (posting due recurring transactions) perform real I/O.
     // Widget tests must use runAsync to let them complete.
     await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 400)));
+      () => Future<void>.delayed(const Duration(milliseconds: 400)),
+    );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(tester.takeException(), isNull);
@@ -85,20 +127,32 @@ void main() {
       'Customers',
       'Subscriptions',
       'Transactions',
-      'Reports',
-      'Dashboard'
+      'Dashboard',
     ]) {
       await tester.tap(find.text(tab).last);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
-      expect(tester.takeException(), isNull, reason: 'Tab $tab threw an exception');
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'Tab $tab threw an exception',
+      );
     }
+    await tester.tap(find.byTooltip('Reports'));
+    await tester.pumpAndSettle();
+    expect(find.text('Reports'), findsOneWidget);
+    expect(find.byType(ReportsPage), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
   });
 
-  testWidgets('System back returns from a tab to the dashboard', (tester) async {
-    await tester.pumpWidget(wrap(const HomeShell()));
+  testWidgets('System back returns from a tab to the dashboard', (
+    tester,
+  ) async {
+    await tester.pumpWidget(wrapShell());
     await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 400)));
+      () => Future<void>.delayed(const Duration(milliseconds: 400)),
+    );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -124,11 +178,13 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('System back closes a pushed page before leaving its tab',
-      (tester) async {
-    await tester.pumpWidget(wrap(const HomeShell()));
+  testWidgets('System back closes a pushed page before leaving its tab', (
+    tester,
+  ) async {
+    await tester.pumpWidget(wrapShell());
     await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 400)));
+      () => Future<void>.delayed(const Duration(milliseconds: 400)),
+    );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -161,21 +217,29 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text(customer.name), findsWidgets);
-    expect(find.text('Subscriptions (${repo.subsOfCustomer(customer.id).length})'),
-        findsOneWidget);
+    expect(
+      find.text('Subscriptions (${repo.subsOfCustomer(customer.id).length})'),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('Subscription, transaction, and report pages render', (tester) async {
+  testWidgets('Subscription, transaction, and report pages render', (
+    tester,
+  ) async {
     for (final page in [
       const PersonalPage(),
       const SubscriptionsPage(),
       const TransactionsPage(),
-      const ReportsPage()
+      const ReportsPage(),
     ]) {
       await tester.pumpWidget(wrap(page));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
-      expect(tester.takeException(), isNull, reason: '${page.runtimeType} threw an exception');
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: '${page.runtimeType} threw an exception',
+      );
     }
   });
 
@@ -189,12 +253,18 @@ void main() {
       await tester.pumpWidget(wrap(page));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
-      expect(tester.takeException(), isNull, reason: '${page.runtimeType} threw an exception');
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: '${page.runtimeType} threw an exception',
+      );
     }
   });
 
   testWidgets('Subscription sale form renders', (tester) async {
-    await tester.pumpWidget(wrap(SellSubscriptionPage(contact: repo.customers.first)));
+    await tester.pumpWidget(
+      wrap(SellSubscriptionPage(contact: repo.customers.first)),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Service name'), findsOneWidget);
     expect(find.text('Duration:'), findsOneWidget);
@@ -202,7 +272,9 @@ void main() {
   });
 
   testWidgets('Transaction and new-customer forms render', (tester) async {
-    await tester.pumpWidget(wrap(const TransactionEditPage(initialKind: TxnKind.expense)));
+    await tester.pumpWidget(
+      wrap(const TransactionEditPage(initialKind: TxnKind.expense)),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Category'), findsOneWidget);
     expect(tester.takeException(), isNull);

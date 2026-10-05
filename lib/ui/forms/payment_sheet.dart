@@ -7,6 +7,8 @@ import '../../data/models.dart';
 import '../../data/repository.dart';
 import '../widgets/widgets.dart';
 
+import '../../core/localization.dart';
+
 /// Quick sheet for recording a receipt from or payment to a customer
 Future<bool> showPaymentSheet(
   BuildContext context, {
@@ -64,7 +66,9 @@ class _PaymentSheetState extends State<_PaymentSheet> {
     final balance = repo.balanceOf(widget.customer);
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         decoration: BoxDecoration(
           color: theme.cardColor,
@@ -79,27 +83,47 @@ class _PaymentSheetState extends State<_PaymentSheet> {
             children: [
               Center(
                 child: Container(
-                    width: 42,
-                    height: 4,
-                    decoration: BoxDecoration(
-                        color: theme.dividerColor, borderRadius: BorderRadius.circular(2))),
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: theme.dividerColor,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
               ),
               const SizedBox(height: 14),
-              Text('${_receive ? 'Receive from' : 'Pay to'} ${widget.customer.name}',
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              Text(
+                '{who} {customer}'.trArgs({
+                  'who': _receive ? 'Receive from'.tr : 'Pay to'.tr,
+                  'customer': widget.customer.name,
+                }),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               const SizedBox(height: 4),
               Text(
                 balance >= 0
-                    ? 'Balance: ${Money.text(balance, signed: true)} (debtor)'
-                    : 'Balance: ${Money.text(balance.abs())} (creditor)',
+                    ? 'Balance: {amount} (debtor)'.trArgs({
+                        'amount': Money.text(balance, signed: true),
+                      })
+                    : 'Balance: {amount} (creditor)'.trArgs({
+                        'amount': Money.text(balance.abs()),
+                      }),
                 style: TextStyle(
-                    fontSize: 12, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
+                  fontSize: 12,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
               ),
               const SizedBox(height: 16),
               SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(value: true, label: Text('Receive from customer')),
-                  ButtonSegment(value: false, label: Text('Pay customer')),
+                segments: [
+                  ButtonSegment(
+                    value: true,
+                    label: Text('Receive from customer'.tr),
+                  ),
+                  ButtonSegment(value: false, label: Text('Pay customer'.tr)),
                 ],
                 selected: {_receive},
                 onSelectionChanged: (s) => setState(() => _receive = s.first),
@@ -109,23 +133,34 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: AmountField(controller: _amount, label: 'Amount', currency: _currency),
+                    child: AmountField(
+                      controller: _amount,
+                      label: 'Amount'.tr,
+                      currency: _currency,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   SizedBox(
                     width: 112,
                     child: SelectField<String>(
-                      label: 'Currency',
+                      label: 'Currency'.tr,
                       value: _currency,
-                      items: repo.settings.currencies.map((c) => c.code).toList(),
+                      items: repo.settings.currencies
+                          .map((c) => c.code)
+                          .toList(),
                       labelOf: (c) => Money.symbol(c),
-                      onChanged: (c) => setState(() => _currency = c ?? _currency),
+                      onChanged: (c) =>
+                          setState(() => _currency = c ?? _currency),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              AppTextField(controller: _note, label: 'Description (optional)', icon: Icons.notes_rounded),
+              AppTextField(
+                controller: _note,
+                label: 'Description (optional)'.tr,
+                icon: Icons.notes_rounded,
+              ),
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: () async {
@@ -141,10 +176,19 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                   );
                   if (!context.mounted) return;
                   Navigator.pop(context, true);
-                  showSnack(context, _receive ? 'Payment received' : 'Payment made');
+                  showSnack(
+                    context,
+                    _receive ? 'Payment received' : 'Payment made',
+                  );
                 },
-                icon: Icon(_receive ? Icons.call_received_rounded : Icons.call_made_rounded),
-                label: Text(_receive ? 'Record receipt' : 'Record payment'),
+                icon: Icon(
+                  _receive
+                      ? Icons.call_received_rounded
+                      : Icons.call_made_rounded,
+                ),
+                label: Text(
+                  (_receive ? 'Record receipt' : 'Record payment').tr,
+                ),
               ),
             ],
           ),

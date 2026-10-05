@@ -18,13 +18,13 @@ class ReminderService {
 
   static const AndroidNotificationDetails _androidDetails =
       AndroidNotificationDetails(
-    'daily_reminder',
-    'Daily reminder',
-    channelDescription: 'Reminder to record daily expenses and income',
-    importance: Importance.defaultImportance,
-    priority: Priority.defaultPriority,
-    ticker: 'Poolland reminder',
-  );
+        'daily_reminder',
+        'Daily reminder',
+        channelDescription: 'Reminder to record daily expenses and income',
+        importance: Importance.defaultImportance,
+        priority: Priority.defaultPriority,
+        ticker: 'Poolland reminder',
+      );
 
   static const DarwinNotificationDetails _darwinDetails =
       DarwinNotificationDetails();
@@ -59,24 +59,36 @@ class ReminderService {
   /// Request permission to show notifications (Android 13+, iOS, and macOS).
   Future<bool> requestPermission() async {
     await init();
-    final android = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     if (android != null) {
       final granted = await android.requestNotificationsPermission();
       return granted ?? false;
     }
-    final ios = _plugin.resolvePlatformSpecificImplementation<
-        IOSFlutterLocalNotificationsPlugin>();
+    final ios = _plugin
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >();
     if (ios != null) {
-      final ok =
-          await ios.requestPermissions(alert: true, badge: true, sound: true);
+      final ok = await ios.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
       return ok ?? false;
     }
-    final macos = _plugin.resolvePlatformSpecificImplementation<
-        MacOSFlutterLocalNotificationsPlugin>();
+    final macos = _plugin
+        .resolvePlatformSpecificImplementation<
+          MacOSFlutterLocalNotificationsPlugin
+        >();
     if (macos != null) {
-      final ok =
-          await macos.requestPermissions(alert: true, badge: true, sound: true);
+      final ok = await macos.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
       return ok ?? false;
     }
     return true; // Desktop does not require permission.
@@ -121,8 +133,14 @@ class ReminderService {
 
   tz.TZDateTime _nextInstanceOf(int hour, int minute) {
     final now = tz.TZDateTime.now(tz.local);
-    var next =
-        tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+    var next = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      hour,
+      minute,
+    );
     if (next.isBefore(now) || next.isAtSameMomentAs(now)) {
       next = next.add(const Duration(days: 1));
     }

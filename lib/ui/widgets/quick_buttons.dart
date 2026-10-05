@@ -7,6 +7,8 @@ import '../../data/models.dart';
 import '../../data/repository.dart';
 import 'widgets.dart';
 
+import '../../core/localization.dart';
+
 /// Icons available for quick-entry buttons.
 ///
 /// This list must be `const` so icon tree shaking in a release build
@@ -58,12 +60,11 @@ class QuickButtonsRow extends StatelessWidget {
       return Text(
         emptyHint ?? 'No quick buttons configured.',
         style: TextStyle(
-            fontSize: 12,
-            height: 1.7,
-            color: Theme.of(context)
-                .colorScheme
-                .onSurface
-                .withValues(alpha: 0.65)),
+          fontSize: 12,
+          height: 1.7,
+          color: Theme.of(context).colorScheme.onSurface
+              .withValues(alpha: 0.65),
+        ),
       );
     }
     return Wrap(
@@ -83,7 +84,12 @@ class QuickButtonsRow extends StatelessWidget {
 
 /// A quick-entry button
 class QuickChip extends StatelessWidget {
-  const QuickChip({super.key, required this.quick, this.onTap, this.onLongPress});
+  const QuickChip({
+    super.key,
+    required this.quick,
+    this.onTap,
+    this.onLongPress,
+  });
 
   final QuickExpense quick;
   final VoidCallback? onTap;
@@ -110,13 +116,23 @@ class QuickChip extends StatelessWidget {
           children: [
             Icon(materialIcon(q.iconCodePoint), size: 17, color: color),
             const SizedBox(width: 7),
-            Text(q.label,
-                style: TextStyle(
-                    fontSize: 12.5, fontWeight: FontWeight.w700, color: color)),
+            Text(
+              q.label.tr,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
             if (q.hasFixedAmount) ...[
               const SizedBox(width: 6),
-              Text(Money.text(q.amount, compact: true),
-                  style: TextStyle(fontSize: 11, color: color.withValues(alpha: 0.75))),
+              Text(
+                Money.text(q.amount, compact: true),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: color.withValues(alpha: 0.75),
+                ),
+              ),
             ],
           ],
         ),
@@ -143,14 +159,21 @@ Future<void> recordQuickExpense(BuildContext context, QuickExpense q) async {
   if (!context.mounted) return;
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(
-      content: Text('${q.label} • ${Money.text(amount)} recorded'),
-      duration: const Duration(seconds: 3),
-      action: SnackBarAction(
-        label: 'Cancel',
-        onPressed: () => repo.deleteTxn(txn.id),
+    ..showSnackBar(
+      SnackBar(
+        content: Text(
+          '{label} • {amount} recorded'.trArgs({
+            'label': q.label.tr,
+            'amount': Money.text(amount),
+          }),
+        ),
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: 'Cancel'.tr,
+          onPressed: () => repo.deleteTxn(txn.id),
+        ),
       ),
-    ));
+    );
 }
 
 /// Sheet for entering an amount (and date) for buttons without a fixed amount.
@@ -171,8 +194,9 @@ class _QuickAmountSheetState extends State<QuickAmountSheet> {
   void initState() {
     super.initState();
     _date = DateTime.now();
-    _ctrl.text =
-        widget.quick.hasFixedAmount ? groupedNumber(widget.quick.amount) : '';
+    _ctrl.text = widget.quick.hasFixedAmount
+        ? groupedNumber(widget.quick.amount)
+        : '';
   }
 
   @override
@@ -197,28 +221,35 @@ class _QuickAmountSheetState extends State<QuickAmountSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: Theme.of(context).dividerColor,
-                    borderRadius: BorderRadius.circular(2))),
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).dividerColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             const SizedBox(height: 16),
             Row(
               children: [
                 Icon(materialIcon(widget.quick.iconCodePoint), size: 20),
                 const SizedBox(width: 8),
-                Text(widget.quick.label,
-                    style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w700)),
+                Text(
+                  widget.quick.label.tr,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 14),
             AmountField(controller: _ctrl, autofocus: true),
             const SizedBox(height: 10),
             JalaliDateField(
-                label: 'Date',
-                value: _date,
-                onChanged: (d) => setState(() => _date = d)),
+              label: 'Date'.tr,
+              value: _date,
+              onChanged: (d) => setState(() => _date = d),
+            ),
             const SizedBox(height: 16),
             FilledButton(
               onPressed: () {
@@ -226,7 +257,7 @@ class _QuickAmountSheetState extends State<QuickAmountSheet> {
                 if (v <= 0) return;
                 Navigator.pop(context, v);
               },
-              child: const Text('Record'),
+              child: Text('Record'.tr),
             ),
           ],
         ),

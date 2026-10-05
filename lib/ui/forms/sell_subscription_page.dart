@@ -10,9 +10,16 @@ import '../widgets/widgets.dart';
 import 'contact_edit_page.dart';
 import 'plan_edit_page.dart';
 
+import '../../core/localization.dart';
+
 /// Record a new subscription sale or renewal
 class SellSubscriptionPage extends StatefulWidget {
-  const SellSubscriptionPage({super.key, this.contact, this.plan, this.renewFrom});
+  const SellSubscriptionPage({
+    super.key,
+    this.contact,
+    this.plan,
+    this.renewFrom,
+  });
 
   final Customer? contact;
   final Plan? plan;
@@ -57,7 +64,10 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
       _contact = repo.customerById(old.customerId);
       _plan = repo.planById(old.planId);
       _title.text = old.planName;
-      _price.text = groupedNumber(old.amount, decimals: Money.decimals(old.currency));
+      _price.text = groupedNumber(
+        old.amount,
+        decimals: Money.decimals(old.currency),
+      );
       _currency = old.currency;
       _receiveCurrency = old.currency;
       _start = J.addDays(old.endDate, 1);
@@ -73,13 +83,19 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
         _unitIsMonth = days > 25;
       }
       final price = old.amount;
-      _received.text = groupedNumber(price, decimals: Money.decimals(_receiveCurrency));
+      _received.text = groupedNumber(
+        price,
+        decimals: Money.decimals(_receiveCurrency),
+      );
     } else {
       _contact = widget.contact;
       final plan = _plan;
       if (plan != null) {
         _title.text = plan.name;
-        _price.text = groupedNumber(plan.price, decimals: Money.decimals(plan.currency));
+        _price.text = groupedNumber(
+          plan.price,
+          decimals: Money.decimals(plan.currency),
+        );
         _currency = plan.currency;
         _receiveCurrency = plan.currency;
         _durationValue = plan.durationValue;
@@ -103,8 +119,11 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
     if (_unitIsMonth) {
       return J.addDays(J.addMonths(base, _durationValue), -1);
     }
-    return DateTime(base.year, base.month, base.day)
-        .add(Duration(days: _durationValue - 1));
+    return DateTime(
+      base.year,
+      base.month,
+      base.day,
+    ).add(Duration(days: _durationValue - 1));
   }
 
   void _applyPlan(Plan? plan) {
@@ -112,7 +131,10 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
       _plan = plan;
       if (plan != null) {
         _title.text = plan.name;
-        _price.text = groupedNumber(plan.price, decimals: Money.decimals(plan.currency));
+        _price.text = groupedNumber(
+          plan.price,
+          decimals: Money.decimals(plan.currency),
+        );
         _currency = plan.currency;
         _receiveCurrency = plan.currency;
         _durationValue = plan.durationValue;
@@ -155,12 +177,15 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
     final currencies = repo.settings.currencies;
-    final remaining =
-        (_currency == _receiveCurrency) ? parseAmount(_price.text) - parseAmount(_received.text) : null;
+    final remaining = (_currency == _receiveCurrency)
+        ? parseAmount(_price.text) - parseAmount(_received.text)
+        : null;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isRenew ? 'Renew subscription' : 'Sell a subscription'),
+        title: Text(
+          (isRenew ? 'Renew subscription' : 'Sell a subscription').tr,
+        ),
       ),
       body: Form(
         key: _formKey,
@@ -172,26 +197,29 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
               children: [
                 Expanded(
                   child: SelectField<Customer>(
-                    label: 'Customer',
+                    label: 'Customer'.tr,
                     icon: Icons.person_outline_rounded,
                     value: _contact,
                     items: repo.activeCustomers,
                     labelOf: (c) => c.name,
-                    subOf: (c) =>
-                        (repo.balanceOf(c)).abs() < 1 ? (c.phone.isEmpty ? 'Settled' : c.phone) : '${c.phone.isEmpty ? '' : '${c.phone} • '}${Money.text(repo.balanceOf(c), signed: true)}',
+                    subOf: (c) => (repo.balanceOf(c)).abs() < 1
+                        ? (c.phone.isEmpty ? 'Settled' : c.phone)
+                        : '${c.phone.isEmpty ? '' : '${c.phone} • '}${Money.text(repo.balanceOf(c), signed: true)}',
                     clearable: false,
-                    sheetTitle: 'Select customer',
-                    searchHint: 'Customer name...',
+                    sheetTitle: 'Select customer'.tr,
+                    searchHint: 'Customer name...'.tr,
                     onChanged: (c) => setState(() => _contact = c),
                   ),
                 ),
                 const SizedBox(width: 8),
                 IconButton.filledTonal(
-                  tooltip: 'New customer',
+                  tooltip: 'New customer'.tr,
                   onPressed: () async {
                     final created = await Navigator.push<Customer>(
                       context,
-                      MaterialPageRoute(builder: (_) => const ContactEditPage()),
+                      MaterialPageRoute(
+                        builder: (_) => const ContactEditPage(),
+                      ),
                     );
                     if (created != null) setState(() => _contact = created);
                   },
@@ -203,26 +231,31 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
 
             // ---------- Saved plan ----------
             SelectField<Plan>(
-              label: 'Saved plan (optional)',
+              label: 'Saved plan (optional)'.tr,
               icon: Icons.local_offer_outlined,
               value: _plan,
               items: repo.activePlans,
               clearable: true,
               labelOf: (p) => p.name,
-              subOf: (p) => '${Money.text(p.price, currency: p.currency)} • ${p.durationLabel}',
+              subOf: (p) =>
+                  '${Money.text(p.price, currency: p.currency)} • ${p.durationLabel}',
               extraActionLabel: 'Manage plans',
-              onExtraAction: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const PlansPage())),
+              onExtraAction: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PlansPage()),
+              ),
               onChanged: _applyPlan,
             ),
             const SizedBox(height: 14),
 
             AppTextField(
               controller: _title,
-              label: 'Service name',
-              hint: 'e.g. 1-month unlimited - 2 devices',
+              label: 'Service name'.tr,
+              hint: 'e.g. 1-month unlimited - 2 devices'.tr,
               icon: Icons.vpn_key_outlined,
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter a service name' : null,
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Enter a service name'
+                  : null,
             ),
             const SizedBox(height: 14),
 
@@ -231,13 +264,17 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: AmountField(controller: _price, label: 'Sale amount', currency: _currency),
+                  child: AmountField(
+                    controller: _price,
+                    label: 'Sale amount'.tr,
+                    currency: _currency,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 SizedBox(
                   width: 112,
                   child: SelectField<String>(
-                    label: 'Currency',
+                    label: 'Currency'.tr,
                     value: _currency,
                     items: currencies.map((c) => c.code).toList(),
                     labelOf: (code) => Money.symbol(code),
@@ -256,7 +293,7 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
               child: Column(
                 children: [
                   JalaliDateField(
-                    label: 'Start date',
+                    label: 'Start date'.tr,
                     value: _start,
                     onChanged: (d) => setState(() {
                       _start = d;
@@ -266,15 +303,21 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      const Text('Duration:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      Text(
+                        'Duration:'.tr,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       const SizedBox(width: 10),
                       IconButton.outlined(
                         onPressed: _durationValue > 1
                             ? () => setState(() {
-                                  _durationValue--;
-                                  _manualEnd = false;
-                                  _end = _computeEnd();
-                                })
+                                _durationValue--;
+                                _manualEnd = false;
+                                _end = _computeEnd();
+                              })
                             : null,
                         icon: const Icon(Icons.remove_rounded, size: 18),
                         visualDensity: VisualDensity.compact,
@@ -283,7 +326,10 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                         child: Center(
                           child: Text(
                             '$_durationValue ${_unitIsMonth ? 'month' : 'day'}',
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),
@@ -300,9 +346,9 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                   ),
                   const SizedBox(height: 6),
                   SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(value: true, label: Text('month')),
-                      ButtonSegment(value: false, label: Text('day')),
+                    segments: [
+                      ButtonSegment(value: true, label: Text('month'.tr)),
+                      ButtonSegment(value: false, label: Text('day'.tr)),
                     ],
                     selected: {_unitIsMonth},
                     onSelectionChanged: (s) => setState(() {
@@ -313,9 +359,11 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                   ),
                   const SizedBox(height: 12),
                   JalaliDateField(
-                    label: 'End date (editable)',
+                    label: 'End date (editable)'.tr,
                     value: _end,
-                    helper: '${_end.difference(J.dateOnly(_start)).inDays + 1} days',
+                    helper: '{days} days'.trArgs({
+                      'days': _end.difference(J.dateOnly(_start)).inDays + 1,
+                    }),
                     onChanged: (d) => setState(() {
                       _end = d;
                       _manualEnd = true;
@@ -334,7 +382,7 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                 Expanded(
                   child: AmountField(
                     controller: _received,
-                    label: 'Received now',
+                    label: 'Received now'.tr,
                     currency: _receiveCurrency,
                     validator: (_) => null,
                   ),
@@ -343,12 +391,13 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                 SizedBox(
                   width: 112,
                   child: SelectField<String>(
-                    label: 'Currency',
+                    label: 'Currency'.tr,
                     value: _receiveCurrency,
                     items: currencies.map((c) => c.code).toList(),
                     labelOf: (code) => Money.symbol(code),
-                    onChanged: (code) =>
-                        setState(() => _receiveCurrency = code ?? _receiveCurrency),
+                    onChanged: (code) => setState(
+                      () => _receiveCurrency = code ?? _receiveCurrency,
+                    ),
                   ),
                 ),
               ],
@@ -359,7 +408,9 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                 child: Row(
                   children: [
                     Icon(
-                      remaining <= 0 ? Icons.check_circle_rounded : Icons.info_outline_rounded,
+                      remaining <= 0
+                          ? Icons.check_circle_rounded
+                          : Icons.info_outline_rounded,
                       size: 15,
                       color: remaining <= 0
                           ? const Color(0xFF16A34A)
@@ -369,7 +420,13 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                     Text(
                       remaining <= 0
                           ? 'Paid in full'
-                          : 'The remaining balance will be recorded as customer debt: ${Money.text(remaining, currency: _currency)}',
+                          : 'The remaining balance will be recorded as customer debt: {amount}'
+                                .trArgs({
+                                  'amount': Money.text(
+                                    remaining,
+                                    currency: _currency,
+                                  ),
+                                }),
                       style: TextStyle(
                         fontSize: 11.5,
                         color: remaining <= 0
@@ -383,7 +440,7 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
             const SizedBox(height: 14),
 
             SelectField<Category>(
-              label: 'Income category',
+              label: 'Income category'.tr,
               icon: Icons.category_outlined,
               value: repo.categoryById(_categoryId),
               items: repo.categoriesOf(TxnKind.income),
@@ -392,19 +449,29 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
             ),
             const SizedBox(height: 14),
 
-            AppTextField(controller: _note, label: 'Note', icon: Icons.notes_rounded, maxLines: 2),
+            AppTextField(
+              controller: _note,
+              label: 'Note'.tr,
+              icon: Icons.notes_rounded,
+              maxLines: 2,
+            ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: _autoRenew,
               onChanged: (v) => setState(() => _autoRenew = v),
-              title: const Text('Auto-renew', style: TextStyle(fontSize: 13.5)),
-              subtitle: const Text('Reminder only', style: TextStyle(fontSize: 11.5)),
+              title: Text('Auto-renew'.tr, style: TextStyle(fontSize: 13.5)),
+              subtitle: Text(
+                'Reminder only'.tr,
+                style: TextStyle(fontSize: 11.5),
+              ),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: _save,
-              icon: Icon(isRenew ? Icons.autorenew_rounded : Icons.check_rounded),
-              label: Text(isRenew ? 'Record renewal' : 'Record sale'),
+              icon: Icon(
+                isRenew ? Icons.autorenew_rounded : Icons.check_rounded,
+              ),
+              label: Text((isRenew ? 'Record renewal' : 'Record sale').tr),
             ),
           ],
         ),

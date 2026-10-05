@@ -9,6 +9,8 @@ import '../data/models.dart';
 import '../data/repository.dart';
 import 'widgets/widgets.dart';
 
+import '../core/localization.dart';
+
 /// ============================================================
 ///  Bank SMS — review and approval queue
 ///
@@ -47,13 +49,11 @@ class _SmsPageState extends State<SmsPage> {
 
     if (!repo.smsSupported) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Bank SMS')),
+        appBar: AppBar(title: Text('Bank SMS'.tr)),
         body: const EmptyState(
           icon: Icons.sms_outlined,
           title: 'Android only',
-          text:
-              'SMS access is not available on web or desktop. '
-              'Try this feature on an Android phone.',
+          text: 'SMS access is not available on web or desktop. Try this feature on an Android phone.',
         ),
       );
     }
@@ -69,10 +69,10 @@ class _SmsPageState extends State<SmsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bank SMS'),
+        title: Text('Bank SMS'.tr),
         actions: [
           IconButton(
-            tooltip: 'Sync',
+            tooltip: 'Sync'.tr,
             icon: repo.smsBusy
                 ? const SizedBox(
                     width: 18,
@@ -88,11 +88,10 @@ class _SmsPageState extends State<SmsPage> {
                 case 'reject_all':
                   final ok = await confirmDialog(
                     context,
-                    title: 'Reject all',
-                    message:
-                        'Reject all suggestions? '
-                        '(They will no longer appear, but no transactions will be deleted.)',
-                    okLabel: 'Reject',
+                    title: 'Reject all'.tr,
+                    message: 'Reject all suggestions? (They will no longer appear, but no transactions will be deleted.)'
+                        .tr,
+                    okLabel: 'Reject'.tr,
                     danger: true,
                   );
                   if (ok) await repo.rejectAllSms();
@@ -100,7 +99,7 @@ class _SmsPageState extends State<SmsPage> {
                 case 'reset':
                   final ok = await confirmDialog(
                     context,
-                    title: 'Review again',
+                    title: 'Review again'.tr,
                     message:
                         'Clear the review history and scan SMS messages '
                         'again?',
@@ -113,12 +112,9 @@ class _SmsPageState extends State<SmsPage> {
                   break;
               }
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'reject_all', child: Text('Reject all')),
-              PopupMenuItem(
-                value: 'reset',
-                child: Text('Rescan SMS'),
-              ),
+            itemBuilder: (_) => [
+              PopupMenuItem(value: 'reject_all', child: Text('Reject all'.tr)),
+              PopupMenuItem(value: 'reset', child: Text('Rescan SMS'.tr)),
             ],
           ),
         ],
@@ -181,7 +177,7 @@ class _SmsPageState extends State<SmsPage> {
   }
 
   Widget _chip(String label, _SmsFilter f, int count) => ChoiceChip(
-    label: Text(count > 0 ? '$label ($count)' : label),
+    label: Text(count > 0 ? '${label.tr} ($count)' : label.tr),
     showCheckmark: false,
     selected: _filter == f,
     onSelected: (_) => setState(() => _filter = f),
@@ -201,8 +197,10 @@ class _SmsPageState extends State<SmsPage> {
               const SizedBox(width: 8),
               Text(
                 count > 0
-                    ? '$count transactions awaiting review'
-                    : 'Nothing awaiting review',
+                    ? '{count} transactions awaiting review'.trArgs({
+                        'count': count,
+                      })
+                    : 'Nothing awaiting review'.tr,
                 style: const TextStyle(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w700,
@@ -212,8 +210,16 @@ class _SmsPageState extends State<SmsPage> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Checking the past $days days'
-            '${last > 0 ? ' · Last checked: ${J.d(DateTime.fromMillisecondsSinceEpoch(last))}' : ''}',
+            'Checking the past {days} days'.trArgs({'days': days}) +
+                (last > 0
+                    ? ' · {label}'.trArgs({
+                        'label': 'Last checked: {date}'.trArgs({
+                          'date': J.d(
+                            DateTime.fromMillisecondsSinceEpoch(last),
+                          ),
+                        }),
+                      })
+                    : ''),
             style: TextStyle(
               fontSize: 11.5,
               color: onSurface.withValues(alpha: 0.6),
@@ -232,24 +238,24 @@ class _SmsPageState extends State<SmsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.privacy_tip_outlined, size: 20),
+                  const Icon(Icons.privacy_tip_outlined, size: 20),
                   SizedBox(width: 8),
                   Text(
-                    'SMS reading permission',
+                    'SMS reading permission'.tr,
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
-              const Text(
-                'To let Poolland read bank SMS and '
-                'automatically identify deposits and withdrawals, grant SMS permission.\n\n'
-                '• SMS messages are read on this device only\n'
-                '• No data is sent anywhere\n'
-                '• No transaction is recorded until you approve it',
-                style: TextStyle(fontSize: 12.5, height: 1.8),
+              Text(
+                'To let Poolland read bank SMS and automatically identify deposits and withdrawals, grant SMS permission.\n\n'
+                        '• SMS messages are read on this device only\n'
+                        '• No data is sent anywhere\n'
+                        '• No transaction is recorded until you approve it'
+                    .tr,
+                style: const TextStyle(fontSize: 12.5, height: 1.8),
               ),
               const SizedBox(height: 14),
               SizedBox(
@@ -257,7 +263,7 @@ class _SmsPageState extends State<SmsPage> {
                 child: FilledButton.icon(
                   onPressed: () => repo.requestSmsPermission(),
                   icon: const Icon(Icons.sms_rounded, size: 18),
-                  label: const Text('Grant SMS access'),
+                  label: Text('Grant SMS access'.tr),
                 ),
               ),
             ],
@@ -314,7 +320,7 @@ class _SmsCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      sms.bankName ?? 'Unknown bank',
+                      sms.bankName ?? 'Unknown bank'.tr,
                       style: const TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w700,
@@ -356,19 +362,21 @@ class _SmsCard extends StatelessWidget {
             children: [
               if (sms.cardMask != null)
                 TagChip(
-                  'Card ${sms.cardMask}',
+                  'Card {card}'.trArgs({'card': sms.cardMask}),
                   color: const Color(0xFF7C3AED),
                   dense: true,
                 ),
               if (sms.reference != null)
                 TagChip(
-                  'Reference ${sms.reference}',
+                  'Reference {reference}'.trArgs({'reference': sms.reference}),
                   color: const Color(0xFF0F766E),
                   dense: true,
                 ),
               if (sms.balance != null)
                 TagChip(
-                  'Balance ${Money.text(sms.balance!, compact: true)}',
+                  'Balance {balance}'.trArgs({
+                    'balance': Money.text(sms.balance!, compact: true),
+                  }),
                   color: const Color(0xFF2563EB),
                   dense: true,
                 ),
@@ -389,7 +397,7 @@ class _SmsCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  '(Auto-matched)',
+                  '(Auto-matched)'.tr,
                   style: TextStyle(
                     fontSize: 10.5,
                     color: onSurface.withValues(alpha: 0.55),
@@ -423,7 +431,7 @@ class _SmsCard extends StatelessWidget {
                 child: OutlinedButton.icon(
                   onPressed: () => repo.rejectSms(sms),
                   icon: const Icon(Icons.close_rounded, size: 17),
-                  label: const Text('Reject'),
+                  label: Text('Reject'.tr),
                 ),
               ),
               const SizedBox(width: 8),
@@ -432,7 +440,9 @@ class _SmsCard extends StatelessWidget {
                 child: FilledButton.icon(
                   onPressed: () => _openReview(context, sms, matched),
                   icon: const Icon(Icons.check_rounded, size: 17),
-                  label: Text(matched == null ? 'Review and record' : 'Confirm'),
+                  label: Text(
+                    matched == null ? 'Review and record' : 'Confirm',
+                  ),
                 ),
               ),
             ],
@@ -532,8 +542,8 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
               ),
             ),
             const SizedBox(height: 14),
-            const Text(
-              'Record this SMS transaction',
+            Text(
+              'Record this SMS transaction'.tr,
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 4),
@@ -556,6 +566,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                   TxnKind.income,
                   TxnKind.expense,
                   TxnKind.refund,
+                  TxnKind.payablePayment,
                 ])
                   ChoiceChip(
                     selected: _kind == k,
@@ -574,28 +585,28 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
 
             AmountField(
               controller: _amount,
-              label: 'Amount',
+              label: 'Amount'.tr,
               currency: sms.currency,
             ),
             const SizedBox(height: 14),
 
             SelectField<Customer>(
-              label: 'Contact (optional)',
+              label: 'Contact (optional)'.tr,
               icon: Icons.person_outline_rounded,
               value: _customer,
               items: repo.activeCustomers,
               clearable: true,
               labelOf: (c) => c.name,
               subOf: (c) => c.phone,
-              searchHint: 'Customer name...',
-              sheetTitle: 'Select contact',
+              searchHint: 'Customer name...'.tr,
+              sheetTitle: 'Select contact'.tr,
               onChanged: (c) => setState(() => _customer = c),
             ),
 
             if (isProfit) ...[
               const SizedBox(height: 14),
               SelectField<Category>(
-                label: 'Category',
+                label: 'Category'.tr,
                 icon: Icons.category_outlined,
                 value: repo.categoryById(_categoryId),
                 items: repo.categoriesOf(_kind),
@@ -610,7 +621,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel'),
+                    child: Text('Cancel'.tr),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -633,7 +644,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                       if (context.mounted) Navigator.pop(context, true);
                     },
                     icon: const Icon(Icons.check_rounded, size: 18),
-                    label: const Text('Record transaction'),
+                    label: Text('Record transaction'.tr),
                   ),
                 ),
               ],

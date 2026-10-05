@@ -9,6 +9,8 @@ import '../data/repository.dart';
 import 'forms/transaction_edit_page.dart';
 import 'widgets/widgets.dart';
 
+import '../core/localization.dart';
+
 class TransactionsPage extends StatefulWidget {
   const TransactionsPage({super.key});
 
@@ -25,23 +27,31 @@ class _TransactionsPageState extends State<TransactionsPage> {
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
     final onSurface = Theme.of(context).colorScheme.onSurface;
-    final monthStart = J.startOfMonth(J.addMonths(DateTime.now(), _monthOffset));
+    final monthStart = J.startOfMonth(
+      J.addMonths(DateTime.now(), _monthOffset),
+    );
     final monthEnd = J.endOfMonth(monthStart);
-    final summary =
-        repo.summary(from: monthStart, to: monthEnd, scope: repo.scopeFilter);
+    final summary = repo.summary(
+      from: monthStart,
+      to: monthEnd,
+      scope: repo.scopeFilter,
+    );
 
-    var list = (repo.scopeFilter == null
-            ? repo.transactions
-            : repo.transactions.where((t) => t.scope == repo.scopeFilter))
-        .where((t) => Ledger.inRange(t.date, monthStart, monthEnd))
-        .toList();
+    var list =
+        (repo.scopeFilter == null
+                ? repo.transactions
+                : repo.transactions.where((t) => t.scope == repo.scopeFilter))
+            .where((t) => Ledger.inRange(t.date, monthStart, monthEnd))
+            .toList();
     if (_kind != null) list = list.where((t) => t.kind == _kind).toList();
     if (_q.isNotEmpty) {
       list = list
-          .where((t) =>
-              t.note.contains(_q) ||
-              repo.customerName(t.customerId).contains(_q) ||
-              repo.categoryName(t.categoryId).contains(_q))
+          .where(
+            (t) =>
+                t.note.contains(_q) ||
+                repo.customerName(t.customerId).contains(_q) ||
+                repo.categoryName(t.categoryId).contains(_q),
+          )
           .toList();
     }
 
@@ -60,7 +70,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
           child: Row(
             children: [
               IconButton(
-                tooltip: 'Previous month',
+                tooltip: 'Previous month'.tr,
                 onPressed: () => setState(() => _monthOffset--),
                 icon: const Icon(Icons.chevron_left_rounded),
               ),
@@ -68,20 +78,27 @@ class _TransactionsPageState extends State<TransactionsPage> {
                 child: Center(
                   child: Column(
                     children: [
-                      Text(J.mLabel(monthStart),
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                      Text(
+                        J.mLabel(monthStart),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       const SizedBox(height: 2),
                       Text(
                         'Income ${Money.text(summary.income, compact: true)} • Expense ${Money.text(summary.expense, compact: true)}',
                         style: TextStyle(
-                            fontSize: 11, color: onSurface.withValues(alpha: 0.6)),
+                          fontSize: 11,
+                          color: onSurface.withValues(alpha: 0.6),
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
               IconButton(
-                tooltip: 'Next month',
+                tooltip: 'Next month'.tr,
                 onPressed: _monthOffset < 0
                     ? () => setState(() => _monthOffset++)
                     : null,
@@ -110,13 +127,15 @@ class _TransactionsPageState extends State<TransactionsPage> {
                     for (final opt in <TxnScope?>[
                       null,
                       TxnScope.business,
-                      TxnScope.personal
+                      TxnScope.personal,
                     ])
                       Padding(
-                        padding: const EdgeInsets.only(left: 6),
+                        padding: const EdgeInsetsDirectional.only(start: 6),
                         child: ChoiceChip(
-                          label: Text(opt == null ? 'All' : opt.label,
-                              style: const TextStyle(fontSize: 12)),
+                          label: Text(
+                            opt == null ? 'All'.tr : opt.label,
+                            style: const TextStyle(fontSize: 12),
+                          ),
                           showCheckmark: false,
                           selected: repo.scopeFilter == opt,
                           onSelected: (_) => repo.setScopeFilter(opt),
@@ -131,7 +150,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                 child: Row(
                   children: [
                     ChoiceChip(
-                      label: const Text('All'),
+                      label: Text('All'.tr),
                       showCheckmark: false,
                       selected: _kind == null,
                       onSelected: (_) => setState(() => _kind = null),
@@ -168,28 +187,34 @@ class _TransactionsPageState extends State<TransactionsPage> {
                         padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
                         child: Row(
                           children: [
-                            Text(entry.key,
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: onSurface.withValues(alpha: 0.6))),
+                            Text(
+                              entry.key,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: onSurface.withValues(alpha: 0.6),
+                              ),
+                            ),
                             const Spacer(),
                             Text(
                               Money.text(
                                 entry.value.fold<double>(
-                                    0,
-                                    (a, t) =>
-                                        a +
-                                        (t.kind == TxnKind.expense ||
-                                                t.kind == TxnKind.refund
-                                            ? -Ledger.base(t)
-                                            : Ledger.base(t))),
+                                  0,
+                                  (a, t) =>
+                                      a +
+                                      (t.kind == TxnKind.expense ||
+                                              t.kind == TxnKind.refund ||
+                                              t.kind == TxnKind.payablePayment
+                                          ? -Ledger.base(t)
+                                          : Ledger.base(t)),
+                                ),
                                 compact: true,
                               ),
                               style: TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: onSurface.withValues(alpha: 0.6)),
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: onSurface.withValues(alpha: 0.6),
+                              ),
                             ),
                           ],
                         ),
@@ -200,16 +225,26 @@ class _TransactionsPageState extends State<TransactionsPage> {
                             for (var i = 0; i < entry.value.length; i++) ...[
                               TxnTile(
                                 txn: entry.value[i],
-                                categoryName: repo.categoryName(entry.value[i].categoryId),
-                                customerName: repo.customerName(entry.value[i].customerId),
+                                categoryName: repo.categoryName(
+                                  entry.value[i].categoryId,
+                                ),
+                                customerName: repo.customerName(
+                                  entry.value[i].customerId,
+                                ),
                                 onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) => TransactionEditPage(
-                                            existing: entry.value[i]))),
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => TransactionEditPage(
+                                      existing: entry.value[i],
+                                    ),
+                                  ),
+                                ),
                               ),
                               if (i != entry.value.length - 1)
-                                Divider(height: 1, color: Theme.of(context).dividerColor),
+                                Divider(
+                                  height: 1,
+                                  color: Theme.of(context).dividerColor,
+                                ),
                             ],
                           ],
                         ),

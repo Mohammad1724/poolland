@@ -1,5 +1,7 @@
 import 'package:intl/intl.dart';
 
+import 'localization.dart';
+
 /// Number, currency, and Jalali date formatting utilities.
 class Fmt {
   Fmt._();
@@ -56,15 +58,21 @@ class Fmt {
   }
 
   /// Compact amount for summary cards: 12.5 billion, 340 thousand, and so on.
-  static String compactMoney(num value, {String symbol = 'Toman', bool persian = false}) {
+  static String compactMoney(
+    num value, {
+    String symbol = 'Toman',
+    bool persian = false,
+  }) {
     final v = value.abs();
     String out;
     if (v >= 1000000000) {
-      out = '${NumberFormat('#,##0.##', _en).format(v / 1000000000)} billion';
+      out =
+          '${NumberFormat('#,##0.##', _en).format(v / 1000000000)} ${'billion'.tr}';
     } else if (v >= 1000000) {
-      out = '${NumberFormat('#,##0.##', _en).format(v / 1000000)} million';
+      out =
+          '${NumberFormat('#,##0.##', _en).format(v / 1000000)} ${'million'.tr}';
     } else if (v >= 1000) {
-      out = '${NumberFormat('#,##0.#', _en).format(v / 1000)} thousand';
+      out = '${NumberFormat('#,##0.#', _en).format(v / 1000)} ${'thousand'.tr}';
     } else {
       out = _plainDecimal.format(v);
     }
@@ -81,7 +89,13 @@ class Fmt {
   static String _two(int v) => v.toString().padLeft(2, '0');
 
   /// Format a Jalali date, e.g. 1405/07/12.
-  static String date(int y, int m, int d, {bool persian = false, String sep = '/'}) {
+  static String date(
+    int y,
+    int m,
+    int d, {
+    bool persian = false,
+    String sep = '/',
+  }) {
     final s = '$y$sep${_two(m)}$sep${_two(d)}';
     return persian ? toFaDigits(s) : s;
   }
@@ -118,6 +132,21 @@ class Fmt {
     'Esfand',
   ];
 
+  static const _faJalaliMonths = <String>[
+    'فروردین',
+    'اردیبهشت',
+    'خرداد',
+    'تیر',
+    'مرداد',
+    'شهریور',
+    'مهر',
+    'آبان',
+    'آذر',
+    'دی',
+    'بهمن',
+    'اسفند',
+  ];
+
   static const weekDays = <String>[
     'Saturday',
     'Sunday',
@@ -128,23 +157,44 @@ class Fmt {
     'Friday',
   ];
 
-  static String monthName(int m) => (m >= 1 && m <= 12) ? jalaliMonths[m - 1] : '';
+  static const _faWeekDays = <String>[
+    'شنبه',
+    'یکشنبه',
+    'دوشنبه',
+    'سه‌شنبه',
+    'چهارشنبه',
+    'پنجشنبه',
+    'جمعه',
+  ];
+
+  static String monthName(int m) {
+    if (m < 1 || m > 12) return '';
+    return (AppLocalization.languageCode == 'fa'
+        ? _faJalaliMonths
+        : jalaliMonths)[m - 1];
+  }
 
   /// Return the weekday name for a Jalali weekday (1 = Saturday, 7 = Friday).
-  static String weekDayName(int weekDay) =>
-      (weekDay >= 1 && weekDay <= 7) ? weekDays[weekDay - 1] : '';
+  static String weekDayName(int weekDay) {
+    if (weekDay < 1 || weekDay > 7) return '';
+    return (AppLocalization.languageCode == 'fa'
+        ? _faWeekDays
+        : weekDays)[weekDay - 1];
+  }
 
   /// Describe the remaining or elapsed days until expiry.
   static String expiryLabel(int days, {bool persian = false}) {
     String count(int value) => persian ? toFaDigits('$value') : '$value';
 
-    if (days == 0) return 'Today';
-    if (days == 1) return 'Tomorrow';
-    if (days > 1) return '${count(days)} days left';
+    if (days == 0) return 'Today'.tr;
+    if (days == 1) return 'Tomorrow'.tr;
+    if (days > 1) {
+      return '{days} days left'.trArgs({'days': count(days)});
+    }
     final passed = -days;
-    return passed == 1
-        ? '${count(passed)} day ago'
-        : '${count(passed)} days ago';
+    return (passed == 1 ? '{days} day ago' : '{days} days ago').trArgs({
+      'days': count(passed),
+    });
   }
 
   static String percent(double ratio, {bool persian = false}) =>
@@ -189,6 +239,8 @@ String formatPhone(String value, {bool persian = false}) {
   final s = value.trim();
   if (s.isEmpty) return '';
   final out = s.replaceAllMapped(
-      RegExp(r'(\d{4})(\d{3})(\d{4})$'), (m) => '${m[1]} ${m[2]} ${m[3]}');
+    RegExp(r'(\d{4})(\d{3})(\d{4})$'),
+    (m) => '${m[1]} ${m[2]} ${m[3]}',
+  );
   return persian ? Fmt.toFaDigits(out) : out;
 }

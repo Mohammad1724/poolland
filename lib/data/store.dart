@@ -137,11 +137,20 @@ class LocalStore {
     final out = <Category>[];
     var i = 0;
     for (final name in income) {
-      out.add(Category(id: newId(), name: name, kind: TxnKind.income, sortOrder: i++));
+      out.add(
+        Category(id: newId(), name: name, kind: TxnKind.income, sortOrder: i++),
+      );
     }
     i = 0;
     for (final name in expense) {
-      out.add(Category(id: newId(), name: name, kind: TxnKind.expense, sortOrder: i++));
+      out.add(
+        Category(
+          id: newId(),
+          name: name,
+          kind: TxnKind.expense,
+          sortOrder: i++,
+        ),
+      );
     }
     return out;
   }
@@ -174,21 +183,27 @@ class LocalStore {
     final out = <Category>[];
     var i = 0;
     for (final name in income) {
-      out.add(Category(
+      out.add(
+        Category(
           id: newId(),
           name: name,
           kind: TxnKind.income,
           sortOrder: i++,
-          scope: TxnScope.personal));
+          scope: TxnScope.personal,
+        ),
+      );
     }
     i = 0;
     for (final name in expense) {
-      out.add(Category(
+      out.add(
+        Category(
           id: newId(),
           name: name,
           kind: TxnKind.expense,
           sortOrder: i++,
-          scope: TxnScope.personal));
+          scope: TxnScope.personal,
+        ),
+      );
     }
     return out;
   }
@@ -208,14 +223,15 @@ class LocalStore {
 
   /// Default sales plans.
   static List<Plan> defaultPlans() => [
-        Plan(id: newId(), name: '1 month, 50 GB', price: 250000),
-        Plan(id: newId(), name: '1 month, unlimited', price: 350000),
-        Plan(
-            id: newId(),
-            name: '3 months, unlimited',
-            price: 900000,
-            durationValue: 3),
-      ];
+    Plan(id: newId(), name: '1 month, 50 GB', price: 250000),
+    Plan(id: newId(), name: '1 month, unlimited', price: 350000),
+    Plan(
+      id: newId(),
+      name: '3 months, unlimited',
+      price: 900000,
+      durationValue: 3,
+    ),
+  ];
 
   // ---------- Read ----------
   List<Customer> loadCustomers() => customers.values
@@ -230,18 +246,20 @@ class LocalStore {
       .map((e) => Txn.fromMap(Map<String, dynamic>.from(e as Map)))
       .toList();
 
-  List<Category> loadCategories() => categories.values
-      .map((e) => Category.fromMap(Map<String, dynamic>.from(e as Map)))
-      .toList()
-    ..sort((a, b) {
-      final k = a.kind.index.compareTo(b.kind.index);
-      return k != 0 ? k : a.sortOrder.compareTo(b.sortOrder);
-    });
+  List<Category> loadCategories() =>
+      categories.values
+          .map((e) => Category.fromMap(Map<String, dynamic>.from(e as Map)))
+          .toList()
+        ..sort((a, b) {
+          final k = a.kind.index.compareTo(b.kind.index);
+          return k != 0 ? k : a.sortOrder.compareTo(b.sortOrder);
+        });
 
-  List<Plan> loadPlans() => plans.values
-      .map((e) => Plan.fromMap(Map<String, dynamic>.from(e as Map)))
-      .toList()
-    ..sort((a, b) => a.name.compareTo(b.name));
+  List<Plan> loadPlans() =>
+      plans.values
+          .map((e) => Plan.fromMap(Map<String, dynamic>.from(e as Map)))
+          .toList()
+        ..sort((a, b) => a.name.compareTo(b.name));
 
   AppSettings loadSettings() {
     final raw = meta.get('settings');
@@ -253,7 +271,8 @@ class LocalStore {
   Future<void> putCustomer(Customer c) => customers.put(c.id, c.toMap());
   Future<void> deleteCustomer(String id) => customers.delete(id);
 
-  Future<void> putSubscription(Subscription s) => subscriptions.put(s.id, s.toMap());
+  Future<void> putSubscription(Subscription s) =>
+      subscriptions.put(s.id, s.toMap());
   Future<void> deleteSubscription(String id) => subscriptions.delete(id);
 
   Future<void> putTxn(Txn t) => transactions.put(t.id, t.toMap());
@@ -285,72 +304,132 @@ class LocalStore {
   // ---------- Backups ----------
   /// All data as a Map (for JSON export).
   Map<String, dynamic> exportAll() => {
-        'app': 'vpn_ledger',
-        'schema': 1,
-        'exportedAt': DateTime.now().toIso8601String(),
-        'settings': loadSettings().toMap(),
-        'customers': loadCustomers().map((e) => e.toMap()).toList(),
-        'subscriptions': loadSubscriptions().map((e) => e.toMap()).toList(),
-        'transactions': loadTxns().map((e) => e.toMap()).toList(),
-        'categories': loadCategories().map((e) => e.toMap()).toList(),
-        'plans': loadPlans().map((e) => e.toMap()).toList(),
-        'smsRules': loadSmsRules().map((e) => e.toMap()).toList(),
-        'budgets': loadBudgets().map((e) => e.toMap()).toList(),
-        'recurring': loadRecurring().map((e) => e.toMap()).toList(),
-        'quickExpenses': loadQuickExpenses().map((e) => e.toMap()).toList(),
-      };
+    'app': 'vpn_ledger',
+    'schema': 1,
+    'exportedAt': DateTime.now().toIso8601String(),
+    'settings': loadSettings().toMap(),
+    'customers': loadCustomers().map((e) => e.toMap()).toList(),
+    'subscriptions': loadSubscriptions().map((e) => e.toMap()).toList(),
+    'transactions': loadTxns().map((e) => e.toMap()).toList(),
+    'categories': loadCategories().map((e) => e.toMap()).toList(),
+    'plans': loadPlans().map((e) => e.toMap()).toList(),
+    'smsRules': loadSmsRules().map((e) => e.toMap()).toList(),
+    'budgets': loadBudgets().map((e) => e.toMap()).toList(),
+    'recurring': loadRecurring().map((e) => e.toMap()).toList(),
+    'quickExpenses': loadQuickExpenses().map((e) => e.toMap()).toList(),
+  };
 
-  /// Restore from a backup file.
+  /// Restore from a backup file. All records are parsed before existing data
+  /// is touched, so an invalid file cannot leave the local ledger half-erased.
   Future<void> importAll(Map<String, dynamic> data) async {
+    if (data['app'] != 'vpn_ledger') {
+      throw const FormatException('This file is not a Poolland backup.');
+    }
+    final schema = (data['schema'] as num?)?.toInt() ?? 1;
+    if (schema != 1) {
+      throw FormatException('Unsupported backup schema: $schema.');
+    }
+
+    List<Map<String, dynamic>> parseRecords(String key) {
+      final rawList = data[key];
+      if (rawList == null) return <Map<String, dynamic>>[];
+      if (rawList is! List) throw FormatException('Invalid "$key" data.');
+      final records = <Map<String, dynamic>>[];
+      final ids = <String>{};
+      for (var i = 0; i < rawList.length; i++) {
+        final raw = rawList[i];
+        if (raw is! Map) {
+          throw FormatException('Invalid "$key" record at index $i.');
+        }
+        final record = Map<String, dynamic>.from(raw);
+        final id = '${record['id'] ?? ''}'.trim();
+        if (id.isEmpty || !ids.add(id)) {
+          throw FormatException(
+            'Missing or duplicate ID in "$key" at index $i.',
+          );
+        }
+        records.add(record);
+      }
+      return records;
+    }
+
+    List<T> decode<T>(String key, T Function(Map<String, dynamic>) fromMap) {
+      final out = <T>[];
+      for (final record in parseRecords(key)) {
+        try {
+          out.add(fromMap(record));
+        } catch (error) {
+          throw FormatException('Invalid "$key" record: $error');
+        }
+      }
+      return out;
+    }
+
+    final settingsRaw = data['settings'];
+    if (settingsRaw != null && settingsRaw is! Map) {
+      throw const FormatException('Invalid settings data.');
+    }
+    final restoredSettings = settingsRaw is Map
+        ? AppSettings.fromMap(Map<String, dynamic>.from(settingsRaw))
+        : const AppSettings();
+    final restoredCustomers = decode('customers', Customer.fromMap);
+    final restoredSubscriptions = decode('subscriptions', Subscription.fromMap);
+    final restoredTransactions = decode('transactions', Txn.fromMap);
+    final restoredCategories = decode('categories', Category.fromMap);
+    final restoredPlans = decode('plans', Plan.fromMap);
+    final restoredSmsRules = decode('smsRules', BankRule.fromMap);
+    final restoredBudgets = decode('budgets', Budget.fromMap);
+    final restoredRecurring = decode('recurring', RecurringRule.fromMap);
+    final restoredQuickExpenses = decode('quickExpenses', QuickExpense.fromMap);
+
+    final customerIds = restoredCustomers.map((e) => e.id).toSet();
+    if (restoredSubscriptions.any((s) => !customerIds.contains(s.customerId))) {
+      throw const FormatException(
+        'A subscription references a missing customer.',
+      );
+    }
+
+    // All content is now validated; replacing the local data is safe to begin.
     await customers.clear();
     await subscriptions.clear();
     await transactions.clear();
     await categories.clear();
     await plans.clear();
     await meta.clear();
+    await smsState
+        .clear(); // Review status belongs to this device, not the backup.
+    await smsRules.clear();
+    await budgets.clear();
+    await recurring.clear();
+    await quickExpenses.clear();
 
-    final s = data['settings'];
-    if (s is Map) {
-      await meta.put('settings', Map<String, dynamic>.from(s));
-    } else {
-      await meta.put('settings', const AppSettings().toMap());
+    await meta.put('settings', restoredSettings.toMap());
+    for (final value in restoredCustomers) {
+      await customers.put(value.id, value.toMap());
     }
-
-    for (final raw in (data['customers'] as List? ?? const [])) {
-      final m = Map<String, dynamic>.from(raw as Map);
-      await customers.put('${m['id']}', m);
+    for (final value in restoredSubscriptions) {
+      await subscriptions.put(value.id, value.toMap());
     }
-    for (final raw in (data['subscriptions'] as List? ?? const [])) {
-      final m = Map<String, dynamic>.from(raw as Map);
-      await subscriptions.put('${m['id']}', m);
+    for (final value in restoredTransactions) {
+      await transactions.put(value.id, value.toMap());
     }
-    for (final raw in (data['transactions'] as List? ?? const [])) {
-      final m = Map<String, dynamic>.from(raw as Map);
-      await transactions.put('${m['id']}', m);
+    for (final value in restoredCategories) {
+      await categories.put(value.id, value.toMap());
     }
-    for (final raw in (data['categories'] as List? ?? const [])) {
-      final m = Map<String, dynamic>.from(raw as Map);
-      await categories.put('${m['id']}', m);
+    for (final value in restoredPlans) {
+      await plans.put(value.id, value.toMap());
     }
-    for (final raw in (data['plans'] as List? ?? const [])) {
-      final m = Map<String, dynamic>.from(raw as Map);
-      await plans.put('${m['id']}', m);
+    for (final value in restoredSmsRules) {
+      await smsRules.put(value.id, value.toMap());
     }
-    for (final raw in (data['smsRules'] as List? ?? const [])) {
-      final m = Map<String, dynamic>.from(raw as Map);
-      await smsRules.put('${m['id']}', m);
+    for (final value in restoredBudgets) {
+      await budgets.put(value.id, value.toMap());
     }
-    for (final raw in (data['budgets'] as List? ?? const [])) {
-      final m = Map<String, dynamic>.from(raw as Map);
-      await budgets.put('${m['id']}', m);
+    for (final value in restoredRecurring) {
+      await recurring.put(value.id, value.toMap());
     }
-    for (final raw in (data['recurring'] as List? ?? const [])) {
-      final m = Map<String, dynamic>.from(raw as Map);
-      await recurring.put('${m['id']}', m);
-    }
-    for (final raw in (data['quickExpenses'] as List? ?? const [])) {
-      final m = Map<String, dynamic>.from(raw as Map);
-      await quickExpenses.put('${m['id']}', m);
+    for (final value in restoredQuickExpenses) {
+      await quickExpenses.put(value.id, value.toMap());
     }
     await ensureSeeded();
   }
@@ -384,8 +463,11 @@ class LocalStore {
     return out;
   }
 
-  Future<void> setSmsState(String key, String status) => smsState.put(
-      key, {'key': key, 'status': status, 'at': DateTime.now().millisecondsSinceEpoch});
+  Future<void> setSmsState(String key, String status) => smsState.put(key, {
+    'key': key,
+    'status': status,
+    'at': DateTime.now().millisecondsSinceEpoch,
+  });
 
   Future<void> clearSmsState() => smsState.clear();
 
@@ -436,8 +518,7 @@ class LocalStore {
       if (e is! Map) continue;
       out.add(QuickExpense.fromMap(Map<String, dynamic>.from(e)));
     }
-    return out
-      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    return out..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
   }
 
   Future<void> putQuickExpense(QuickExpense q) =>

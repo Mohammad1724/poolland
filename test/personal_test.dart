@@ -29,7 +29,10 @@ void main() {
   // ---------------------------------------------------------------- Scope
 
   test('Personal categories are seeded on startup', () {
-    final personal = repo.categoriesOf(TxnKind.expense, scope: TxnScope.personal);
+    final personal = repo.categoriesOf(
+      TxnKind.expense,
+      scope: TxnScope.personal,
+    );
     final income = repo.categoriesOf(TxnKind.income, scope: TxnScope.personal);
     expect(personal, isNotEmpty);
     expect(income, isNotEmpty);
@@ -51,55 +54,69 @@ void main() {
         .first;
     final businessCat = repo.categoriesOf(TxnKind.expense).first;
 
-    await repo.addTxn(repo.buildTxn(
-      kind: TxnKind.income,
-      amount: 1000000,
-      currency: 'IRT',
-      date: DateTime.now(),
-      categoryId: repo.defaultCategoryId(TxnKind.income),
-    ));
-    await repo.addTxn(repo.buildTxn(
-      kind: TxnKind.expense,
-      amount: 200000,
-      currency: 'IRT',
-      date: DateTime.now(),
-      categoryId: businessCat.id,
-      scope: TxnScope.business,
-    ));
-    await repo.addTxn(repo.buildTxn(
-      kind: TxnKind.expense,
-      amount: 500000,
-      currency: 'IRT',
-      date: DateTime.now(),
-      categoryId: cat.id,
-      scope: TxnScope.personal,
-    ));
+    await repo.addTxn(
+      repo.buildTxn(
+        kind: TxnKind.income,
+        amount: 1000000,
+        currency: 'IRT',
+        date: DateTime.now(),
+        categoryId: repo.defaultCategoryId(TxnKind.income),
+      ),
+    );
+    await repo.addTxn(
+      repo.buildTxn(
+        kind: TxnKind.expense,
+        amount: 200000,
+        currency: 'IRT',
+        date: DateTime.now(),
+        categoryId: businessCat.id,
+        scope: TxnScope.business,
+      ),
+    );
+    await repo.addTxn(
+      repo.buildTxn(
+        kind: TxnKind.expense,
+        amount: 500000,
+        currency: 'IRT',
+        date: DateTime.now(),
+        categoryId: cat.id,
+        scope: TxnScope.personal,
+      ),
+    );
 
     // Business profit = 1,000,000 − 200,000 (personal expenses are excluded).
     final all = repo.summary();
-    expect(all.profit, closeTo(300000, 0.01)); // Overall profit: 1,000,000 − 700,000.
+    expect(
+      all.profit,
+      closeTo(300000, 0.01),
+    ); // Overall profit: 1,000,000 − 700,000.
     final biz = repo.summary(scope: TxnScope.business);
     expect(biz.profit, closeTo(800000, 0.01));
     final per = repo.summary(scope: TxnScope.personal);
     expect(per.expense, closeTo(500000, 0.01));
   });
 
-  test('A personal cash expense does not reduce the business cash balance', () async {
-    await repo.updateSettings(repo.settings.copyWith(openingCash: 1000000));
-    final before = repo.cashBalance;
-    final cat = repo
-        .categoriesOf(TxnKind.expense, scope: TxnScope.personal)
-        .first;
-    await repo.addTxn(repo.buildTxn(
-      kind: TxnKind.expense,
-      amount: 250000,
-      currency: 'IRT',
-      date: DateTime.now(),
-      categoryId: cat.id,
-      scope: TxnScope.personal,
-    ));
-    expect(repo.cashBalance, closeTo(before, 0.01));
-  });
+  test(
+    'A personal cash expense does not reduce the business cash balance',
+    () async {
+      await repo.updateSettings(repo.settings.copyWith(openingCash: 1000000));
+      final before = repo.cashBalance;
+      final cat = repo
+          .categoriesOf(TxnKind.expense, scope: TxnScope.personal)
+          .first;
+      await repo.addTxn(
+        repo.buildTxn(
+          kind: TxnKind.expense,
+          amount: 250000,
+          currency: 'IRT',
+          date: DateTime.now(),
+          categoryId: cat.id,
+          scope: TxnScope.personal,
+        ),
+      );
+      expect(repo.cashBalance, closeTo(before, 0.01));
+    },
+  );
 
   test('Legacy backups without scope default to business', () async {
     final data = store.exportAll();
@@ -127,14 +144,16 @@ void main() {
         .first;
     final b = Budget(id: 'b1', categoryId: cat.id, limit: 5000000);
     await repo.addBudget(b);
-    await repo.addRecurring(RecurringRule(
-      id: 'r1',
-      title: 'Rent',
-      amount: 3000000,
-      startDate: J.toDate(1405, 1, 1),
-      dayOfMonth: 5,
-      categoryId: cat.id,
-    ));
+    await repo.addRecurring(
+      RecurringRule(
+        id: 'r1',
+        title: 'Rent',
+        amount: 3000000,
+        startDate: J.toDate(1405, 1, 1),
+        dayOfMonth: 5,
+        categoryId: cat.id,
+      ),
+    );
 
     final data = store.exportAll();
     expect((data['budgets'] as List).length, 1);
@@ -156,14 +175,16 @@ void main() {
 
     final now = DateTime.now();
     for (var i = 0; i < 3; i++) {
-      await repo.addTxn(repo.buildTxn(
-        kind: TxnKind.expense,
-        amount: 100000,
-        currency: 'IRT',
-        date: now,
-        categoryId: cat.id,
-        scope: TxnScope.personal,
-      ));
+      await repo.addTxn(
+        repo.buildTxn(
+          kind: TxnKind.expense,
+          amount: 100000,
+          currency: 'IRT',
+          date: now,
+          categoryId: cat.id,
+          scope: TxnScope.personal,
+        ),
+      );
     }
 
     final usages = repo.budgetUsages();
@@ -181,14 +202,16 @@ void main() {
         .categoriesOf(TxnKind.expense, scope: TxnScope.personal)
         .first;
     await repo.addBudget(Budget(id: 'b1', categoryId: cat.id, limit: 100000));
-    await repo.addTxn(repo.buildTxn(
-      kind: TxnKind.expense,
-      amount: 150000,
-      currency: 'IRT',
-      date: DateTime.now(),
-      categoryId: cat.id,
-      scope: TxnScope.personal,
-    ));
+    await repo.addTxn(
+      repo.buildTxn(
+        kind: TxnKind.expense,
+        amount: 150000,
+        currency: 'IRT',
+        date: DateTime.now(),
+        categoryId: cat.id,
+        scope: TxnScope.personal,
+      ),
+    );
     final u = repo.budgetUsages().first;
     expect(u.isOver, isTrue);
     expect(u.level, 2);
@@ -201,14 +224,16 @@ void main() {
         .first;
     await repo.addBudget(Budget(id: 'b1', categoryId: cat.id, limit: 1000000));
     final lastMonth = J.addMonths(DateTime.now(), -1);
-    await repo.addTxn(repo.buildTxn(
-      kind: TxnKind.expense,
-      amount: 900000,
-      currency: 'IRT',
-      date: lastMonth,
-      categoryId: cat.id,
-      scope: TxnScope.personal,
-    ));
+    await repo.addTxn(
+      repo.buildTxn(
+        kind: TxnKind.expense,
+        amount: 900000,
+        currency: 'IRT',
+        date: lastMonth,
+        categoryId: cat.id,
+        scope: TxnScope.personal,
+      ),
+    );
     expect(repo.budgetUsages().first.spent, closeTo(0, 0.01));
   });
 
@@ -253,7 +278,8 @@ void main() {
     final dues = r.occurrencesUpTo(J.toDate(1404, 12, 29), limit: 20);
     for (final d in dues) {
       final j = J.of(d);
-      final len = J.addMonths(J.toDate(j.year, j.month, 1), 1)
+      final len = J
+          .addMonths(J.toDate(j.year, j.month, 1), 1)
           .difference(J.toDate(j.year, j.month, 1))
           .inDays;
       expect(j.day, lessThanOrEqualTo(len));
@@ -292,15 +318,17 @@ void main() {
         .categoriesOf(TxnKind.expense, scope: TxnScope.personal)
         .first;
     // Started three months ago with monthly recurrence.
-    await repo.addRecurring(RecurringRule(
-      id: 'r1',
-      title: 'Rent',
-      amount: 3000000,
-      startDate: J.addMonths(DateTime.now(), -3),
-      dayOfMonth: 1,
-      categoryId: cat.id,
-      period: RecurringPeriod.monthly,
-    ));
+    await repo.addRecurring(
+      RecurringRule(
+        id: 'r1',
+        title: 'Rent',
+        amount: 3000000,
+        startDate: J.addMonths(DateTime.now(), -3),
+        dayOfMonth: 1,
+        categoryId: cat.id,
+        period: RecurringPeriod.monthly,
+      ),
+    );
 
     final before = repo.transactions.length;
     final n = await repo.postDueRecurring();
@@ -323,20 +351,23 @@ void main() {
   });
 
   test('A disabled rule posts nothing', () async {
-    await repo.addRecurring(RecurringRule(
-      id: 'r1',
-      title: 'x',
-      amount: 1000,
-      startDate: J.addMonths(DateTime.now(), -2),
-      enabled: false,
-    ));
+    await repo.addRecurring(
+      RecurringRule(
+        id: 'r1',
+        title: 'x',
+        amount: 1000,
+        startDate: J.addMonths(DateTime.now(), -2),
+        enabled: false,
+      ),
+    );
     final n = await repo.postDueRecurring();
     expect(n, 0);
   });
 
   test('Delete a recurring rule', () async {
-    await repo.addRecurring(RecurringRule(
-        id: 'r1', title: 'x', amount: 1, startDate: DateTime.now()));
+    await repo.addRecurring(
+      RecurringRule(id: 'r1', title: 'x', amount: 1, startDate: DateTime.now()),
+    );
     await repo.deleteRecurring('r1');
     expect(repo.recurringRules, isEmpty);
     expect(store.loadRecurring(), isEmpty);
@@ -346,7 +377,11 @@ void main() {
 
   test('Quick entry with a fixed amount', () async {
     final q = QuickExpense(
-        id: 'q1', label: 'Taxi', amount: 50000, iconCodePoint: 0);
+      id: 'q1',
+      label: 'Taxi',
+      amount: 50000,
+      iconCodePoint: 0,
+    );
     await repo.addQuickButton(q);
     final before = repo.transactions.length;
     await repo.addQuickExpense(q);
@@ -370,12 +405,13 @@ void main() {
         .categoriesOf(TxnKind.income, scope: TxnScope.personal)
         .firstWhere((c) => c.name.contains('Salary'));
     final q = QuickExpense(
-        id: 'q1',
-        label: 'Salary',
-        amount: 20000000,
-        kind: TxnKind.income,
-        categoryId: cat.id,
-        iconCodePoint: 0);
+      id: 'q1',
+      label: 'Salary',
+      amount: 20000000,
+      kind: TxnKind.income,
+      categoryId: cat.id,
+      iconCodePoint: 0,
+    );
     final t = await repo.addQuickExpense(q);
     expect(t.kind, TxnKind.income);
     final per = repo.summary(scope: TxnScope.personal);
@@ -384,7 +420,8 @@ void main() {
 
   test('Delete a quick-entry button', () async {
     await repo.addQuickButton(
-        QuickExpense(id: 'q9', label: 'Test', iconCodePoint: 0));
+      QuickExpense(id: 'q9', label: 'Test', iconCodePoint: 0),
+    );
     final n = repo.quickExpenses.length;
     await repo.deleteQuickButton('q9');
     expect(repo.quickExpenses.length, n - 1);
@@ -398,41 +435,56 @@ void main() {
         .categoriesOf(TxnKind.expense, scope: TxnScope.personal)
         .first;
     final today = DateTime.now();
-    await repo.addTxn(repo.buildTxn(
-      kind: TxnKind.expense,
-      amount: 10000,
-      currency: 'IRT',
-      date: today,
-      categoryId: cat.id,
-      scope: TxnScope.personal,
-    ));
-    await repo.addTxn(repo.buildTxn(
-      kind: TxnKind.expense,
-      amount: 5000,
-      currency: 'IRT',
-      date: J.addDays(today, -1),
-      categoryId: cat.id,
-      scope: TxnScope.personal,
-    ));
-    await repo.addTxn(repo.buildTxn(
-      kind: TxnKind.expense,
-      amount: 77777,
-      currency: 'IRT',
-      date: J.addDays(today, -60),
-      categoryId: cat.id,
-      scope: TxnScope.personal,
-    ));
+    await repo.addTxn(
+      repo.buildTxn(
+        kind: TxnKind.expense,
+        amount: 10000,
+        currency: 'IRT',
+        date: today,
+        categoryId: cat.id,
+        scope: TxnScope.personal,
+      ),
+    );
+    await repo.addTxn(
+      repo.buildTxn(
+        kind: TxnKind.expense,
+        amount: 5000,
+        currency: 'IRT',
+        date: J.addDays(today, -1),
+        categoryId: cat.id,
+        scope: TxnScope.personal,
+      ),
+    );
+    await repo.addTxn(
+      repo.buildTxn(
+        kind: TxnKind.expense,
+        amount: 77777,
+        currency: 'IRT',
+        date: J.addDays(today, -60),
+        categoryId: cat.id,
+        scope: TxnScope.personal,
+      ),
+    );
 
-    final daily = Ledger.dailySeries(repo.transactions,
-        days: 30, scope: TxnScope.personal);
+    final daily = Ledger.dailySeries(
+      repo.transactions,
+      days: 30,
+      scope: TxnScope.personal,
+    );
     expect(daily.length, 30);
     final total = daily.fold<double>(0, (a, p) => a + p.expense);
-    expect(total, closeTo(15000, 0.01)); // The transaction from 60 days ago is outside the range.
+    expect(
+      total,
+      closeTo(15000, 0.01),
+    ); // The transaction from 60 days ago is outside the range.
   });
 
   test('Weekly series returns the requested number of points', () {
-    final weekly = Ledger.weeklySeries(repo.transactions,
-        weeks: 12, scope: TxnScope.personal);
+    final weekly = Ledger.weeklySeries(
+      repo.transactions,
+      weeks: 12,
+      scope: TxnScope.personal,
+    );
     expect(weekly.length, 12);
     for (final p in weekly) {
       expect(p.label, 'Week');
@@ -443,21 +495,26 @@ void main() {
     final cat = repo
         .categoriesOf(TxnKind.expense, scope: TxnScope.personal)
         .first;
-    await repo.addTxn(repo.buildTxn(
-      kind: TxnKind.expense,
-      amount: 100000,
-      currency: 'IRT',
-      date: DateTime.now(),
-      categoryId: cat.id,
-      scope: TxnScope.personal,
-    ));
+    await repo.addTxn(
+      repo.buildTxn(
+        kind: TxnKind.expense,
+        amount: 100000,
+        currency: 'IRT',
+        date: DateTime.now(),
+        categoryId: cat.id,
+        scope: TxnScope.personal,
+      ),
+    );
     final personalSeries = repo.series(months: 6, scope: TxnScope.personal);
     final businessSeries = repo.series(months: 6, scope: TxnScope.business);
     expect(
-        personalSeries.fold<double>(0, (a, p) => a + p.expense),
-        closeTo(100000, 0.01));
-    expect(businessSeries.fold<double>(0, (a, p) => a + p.expense),
-        closeTo(0, 0.01));
+      personalSeries.fold<double>(0, (a, p) => a + p.expense),
+      closeTo(100000, 0.01),
+    );
+    expect(
+      businessSeries.fold<double>(0, (a, p) => a + p.expense),
+      closeTo(0, 0.01),
+    );
   });
 
   // ------------------------------------------------- UI filter

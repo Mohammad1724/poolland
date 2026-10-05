@@ -1,3 +1,5 @@
+import '../localization.dart';
+
 // ============================================================
 //  Models for bank SMS messages.
 //  Platform-independent and testable without Flutter.
@@ -13,7 +15,7 @@ enum SmsDirection {
     SmsDirection.deposit => 'Deposit',
     SmsDirection.withdraw => 'Withdrawal / purchase',
     SmsDirection.unknown => 'Unknown',
-  };
+  }.tr;
 }
 
 /// A raw SMS message read from the device (Android).
@@ -115,5 +117,5 @@ class ParsedSms {
     SmsDirection.deposit => 'Receive from customer',
     SmsDirection.withdraw => 'Expense',
     SmsDirection.unknown => 'Unknown',
-  };
+  }.tr;
 }

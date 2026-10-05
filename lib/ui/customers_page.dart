@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/format_utils.dart';
 import '../core/jalali_utils.dart';
+import '../core/localization.dart';
 import '../core/money.dart';
 import '../data/ledger.dart';
 import '../data/models.dart';
@@ -80,8 +81,12 @@ class _CustomersPageState extends State<CustomersPage> {
                       : 'Try a different search.',
                   actionLabel: _q.isEmpty ? 'Add customer' : null,
                   onAction: _q.isEmpty
-                      ? () => Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => const ContactEditPage()))
+                      ? () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ContactEditPage(),
+                          ),
+                        )
                       : null,
                 )
               : ListView.separated(
@@ -92,26 +97,41 @@ class _CustomersPageState extends State<CustomersPage> {
                     final c = list[i];
                     final balance = balances[c.id] ?? 0;
                     final subs = repo.subsOfCustomer(c.id);
-                    final active = subs.where((s) =>
-                        Ledger.subStatus(s, reminderDays: repo.settings.reminderDays) !=
-                        SubStatus.expired);
+                    final active = subs.where(
+                      (s) =>
+                          Ledger.subStatus(
+                            s,
+                            reminderDays: repo.settings.reminderDays,
+                          ) !=
+                          SubStatus.expired,
+                    );
                     final latest = subs.isEmpty ? null : subs.first;
                     return CardBox(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      onTap: () => Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => CustomerDetailPage(customer: c))),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CustomerDetailPage(customer: c),
+                        ),
+                      ),
                       child: Row(
                         children: [
                           CircleAvatar(
                             radius: 20,
-                            backgroundColor:
-                                Theme.of(context).colorScheme.primary.withValues(alpha: 0.13),
+                            backgroundColor: Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withValues(alpha: 0.13),
                             child: Text(
                               c.name.characters.first,
                               style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: Theme.of(context).colorScheme.primary),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -122,31 +142,49 @@ class _CustomersPageState extends State<CustomersPage> {
                                 Row(
                                   children: [
                                     Flexible(
-                                      child: Text(c.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                              fontSize: 14, fontWeight: FontWeight.w700)),
+                                      child: Text(
+                                        c.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
                                     ),
                                     if (active.isNotEmpty) ...[
                                       const SizedBox(width: 6),
-                                      TagChip('Active', color: const Color(0xFF16A34A), dense: true),
+                                      TagChip(
+                                        'Active',
+                                        color: const Color(0xFF16A34A),
+                                        dense: true,
+                                      ),
                                     ] else if (latest != null) ...[
                                       const SizedBox(width: 6),
-                                      TagChip('Expired', color: const Color(0xFFE11D48), dense: true),
+                                      TagChip(
+                                        'Expired',
+                                        color: const Color(0xFFE11D48),
+                                        dense: true,
+                                      ),
                                     ],
                                   ],
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   latest == null
-                                      ? (c.phone.isEmpty ? 'No subscription' : formatPhone(c.phone))
-                                      : '${latest.planName} • until ${J.d(latest.endDate)}',
+                                      ? (c.phone.isEmpty
+                                            ? 'No subscription'.tr
+                                            : formatPhone(c.phone))
+                                      : '{plan} • until {date}'.trArgs({
+                                          'plan': latest.planName.tr,
+                                          'date': J.d(latest.endDate),
+                                        }),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                      fontSize: 11.5,
-                                      color: onSurface.withValues(alpha: 0.6)),
+                                    fontSize: 11.5,
+                                    color: onSurface.withValues(alpha: 0.6),
+                                  ),
                                 ),
                               ],
                             ),
@@ -157,23 +195,29 @@ class _CustomersPageState extends State<CustomersPage> {
                             children: [
                               Text(
                                 balance.abs() < 1
-                                    ? 'Settled'
-                                    : Money.text(balance.abs(), withSymbol: false),
+                                    ? 'Settled'.tr
+                                    : Money.text(
+                                        balance.abs(),
+                                        withSymbol: false,
+                                      ),
                                 style: TextStyle(
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.w700,
                                   color: balance.abs() < 1
                                       ? onSurface.withValues(alpha: 0.45)
                                       : balance > 0
-                                          ? const Color(0xFF0F766E)
-                                          : const Color(0xFF2563EB),
+                                      ? const Color(0xFF0F766E)
+                                      : const Color(0xFF2563EB),
                                 ),
                               ),
                               if (balance.abs() >= 1)
-                                Text(balance > 0 ? 'Debtor' : 'Creditor',
-                                    style: TextStyle(
-                                        fontSize: 10.5,
-                                        color: onSurface.withValues(alpha: 0.55))),
+                                Text(
+                                  balance > 0 ? 'Debtor'.tr : 'Creditor'.tr,
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    color: onSurface.withValues(alpha: 0.55),
+                                  ),
+                                ),
                             ],
                           ),
                         ],
@@ -191,7 +235,7 @@ class _CustomersPageState extends State<CustomersPage> {
     return ChoiceChip(
       selected: selected,
       onSelected: (_) => setState(() => _filter = value),
-      label: Text(count == null ? label : '$label ($count)'),
+      label: Text(count == null ? label.tr : '${label.tr} ($count)'),
       showCheckmark: false,
     );
   }

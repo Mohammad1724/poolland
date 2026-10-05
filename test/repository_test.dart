@@ -31,6 +31,8 @@ void main() {
     expect(repo.categoriesOf(TxnKind.expense), isNotEmpty);
     expect(repo.plans, isNotEmpty);
     expect(repo.settings.baseCurrency, 'IRT');
+    expect(repo.settings.languageCode, 'fa');
+    expect(repo.scopeFilter, TxnScope.business);
   });
 
   test('Sale records income, customer debt, and cash received', () async {
@@ -46,7 +48,11 @@ void main() {
     );
 
     final fresh = repo.customerById(customer.id)!;
-    expect(repo.balanceOf(fresh), 300000, reason: '500 credit sale − 200 received');
+    expect(
+      repo.balanceOf(fresh),
+      300000,
+      reason: '500 credit sale − 200 received',
+    );
     expect(repo.transactions.length, 2);
     expect(repo.subsOfCustomer(customer.id).length, 1);
 
@@ -67,7 +73,11 @@ void main() {
       start: J.today,
       end: J.addDays(J.addMonths(J.today, 1), -1),
     );
-    final renewed = await repo.renewSubscription(first, price: 350000, received: 350000);
+    final renewed = await repo.renewSubscription(
+      first,
+      price: 350000,
+      received: 350000,
+    );
 
     expect(renewed.startDate, J.addDays(first.endDate, 1));
     expect(repo.subsOfCustomer(customer.id).length, 2);
@@ -85,14 +95,170 @@ void main() {
       end: J.addDays(J.today, 30),
     );
     await repo.addPayment(
-        customer: repo.customerById(customer.id)!,
-        amount: 150000,
-        currencyCode: 'IRT',
-        date: J.today);
+      customer: repo.customerById(customer.id)!,
+      amount: 150000,
+      currencyCode: 'IRT',
+      date: J.today,
+    );
 
     expect(repo.balanceOf(repo.customerById(customer.id)!), 250000);
     expect(repo.totals.receivable, 250000);
   });
+
+  test('Partial payment of a credit expense reduces payable without double expense', () async {
+    final vendor = await repo.addCustomer(name: 'Server vendor');
+    await repo.addTxn(
+      repo.buildTxn(
+        kind: TxnKind.expense,
+        amount: 100000,
+        currency: 'IRT',
+        date: J.today,
+        customerId: vendor.id,
+        credit: true,
+        categoryId: repo.defaultExpenseCategoryId,
+        note: 'Server invoice',
+      ),
+    );
+    await repo.addPayment(
+      customer: repo.customerById(vendor.id)!,
+      amount: 40000,
+      currencyCode: 'IRT',
+      date: J.today,
+      isReceive: false,
+    );
+
+    final current = repo.customerById(vendor.id)!;
+    final summary = repo.summary();
+    expect(repo.balanceOf(current), -60000);
+    expect(summary.expense, 100000);
+    expect(summary.profit, -100000);
+    expect(summary.cashOut, 40000);
+    expect(
+      repo.transactions.any((t) => t.kind == TxnKind.payablePayment),
+      isTrue,
+    );
+  });
+
+  test('Language preference survives backup restoration', () async {
+    await repo.updateSettings(repo.settings.copyWith(languageCode: 'en'));
+    final backup = repo.exportData();
+    await repo.wipeAll();
+    await repo.importData(backup);
+
+    expect(repo.settings.languageCode, 'en');
+  });
+
+  test('Invalid backup is rejected without erasing current data', () async {
+    final customer = await repo.addCustomer(name: 'Keep me');
+    await expectLater(
+      repo.importData({'app': 'not_poolland', 'schema': 1}),
+      throwsFormatException,
+    );
+    expect(repo.customerById(customer.id)?.name, 'Keep me');
+  });
+
+  test(
+    'Deleting a customer without data keeps history but detaches references',
+    () async {
+      final customer = await repo.addCustomer(name: 'Archive customer');
+      final subscription = await repo.sellSubscription(
+        customer: customer,
+        title: 'One month',
+        price: 250000,
+        currencyCode: 'IRT',
+        start: J.today,
+        end: J.addDays(J.today, 30),
+        received: 100000,
+      );
+      await repo.deleteCustomer(customer.id, withData: false);
+
+      expect(repo.customerById(customer.id), isNull);
+      expect(repo.subscriptions.any((s) => s.id == subscription.id), isFalse);
+      expect(repo.transactions, hasLength(2));
+      expect(repo.transactions.every((t) => t.customerId == null), isTrue);
+      expect(repo.transactions.every((t) => t.subscriptionId == null), isTrue);
+    },
+  );
+
+  test(
+    'Deleting a subscription preserves and unlinks financial history',
+    () async {
+      final customer = await repo.addCustomer(name: 'Keep the sale');
+      final subscription = await repo.sellSubscription(
+        customer: customer,
+        title: 'One month',
+        price: 250000,
+        currencyCode: 'IRT',
+        start: J.today,
+        end: J.addDays(J.today, 30),
+        received: 100000,
+      );
+      final originalTransactionCount = repo.transactions.length;
+
+      await repo.deleteSubscription(subscription.id);
+
+      expect(repo.subscriptions.any((s) => s.id == subscription.id), isFalse);
+      expect(repo.transactions, hasLength(originalTransactionCount));
+      expect(repo.transactions.every((t) => t.subscriptionId == null), isTrue);
+      expect(repo.balanceOf(repo.customerById(customer.id)!), 150000);
+    },
+  );
+
+  test(
+    'Deleting a plan in use archives it so renewals retain the duration',
+    () async {
+      final plan = await repo.addPlan(
+        const Plan(
+          id: 'archive-plan',
+          name: 'Three months',
+          price: 300000,
+          durationValue: 3,
+        ),
+      );
+      final customer = await repo.addCustomer(name: 'Renewal customer');
+      final subscription = await repo.sellSubscription(
+        customer: customer,
+        plan: plan,
+        title: plan.name,
+        price: plan.price,
+        currencyCode: plan.currency,
+        start: J.today,
+        end: plan.endFrom(J.today),
+      );
+
+      await repo.deletePlan(plan.id);
+      expect(repo.planById(plan.id)?.archived, isTrue);
+      final renewed = await repo.renewSubscription(subscription);
+      expect(renewed.durationDays, greaterThan(85));
+    },
+  );
+
+  test(
+    'Recurring posting is idempotent after a stale last-posted marker',
+    () async {
+      final now = DateTime(2026, 10, 3);
+      final rule = RecurringRule(
+        id: 'daily-test-rule',
+        title: 'Daily expense',
+        kind: TxnKind.expense,
+        amount: 1000,
+        scope: TxnScope.personal,
+        period: RecurringPeriod.daily,
+        startDate: DateTime(2026, 10, 1),
+      );
+      await repo.addRecurring(rule);
+
+      expect(await repo.postDueRecurring(now: now), 3);
+      await repo.updateRecurring(
+        rule,
+      ); // Simulate a crash before lastPosted was saved.
+      expect(await repo.postDueRecurring(now: now), 0);
+      expect(
+        repo.transactions.where((t) => t.note == 'Daily expense'),
+        hasLength(3),
+      );
+    },
+  );
 
   test('JSON backup and restore', () async {
     final c = await repo.addCustomer(name: 'Sara', phone: '09120000000');
@@ -117,21 +283,26 @@ void main() {
   });
 
   test('Custom plans survive backup restoration', () async {
-    final plan = await repo.addPlan(const Plan(
-        id: 'x', name: 'Custom plan', price: 123456, durationValue: 2));
+    final plan = await repo.addPlan(
+      const Plan(id: 'x', name: 'Custom plan', price: 123456, durationValue: 2),
+    );
     expect(repo.plans.any((p) => p.id == plan.id), isTrue);
 
     final backup = repo.exportData();
     await repo.wipeAll();
     await repo.importData(backup);
 
-    expect(repo.plans.any((p) => p.id == plan.id), isTrue,
-        reason: 'User plans should not be lost during restoration');
+    expect(
+      repo.plans.any((p) => p.id == plan.id),
+      isTrue,
+      reason: 'User plans should not be lost during restoration',
+    );
   });
 
   test('Custom SMS rules are saved and restored', () async {
-    await repo.addSmsRule(const BankRule(
-        id: 'r1', bankName: 'My Bank', senderHints: ['MYBANK']));
+    await repo.addSmsRule(
+      const BankRule(id: 'r1', bankName: 'My Bank', senderHints: ['MYBANK']),
+    );
     expect(repo.smsRules.length, 1);
 
     final backup = repo.exportData();
@@ -149,25 +320,39 @@ void main() {
 
     final customerIds = repo.customers.map((c) => c.id).toSet();
     final orphans = repo.transactions
-        .where((t) => t.customerId != null && !customerIds.contains(t.customerId))
+        .where(
+          (t) => t.customerId != null && !customerIds.contains(t.customerId),
+        )
         .length;
-    expect(orphans, 0,
-        reason: 'No transaction should reference a deleted customer');
+    expect(
+      orphans,
+      0,
+      reason: 'No transaction should reference a deleted customer',
+    );
 
     final planIds = repo.plans.map((p) => p.id).toSet();
     final badPlans = repo.subscriptions
         .where((s) => s.planId != null && !planIds.contains(s.planId))
         .length;
-    expect(badPlans, 0,
-        reason: 'Every subscription should reference a valid plan '
-            '(otherwise one-tap renewal will fail)');
+    expect(
+      badPlans,
+      0,
+      reason:
+          'Every subscription should reference a valid plan '
+          '(otherwise one-tap renewal will fail)',
+    );
 
     final categoryIds = repo.categories.map((c) => c.id).toSet();
     final badCategories = repo.transactions
-        .where((t) => t.categoryId != null && !categoryIds.contains(t.categoryId))
+        .where(
+          (t) => t.categoryId != null && !categoryIds.contains(t.categoryId),
+        )
         .length;
-    expect(badCategories, 0,
-        reason: 'Sample transactions should reference valid categories');
+    expect(
+      badCategories,
+      0,
+      reason: 'Sample transactions should reference valid categories',
+    );
   });
 
   test('Sample data loads', () async {
@@ -179,8 +364,15 @@ void main() {
   });
 
   test('Exchange rates are saved in settings', () async {
-    await repo.upsertCurrency(const CurrencyDef(
-        code: 'AED', name: 'UAE Dirham', symbol: 'AED', rateToBase: 35000, decimals: 2));
+    await repo.upsertCurrency(
+      const CurrencyDef(
+        code: 'AED',
+        name: 'UAE Dirham',
+        symbol: 'AED',
+        rateToBase: 35000,
+        decimals: 2,
+      ),
+    );
     expect(repo.settings.currency('AED').rateToBase, 35000);
 
     final t = repo.buildTxn(

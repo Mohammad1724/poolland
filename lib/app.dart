@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
+import 'core/localization.dart';
 import 'data/repository.dart';
 import 'ui/home_shell.dart';
 import 'ui/onboarding.dart';
@@ -65,6 +66,7 @@ class _VpnLedgerAppState extends State<VpnLedgerApp> {
               };
 
               return _materialApp(
+                locale: Locale(settings.languageCode),
                 themeMode: themeMode,
                 home: settings.setupDone
                     ? const HomeShell()
@@ -80,26 +82,31 @@ class _VpnLedgerAppState extends State<VpnLedgerApp> {
   MaterialApp _materialApp({
     required Widget home,
     ThemeMode themeMode = ThemeMode.system,
-  }) =>
-      MaterialApp(
-        title: 'Poolland — VPN Seller Ledger',
-        debugShowCheckedModeBanner: false,
-        locale: const Locale('en'),
-        supportedLocales: const [Locale('en')],
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        theme: AppTheme.light(),
-        darkTheme: AppTheme.dark(),
-        themeMode: themeMode,
-        builder: (context, child) => Directionality(
-          textDirection: TextDirection.ltr,
-          child: child ?? const SizedBox.shrink(),
-        ),
-        home: home,
-      );
+    Locale locale = const Locale('fa'),
+  }) {
+    AppLocalization.languageCode = locale.languageCode;
+    return MaterialApp(
+      title: 'Poolland — VPN Seller Ledger',
+      debugShowCheckedModeBanner: false,
+      locale: locale,
+      supportedLocales: const [Locale('fa'), Locale('en')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: themeMode,
+      builder: (context, child) => Directionality(
+        textDirection: locale.languageCode == 'fa'
+            ? TextDirection.rtl
+            : TextDirection.ltr,
+        child: child ?? const SizedBox.shrink(),
+      ),
+      home: home,
+    );
+  }
 }
 
 class _StartupLoading extends StatelessWidget {
@@ -107,25 +114,23 @@ class _StartupLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              Text(
-                'Preparing the app…',
-                style: TextStyle(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
-                ),
-              ),
-            ],
+    body: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          Text(
+            'Preparing the app…'.tr,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface
+                  .withValues(alpha: 0.7),
+            ),
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 }
 
 class _StartupError extends StatelessWidget {
@@ -136,55 +141,51 @@ class _StartupError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        body: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.error_outline_rounded, size: 42),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'App startup failed',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'The local database could not be opened. Please try again.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.7),
-                    ),
-                  ),
-                  if (error != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      '$error',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.5),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 18),
-                  FilledButton.icon(
-                    onPressed: onRetry,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('Try again'),
-                  ),
-                ],
+    body: SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline_rounded, size: 42),
+              const SizedBox(height: 12),
+              Text(
+                'App startup failed'.tr,
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                textAlign: TextAlign.center,
               ),
-            ),
+              const SizedBox(height: 8),
+              Text(
+                'The local database could not be opened. Please try again.'.tr,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface
+                      .withValues(alpha: 0.7),
+                ),
+              ),
+              if (error != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '$error',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSurface
+                        .withValues(alpha: 0.5),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded),
+                label: Text('Try again'.tr),
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    ),
+  );
 }

@@ -7,6 +7,8 @@ import '../../data/models.dart';
 import '../../data/repository.dart';
 import '../widgets/widgets.dart';
 
+import '../../core/localization.dart';
+
 /// Manage saved sales plans
 class PlansPage extends StatelessWidget {
   const PlansPage({super.key});
@@ -15,12 +17,14 @@ class PlansPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
     return Scaffold(
-      appBar: AppBar(title: const Text('Plans')),
+      appBar: AppBar(title: Text('Plans'.tr)),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.push(
-            context, MaterialPageRoute(builder: (_) => const PlanEditPage())),
+          context,
+          MaterialPageRoute(builder: (_) => const PlanEditPage()),
+        ),
         icon: const Icon(Icons.add_rounded),
-        label: const Text('New plan'),
+        label: Text('New plan'.tr),
       ),
       body: repo.plans.isEmpty
           ? const EmptyState(
@@ -35,36 +39,61 @@ class PlansPage extends StatelessWidget {
               itemBuilder: (context, i) {
                 final p = repo.plans[i];
                 return CardBox(
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => PlanEditPage(existing: p))),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PlanEditPage(existing: p),
+                    ),
+                  ),
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                          color: Theme.of(context).colorScheme.primary
+                              .withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(Icons.local_offer_outlined,
-                            size: 18, color: Theme.of(context).colorScheme.primary),
+                        child: Icon(
+                          Icons.local_offer_outlined,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(p.name,
-                                style: const TextStyle(
-                                    fontSize: 14, fontWeight: FontWeight.w700)),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    p.name.tr,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                if (p.archived)
+                                  TagChip(
+                                    'Archived',
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                    dense: true,
+                                  ),
+                              ],
+                            ),
                             const SizedBox(height: 4),
                             Text(
                               '${Money.text(p.price, currency: p.currency)} • ${p.durationLabel}',
                               style: TextStyle(
-                                  fontSize: 12,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurface
-                                      .withValues(alpha: 0.6)),
+                                fontSize: 12,
+                                color: Theme.of(context).colorScheme.onSurface
+                                    .withValues(alpha: 0.6),
+                              ),
                             ),
                           ],
                         ),
@@ -107,7 +136,10 @@ class _PlanEditPageState extends State<PlanEditPage> {
     final p = widget.existing;
     if (p != null) {
       _name.text = p.name;
-      _price.text = groupedNumber(p.price, decimals: Money.decimals(p.currency));
+      _price.text = groupedNumber(
+        p.price,
+        decimals: Money.decimals(p.currency),
+      );
       _currency = p.currency;
       _duration = p.durationValue;
       _unit = p.durationUnit;
@@ -152,17 +184,26 @@ class _PlanEditPageState extends State<PlanEditPage> {
     final repo = context.watch<AppRepository>();
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEdit ? 'Edit plan' : 'New plan'),
+        title: Text((isEdit ? 'Edit plan' : 'New plan').tr),
         actions: [
           if (isEdit)
             IconButton(
               icon: const Icon(Icons.delete_outline_rounded),
               onPressed: () async {
-                final ok = await confirmDialog(context,
-                    title: 'Delete plan',
-                    message: 'Delete this plan? Existing sales will not be changed.',
-                    danger: true,
-                    okLabel: 'Delete');
+                final inUse = repo.subscriptions.any(
+                  (subscription) => subscription.planId == widget.existing!.id,
+                );
+                final ok = await confirmDialog(
+                  context,
+                  title: inUse ? 'Archive plan'.tr : 'Delete plan'.tr,
+                  message: inUse
+                      ? 'This plan is used by existing subscriptions. It will be archived so renewals keep the correct duration.'
+                            .tr
+                      : 'Delete this plan? Existing sales will not be changed.'
+                            .tr,
+                  danger: !inUse,
+                  okLabel: inUse ? 'Archive'.tr : 'Delete'.tr,
+                );
                 if (!ok) return;
                 await repo.deletePlan(widget.existing!.id);
                 if (!context.mounted) return;
@@ -178,10 +219,11 @@ class _PlanEditPageState extends State<PlanEditPage> {
           children: [
             AppTextField(
               controller: _name,
-              label: 'Plan name',
-              hint: 'e.g. 1 month, 50 GB',
+              label: 'Plan name'.tr,
+              hint: 'e.g. 1 month, 50 GB'.tr,
               icon: Icons.label_outline_rounded,
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter a name' : null,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Enter a name' : null,
             ),
             const SizedBox(height: 14),
             Row(
@@ -189,34 +231,49 @@ class _PlanEditPageState extends State<PlanEditPage> {
               children: [
                 Expanded(
                   child: AmountField(
-                      controller: _price, label: 'Price', currency: _currency, validator: (_) => null),
+                    controller: _price,
+                    label: 'Price'.tr,
+                    currency: _currency,
+                    validator: (_) => null,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 SizedBox(
                   width: 112,
                   child: SelectField<String>(
-                    label: 'Currency',
+                    label: 'Currency'.tr,
                     value: _currency,
                     items: repo.settings.currencies.map((c) => c.code).toList(),
                     labelOf: (c) => Money.symbol(c),
-                    onChanged: (c) => setState(() => _currency = c ?? _currency),
+                    onChanged: (c) =>
+                        setState(() => _currency = c ?? _currency),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 18),
-            const Text('Duration', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            Text(
+              'Duration'.tr,
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 8),
             Row(
               children: [
                 IconButton.outlined(
-                  onPressed: _duration > 1 ? () => setState(() => _duration--) : null,
+                  onPressed: _duration > 1
+                      ? () => setState(() => _duration--)
+                      : null,
                   icon: const Icon(Icons.remove_rounded, size: 18),
                 ),
                 Expanded(
                   child: Center(
-                    child: Text('$_duration',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                    child: Text(
+                      '$_duration',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
                 IconButton.outlined(
@@ -227,20 +284,30 @@ class _PlanEditPageState extends State<PlanEditPage> {
             ),
             const SizedBox(height: 8),
             SegmentedButton<PlanDurationUnit>(
-              segments: const [
-                ButtonSegment(value: PlanDurationUnit.month, label: Text('month')),
-                ButtonSegment(value: PlanDurationUnit.day, label: Text('day')),
+              segments: [
+                ButtonSegment(
+                  value: PlanDurationUnit.month,
+                  label: Text('month'.tr),
+                ),
+                ButtonSegment(
+                  value: PlanDurationUnit.day,
+                  label: Text('day'.tr),
+                ),
               ],
               selected: {_unit},
               onSelectionChanged: (s) => setState(() => _unit = s.first),
             ),
             const SizedBox(height: 16),
-            AppTextField(controller: _note, label: 'Description (optional)', maxLines: 2),
+            AppTextField(
+              controller: _note,
+              label: 'Description (optional)'.tr,
+              maxLines: 2,
+            ),
             const SizedBox(height: 20),
             FilledButton.icon(
               onPressed: _save,
               icon: const Icon(Icons.check_rounded),
-              label: Text(isEdit ? 'Save' : 'Add plan'),
+              label: Text((isEdit ? 'Save' : 'Add plan').tr),
             ),
           ],
         ),

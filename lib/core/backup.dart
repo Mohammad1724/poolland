@@ -4,7 +4,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:share_plus/share_plus.dart';
 
-import 'file_saver_stub.dart' if (dart.library.io) 'file_saver_io.dart' as saver;
+import 'file_saver_stub.dart'
+    if (dart.library.io) 'file_saver_io.dart'
+    as saver;
 
 /// Backup file import/export and CSV exports.
 abstract final class Backup {
@@ -29,15 +31,21 @@ abstract final class Backup {
     String mimeType = 'application/json',
   }) async {
     if (kIsWeb) {
-      return saveToDevice(fileName: fileName, content: content, mimeType: mimeType);
+      return saveToDevice(
+        fileName: fileName,
+        content: content,
+        mimeType: mimeType,
+      );
     }
     final path = await saver.writeTempTextFile(fileName, content);
     if (path == null) return false;
-    final result = await SharePlus.instance.share(ShareParams(
-      files: [XFile(path, mimeType: mimeType)],
-      subject: fileName,
-      text: fileName,
-    ));
+    final result = await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(path, mimeType: mimeType)],
+        subject: fileName,
+        text: fileName,
+      ),
+    );
     return result.status != ShareResultStatus.dismissed;
   }
 
@@ -66,11 +74,13 @@ abstract final class Backup {
     }
     final path = await saver.writeTempBytesFile(fileName, bytes);
     if (path == null) return false;
-    final result = await SharePlus.instance.share(ShareParams(
-      files: [XFile(path, mimeType: mimeType)],
-      subject: fileName,
-      text: fileName,
-    ));
+    final result = await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(path, mimeType: mimeType)],
+        subject: fileName,
+        text: fileName,
+      ),
+    );
     return result.status != ShareResultStatus.dismissed;
   }
 

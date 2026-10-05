@@ -13,6 +13,8 @@ import 'widgets/common_charts.dart';
 import 'widgets/quick_buttons.dart';
 import 'widgets/widgets.dart';
 
+import '../core/localization.dart';
+
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key, required this.onNavigate});
 
@@ -23,16 +25,20 @@ class DashboardPage extends StatelessWidget {
     final repo = context.watch<AppRepository>();
     final monthStart = J.startOfMonth(DateTime.now());
     final monthEnd = J.endOfMonth(DateTime.now());
-    final monthSummary =
-        repo.summary(from: monthStart, to: monthEnd, scope: repo.scopeFilter);
+    final monthSummary = repo.summary(
+      from: monthStart,
+      to: monthEnd,
+      scope: repo.scopeFilter,
+    );
     final totals = repo.totals;
     final alerts = repo.alerts;
     final series = repo.series(months: 6, scope: repo.scopeFilter);
-    final recent = (repo.scopeFilter == null
-            ? repo.transactions
-            : repo.transactions.where((t) => t.scope == repo.scopeFilter))
-        .take(5)
-        .toList();
+    final recent =
+        (repo.scopeFilter == null
+                ? repo.transactions
+                : repo.transactions.where((t) => t.scope == repo.scopeFilter))
+            .take(5)
+            .toList();
     final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return ListView(
@@ -45,16 +51,31 @@ class DashboardPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Hello 👋',
-                      style: TextStyle(fontSize: 13, color: onSurface.withValues(alpha: 0.6))),
+                  Text(
+                    'Hello 👋'.tr,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(J.mLabel(DateTime.now()),
-                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                  Text(
+                    J.mLabel(DateTime.now()),
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ],
               ),
             ),
-            TagChip('${repo.activeSubsCount} active subscriptions',
-                color: const Color(0xFF16A34A), icon: Icons.check_circle_rounded),
+            TagChip(
+              '{count} active subscriptions'.trArgs({
+                'count': repo.activeSubsCount,
+              }),
+              color: const Color(0xFF16A34A),
+              icon: Icons.check_circle_rounded,
+            ),
           ],
         ),
         const SizedBox(height: 14),
@@ -62,15 +83,21 @@ class DashboardPage extends StatelessWidget {
         // Scope filter (all / business / personal)
         Row(
           children: [
-            for (final opt in <TxnScope?>[null, TxnScope.business, TxnScope.personal])
+            for (final opt in <TxnScope?>[
+              null,
+              TxnScope.business,
+              TxnScope.personal,
+            ])
               Padding(
-                padding: const EdgeInsets.only(left: 6),
+                padding: const EdgeInsetsDirectional.only(start: 6),
                 child: ChoiceChip(
                   selected: repo.scopeFilter == opt,
                   showCheckmark: false,
                   onSelected: (_) => repo.setScopeFilter(opt),
-                  label: Text(opt == null ? 'All' : opt.label,
-                      style: const TextStyle(fontSize: 12)),
+                  label: Text(
+                    opt == null ? 'All'.tr : opt.label,
+                    style: const TextStyle(fontSize: 12),
+                  ),
                 ),
               ),
           ],
@@ -89,11 +116,14 @@ class DashboardPage extends StatelessWidget {
                   children: [
                     const Icon(Icons.bolt_rounded, size: 16),
                     const SizedBox(width: 6),
-                    Text('Quick add',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: onSurface.withValues(alpha: 0.75))),
+                    Text(
+                      'Quick add'.tr,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: onSurface.withValues(alpha: 0.75),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -110,19 +140,38 @@ class DashboardPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('This month',
-                  style: TextStyle(fontSize: 12.5, color: onSurface.withValues(alpha: 0.65))),
+              Text(
+                'This month'.tr,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: onSurface.withValues(alpha: 0.65),
+                ),
+              ),
               const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(
-                    child: _miniStat(context, 'Income', monthSummary.income,
-                        const Color(0xFF16A34A), Icons.trending_up_rounded),
+                    child: _miniStat(
+                      context,
+                      'Income',
+                      monthSummary.income,
+                      const Color(0xFF16A34A),
+                      Icons.trending_up_rounded,
+                    ),
                   ),
-                  Container(width: 1, height: 42, color: Theme.of(context).dividerColor),
+                  Container(
+                    width: 1,
+                    height: 42,
+                    color: Theme.of(context).dividerColor,
+                  ),
                   Expanded(
-                    child: _miniStat(context, 'Expense', monthSummary.expense,
-                        const Color(0xFFE11D48), Icons.trending_down_rounded),
+                    child: _miniStat(
+                      context,
+                      'Expense',
+                      monthSummary.expense,
+                      const Color(0xFFE11D48),
+                      Icons.trending_down_rounded,
+                    ),
                   ),
                 ],
               ),
@@ -131,22 +180,32 @@ class DashboardPage extends StatelessWidget {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Icon(Icons.savings_rounded,
-                      size: 18,
+                  Icon(
+                    Icons.savings_rounded,
+                    size: 18,
+                    color: monthSummary.profit >= 0
+                        ? const Color(0xFF16A34A)
+                        : const Color(0xFFE11D48),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Profit this month'.tr,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  const Spacer(),
+                  MoneyText(
+                    monthSummary.profit,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                       color: monthSummary.profit >= 0
                           ? const Color(0xFF16A34A)
-                          : const Color(0xFFE11D48)),
-                  const SizedBox(width: 8),
-                  Text('Profit this month',
-                      style: TextStyle(fontSize: 12.5, color: onSurface.withValues(alpha: 0.7))),
-                  const Spacer(),
-                  MoneyText(monthSummary.profit,
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: monthSummary.profit >= 0
-                              ? const Color(0xFF16A34A)
-                              : const Color(0xFFE11D48))),
+                          : const Color(0xFFE11D48),
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -154,103 +213,165 @@ class DashboardPage extends StatelessWidget {
         ),
         const SizedBox(height: 12),
 
-        // Receivables and payables
-        Row(
-          children: [
-            Expanded(
-              child: CardBox(
-                onTap: () => onNavigate(2),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Receivables',
-                        style: TextStyle(fontSize: 11.5, color: onSurface.withValues(alpha: 0.65))),
-                    const SizedBox(height: 6),
-                    MoneyText(totals.receivable,
+        // Business receivables and payables are not meaningful in the personal-only view.
+        if (repo.scopeFilter != TxnScope.personal)
+          Row(
+            children: [
+              Expanded(
+                child: CardBox(
+                  onTap: () => onNavigate(2),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Business receivables'.tr,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: onSurface.withValues(alpha: 0.65),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      MoneyText(
+                        totals.receivable,
                         style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF0F766E))),
-                    const SizedBox(height: 3),
-                    Text('${totals.debtorsCount} debtors',
-                        style: TextStyle(fontSize: 11, color: onSurface.withValues(alpha: 0.55))),
-                  ],
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F766E),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '{count} debtors'.trArgs({
+                          'count': totals.debtorsCount,
+                        }),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: onSurface.withValues(alpha: 0.55),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: CardBox(
-                onTap: () => onNavigate(2),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Payables',
-                        style: TextStyle(fontSize: 11.5, color: onSurface.withValues(alpha: 0.65))),
-                    const SizedBox(height: 6),
-                    MoneyText(totals.payable,
+              const SizedBox(width: 10),
+              Expanded(
+                child: CardBox(
+                  onTap: () => onNavigate(2),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Business payables'.tr,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: onSurface.withValues(alpha: 0.65),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      MoneyText(
+                        totals.payable,
                         style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF2563EB))),
-                    const SizedBox(height: 3),
-                    Text('${totals.creditorsCount} creditors',
-                        style: TextStyle(fontSize: 11, color: onSurface.withValues(alpha: 0.55))),
-                  ],
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF2563EB),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '{count} creditors'.trArgs({
+                          'count': totals.creditorsCount,
+                        }),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: onSurface.withValues(alpha: 0.55),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
         const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: CardBox(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Cash balance',
-                        style: TextStyle(fontSize: 11.5, color: onSurface.withValues(alpha: 0.65))),
-                    const SizedBox(height: 6),
-                    MoneyText(repo.cashBalance,
+        if (repo.scopeFilter != TxnScope.personal)
+          Row(
+            children: [
+              Expanded(
+                child: CardBox(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Business cash balance'.tr,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: onSurface.withValues(alpha: 0.65),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      MoneyText(
+                        repo.cashBalance,
                         style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF7C3AED))),
-                    const SizedBox(height: 3),
-                    Text('Cash + bank',
-                        style: TextStyle(fontSize: 11, color: onSurface.withValues(alpha: 0.55))),
-                  ],
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF7C3AED),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Cash + bank'.tr,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: onSurface.withValues(alpha: 0.55),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: CardBox(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Received this month',
-                        style: TextStyle(fontSize: 11.5, color: onSurface.withValues(alpha: 0.65))),
-                    const SizedBox(height: 6),
-                    MoneyText(monthSummary.cashIn,
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 3),
-                    Text('Cash + collections',
-                        style: TextStyle(fontSize: 11, color: onSurface.withValues(alpha: 0.55))),
-                  ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: CardBox(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Received this month'.tr,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: onSurface.withValues(alpha: 0.65),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      MoneyText(
+                        monthSummary.cashIn,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Cash + collections'.tr,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: onSurface.withValues(alpha: 0.55),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
 
         // Bank SMS (Android only)
         if (repo.smsSupported) ...[
           CardBox(
             onTap: () => Navigator.push(
-                context, MaterialPageRoute(builder: (_) => const SmsPage())),
+              context,
+              MaterialPageRoute(builder: (_) => const SmsPage()),
+            ),
             child: Row(
               children: [
                 Container(
@@ -258,46 +379,57 @@ class DashboardPage extends StatelessWidget {
                   height: 38,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: (repo.smsPendingCount > 0
-                            ? const Color(0xFF16A34A)
-                            : const Color(0xFF7C3AED))
-                        .withValues(alpha: 0.12),
+                    color:
+                        (repo.smsPendingCount > 0
+                                ? const Color(0xFF16A34A)
+                                : const Color(0xFF7C3AED))
+                            .withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(11),
                   ),
-                  child: Icon(Icons.sms_rounded,
-                      size: 19,
-                      color: repo.smsPendingCount > 0
-                          ? const Color(0xFF16A34A)
-                          : const Color(0xFF7C3AED)),
+                  child: Icon(
+                    Icons.sms_rounded,
+                    size: 19,
+                    color: repo.smsPendingCount > 0
+                        ? const Color(0xFF16A34A)
+                        : const Color(0xFF7C3AED),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Bank SMS',
-                          style: TextStyle(
-                              fontSize: 13.5, fontWeight: FontWeight.w700)),
+                      Text(
+                        'Bank SMS'.tr,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       const SizedBox(height: 3),
                       Text(
                         !repo.smsPermissionGranted
                             ? 'Grant access to identify incoming payments automatically'
+                                  .tr
                             : repo.smsPendingCount > 0
-                                ? '${repo.smsPendingCount} '
-                                    'transactions awaiting review'
-                                : 'No new items found',
+                            ? '{count} transactions awaiting review'.trArgs({
+                                'count': repo.smsPendingCount,
+                              })
+                            : 'No new items found'.tr,
                         style: TextStyle(
-                            fontSize: 11.5,
-                            color: onSurface.withValues(alpha: 0.6)),
+                          fontSize: 11.5,
+                          color: onSurface.withValues(alpha: 0.6),
+                        ),
                       ),
                     ],
                   ),
                 ),
                 if (repo.smsPendingCount > 0)
                   TagChip(
-                      '${repo.smsPendingCount}',
-                      color: const Color(0xFF16A34A),
-                      dense: true)
+                    '${repo.smsPendingCount}',
+                    color: const Color(0xFF16A34A),
+                    dense: true,
+                  )
                 else
                   const Icon(Icons.chevron_right_rounded, size: 18),
               ],
@@ -308,45 +440,74 @@ class DashboardPage extends StatelessWidget {
 
         // Expiry alerts
         if (alerts.isNotEmpty) ...[
-          SectionTitle('Subscriptions expiring soon or expired',
-              icon: Icons.notification_important_outlined, action: 'All', onAction: () => onNavigate(4)),
+          SectionTitle(
+            'Subscriptions expiring soon or expired',
+            icon: Icons.notification_important_outlined,
+            action: 'All'.tr,
+            onAction: () => onNavigate(3),
+          ),
           ...alerts.take(4).map((s) {
             final customer = repo.customerById(s.customerId);
-            final status = Ledger.subStatus(s, reminderDays: repo.settings.reminderDays);
+            final status = Ledger.subStatus(
+              s,
+              reminderDays: repo.settings.reminderDays,
+            );
             final days = Ledger.daysLeft(s);
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: CardBox(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 onTap: customer == null
                     ? null
                     : () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (_) => CustomerDetailPage(customer: customer))),
+                          builder: (_) =>
+                              CustomerDetailPage(customer: customer),
+                        ),
+                      ),
                 child: Row(
                   children: [
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(customer?.name ?? 'No customer',
-                              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                          Text(
+                            customer?.name ?? 'No customer'.tr,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                           const SizedBox(height: 3),
-                          Text('${s.planName} • ${J.d(s.endDate)}',
-                              style: TextStyle(
-                                  fontSize: 11.5,
-                                  color: onSurface.withValues(alpha: 0.6))),
+                          Text(
+                            '${s.planName.tr} • ${J.d(s.endDate)}',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: onSurface.withValues(alpha: 0.6),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    TagChip(Fmt.expiryLabel(days), color: status.color, dense: true),
+                    TagChip(
+                      Fmt.expiryLabel(days),
+                      color: status.color,
+                      dense: true,
+                    ),
                     const SizedBox(width: 6),
                     IconButton(
-                      tooltip: 'Renew',
+                      tooltip: 'Renew'.tr,
                       visualDensity: VisualDensity.compact,
-                      onPressed: () => Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => SellSubscriptionPage(renewFrom: s))),
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SellSubscriptionPage(renewFrom: s),
+                        ),
+                      ),
                       icon: const Icon(Icons.autorenew_rounded, size: 19),
                     ),
                   ],
@@ -360,15 +521,16 @@ class DashboardPage extends StatelessWidget {
         const SectionTitle('Last 6 months', icon: Icons.bar_chart_rounded),
         CardBox(
           padding: const EdgeInsets.fromLTRB(10, 16, 10, 8),
-          child: SizedBox(
-            height: 190,
-            child: MonthlyBarChart(points: series),
-          ),
+          child: SizedBox(height: 190, child: MonthlyBarChart(points: series)),
         ),
 
         // Recent transactions
-        SectionTitle('Recent transactions',
-            icon: Icons.receipt_long_outlined, action: 'All', onAction: () => onNavigate(4)),
+        SectionTitle(
+          'Recent transactions',
+          icon: Icons.receipt_long_outlined,
+          action: 'All'.tr,
+          onAction: () => onNavigate(4),
+        ),
         if (recent.isEmpty)
           const EmptyState(
             icon: Icons.receipt_long_outlined,
@@ -395,7 +557,13 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  Widget _miniStat(BuildContext context, String label, double value, Color color, IconData icon) {
+  Widget _miniStat(
+    BuildContext context,
+    String label,
+    double value,
+    Color color,
+    IconData icon,
+  ) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -404,13 +572,25 @@ class DashboardPage extends StatelessWidget {
           children: [
             Icon(icon, size: 14, color: color),
             const SizedBox(width: 5),
-            Text(label, style: TextStyle(fontSize: 11.5, color: onSurface.withValues(alpha: 0.65))),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11.5,
+                color: onSurface.withValues(alpha: 0.65),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 6),
-        MoneyText(value,
-            compact: false,
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: color)),
+        MoneyText(
+          value,
+          compact: false,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
       ],
     );
   }

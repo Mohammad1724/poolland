@@ -14,6 +14,8 @@ import 'forms/plan_edit_page.dart';
 import 'sms_page.dart';
 import 'widgets/widgets.dart';
 
+import '../core/localization.dart';
+
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
@@ -22,9 +24,16 @@ class SettingsPage extends StatelessWidget {
     final repo = context.watch<AppRepository>();
     final s = repo.settings;
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    final aboutText = [
+      'Version 1.2.0 • Open-source software (MIT)'.tr,
+      'A simple offline ledger for VPN sellers.'.tr,
+      'All data stays on this device.'.tr,
+      'The Personal section is for your own finances and is not included in business profit or loss.'
+          .tr,
+    ].join('\n');
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text('Settings'.tr)),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
         children: [
@@ -36,29 +45,47 @@ class SettingsPage extends StatelessWidget {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.badge_outlined, size: 20),
-                  title: const Text('Business name', style: TextStyle(fontSize: 13.5)),
-                  subtitle: Text(s.businessName, style: const TextStyle(fontSize: 12)),
+                  title: Text(
+                    'Business name'.tr,
+                    style: TextStyle(fontSize: 13.5),
+                  ),
+                  subtitle: Text(
+                    s.businessName,
+                    style: const TextStyle(fontSize: 12),
+                  ),
                   onTap: () => _editText(
                     context,
-                    title: 'Business name',
+                    title: 'Business name'.tr,
                     initial: s.businessName,
-                    hint: 'e.g. Alex VPN',
-                    onSave: (v) => repo.updateSettings(s.copyWith(businessName: v)),
+                    hint: 'e.g. Alex VPN'.tr,
+                    onSave: (v) =>
+                        repo.updateSettings(s.copyWith(businessName: v)),
                   ),
                 ),
                 Divider(color: Theme.of(context).dividerColor),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.account_balance_wallet_outlined, size: 20),
-                  title: const Text('Opening cash balance', style: TextStyle(fontSize: 13.5)),
+                  leading: const Icon(
+                    Icons.account_balance_wallet_outlined,
+                    size: 20,
+                  ),
+                  title: Text(
+                    'Opening cash balance'.tr,
+                    style: TextStyle(fontSize: 13.5),
+                  ),
                   subtitle: Text(
-                    '${Money.text(s.openingCash)} — cash or bank balance you already had',
+                    '{amount} — cash or bank balance you already had'.trArgs({
+                      'amount': Money.text(s.openingCash),
+                    }),
                     style: const TextStyle(fontSize: 11.5),
                   ),
-                  onTap: () => _editAmount(context,
-                      title: 'Opening cash balance',
-                      initial: s.openingCash,
-                      onSave: (v) => repo.updateSettings(s.copyWith(openingCash: v))),
+                  onTap: () => _editAmount(
+                    context,
+                    title: 'Opening cash balance'.tr,
+                    initial: s.openingCash,
+                    onSave: (v) =>
+                        repo.updateSettings(s.copyWith(openingCash: v)),
+                  ),
                 ),
               ],
             ),
@@ -69,26 +96,38 @@ class SettingsPage extends StatelessWidget {
           CardBox(
             child: Column(
               children: [
-                _navTile(context,
-                    icon: Icons.local_offer_outlined,
-                    title: 'Plans',
-                    subtitle: '${repo.plans.length} plans',
-                    page: const PlansPage()),
+                _navTile(
+                  context,
+                  icon: Icons.local_offer_outlined,
+                  title: 'Plans'.tr,
+                  subtitle: '{count} plans'.trArgs({
+                    'count': repo.plans.length,
+                  }),
+                  page: const PlansPage(),
+                ),
                 Divider(color: Theme.of(context).dividerColor),
-                _navTile(context,
-                    icon: Icons.category_outlined,
-                    title: 'Income and expense categories',
-                    subtitle: '${repo.categories.length} categories '
-                        '(business and personal)',
-                    page: const CategoriesPage()),
+                _navTile(
+                  context,
+                  icon: Icons.category_outlined,
+                  title: 'Income and expense categories'.tr,
+                  subtitle: '{count} categories (business and personal)'.trArgs(
+                    {'count': repo.categories.length},
+                  ),
+                  page: const CategoriesPage(),
+                ),
                 Divider(color: Theme.of(context).dividerColor),
-                _navTile(context,
-                    icon: Icons.currency_exchange_rounded,
-                    title: 'Currencies and exchange rates',
-                    subtitle: s.currencies
-                        .map((c) => '${c.code} ${Fmt.number(c.rateToBase, persian: false)}')
-                        .join(' • '),
-                    page: const RatesPage()),
+                _navTile(
+                  context,
+                  icon: Icons.currency_exchange_rounded,
+                  title: 'Currencies and exchange rates'.tr,
+                  subtitle: s.currencies
+                      .map(
+                        (c) =>
+                            '${c.code} ${Fmt.number(c.rateToBase, persian: false)}',
+                      )
+                      .join(' • '),
+                  page: const RatesPage(),
+                ),
               ],
             ),
           ),
@@ -101,21 +140,37 @@ class SettingsPage extends StatelessWidget {
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   value: s.persianDigits,
-                  onChanged: (v) => repo.updateSettings(s.copyWith(persianDigits: v)),
-                  title: const Text('Use Persian digits', style: TextStyle(fontSize: 13.5)),
+                  onChanged: (v) =>
+                      repo.updateSettings(s.copyWith(persianDigits: v)),
+                  title: Text(
+                    'Use Persian digits'.tr,
+                    style: TextStyle(fontSize: 13.5),
+                  ),
                 ),
                 Divider(color: Theme.of(context).dividerColor),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.notifications_active_outlined, size: 20),
-                  title: const Text('Expiry reminders', style: TextStyle(fontSize: 13.5)),
-                  subtitle: Text('${s.reminderDays} days before expiry',
-                      style: const TextStyle(fontSize: 11.5)),
+                  leading: const Icon(
+                    Icons.notifications_active_outlined,
+                    size: 20,
+                  ),
+                  title: Text(
+                    'Expiry reminders'.tr,
+                    style: TextStyle(fontSize: 13.5),
+                  ),
+                  subtitle: Text(
+                    '{days} days before expiry'.trArgs({
+                      'days': s.reminderDays,
+                    }),
+                    style: const TextStyle(fontSize: 11.5),
+                  ),
                   onTap: () => _editInt(
                     context,
-                    title: 'How many days before expiry should we remind you?',
+                    title:
+                        'How many days before expiry should we remind you?'.tr,
                     initial: s.reminderDays,
-                    onSave: (v) => repo.updateSettings(s.copyWith(reminderDays: v)),
+                    onSave: (v) =>
+                        repo.updateSettings(s.copyWith(reminderDays: v)),
                   ),
                 ),
                 Divider(color: Theme.of(context).dividerColor),
@@ -124,13 +179,38 @@ class SettingsPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Appearance', style: TextStyle(fontSize: 13.5)),
+                      Text(
+                        'Language'.tr,
+                        style: const TextStyle(fontSize: 13.5),
+                      ),
                       const SizedBox(height: 8),
                       SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(value: 'system', label: Text('System')),
-                          ButtonSegment(value: 'light', label: Text('Light')),
-                          ButtonSegment(value: 'dark', label: Text('Dark')),
+                        segments: [
+                          ButtonSegment(value: 'fa', label: Text('فارسی')),
+                          ButtonSegment(value: 'en', label: Text('English')),
+                        ],
+                        selected: {s.languageCode},
+                        onSelectionChanged: (v) => repo.updateSettings(
+                          s.copyWith(languageCode: v.first),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Appearance'.tr,
+                        style: const TextStyle(fontSize: 13.5),
+                      ),
+                      const SizedBox(height: 8),
+                      SegmentedButton<String>(
+                        segments: [
+                          ButtonSegment(
+                            value: 'system',
+                            label: Text('System'.tr),
+                          ),
+                          ButtonSegment(
+                            value: 'light',
+                            label: Text('Light'.tr),
+                          ),
+                          ButtonSegment(value: 'dark', label: Text('Dark'.tr)),
                         ],
                         selected: {s.themeMode},
                         onSelectionChanged: (v) =>
@@ -148,23 +228,30 @@ class SettingsPage extends StatelessWidget {
           CardBox(
             child: Column(
               children: [
-                _actionTile(context,
-                    icon: Icons.share_rounded,
-                    title: 'Share backup',
-                    subtitle: 'Export JSON to a messaging app or save it on your phone',
-                    onTap: () => _backup(context, repo, share: true)),
+                _actionTile(
+                  context,
+                  icon: Icons.share_rounded,
+                  title: 'Share backup'.tr,
+                  subtitle:
+                      'Export JSON to a messaging app or save it on your phone',
+                  onTap: () => _backup(context, repo, share: true),
+                ),
                 Divider(color: Theme.of(context).dividerColor),
-                _actionTile(context,
-                    icon: Icons.download_rounded,
-                    title: 'Save backup to device',
-                    subtitle: 'Choose where to save the JSON file',
-                    onTap: () => _backup(context, repo, share: false)),
+                _actionTile(
+                  context,
+                  icon: Icons.download_rounded,
+                  title: 'Save backup to device'.tr,
+                  subtitle: 'Choose where to save the JSON file',
+                  onTap: () => _backup(context, repo, share: false),
+                ),
                 Divider(color: Theme.of(context).dividerColor),
-                _actionTile(context,
-                    icon: Icons.restore_rounded,
-                    title: 'Restore from backup',
-                    subtitle: 'All current data will be replaced with the selected file',
-                    onTap: () => _restore(context, repo)),
+                _actionTile(
+                  context,
+                  icon: Icons.restore_rounded,
+                  title: 'Restore from backup'.tr,
+                  subtitle: 'All current data will be replaced with the selected file',
+                  onTap: () => _restore(context, repo),
+                ),
               ],
             ),
           ),
@@ -174,37 +261,48 @@ class SettingsPage extends StatelessWidget {
           CardBox(
             child: Column(
               children: [
-                _actionTile(context,
-                    icon: Icons.auto_awesome_outlined,
-                    title: 'Load sample data',
-                    subtitle: 'For a quick app demo (current data will be erased)',
-                    onTap: () async {
-                      final ok = await confirmDialog(context,
-                          title: 'Sample data',
-                          message:
-                              'Current data will be erased and replaced with sample data. Continue?',
-                          okLabel: 'Continue');
-                      if (!ok) return;
-                      await repo.loadDemoData();
-                      if (context.mounted) showSnack(context, 'Sample data loaded');
-                    }),
+                _actionTile(
+                  context,
+                  icon: Icons.auto_awesome_outlined,
+                  title: 'Load sample data'.tr,
+                  subtitle:
+                      'For a quick app demo (current data will be erased)',
+                  onTap: () async {
+                    final ok = await confirmDialog(
+                      context,
+                      title: 'Sample data'.tr,
+                      message: 'Current data will be erased and replaced with sample data. Continue?'
+                          .tr,
+                      okLabel: 'Continue'.tr,
+                    );
+                    if (!ok) return;
+                    await repo.loadDemoData();
+                    if (context.mounted) {
+                      showSnack(context, 'Sample data loaded'.tr);
+                    }
+                  },
+                ),
                 Divider(color: Theme.of(context).dividerColor),
-                _actionTile(context,
-                    icon: Icons.delete_forever_outlined,
-                    title: 'Erase all data',
-                    subtitle: 'Reset the app (cannot be undone)',
-                    danger: true,
-                    onTap: () async {
-                      final ok = await confirmDialog(context,
-                          title: 'Erase all data',
-                          message:
-                              'All customers, subscriptions, and transactions will be deleted. Back up your data first.',
-                          okLabel: 'Clear',
-                          danger: true);
-                      if (!ok) return;
-                      await repo.wipeAll();
-                      if (context.mounted) showSnack(context, 'All data erased');
-                    }),
+                _actionTile(
+                  context,
+                  icon: Icons.delete_forever_outlined,
+                  title: 'Erase all data'.tr,
+                  subtitle: 'Reset the app (cannot be undone)',
+                  danger: true,
+                  onTap: () async {
+                    final ok = await confirmDialog(
+                      context,
+                      title: 'Erase all data'.tr,
+                      message: 'All customers, subscriptions, and transactions will be deleted. Back up your data first.'
+                          .tr,
+                      okLabel: 'Clear',
+                      danger: true,
+                    );
+                    if (!ok) return;
+                    await repo.wipeAll();
+                    if (context.mounted) showSnack(context, 'All data erased');
+                  },
+                ),
               ],
             ),
           ),
@@ -218,11 +316,13 @@ class SettingsPage extends StatelessWidget {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: s.smsEnabled,
-                    title: const Text('Read bank SMS',
-                        style: TextStyle(fontSize: 13.5)),
-                    subtitle: const Text(
-                      'Deposits and withdrawals are detected automatically '
-                      'and added to the review queue',
+                    title: Text(
+                      'Read bank SMS'.tr,
+                      style: TextStyle(fontSize: 13.5),
+                    ),
+                    subtitle: Text(
+                      'Deposits and withdrawals are detected automatically and added to the review queue'
+                          .tr,
                       style: TextStyle(fontSize: 11.5),
                     ),
                     onChanged: (v) async {
@@ -237,39 +337,46 @@ class SettingsPage extends StatelessWidget {
                   _navTile(
                     context,
                     icon: Icons.fact_check_outlined,
-                    title: 'Review SMS',
+                    title: 'Review SMS'.tr,
                     subtitle: repo.smsPendingCount > 0
-                        ? '${repo.smsPendingCount} '
-                            'transactions awaiting review'
-                        : 'Nothing awaiting review',
+                        ? '{count} transactions awaiting review'.trArgs({
+                            'count': repo.smsPendingCount,
+                          })
+                        : 'Nothing awaiting review'.tr,
                     page: const SmsPage(),
                   ),
                   Divider(color: Theme.of(context).dividerColor),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.date_range_outlined, size: 20),
-                    title: const Text('SMS lookback period',
-                        style: TextStyle(fontSize: 13.5)),
+                    title: Text(
+                      'SMS lookback period'.tr,
+                      style: TextStyle(fontSize: 13.5),
+                    ),
                     subtitle: Text(
-                      'Past ${s.smsSyncDays} days',
+                      'Past {days} days'.trArgs({'days': s.smsSyncDays}),
                       style: const TextStyle(fontSize: 11.5),
                     ),
                     onTap: () => _editInt(
                       context,
-                      title: 'How many past days should be checked?',
+                      title: 'How many past days should be checked?'.tr,
                       initial: s.smsSyncDays,
-                      onSave: (v) => repo
-                          .updateSettings(s.copyWith(smsSyncDays: v.clamp(1, 365))),
+                      onSave: (v) => repo.updateSettings(
+                        s.copyWith(smsSyncDays: v.clamp(1, 365)),
+                      ),
                     ),
                   ),
                   Divider(color: Theme.of(context).dividerColor),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: s.smsAutoApprove,
-                    title: const Text('Automatically approve high-confidence matches',
-                        style: TextStyle(fontSize: 13.5)),
-                    subtitle: const Text(
-                      'Transactions will be recorded without your approval (off by default)',
+                    title: Text(
+                      'Automatically approve high-confidence matches'.tr,
+                      style: TextStyle(fontSize: 13.5),
+                    ),
+                    subtitle: Text(
+                      'Transactions will be recorded without your approval (off by default)'
+                          .tr,
                       style: TextStyle(fontSize: 11.5),
                     ),
                     onChanged: (v) =>
@@ -282,19 +389,23 @@ class SettingsPage extends StatelessWidget {
 
           // ---------- Daily reminder ----------
           if (reminder.supported) ...[
-            const SectionTitle('Daily reminder',
-                icon: Icons.notifications_active_outlined),
+            const SectionTitle(
+              'Daily reminder',
+              icon: Icons.notifications_active_outlined,
+            ),
             CardBox(
               child: Column(
                 children: [
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: s.dailyReminder,
-                    title: const Text('Expense reminder',
-                        style: TextStyle(fontSize: 13.5)),
-                    subtitle: const Text(
-                      'Reminds you every day at the selected time '
-                      'to record your expenses and income',
+                    title: Text(
+                      'Expense reminder'.tr,
+                      style: TextStyle(fontSize: 13.5),
+                    ),
+                    subtitle: Text(
+                      'Reminds you every day at the selected time to record your expenses and income'
+                          .tr,
                       style: TextStyle(fontSize: 11.5),
                     ),
                     onChanged: (v) async {
@@ -302,15 +413,16 @@ class SettingsPage extends StatelessWidget {
                         final ok = await reminder.requestPermission();
                         if (!ok) {
                           if (context.mounted) {
-                            showSnack(context,
-                                'Notification permission denied. Enable it in Android settings.',
-                                error: true);
+                            showSnack(
+                              context,
+                              'Notification permission denied. Enable it in Android settings.',
+                              error: true,
+                            );
                           }
                           return;
                         }
                       }
-                      await repo
-                          .updateSettings(s.copyWith(dailyReminder: v));
+                      await repo.updateSettings(s.copyWith(dailyReminder: v));
                     },
                   ),
                   if (s.dailyReminder) ...[
@@ -318,8 +430,10 @@ class SettingsPage extends StatelessWidget {
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.schedule_rounded, size: 20),
-                      title: const Text('Reminder time',
-                          style: TextStyle(fontSize: 13.5)),
+                      title: Text(
+                        'Reminder time'.tr,
+                        style: TextStyle(fontSize: 13.5),
+                      ),
                       subtitle: Text(
                         '${s.reminderHour.toString().padLeft(2, '0')}:${s.reminderMinute.toString().padLeft(2, '0')}',
                         style: const TextStyle(fontSize: 12),
@@ -328,30 +442,44 @@ class SettingsPage extends StatelessWidget {
                         final t = await showTimePicker(
                           context: context,
                           initialTime: TimeOfDay(
-                              hour: s.reminderHour, minute: s.reminderMinute),
+                            hour: s.reminderHour,
+                            minute: s.reminderMinute,
+                          ),
                         );
                         if (t == null || !context.mounted) return;
-                        await repo.updateSettings(s.copyWith(
-                            reminderHour: t.hour, reminderMinute: t.minute));
+                        await repo.updateSettings(
+                          s.copyWith(
+                            reminderHour: t.hour,
+                            reminderMinute: t.minute,
+                          ),
+                        );
                       },
                     ),
                     Divider(color: Theme.of(context).dividerColor),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.send_rounded, size: 20),
-                      title: const Text('Send test notification',
-                          style: TextStyle(fontSize: 13.5)),
-                      subtitle: const Text('Check that notifications are displayed',
-                          style: TextStyle(fontSize: 11.5)),
+                      title: Text(
+                        'Send test notification'.tr,
+                        style: TextStyle(fontSize: 13.5),
+                      ),
+                      subtitle: Text(
+                        'Check that notifications are displayed'.tr,
+                        style: TextStyle(fontSize: 11.5),
+                      ),
                       onTap: () async {
                         try {
                           await reminder.showNow(
-                              title: 'Poolland reminder test',
-                              body: 'If you can see this message, notifications are working ✓');
+                            title: 'Poolland reminder test'.tr,
+                            body: 'If you can see this message, notifications are working ✓',
+                          );
                         } catch (_) {
                           if (context.mounted) {
-                            showSnack(context, 'Could not send notification',
-                                error: true);
+                            showSnack(
+                              context,
+                              'Could not send notification',
+                              error: true,
+                            );
                           }
                         }
                       },
@@ -368,15 +496,18 @@ class SettingsPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Poolland Ledger',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                Text(
+                  'Poolland Ledger'.tr,
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 6),
                 Text(
-                  'Version 1.2.0 • Open-source software (MIT)\nA simple offline ledger for VPN sellers.\nAll data stays on this device.\n'
-                      'The Personal section is for your own finances and is not included in business profit '
-                      'or loss.',
+                  aboutText,
                   style: TextStyle(
-                      fontSize: 11.5, height: 1.9, color: onSurface.withValues(alpha: 0.65)),
+                    fontSize: 11.5,
+                    height: 1.9,
+                    color: onSurface.withValues(alpha: 0.65),
+                  ),
                 ),
               ],
             ),
@@ -387,74 +518,95 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  Widget _navTile(BuildContext context,
-          {required IconData icon,
-          required String title,
-          required String subtitle,
-          required Widget page}) =>
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: Icon(icon, size: 20),
-        title: Text(title, style: const TextStyle(fontSize: 13.5)),
-        subtitle: Text(subtitle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11.5)),
-        trailing: const Icon(Icons.chevron_right_rounded, size: 18),
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => page)),
-      );
+  Widget _navTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Widget page,
+  }) => ListTile(
+    contentPadding: EdgeInsets.zero,
+    leading: Icon(icon, size: 20),
+    title: Text(title.tr, style: const TextStyle(fontSize: 13.5)),
+    subtitle: Text(
+      subtitle.tr,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(fontSize: 11.5),
+    ),
+    trailing: const Icon(Icons.chevron_right_rounded, size: 18),
+    onTap: () =>
+        Navigator.push(context, MaterialPageRoute(builder: (_) => page)),
+  );
 
-  Widget _actionTile(BuildContext context,
-          {required IconData icon,
-          required String title,
-          required String subtitle,
-          required VoidCallback onTap,
-          bool danger = false}) =>
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        onTap: onTap,
-        leading: Icon(icon, size: 20, color: danger ? const Color(0xFFE11D48) : null),
-        title: Text(title,
-            style: TextStyle(
-                fontSize: 13.5, color: danger ? const Color(0xFFE11D48) : null)),
-        subtitle: Text(subtitle, style: const TextStyle(fontSize: 11.5)),
-      );
+  Widget _actionTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    bool danger = false,
+  }) => ListTile(
+    contentPadding: EdgeInsets.zero,
+    onTap: onTap,
+    leading: Icon(
+      icon,
+      size: 20,
+      color: danger ? const Color(0xFFE11D48) : null,
+    ),
+    title: Text(
+      title.tr,
+      style: TextStyle(
+        fontSize: 13.5,
+        color: danger ? const Color(0xFFE11D48) : null,
+      ),
+    ),
+    subtitle: Text(subtitle.tr, style: const TextStyle(fontSize: 11.5)),
+  );
 
-  Future<void> _editText(BuildContext context,
-      {required String title,
-      required String initial,
-      required Future<void> Function(String) onSave,
-      String? hint}) async {
+  Future<void> _editText(
+    BuildContext context, {
+    required String title,
+    required String initial,
+    required Future<void> Function(String) onSave,
+    String? hint,
+  }) async {
     final ctrl = TextEditingController(text: initial);
     final res = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(title),
+        title: Text(title.tr),
         content: TextField(
           controller: ctrl,
           autofocus: true,
-          decoration: InputDecoration(hintText: hint),
+          decoration: InputDecoration(hintText: hint?.tr),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel'.tr),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: const Text('Save')),
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: Text('Save'.tr),
+          ),
         ],
       ),
     );
     if (res != null && res.isNotEmpty) await onSave(res);
   }
 
-  Future<void> _editAmount(BuildContext context,
-      {required String title,
-      required double initial,
-      required Future<void> Function(double) onSave}) async {
+  Future<void> _editAmount(
+    BuildContext context, {
+    required String title,
+    required double initial,
+    required Future<void> Function(double) onSave,
+  }) async {
     final ctrl = TextEditingController(text: groupedNumber(initial));
     final res = await showDialog<double>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(title),
+        title: Text(title.tr),
         content: TextField(
           controller: ctrl,
           autofocus: true,
@@ -462,25 +614,31 @@ class SettingsPage extends StatelessWidget {
           decoration: const InputDecoration(suffixText: 'Toman'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel'.tr),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, parseAmount(ctrl.text)),
-              child: const Text('Save')),
+            onPressed: () => Navigator.pop(ctx, parseAmount(ctrl.text)),
+            child: Text('Save'.tr),
+          ),
         ],
       ),
     );
     if (res != null) await onSave(res);
   }
 
-  Future<void> _editInt(BuildContext context,
-      {required String title,
-      required int initial,
-      required Future<void> Function(int) onSave}) async {
+  Future<void> _editInt(
+    BuildContext context, {
+    required String title,
+    required int initial,
+    required Future<void> Function(int) onSave,
+  }) async {
     final ctrl = TextEditingController(text: '$initial');
     final res = await showDialog<int>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(title),
+        title: Text(title.tr),
         content: TextField(
           controller: ctrl,
           autofocus: true,
@@ -488,28 +646,39 @@ class SettingsPage extends StatelessWidget {
           decoration: const InputDecoration(suffixText: 'day'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel'.tr),
+          ),
           FilledButton(
-              onPressed: () =>
-                  Navigator.pop(ctx, parseAmount(ctrl.text).toInt().clamp(0, 60)),
-              child: const Text('Save')),
+            onPressed: () =>
+                Navigator.pop(ctx, parseAmount(ctrl.text).toInt().clamp(0, 60)),
+            child: Text('Save'.tr),
+          ),
         ],
       ),
     );
     if (res != null) await onSave(res);
   }
 
-  Future<void> _backup(BuildContext context, AppRepository repo,
-      {required bool share}) async {
-    final content = const JsonEncoder.withIndent('  ').convert(repo.exportData());
-    final name = 'poolland-backup-${J.d(DateTime.now(), persian: false).replaceAll('/', '-')}.json';
+  Future<void> _backup(
+    BuildContext context,
+    AppRepository repo, {
+    required bool share,
+  }) async {
+    final content = const JsonEncoder.withIndent('  ')
+        .convert(repo.exportData());
+    final name =
+        'poolland-backup-${J.d(DateTime.now(), persian: false).replaceAll('/', '-')}.json';
     final ok = share
         ? await Backup.shareFile(fileName: name, content: content)
         : await Backup.saveToDevice(fileName: name, content: content);
     if (context.mounted) {
-      showSnack(context,
-          ok ? 'Backup file created' : 'Backup save cancelled',
-          error: !ok);
+      showSnack(
+        context,
+        ok ? 'Backup file created' : 'Backup save cancelled',
+        error: !ok,
+      );
     }
   }
 
@@ -518,16 +687,24 @@ class SettingsPage extends StatelessWidget {
       final data = await Backup.pickJsonContent();
       if (data == null) return;
       if (!context.mounted) return;
-      final ok = await confirmDialog(context,
-          title: 'Restore backup',
-          message:
-              'All current data will be replaced with the contents of this file. Continue?',
-          okLabel: 'Restore');
+      final ok = await confirmDialog(
+        context,
+        title: 'Restore backup'.tr,
+        message: 'All current data will be replaced with the contents of this file. Continue?'
+            .tr,
+        okLabel: 'Restore',
+      );
       if (!ok) return;
       await repo.importData(data);
       if (context.mounted) showSnack(context, 'Backup restored');
     } catch (e) {
-      if (context.mounted) showSnack(context, 'Invalid file: $e', error: true);
+      if (context.mounted) {
+        showSnack(
+          context,
+          'Invalid file: {error}'.trArgs({'error': '$e'}),
+          error: true,
+        );
+      }
     }
   }
 }
@@ -541,11 +718,11 @@ class RatesPage extends StatelessWidget {
     final repo = context.watch<AppRepository>();
     final s = repo.settings;
     return Scaffold(
-      appBar: AppBar(title: const Text('Currencies and exchange rates')),
+      appBar: AppBar(title: Text('Currencies and exchange rates'.tr)),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addCurrency(context, repo),
         icon: const Icon(Icons.add_rounded),
-        label: const Text('Add currency'),
+        label: Text('Add currency'.tr),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
@@ -557,14 +734,14 @@ class RatesPage extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'The base currency is Toman. Enter each currency’s rate in Toman to convert reports automatically.',
+                    'The base currency is Toman. Enter each currency’s rate in Toman to convert reports automatically.'
+                        .tr,
                     style: TextStyle(
-                        fontSize: 11.5,
-                        height: 1.8,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.7)),
+                      fontSize: 11.5,
+                      height: 1.8,
+                      color: Theme.of(context).colorScheme.onSurface
+                          .withValues(alpha: 0.7),
+                    ),
                   ),
                 ),
               ],
@@ -583,45 +760,57 @@ class RatesPage extends StatelessWidget {
                     height: 42,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                      color: Theme.of(context).colorScheme.primary
+                          .withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Text(c.symbol,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                    child: Text(
+                      c.symbol,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('${c.name} (${c.code})',
-                            style: const TextStyle(
-                                fontSize: 13.5, fontWeight: FontWeight.w700)),
+                        Text(
+                          '${c.name.tr} (${c.code})',
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                         const SizedBox(height: 3),
                         Text(
                           c.code == s.baseCurrency
                               ? 'Base currency'
-                              : '1 ${c.name} = ${Money.text(c.rateToBase)}',
+                              : '1 ${c.name.tr} = ${Money.text(c.rateToBase)}',
                           style: TextStyle(
-                              fontSize: 11.5,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurface
-                                  .withValues(alpha: 0.6)),
+                            fontSize: 11.5,
+                            color: Theme.of(context).colorScheme.onSurface
+                                .withValues(alpha: 0.6),
+                          ),
                         ),
                       ],
                     ),
                   ),
                   if (c.code != s.baseCurrency)
                     IconButton(
-                      tooltip: 'Delete',
+                      tooltip: 'Delete'.tr,
                       icon: const Icon(Icons.delete_outline_rounded, size: 18),
                       onPressed: () async {
-                        final ok = await confirmDialog(context,
-                            title: 'Remove currency',
-                            message: 'Remove ${c.name}? Existing transactions will not be deleted.',
-                            okLabel: 'Delete',
-                            danger: true);
+                        final ok = await confirmDialog(
+                          context,
+                          title: 'Remove currency'.tr,
+                          message: 'Remove {currency}? Existing transactions will not be deleted.'
+                              .trArgs({'currency': c.name.tr}),
+                          okLabel: 'Delete'.tr,
+                          danger: true,
+                        );
                         if (ok) await repo.removeCurrency(c.code);
                       },
                     )
@@ -637,12 +826,18 @@ class RatesPage extends StatelessWidget {
     );
   }
 
-  Future<void> _editRate(BuildContext context, AppRepository repo, CurrencyDef c) async {
+  Future<void> _editRate(
+    BuildContext context,
+    AppRepository repo,
+    CurrencyDef c,
+  ) async {
     final ctrl = TextEditingController(text: groupedNumber(c.rateToBase));
     final res = await showDialog<double>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('${c.name} exchange rate in Toman'),
+        title: Text(
+          '{currency} exchange rate in Toman'.trArgs({'currency': c.name.tr}),
+        ),
         content: TextField(
           controller: ctrl,
           autofocus: true,
@@ -650,10 +845,14 @@ class RatesPage extends StatelessWidget {
           decoration: const InputDecoration(suffixText: 'Toman'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel'.tr),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, parseAmount(ctrl.text)),
-              child: const Text('Save')),
+            onPressed: () => Navigator.pop(ctx, parseAmount(ctrl.text)),
+            child: Text('Save'.tr),
+          ),
         ],
       ),
     );
@@ -670,44 +869,63 @@ class RatesPage extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Add currency'),
+        title: Text('Add currency'.tr),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
-                  controller: code,
-                  textDirection: TextDirection.ltr,
-                  decoration: const InputDecoration(labelText: 'Code (e.g. AED)')),
-              const SizedBox(height: 10),
-              TextField(controller: name, decoration: const InputDecoration(labelText: 'Name')),
-              const SizedBox(height: 10),
-              TextField(
-                  controller: symbol, decoration: const InputDecoration(labelText: 'Symbol')),
+                controller: code,
+                textDirection: TextDirection.ltr,
+                decoration: const InputDecoration(labelText: 'Code (e.g. AED)'),
+              ),
               const SizedBox(height: 10),
               TextField(
-                  controller: rate,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                      labelText: 'Rate in Toman', suffixText: 'Toman')),
+                controller: name,
+                decoration: const InputDecoration(labelText: 'Name'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: symbol,
+                decoration: const InputDecoration(labelText: 'Symbol'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: rate,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Rate in Toman',
+                  suffixText: 'Toman',
+                ),
+              ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Add')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel'.tr),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Add'.tr),
+          ),
         ],
       ),
     );
     if (ok != true) return;
     if (code.text.trim().isEmpty || name.text.trim().isEmpty) return;
-    await repo.upsertCurrency(CurrencyDef(
-      code: code.text.trim().toUpperCase(),
-      name: name.text.trim(),
-      symbol: symbol.text.trim().isEmpty ? name.text.trim() : symbol.text.trim(),
-      rateToBase: parseAmount(rate.text),
-      decimals: 2,
-    ));
+    await repo.upsertCurrency(
+      CurrencyDef(
+        code: code.text.trim().toUpperCase(),
+        name: name.text.trim(),
+        symbol: symbol.text.trim().isEmpty
+            ? name.text.trim()
+            : symbol.text.trim(),
+        rateToBase: parseAmount(rate.text),
+        decimals: 2,
+      ),
+    );
   }
 }
 
@@ -728,9 +946,12 @@ class _CategoriesPageState extends State<CategoriesPage> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Categories'),
-          bottom: const TabBar(
-            tabs: [Tab(text: 'Income'), Tab(text: 'Expense')],
+          title: Text('Categories'.tr),
+          bottom: TabBar(
+            tabs: [
+              Tab(text: 'Income'.tr),
+              Tab(text: 'Expense'.tr),
+            ],
           ),
         ),
         body: Column(
@@ -776,33 +997,41 @@ class _CategoriesPageState extends State<CategoriesPage> {
               child: Row(
                 children: [
                   Icon(
-                      kind == TxnKind.income
-                          ? Icons.trending_up_rounded
-                          : Icons.trending_down_rounded,
-                      size: 18,
-                      color: kind == TxnKind.income
-                          ? const Color(0xFF16A34A)
-                          : const Color(0xFFE11D48)),
+                    kind == TxnKind.income
+                        ? Icons.trending_up_rounded
+                        : Icons.trending_down_rounded,
+                    size: 18,
+                    color: kind == TxnKind.income
+                        ? const Color(0xFF16A34A)
+                        : const Color(0xFFE11D48),
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
-                      child: Text(c.name, style: const TextStyle(fontSize: 13.5))),
+                    child: Text(
+                      c.name.tr,
+                      style: const TextStyle(fontSize: 13.5),
+                    ),
+                  ),
                   IconButton(
-                    tooltip: 'Edit',
+                    tooltip: 'Edit'.tr,
                     icon: const Icon(Icons.edit_outlined, size: 18),
                     onPressed: () async {
                       final ctrl = TextEditingController(text: c.name);
                       final res = await showDialog<String>(
                         context: context,
                         builder: (ctx) => AlertDialog(
-                          title: const Text('Edit category'),
+                          title: Text('Edit category'.tr),
                           content: TextField(controller: ctrl, autofocus: true),
                           actions: [
                             TextButton(
-                                onPressed: () => Navigator.pop(ctx),
-                                child: const Text('Cancel')),
+                              onPressed: () => Navigator.pop(ctx),
+                              child: Text('Cancel'.tr),
+                            ),
                             FilledButton(
-                                onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-                                child: const Text('Save')),
+                              onPressed: () =>
+                                  Navigator.pop(ctx, ctrl.text.trim()),
+                              child: Text('Save'.tr),
+                            ),
                           ],
                         ),
                       );
@@ -812,15 +1041,17 @@ class _CategoriesPageState extends State<CategoriesPage> {
                     },
                   ),
                   IconButton(
-                    tooltip: 'Delete',
+                    tooltip: 'Delete'.tr,
                     icon: const Icon(Icons.delete_outline_rounded, size: 18),
                     onPressed: () async {
-                      final ok = await confirmDialog(context,
-                          title: 'Delete category',
-                          message:
-                              'Delete category “${c.name}”? Its transactions will become uncategorized.',
-                          okLabel: 'Delete',
-                          danger: true);
+                      final ok = await confirmDialog(
+                        context,
+                        title: 'Delete category'.tr,
+                        message: 'Delete category “{name}”? Its transactions will become uncategorized.'
+                            .trArgs({'name': c.name.tr}),
+                        okLabel: 'Delete'.tr,
+                        danger: true,
+                      );
                       if (ok) await repo.deleteCategory(c.id);
                     },
                   ),
@@ -835,17 +1066,27 @@ class _CategoriesPageState extends State<CategoriesPage> {
             final res = await showDialog<String>(
               context: context,
               builder: (ctx) => AlertDialog(
-                title: Text(kind == TxnKind.income ? 'New income category' : 'New expense category'),
+                title: Text(
+                  kind == TxnKind.income
+                      ? 'New income category'
+                      : 'New expense category',
+                ),
                 content: TextField(
-                    controller: ctrl,
-                    autofocus: true,
-                    decoration: const InputDecoration(hintText: 'e.g. Server purchase')),
+                  controller: ctrl,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    hintText: 'e.g. Server purchase',
+                  ),
+                ),
                 actions: [
                   TextButton(
-                      onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text('Cancel'.tr),
+                  ),
                   FilledButton(
-                      onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-                      child: const Text('Add')),
+                    onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+                    child: Text('Add'.tr),
+                  ),
                 ],
               ),
             );
@@ -854,7 +1095,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
             }
           },
           icon: const Icon(Icons.add_rounded, size: 18),
-          label: const Text('Add category'),
+          label: Text('Add category'.tr),
         ),
       ],
     );

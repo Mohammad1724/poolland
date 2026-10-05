@@ -1,7 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
-import '../../core/format_utils.dart';
 import '../../core/money.dart';
 import '../../data/ledger.dart';
 
@@ -40,20 +39,26 @@ class PeriodBarChart extends StatelessWidget {
             touchTooltipData: BarTouchTooltipData(
               getTooltipColor: (group) =>
                   Theme.of(context).brightness == Brightness.dark
-                      ? const Color(0xFF23304A)
-                      : const Color(0xFF1F2937),
+                  ? const Color(0xFF23304A)
+                  : const Color(0xFF1F2937),
               getTooltipItem: (group, groupIndex, rod, rodIndex) =>
                   BarTooltipItem(
-                Money.text(rod.toY, compact: true, withSymbol: false),
-                const TextStyle(
-                    fontFamily: 'Vazirmatn', color: Colors.white, fontSize: 11),
-              ),
+                    Money.text(rod.toY, compact: true, withSymbol: false),
+                    const TextStyle(
+                      fontFamily: 'Vazirmatn',
+                      color: Colors.white,
+                      fontSize: 11,
+                    ),
+                  ),
             ),
           ),
           titlesData: FlTitlesData(
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            rightTitles:
-                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            rightTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
@@ -63,7 +68,9 @@ class PeriodBarChart extends StatelessWidget {
                   return Text(
                     _short(value),
                     style: TextStyle(
-                        fontSize: 9.5, color: onSurface.withValues(alpha: 0.55)),
+                      fontSize: 9.5,
+                      color: onSurface.withValues(alpha: 0.55),
+                    ),
                     textAlign: TextAlign.left,
                   );
                 },
@@ -75,7 +82,9 @@ class PeriodBarChart extends StatelessWidget {
                 reservedSize: 26,
                 getTitlesWidget: (value, meta) {
                   final i = value.toInt();
-                  if (i < 0 || i >= points.length) return const SizedBox.shrink();
+                  if (i < 0 || i >= points.length) {
+                    return const SizedBox.shrink();
+                  }
                   // Show every other label to avoid clutter.
                   if (points.length > 16 && i % 2 != 0) {
                     return const SizedBox.shrink();
@@ -85,7 +94,9 @@ class PeriodBarChart extends StatelessWidget {
                     child: Text(
                       labelOf(points[i]),
                       style: TextStyle(
-                          fontSize: 9.5, color: onSurface.withValues(alpha: 0.7)),
+                        fontSize: 9.5,
+                        color: onSurface.withValues(alpha: 0.7),
+                      ),
                     ),
                   );
                 },
@@ -112,15 +123,17 @@ class PeriodBarChart extends StatelessWidget {
                       toY: points[i].income,
                       color: const Color(0xFF16A34A),
                       width: showIncome ? 7 : 12,
-                      borderRadius:
-                          const BorderRadius.vertical(top: Radius.circular(4)),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(4),
+                      ),
                     ),
                   BarChartRodData(
                     toY: points[i].expense,
                     color: const Color(0xFFE11D48),
                     width: showIncome ? 7 : 12,
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(4)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(4),
+                    ),
                   ),
                 ],
               ),

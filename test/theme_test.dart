@@ -24,7 +24,10 @@ void main() {
         greaterThanOrEqualTo(4.5),
       );
       expect(
-        _contrast(theme.listTileTheme.subtitleTextStyle!.color!, theme.cardColor),
+        _contrast(
+          theme.listTileTheme.subtitleTextStyle!.color!,
+          theme.cardColor,
+        ),
         greaterThanOrEqualTo(4.5),
       );
     }

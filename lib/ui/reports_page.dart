@@ -13,6 +13,8 @@ import 'customer_detail_page.dart';
 import 'widgets/common_charts.dart';
 import 'widgets/widgets.dart';
 
+import '../core/localization.dart';
+
 class ReportsPage extends StatefulWidget {
   const ReportsPage({super.key});
 
@@ -41,7 +43,9 @@ class _ReportsPageState extends State<ReportsPage> {
       case _Range.thisYear:
         return (J.startOfYear(now), J.endOfMonth(now));
       case _Range.all:
-        if (repo.transactions.isEmpty) return (J.startOfMonth(now), J.endOfMonth(now));
+        if (repo.transactions.isEmpty) {
+          return (J.startOfMonth(now), J.endOfMonth(now));
+        }
         final first = repo.transactions
             .map((t) => t.date)
             .reduce((a, b) => a.isBefore(b) ? a : b);
@@ -57,16 +61,36 @@ class _ReportsPageState extends State<ReportsPage> {
     final scope = repo.scopeFilter;
     final s = repo.summary(from: from, to: to, scope: scope);
     final monthsSpan = _monthsBetween(from, to);
-    final series = Ledger.monthlySeries(repo.transactions,
-        months: monthsSpan, endMonth: to, scope: scope)
-        .where((p) => !p.monthStart.isBefore(J.startOfMonth(from)))
-        .toList();
-    final incomeCats = Ledger.byCategory(repo.transactions, repo.categories,
-        from: from, to: to, kind: TxnKind.income, scope: scope);
-    final expenseCats = Ledger.byCategory(repo.transactions, repo.categories,
-        from: from, to: to, kind: TxnKind.expense, scope: scope);
-    final top = Ledger.topCustomers(repo.customers, repo.transactions,
-        from: from, to: to, limit: 6, scope: scope);
+    final series = Ledger.monthlySeries(
+      repo.transactions,
+      months: monthsSpan,
+      endMonth: to,
+      scope: scope,
+    ).where((p) => !p.monthStart.isBefore(J.startOfMonth(from))).toList();
+    final incomeCats = Ledger.byCategory(
+      repo.transactions,
+      repo.categories,
+      from: from,
+      to: to,
+      kind: TxnKind.income,
+      scope: scope,
+    );
+    final expenseCats = Ledger.byCategory(
+      repo.transactions,
+      repo.categories,
+      from: from,
+      to: to,
+      kind: TxnKind.expense,
+      scope: scope,
+    );
+    final top = Ledger.topCustomers(
+      repo.customers,
+      repo.transactions,
+      from: from,
+      to: to,
+      limit: 6,
+      scope: scope,
+    );
     final debtors = repo.debtorsList();
     final margin = s.income > 0 ? s.profit / s.income : 0.0;
 
@@ -80,13 +104,15 @@ class _ReportsPageState extends State<ReportsPage> {
               for (final opt in <TxnScope?>[
                 null,
                 TxnScope.business,
-                TxnScope.personal
+                TxnScope.personal,
               ])
                 Padding(
-                  padding: const EdgeInsets.only(left: 6),
+                  padding: const EdgeInsetsDirectional.only(start: 6),
                   child: ChoiceChip(
-                    label: Text(opt == null ? 'All' : opt.label,
-                        style: const TextStyle(fontSize: 12)),
+                    label: Text(
+                      opt == null ? 'All'.tr : opt.label,
+                      style: const TextStyle(fontSize: 12),
+                    ),
                     showCheckmark: false,
                     selected: repo.scopeFilter == opt,
                     onSelected: (_) => repo.setScopeFilter(opt),
@@ -102,7 +128,7 @@ class _ReportsPageState extends State<ReportsPage> {
             children: [
               for (final r in _Range.values) ...[
                 ChoiceChip(
-                  label: Text(_rangeLabel(r)),
+                  label: Text(_rangeLabel(r).tr),
                   showCheckmark: false,
                   selected: _range == r,
                   onSelected: (_) => setState(() => _range = r),
@@ -113,8 +139,13 @@ class _ReportsPageState extends State<ReportsPage> {
           ),
         ),
         const SizedBox(height: 12),
-        Text('${J.d(from)} to ${J.d(to)}',
-            style: TextStyle(fontSize: 12, color: onSurface.withValues(alpha: 0.6))),
+        Text(
+          '{from} to {to}'.trArgs({'from': J.d(from), 'to': J.d(to)}),
+          style: TextStyle(
+            fontSize: 12,
+            color: onSurface.withValues(alpha: 0.6),
+          ),
+        ),
         const SizedBox(height: 12),
 
         // Summary
@@ -124,66 +155,117 @@ class _ReportsPageState extends State<ReportsPage> {
               Row(
                 children: [
                   Expanded(
-                      child: _kv(context, 'Income (sales)', Money.text(s.income),
-                          const Color(0xFF16A34A))),
-                  Expanded(
-                      child: _kv(context, 'Expense', Money.text(s.expense),
-                          const Color(0xFFE11D48))),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                      child: _kv(context, 'Net profit', Money.text(s.profit),
-                          s.profit >= 0 ? const Color(0xFF16A34A) : const Color(0xFFE11D48))),
-                  Expanded(
-                      child: _kv(context, 'Profit margin', Fmt.percent(margin),
-                          const Color(0xFF7C3AED))),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                      child: _kv(context, 'Received from customers', Money.text(s.received),
-                          const Color(0xFF0F766E))),
-                  Expanded(
-                      child: _kv(context, 'Cash paid',
-                          Money.text(s.cashOut), const Color(0xFFB45309))),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Divider(color: Theme.of(context).dividerColor),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _kv(context, 'Total receivables', Money.text(repo.totals.receivable),
-                        const Color(0xFF0F766E)),
+                    child: _kv(
+                      context,
+                      'Income (sales)',
+                      Money.text(s.income),
+                      const Color(0xFF16A34A),
+                    ),
                   ),
                   Expanded(
-                    child: _kv(context, 'Total payables', Money.text(repo.totals.payable),
-                        const Color(0xFF2563EB)),
+                    child: _kv(
+                      context,
+                      'Expense',
+                      Money.text(s.expense),
+                      const Color(0xFFE11D48),
+                    ),
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _kv(
+                      context,
+                      'Net profit',
+                      Money.text(s.profit),
+                      s.profit >= 0
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFFE11D48),
+                    ),
+                  ),
+                  Expanded(
+                    child: _kv(
+                      context,
+                      'Profit margin',
+                      Fmt.percent(margin),
+                      const Color(0xFF7C3AED),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _kv(
+                      context,
+                      'Received from customers',
+                      Money.text(s.received),
+                      const Color(0xFF0F766E),
+                    ),
+                  ),
+                  Expanded(
+                    child: _kv(
+                      context,
+                      'Cash paid',
+                      Money.text(s.cashOut),
+                      const Color(0xFFB45309),
+                    ),
+                  ),
+                ],
+              ),
+              if (scope != TxnScope.personal) ...[
+                const SizedBox(height: 12),
+                Divider(color: Theme.of(context).dividerColor),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _kv(
+                        context,
+                        'Business receivables',
+                        Money.text(repo.totals.receivable),
+                        const Color(0xFF0F766E),
+                      ),
+                    ),
+                    Expanded(
+                      child: _kv(
+                        context,
+                        'Business payables',
+                        Money.text(repo.totals.payable),
+                        const Color(0xFF2563EB),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
 
         // Monthly chart
         if (series.length > 1) ...[
-          const SectionTitle('Monthly income and expenses', icon: Icons.bar_chart_rounded),
+          const SectionTitle(
+            'Monthly income and expenses',
+            icon: Icons.bar_chart_rounded,
+          ),
           CardBox(
             padding: const EdgeInsets.fromLTRB(8, 14, 8, 6),
-            child: SizedBox(height: 190, child: MonthlyBarChart(points: series)),
+            child: SizedBox(
+              height: 190,
+              child: MonthlyBarChart(points: series),
+            ),
           ),
         ],
 
         // Expense category chart
         if (expenseCats.isNotEmpty) ...[
-          const SectionTitle('Expenses by category', icon: Icons.pie_chart_outline_rounded),
+          const SectionTitle(
+            'Expenses by category',
+            icon: Icons.pie_chart_outline_rounded,
+          ),
           CardBox(child: CategoryPieChart(data: expenseCats, size: 150)),
         ],
 
@@ -193,13 +275,22 @@ class _ReportsPageState extends State<ReportsPage> {
           CardBox(
             child: Column(
               children: [
-                for (final e in (incomeCats.entries.toList()
-                  ..sort((a, b) => b.value.compareTo(a.value))))
+                for (final e
+                    in (incomeCats.entries.toList()
+                      ..sort((a, b) => b.value.compareTo(a.value))))
                   InfoRow(
                     e.key,
                     Text(
-                      '${Money.text(e.value)}  ${s.income > 0 ? '(${Fmt.percent(e.value / s.income)})' : ''}',
-                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                      '{amount} {percent}'.trArgs({
+                        'amount': Money.text(e.value),
+                        'percent': s.income > 0
+                            ? '(${Fmt.percent(e.value / s.income)})'
+                            : '',
+                      }),
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
               ],
@@ -209,13 +300,19 @@ class _ReportsPageState extends State<ReportsPage> {
 
         // Top customers
         if (top.isNotEmpty) ...[
-          const SectionTitle('Top customers this period', icon: Icons.emoji_events_outlined),
+          const SectionTitle(
+            'Top customers this period',
+            icon: Icons.emoji_events_outlined,
+          ),
           CardBox(
             child: Column(
               children: [
                 for (var i = 0; i < top.length; i++)
                   InfoRow(
-                    '${i + 1}. ${top[i].key.name}',
+                    '{rank}. {customer}'.trArgs({
+                      'rank': i + 1,
+                      'customer': top[i].key.name,
+                    }),
                     MoneyText(top[i].value),
                   ),
               ],
@@ -223,40 +320,63 @@ class _ReportsPageState extends State<ReportsPage> {
           ),
         ],
 
-        // Debtors
-        const SectionTitle('Debtors', icon: Icons.account_balance_wallet_outlined),
-        if (debtors.isEmpty)
-          const CardBox(child: Text('All accounts are settled ✅', style: TextStyle(fontSize: 12.5)))
-        else
-          Column(
-            children: [
-              for (final e in debtors)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: CardBox(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                    onTap: () => Navigator.push(
+        // Business debtors are excluded from personal-only reports.
+        if (scope != TxnScope.personal) ...[
+          // Debtors
+          const SectionTitle(
+            'Debtors',
+            icon: Icons.account_balance_wallet_outlined,
+          ),
+          if (debtors.isEmpty)
+            CardBox(
+              child: Text(
+                'All accounts are settled ✅'.tr,
+                style: const TextStyle(fontSize: 12.5),
+              ),
+            )
+          else
+            Column(
+              children: [
+                for (final e in debtors)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: CardBox(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 11,
+                      ),
+                      onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (_) => CustomerDetailPage(customer: e.key))),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(e.key.name,
-                              style: const TextStyle(
-                                  fontSize: 13.5, fontWeight: FontWeight.w600)),
+                          builder: (_) => CustomerDetailPage(customer: e.key),
                         ),
-                        MoneyText(e.value,
-                            style: const TextStyle(
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              e.key.name.tr,
+                              style: const TextStyle(
                                 fontSize: 13.5,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF0F766E))),
-                      ],
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          MoneyText(
+                            e.value,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F766E),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-            ],
-          ),
+              ],
+            ),
+        ],
 
         // Exports
         const SectionTitle('Export', icon: Icons.ios_share_rounded),
@@ -266,23 +386,23 @@ class _ReportsPageState extends State<ReportsPage> {
               _exportTile(
                 context,
                 icon: Icons.picture_as_pdf_rounded,
-                title: 'PDF report',
-                subtitle: 'Full period report with charts and transactions',
+                title: 'PDF report'.tr,
+                subtitle: 'Full period report with charts and transactions'.tr,
                 onTap: () => _exportPdf(repo, from, to),
               ),
               Divider(color: Theme.of(context).dividerColor),
               _exportTile(
                 context,
                 icon: Icons.table_chart_outlined,
-                title: 'Export CSV (spreadsheet)',
-                subtitle: 'Transactions for this period',
+                title: 'Export CSV (spreadsheet)'.tr,
+                subtitle: 'Transactions for this period'.tr,
                 onTap: () => _exportCsv(repo, from, to),
               ),
               Divider(color: Theme.of(context).dividerColor),
               _exportTile(
                 context,
                 icon: Icons.groups_outlined,
-                title: 'Export customers CSV',
+                title: 'Export customers CSV'.tr,
                 subtitle: 'Name, contact, and balance',
                 onTap: () => _exportCustomersCsv(repo),
               ),
@@ -294,13 +414,13 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 
   String _rangeLabel(_Range r) => switch (r) {
-        _Range.thisMonth => 'This month',
-        _Range.lastMonth => 'Previous month',
-        _Range.threeMonths => 'Last 3 months',
-        _Range.sixMonths => 'Last 6 months',
-        _Range.thisYear => 'This year',
-        _Range.all => 'All',
-      };
+    _Range.thisMonth => 'This month',
+    _Range.lastMonth => 'Previous month',
+    _Range.threeMonths => 'Last 3 months',
+    _Range.sixMonths => 'Last 6 months',
+    _Range.thisYear => 'This year',
+    _Range.all => 'All',
+  };
 
   int _monthsBetween(DateTime a, DateTime b) {
     final ja = J.of(a), jb = J.of(b);
@@ -313,24 +433,45 @@ class _ReportsPageState extends State<ReportsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(fontSize: 11.5, color: onSurface.withValues(alpha: 0.62))),
+        Text(
+          label.tr,
+          style: TextStyle(
+            fontSize: 11.5,
+            color: onSurface.withValues(alpha: 0.62),
+          ),
+        ),
         const SizedBox(height: 5),
-        Text(value,
-            style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: color)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14.5,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
       ],
     );
   }
 
-  Widget _exportTile(BuildContext context,
-      {required IconData icon,
-      required String title,
-      required String subtitle,
-      required VoidCallback onTap}) {
+  Widget _exportTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
     return ListTile(
       onTap: onTap,
-      leading: Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
-      title: Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 11.5)),
+      leading: Icon(
+        icon,
+        size: 20,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      title: Text(
+        title.tr,
+        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(subtitle.tr, style: const TextStyle(fontSize: 11.5)),
       trailing: const Icon(Icons.chevron_right_rounded, size: 18),
     );
   }
@@ -342,16 +483,30 @@ class _ReportsPageState extends State<ReportsPage> {
       await task();
       if (mounted) showSnack(context, successMessage);
     } catch (e) {
-      if (mounted) showSnack(context, 'Could not create file: $e', error: true);
+      if (mounted) {
+        showSnack(
+          context,
+          'Could not create file: {error}'.trArgs({'error': '$e'}),
+          error: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  Future<void> _exportPdf(AppRepository repo, DateTime from, DateTime to) async {
+  Future<void> _exportPdf(
+    AppRepository repo,
+    DateTime from,
+    DateTime to,
+  ) async {
     await _run(() async {
-      final bytes =
-          await PdfService.buildReport(repo: repo, from: from, to: to);
+      final bytes = await PdfService.buildReport(
+        repo: repo,
+        from: from,
+        to: to,
+        scope: repo.scopeFilter,
+      );
       await Backup.shareBytes(
         fileName: 'report-${J.d(from, persian: false)}.pdf',
         bytes: bytes,
@@ -360,7 +515,11 @@ class _ReportsPageState extends State<ReportsPage> {
     }, 'PDF report created');
   }
 
-  Future<void> _exportCsv(AppRepository repo, DateTime from, DateTime to) async {
+  Future<void> _exportCsv(
+    AppRepository repo,
+    DateTime from,
+    DateTime to,
+  ) async {
     await _run(() async {
       final rows = <List<String>>[
         [
@@ -374,13 +533,20 @@ class _ReportsPageState extends State<ReportsPage> {
           'Payment status',
           'Description',
         ],
-        for (final t in (Ledger.filter(repo.transactions,
-                from: from, to: to, scope: repo.scopeFilter).toList()
-          ..sort((a, b) => a.date.compareTo(b.date))))
+        for (final t in (Ledger.filter(
+          repo.transactions,
+          from: from,
+          to: to,
+          scope: repo.scopeFilter,
+        ).toList()..sort((a, b) => a.date.compareTo(b.date))))
           [
             J.d(t.date, persian: false),
             t.kind.shortLabel,
-            Fmt.number(t.amount, decimals: Money.decimals(t.currency), persian: false),
+            Fmt.number(
+              t.amount,
+              decimals: Money.decimals(t.currency),
+              persian: false,
+            ),
             t.currency,
             Fmt.number(t.amount * t.rateToBase, persian: false),
             t.customerId == null ? '' : repo.customerName(t.customerId),
@@ -412,8 +578,8 @@ class _ReportsPageState extends State<ReportsPage> {
             (balances[c.id] ?? 0) > 0.5
                 ? 'Debtor'
                 : (balances[c.id] ?? 0) < -0.5
-                    ? 'Creditor'
-                    : 'Settled',
+                ? 'Creditor'
+                : 'Settled',
             c.note,
           ],
       ];
@@ -439,7 +605,10 @@ abstract final class FileServiceCsv {
 
   static String _escape(String v) {
     final needsQuote =
-        v.contains(',') || v.contains('"') || v.contains('\n') || v.contains('\r');
+        v.contains(',') ||
+        v.contains('"') ||
+        v.contains('\n') ||
+        v.contains('\r');
     final s = v.replaceAll('"', '""');
     return needsQuote ? '"$s"' : s;
   }

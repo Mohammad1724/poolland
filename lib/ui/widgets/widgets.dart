@@ -7,6 +7,8 @@ import '../../core/money.dart';
 import '../../data/models.dart';
 import 'date_picker.dart';
 
+import '../../core/localization.dart';
+
 /// ---------------- Amount display ----------------
 class MoneyText extends StatelessWidget {
   const MoneyText(
@@ -39,7 +41,13 @@ class MoneyText extends StatelessWidget {
           : (negativeColor ?? const Color(0xFFE11D48));
     }
     return Text(
-      Money.text(amount, currency: currency, withSymbol: withSymbol, signed: signed, compact: compact),
+      Money.text(
+        amount,
+        currency: currency,
+        withSymbol: withSymbol,
+        signed: signed,
+        compact: compact,
+      ),
       style: style?.copyWith(color: color) ?? TextStyle(color: color),
     );
   }
@@ -47,7 +55,12 @@ class MoneyText extends StatelessWidget {
 
 /// ---------------- Card ----------------
 class CardBox extends StatelessWidget {
-  const CardBox({super.key, required this.child, this.padding = const EdgeInsets.all(14), this.onTap});
+  const CardBox({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(14),
+    this.onTap,
+  });
 
   final Widget child;
   final EdgeInsets padding;
@@ -66,7 +79,13 @@ class CardBox extends StatelessWidget {
 }
 
 class SectionTitle extends StatelessWidget {
-  const SectionTitle(this.title, {super.key, this.action, this.onAction, this.icon});
+  const SectionTitle(
+    this.title, {
+    super.key,
+    this.action,
+    this.onAction,
+    this.icon,
+  });
 
   final String title;
   final String? action;
@@ -85,12 +104,20 @@ class SectionTitle extends StatelessWidget {
             const SizedBox(width: 6),
           ],
           Expanded(
-            child: Text(title,
-                style: TextStyle(
-                    fontSize: 13.5, fontWeight: FontWeight.w700, color: onSurface.withValues(alpha: 0.85))),
+            child: Text(
+              title.tr,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: onSurface.withValues(alpha: 0.85),
+              ),
+            ),
           ),
           if (action != null && onAction != null)
-            TextButton(onPressed: onAction, child: Text(action!, style: const TextStyle(fontSize: 12))),
+            TextButton(
+              onPressed: onAction,
+              child: Text(action!.tr, style: const TextStyle(fontSize: 12)),
+            ),
         ],
       ),
     );
@@ -99,7 +126,13 @@ class SectionTitle extends StatelessWidget {
 
 /// ---------------- Colored tag ----------------
 class TagChip extends StatelessWidget {
-  const TagChip(this.text, {super.key, required this.color, this.icon, this.dense = false});
+  const TagChip(
+    this.text, {
+    super.key,
+    required this.color,
+    this.icon,
+    this.dense = false,
+  });
 
   final String text;
   final Color color;
@@ -109,7 +142,10 @@ class TagChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: dense ? 7 : 9, vertical: dense ? 2 : 4),
+      padding: EdgeInsets.symmetric(
+        horizontal: dense ? 7 : 9,
+        vertical: dense ? 2 : 4,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(9),
@@ -122,9 +158,14 @@ class TagChip extends StatelessWidget {
             Icon(icon, size: dense ? 11 : 13, color: color),
             const SizedBox(width: 4),
           ],
-          Text(text,
-              style: TextStyle(
-                  fontSize: dense ? 10.5 : 11.5, fontWeight: FontWeight.w700, color: color)),
+          Text(
+            text.tr,
+            style: TextStyle(
+              fontSize: dense ? 10.5 : 11.5,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -160,22 +201,42 @@ class EmptyState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                color: Theme.of(context).colorScheme.primary
+                    .withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 28, color: Theme.of(context).colorScheme.primary),
+              child: Icon(
+                icon,
+                size: 28,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
             const SizedBox(height: 12),
-            Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+            Text(
+              title.tr,
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             if (text != null) ...[
               const SizedBox(height: 6),
-              Text(text!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, height: 1.6, color: onSurface.withValues(alpha: 0.6))),
+              Text(
+                text!.tr,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.6,
+                  color: onSurface.withValues(alpha: 0.6),
+                ),
+              ),
             ],
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 14),
-              FilledButton.tonal(onPressed: onAction, child: Text(actionLabel!)),
+              FilledButton.tonal(
+                onPressed: onAction,
+                child: Text(actionLabel!.tr),
+              ),
             ],
           ],
         ),
@@ -211,17 +272,25 @@ class AmountField extends StatelessWidget {
       autofocus: autofocus,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       textDirection: TextDirection.ltr,
-      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9,.\u066C\u066B\u06F0-\u06F9]'))],
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(
+          RegExp(r'[0-9,.\u066C\u066B\u06F0-\u06F9]'),
+        ),
+      ],
+      style: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.5,
+      ),
       decoration: InputDecoration(
-        labelText: label,
+        labelText: label.tr,
         hintText: '0',
         suffixText: Money.symbol(currency),
       ),
       onChanged: (_) => onChanged?.call(),
       validator: (v) {
-        if (validator != null) return validator!(v);
-        if (parseAmount(v ?? '') <= 0) return 'Enter an amount';
+        if (validator != null) return validator!(v)?.tr;
+        if (parseAmount(v ?? '') <= 0) return 'Enter an amount'.tr;
         return null;
       },
       onTapOutside: (_) => FocusScope.of(context).unfocus(),
@@ -229,14 +298,18 @@ class AmountField extends StatelessWidget {
         final v = parseAmount(controller.text);
         final s = groupedNumber(v, decimals: decimals);
         controller.value = TextEditingValue(
-            text: s, selection: TextSelection.collapsed(offset: s.length));
+          text: s,
+          selection: TextSelection.collapsed(offset: s.length),
+        );
         FocusScope.of(context).unfocus();
       },
       onFieldSubmitted: (_) {
         final v = parseAmount(controller.text);
         final s = groupedNumber(v, decimals: decimals);
         controller.value = TextEditingValue(
-            text: s, selection: TextSelection.collapsed(offset: s.length));
+          text: s,
+          selection: TextSelection.collapsed(offset: s.length),
+        );
       },
     );
   }
@@ -268,9 +341,15 @@ class JalaliDateField extends StatelessWidget {
         if (res != null) onChanged(res);
       },
       child: InputDecorator(
-        decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 19), helperText: helper),
-        child: Text(J.dFull(value),
-            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+        decoration: InputDecoration(
+          labelText: label.tr,
+          prefixIcon: Icon(icon, size: 19),
+          helperText: helper?.tr,
+        ),
+        child: Text(
+          J.dFull(value),
+          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+        ),
       ),
     );
   }
@@ -347,16 +426,17 @@ class SelectField<T> extends StatelessWidget {
       },
       child: InputDecorator(
         decoration: InputDecoration(
-          labelText: label,
+          labelText: label.tr,
           prefixIcon: icon == null ? null : Icon(icon, size: 19),
-          errorText: validator != null ? validator!(value) : null,
+          errorText: validator != null ? validator!(value)?.tr : null,
         ),
         child: Text(
-          hasValue ? labelOf(value as T) : placeholder,
+          hasValue ? labelOf(value as T).tr : placeholder.tr,
           style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: hasValue ? FontWeight.w600 : FontWeight.w400,
-              color: hasValue ? onSurface : onSurface.withValues(alpha: 0.45)),
+            fontSize: 13.5,
+            fontWeight: hasValue ? FontWeight.w600 : FontWeight.w400,
+            color: hasValue ? onSurface : onSurface.withValues(alpha: 0.45),
+          ),
         ),
       ),
     );
@@ -404,7 +484,11 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final items = widget.items
-        .where((e) => _q.isEmpty || widget.labelOf(e).contains(_q))
+        .where(
+          (e) =>
+              _q.isEmpty ||
+              widget.labelOf(e).tr.toLowerCase().contains(_q.toLowerCase()),
+        )
         .toList();
 
     return DraggableScrollableSheet(
@@ -420,17 +504,26 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
           children: [
             const SizedBox(height: 10),
             Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: theme.dividerColor, borderRadius: BorderRadius.circular(2))),
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: theme.dividerColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
               child: Row(
                 children: [
                   Expanded(
-                      child: Text(widget.title,
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))),
+                    child: Text(
+                      widget.title.tr,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close_rounded, size: 20),
@@ -443,9 +536,10 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: TextField(
                   decoration: InputDecoration(
-                      hintText: widget.searchHint,
-                      prefixIcon: const Icon(Icons.search_rounded, size: 19),
-                      isDense: true),
+                    hintText: widget.searchHint.tr,
+                    prefixIcon: const Icon(Icons.search_rounded, size: 19),
+                    isDense: true,
+                  ),
                   onChanged: (v) => setState(() => _q = v.trim()),
                 ),
               ),
@@ -457,19 +551,27 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
                   if (widget.clearable)
                     ListTile(
                       leading: const Icon(Icons.block_rounded, size: 20),
-                      title: const Text('None'),
-                      onTap: () => Navigator.pop(context, const _PickResult(null, cleared: true)),
+                      title: Text('None'.tr),
+                      onTap: () => Navigator.pop(
+                        context,
+                        const _PickResult(null, cleared: true),
+                      ),
                     ),
                   for (final item in items)
                     ListTile(
                       leading: widget.iconOf == null
                           ? null
                           : Icon(widget.iconOf!(item), size: 20),
-                      title: Text(widget.labelOf(item)),
-                      subtitle: widget.subOf == null ? null : Text(widget.subOf!(item)),
+                      title: Text(widget.labelOf(item).tr),
+                      subtitle: widget.subOf == null
+                          ? null
+                          : Text(widget.subOf!(item)),
                       trailing: widget.current == item
-                          ? Icon(Icons.check_circle_rounded,
-                              size: 20, color: theme.colorScheme.primary)
+                          ? Icon(
+                              Icons.check_circle_rounded,
+                              size: 20,
+                              color: theme.colorScheme.primary,
+                            )
                           : null,
                       onTap: () => Navigator.pop(context, _PickResult(item)),
                     ),
@@ -477,10 +579,12 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
                       child: FilledButton.tonalIcon(
-                        onPressed: () =>
-                            Navigator.pop(context, const _PickResult(null, extra: true)),
+                        onPressed: () => Navigator.pop(
+                          context,
+                          const _PickResult(null, extra: true),
+                        ),
                         icon: const Icon(Icons.add_rounded, size: 18),
-                        label: Text(widget.extraActionLabel!),
+                        label: Text(widget.extraActionLabel!.tr),
                       ),
                     ),
                 ],
@@ -521,11 +625,11 @@ class AppTextField extends StatelessWidget {
       maxLines: maxLines,
       keyboardType: keyboardType,
       decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
+        labelText: label.tr,
+        hintText: hint?.tr,
         prefixIcon: icon == null ? null : Icon(icon, size: 19),
       ),
-      validator: validator,
+      validator: (value) => validator?.call(value)?.tr,
       onTapOutside: (_) => FocusScope.of(context).unfocus(),
     );
   }
@@ -543,14 +647,19 @@ Future<bool> confirmDialog(
   final res = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: Text(title),
-      content: Text(message, style: const TextStyle(height: 1.7)),
+      title: Text(title.tr),
+      content: Text(message.tr, style: const TextStyle(height: 1.7)),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(cancelLabel)),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text(cancelLabel.tr),
+        ),
         FilledButton(
-          style: danger ? FilledButton.styleFrom(backgroundColor: const Color(0xFFE11D48)) : null,
+          style: danger
+              ? FilledButton.styleFrom(backgroundColor: const Color(0xFFE11D48))
+              : null,
           onPressed: () => Navigator.pop(ctx, true),
-          child: Text(okLabel),
+          child: Text(okLabel.tr),
         ),
       ],
     ),
@@ -561,16 +670,24 @@ Future<bool> confirmDialog(
 void showSnack(BuildContext context, String message, {bool error = false}) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(
-      content: Text(message),
-      backgroundColor: error ? const Color(0xFFB91C1C) : null,
-      duration: const Duration(seconds: 2),
-    ));
+    ..showSnackBar(
+      SnackBar(
+        content: Text(message.tr),
+        backgroundColor: error ? const Color(0xFFB91C1C) : null,
+        duration: const Duration(seconds: 2),
+      ),
+    );
 }
 
 /// A row formatted as “label: value”.
 class InfoRow extends StatelessWidget {
-  const InfoRow(this.label, this.value, {super.key, this.valueColor, this.icon});
+  const InfoRow(
+    this.label,
+    this.value, {
+    super.key,
+    this.valueColor,
+    this.icon,
+  });
 
   final String label;
   final Widget value;
@@ -588,10 +705,20 @@ class InfoRow extends StatelessWidget {
             Icon(icon, size: 15, color: onSurface.withValues(alpha: 0.5)),
             const SizedBox(width: 6),
           ],
-          Text(label, style: TextStyle(fontSize: 12.5, color: onSurface.withValues(alpha: 0.7))),
+          Text(
+            label.tr,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: onSurface.withValues(alpha: 0.7),
+            ),
+          ),
           const Spacer(),
           DefaultTextStyle.merge(
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: valueColor),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: valueColor,
+            ),
             child: value,
           ),
         ],
@@ -620,20 +747,21 @@ class TxnTile extends StatelessWidget {
   final bool showCustomer;
 
   Color get _color => switch (txn.kind) {
-        TxnKind.income => const Color(0xFF16A34A),
-        TxnKind.expense => const Color(0xFFE11D48),
-        TxnKind.receive => const Color(0xFF0F766E),
-        TxnKind.refund => const Color(0xFFD97706),
-      };
+    TxnKind.income => const Color(0xFF16A34A),
+    TxnKind.expense => const Color(0xFFE11D48),
+    TxnKind.receive => const Color(0xFF0F766E),
+    TxnKind.refund => const Color(0xFFD97706),
+    TxnKind.payablePayment => const Color(0xFF7C3AED),
+  };
 
   @override
   Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
-    final title = txn.note.isNotEmpty ? txn.note : categoryName;
+    final title = txn.note.isNotEmpty ? txn.note : categoryName.tr;
     final sub = <String>[
       J.d(txn.date),
       if (showCustomer && customerName != null) customerName!,
-      if (txn.kind.isProfitKind) (txn.credit ? 'Credit' : 'Cash'),
+      if (txn.kind.isProfitKind) (txn.credit ? 'Credit'.tr : 'Cash'.tr),
     ].join(' • ');
 
     return ListTile(
@@ -647,25 +775,47 @@ class TxnTile extends StatelessWidget {
         child: Icon(txn.kind.icon, size: 17, color: _color),
       ),
       title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(sub,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontSize: 11.5, color: onSurface.withValues(alpha: 0.55))),
+      subtitle: Text(
+        sub,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 11.5,
+          color: onSurface.withValues(alpha: 0.55),
+        ),
+      ),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(
-            Money.text(txn.amount * (txn.kind == TxnKind.income ? 1 : -1),
-                currency: txn.currency, signed: false),
+            Money.text(
+              txn.amount *
+                  switch (txn.kind) {
+                    TxnKind.income || TxnKind.receive => 1,
+                    TxnKind.expense ||
+                    TxnKind.refund ||
+                    TxnKind.payablePayment => -1,
+                  },
+              currency: txn.currency,
+              signed: false,
+            ),
             style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w700, color: _color),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: _color,
+            ),
           ),
           if (txn.currency != 'IRT' || txn.rateToBase != 1)
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: Text(Money.text(txn.amount * txn.rateToBase, withSymbol: false),
-                  style: TextStyle(fontSize: 10.5, color: onSurface.withValues(alpha: 0.55))),
+              child: Text(
+                Money.text(txn.amount * txn.rateToBase, withSymbol: false),
+                style: TextStyle(
+                  fontSize: 10.5,
+                  color: onSurface.withValues(alpha: 0.55),
+                ),
+              ),
             ),
         ],
       ),

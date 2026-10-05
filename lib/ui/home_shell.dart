@@ -14,6 +14,8 @@ import 'settings_page.dart';
 import 'subscriptions_page.dart';
 import 'transactions_page.dart';
 
+import '../core/localization.dart';
+
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
@@ -30,7 +32,6 @@ class _HomeShellState extends State<HomeShell> {
     'Customers',
     'Subscriptions',
     'Transactions',
-    'Reports'
   ];
 
   @override
@@ -78,25 +79,64 @@ class _HomeShellState extends State<HomeShell> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: Theme.of(ctx).dividerColor,
-                    borderRadius: BorderRadius.circular(2))),
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(ctx).dividerColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             const SizedBox(height: 16),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text('What would you like to do?',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                'What would you like to do?'.tr,
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              ),
             ),
             const SizedBox(height: 10),
-            _menuTile(ctx, 'Sell a subscription', Icons.vpn_key_rounded, 'sale_sub'),
-            _menuTile(ctx, 'Record income (no subscription)', Icons.trending_up_rounded, 'income'),
-            _menuTile(ctx, 'Receive from customer', Icons.call_received_rounded, 'receive'),
-            _menuTile(ctx, 'Record expense', Icons.trending_down_rounded, 'expense'),
-            _menuTile(ctx, 'Personal expense', Icons.person_outline_rounded, 'p_expense'),
-            _menuTile(ctx, 'Personal income', Icons.savings_outlined, 'p_income'),
-            _menuTile(ctx, 'Payment / refund', Icons.call_made_rounded, 'refund'),
+            _menuTile(
+              ctx,
+              'Sell a subscription',
+              Icons.vpn_key_rounded,
+              'sale_sub',
+            ),
+            _menuTile(
+              ctx,
+              'Record income (no subscription)',
+              Icons.trending_up_rounded,
+              'income',
+            ),
+            _menuTile(
+              ctx,
+              'Receive from customer',
+              Icons.call_received_rounded,
+              'receive',
+            ),
+            _menuTile(
+              ctx,
+              'Record expense',
+              Icons.trending_down_rounded,
+              'expense',
+            ),
+            _menuTile(
+              ctx,
+              'Personal expense',
+              Icons.person_outline_rounded,
+              'p_expense',
+            ),
+            _menuTile(
+              ctx,
+              'Personal income',
+              Icons.savings_outlined,
+              'p_income',
+            ),
+            _menuTile(
+              ctx,
+              'Payment / refund',
+              Icons.call_made_rounded,
+              'refund',
+            ),
           ],
         ),
       ),
@@ -104,55 +144,90 @@ class _HomeShellState extends State<HomeShell> {
     if (!mounted || choice == null) return;
     switch (choice) {
       case 'sale_sub':
-        await Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const SellSubscriptionPage()));
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SellSubscriptionPage()),
+        );
         break;
       case 'income':
-        await Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const TransactionEditPage(initialKind: TxnKind.income)));
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                const TransactionEditPage(initialKind: TxnKind.income),
+          ),
+        );
         break;
       case 'receive':
-        await Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const TransactionEditPage(initialKind: TxnKind.receive)));
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                const TransactionEditPage(initialKind: TxnKind.receive),
+          ),
+        );
         break;
       case 'expense':
-        await Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const TransactionEditPage(initialKind: TxnKind.expense)));
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                const TransactionEditPage(initialKind: TxnKind.expense),
+          ),
+        );
         break;
       case 'p_expense':
         await Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (_) => const TransactionEditPage(
-                    initialKind: TxnKind.expense, initialScope: TxnScope.personal)));
+          context,
+          MaterialPageRoute(
+            builder: (_) => const TransactionEditPage(
+              initialKind: TxnKind.expense,
+              initialScope: TxnScope.personal,
+            ),
+          ),
+        );
         break;
       case 'p_income':
         await Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (_) => const TransactionEditPage(
-                    initialKind: TxnKind.income, initialScope: TxnScope.personal)));
+          context,
+          MaterialPageRoute(
+            builder: (_) => const TransactionEditPage(
+              initialKind: TxnKind.income,
+              initialScope: TxnScope.personal,
+            ),
+          ),
+        );
         break;
       case 'refund':
-        await Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const TransactionEditPage(initialKind: TxnKind.refund)));
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                const TransactionEditPage(initialKind: TxnKind.refund),
+          ),
+        );
         break;
     }
   }
 
-  Widget _menuTile(BuildContext ctx, String title, IconData icon, String value) => ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(9),
-          decoration: BoxDecoration(
-            color: Theme.of(ctx).colorScheme.primary.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, size: 18, color: Theme.of(ctx).colorScheme.primary),
-        ),
-        title: Text(title),
-        trailing: const Icon(Icons.chevron_right_rounded, size: 18),
-        onTap: () => Navigator.pop(ctx, value),
-      );
+  Widget _menuTile(
+    BuildContext ctx,
+    String title,
+    IconData icon,
+    String value,
+  ) => ListTile(
+    leading: Container(
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: Theme.of(ctx).colorScheme.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(icon, size: 18, color: Theme.of(ctx).colorScheme.primary),
+    ),
+    title: Text(title.tr),
+    trailing: const Icon(Icons.chevron_right_rounded, size: 18),
+    onTap: () => Navigator.pop(ctx, value),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -167,23 +242,42 @@ class _HomeShellState extends State<HomeShell> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(_titles[_index]),
+          title: Text(_titles[_index].tr),
           actions: [
             if (repo.settings.businessName.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(left: 4),
+                padding: const EdgeInsetsDirectional.only(start: 4),
                 child: Center(
-                  child: Text(repo.settings.businessName,
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55))),
+                  child: Text(
+                    repo.settings.businessName,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurface
+                          .withValues(alpha: 0.55),
+                    ),
+                  ),
                 ),
               ),
             IconButton(
-              tooltip: 'Settings',
+              tooltip: 'Reports'.tr,
+              icon: const Icon(Icons.insights_outlined),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => Scaffold(
+                    appBar: AppBar(title: Text('Reports'.tr)),
+                    body: const ReportsPage(),
+                  ),
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Settings'.tr,
               icon: const Icon(Icons.settings_outlined),
-              onPressed: () =>
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage())),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsPage()),
+              ),
             ),
           ],
         ),
@@ -197,62 +291,67 @@ class _HomeShellState extends State<HomeShell> {
                   const CustomersPage(),
                   const SubscriptionsPage(),
                   const TransactionsPage(),
-                  const ReportsPage(),
                 ],
               ),
         floatingActionButton: !repo.isReady
             ? null
             : _index == 2
-                ? FloatingActionButton.extended(
-                    onPressed: () => Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => const ContactEditPage())),
-                    icon: const Icon(Icons.person_add_alt_1_rounded),
-                    label: const Text('New customer'),
-                  )
-                : _index == 1
-                    ? FloatingActionButton.extended(
-                        onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const TransactionEditPage(
-                                    initialKind: TxnKind.expense,
-                                    initialScope: TxnScope.personal))),
-                        icon: const Icon(Icons.remove_rounded),
-                        label: const Text('Personal expense'),
-                      )
-                    : FloatingActionButton(
-                        onPressed: _quickAdd,
-                        tooltip: 'Quick add',
-                        child: const Icon(Icons.add_rounded),
-                      ),
+            ? FloatingActionButton.extended(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ContactEditPage()),
+                ),
+                icon: const Icon(Icons.person_add_alt_1_rounded),
+                label: Text('New customer'.tr),
+              )
+            : _index == 1
+            ? FloatingActionButton.extended(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const TransactionEditPage(
+                      initialKind: TxnKind.expense,
+                      initialScope: TxnScope.personal,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.remove_rounded),
+                label: Text('Personal expense'.tr),
+              )
+            : FloatingActionButton(
+                onPressed: _quickAdd,
+                tooltip: 'Quick add'.tr,
+                child: const Icon(Icons.add_rounded),
+              ),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _index,
           onDestinationSelected: _goTo,
-          destinations: const [
+          destinations: [
             NavigationDestination(
-                icon: Icon(Icons.dashboard_outlined),
-                selectedIcon: Icon(Icons.dashboard_rounded),
-                label: 'Dashboard'),
+              icon: Icon(Icons.dashboard_outlined),
+              selectedIcon: Icon(Icons.dashboard_rounded),
+              label: 'Dashboard'.tr,
+            ),
             NavigationDestination(
-                icon: Icon(Icons.person_outline_rounded),
-                selectedIcon: Icon(Icons.person_rounded),
-                label: 'Personal'),
+              icon: Icon(Icons.person_outline_rounded),
+              selectedIcon: Icon(Icons.person_rounded),
+              label: 'Personal'.tr,
+            ),
             NavigationDestination(
-                icon: Icon(Icons.people_outline_rounded),
-                selectedIcon: Icon(Icons.people_rounded),
-                label: 'Customers'),
+              icon: Icon(Icons.people_outline_rounded),
+              selectedIcon: Icon(Icons.people_rounded),
+              label: 'Customers'.tr,
+            ),
             NavigationDestination(
-                icon: Icon(Icons.vpn_key_outlined),
-                selectedIcon: Icon(Icons.vpn_key_rounded),
-                label: 'Subscriptions'),
+              icon: Icon(Icons.vpn_key_outlined),
+              selectedIcon: Icon(Icons.vpn_key_rounded),
+              label: 'Subscriptions'.tr,
+            ),
             NavigationDestination(
-                icon: Icon(Icons.receipt_long_outlined),
-                selectedIcon: Icon(Icons.receipt_long_rounded),
-                label: 'Transactions'),
-            NavigationDestination(
-                icon: Icon(Icons.insights_outlined),
-                selectedIcon: Icon(Icons.insights_rounded),
-                label: 'Reports'),
+              icon: Icon(Icons.receipt_long_outlined),
+              selectedIcon: Icon(Icons.receipt_long_rounded),
+              label: 'Transactions'.tr,
+            ),
           ],
         ),
       ),
