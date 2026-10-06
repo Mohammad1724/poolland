@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shamsi_date/shamsi_date.dart';
 
+import '../core/jalali_utils.dart';
 import '../core/localization.dart';
 
 /// ============================================================
@@ -495,8 +496,7 @@ class Plan {
       final end = s.add(Duration(days: durationValue - 1));
       return DateTime(end.year, end.month, end.day, 23, 59);
     }
-    final j = Jalali.fromDateTime(s);
-    final e = j.addMonths(durationValue).addDays(-1).toDateTime();
+    final e = J.addDays(J.addMonths(s, durationValue), -1);
     return DateTime(e.year, e.month, e.day, 23, 59);
   }
 

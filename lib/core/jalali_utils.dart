@@ -75,8 +75,17 @@ class J {
   static DateTime endOfDay(DateTime dt) =>
       DateTime(dt.year, dt.month, dt.day, 23, 59, 59, 999);
 
-  static DateTime addMonths(DateTime dt, int months) =>
-      of(dt).addMonths(months).toDateTime();
+  /// Add calendar months while clamping the day to the target month's length.
+  /// For example, adding one month to the 31st lands on the 30th in a
+  /// 30-day Jalali month instead of throwing a DateException.
+  static DateTime addMonths(DateTime dt, int months) {
+    final source = of(dt);
+    final targetMonth = Jalali(source.year, source.month, 1).addMonths(months);
+    final targetDay = source.day <= targetMonth.monthLength
+        ? source.day
+        : targetMonth.monthLength;
+    return Jalali(targetMonth.year, targetMonth.month, targetDay).toDateTime();
+  }
 
   static DateTime addDays(DateTime dt, int days) =>
       of(dt).addDays(days).toDateTime();
