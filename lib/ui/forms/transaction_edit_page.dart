@@ -203,197 +203,80 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
             ),
         ],
       ),
+      bottomNavigationBar: FormActionBar(
+        label: isEdit ? 'Save changes' : 'Record',
+        onPressed: _save,
+      ),
       body: Form(
         key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
-          children: [
-            // Transaction type
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final k in TxnKind.values)
-                  ChoiceChip(
-                    selected: _kind == k,
-                    onSelected: (_) => setState(() => _kind = k),
-                    avatar: Icon(k.icon, size: 16),
-                    label: Text(k.label),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            // Scope: business or personal
-            SegmentedButton<TxnScope>(
-              segments: [
-                for (final sc in TxnScope.values)
-                  ButtonSegment(value: sc, label: Text(sc.label)),
-              ],
-              selected: {_scope},
-              onSelectionChanged: (s) => setState(() {
-                _scope = s.first;
-                if (_scope == TxnScope.personal) {
-                  _customer = null;
-                  _subscription = null;
-                  _credit = false;
-                }
-                final list = repo.categoriesOf(_kind, scope: _scope);
-                if (_category != null &&
-                    !list.any((c) => c.id == _category!.id)) {
-                  _category =
-                      repo.defaultCategoryId(_kind, scope: _scope) == null
-                      ? null
-                      : repo.categoryById(
-                          repo.defaultCategoryId(_kind, scope: _scope),
-                        );
-                }
-              }),
-              style: SegmentedButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                textStyle: const TextStyle(fontSize: 12),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              _scope.hint,
-              style: TextStyle(
-                fontSize: 11,
-                color: Theme.of(context).colorScheme.onSurface
-                    .withValues(alpha: 0.55),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: AmountField(
-                    controller: _amount,
-                    label: 'Amount'.tr,
-                    currency: _currency,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 112,
-                  child: SelectField<String>(
-                    label: 'Currency'.tr,
-                    value: _currency,
-                    items: currencies.map((c) => c.code).toList(),
-                    labelOf: (c) => Money.symbol(c),
-                    onChanged: (c) => setState(() {
-                      _currency = c ?? _currency;
-                      _settleCurrency = _currency;
-                    }),
-                  ),
-                ),
-              ],
-            ),
-            if (_currency != 'IRT')
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  'Base-currency equivalent at {rate} = {amount}'.trArgs({
-                    'rate': Money.text(
-                      repo.settings.currency(_currency).rateToBase,
-                    ),
-                    'amount': Money.text(
-                      parseAmount(_amount.text) *
-                          repo.settings.currency(_currency).rateToBase,
-                    ),
-                  }),
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: Theme.of(context).colorScheme.onSurface
-                        .withValues(alpha: 0.6),
-                  ),
-                ),
-              ),
-            const SizedBox(height: 14),
-            JalaliDateField(
-              label: 'Date'.tr,
-              value: _date,
-              onChanged: (d) => setState(() => _date = d),
-            ),
-            const SizedBox(height: 14),
-
-            // Business contact. Personal spending is kept out of customer accounts.
-            if (_scope == TxnScope.business)
-              Row(
+        child: FormPageContent(
+          maxWidth: 760,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
+            children: [
+              // Transaction type
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  Expanded(
-                    child: SelectField<Customer>(
-                      label: 'Contact (optional)'.tr,
-                      icon: Icons.person_outline_rounded,
-                      value: _customer,
-                      items: repo.activeCustomers,
-                      clearable: true,
-                      labelOf: (c) => c.name,
-                      subOf: (c) => c.phone,
-                      searchHint: 'Customer name...'.tr,
-                      sheetTitle: 'Select contact'.tr,
-                      onChanged: (c) => setState(() => _customer = c),
+                  for (final k in TxnKind.values)
+                    ChoiceChip(
+                      selected: _kind == k,
+                      onSelected: (_) => setState(() => _kind = k),
+                      avatar: Icon(k.icon, size: 16),
+                      label: Text(k.label),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    tooltip: 'New contact'.tr,
-                    onPressed: () async {
-                      final created = await Navigator.push<Customer>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ContactEditPage(),
-                        ),
-                      );
-                      if (created != null) setState(() => _customer = created);
-                    },
-                    icon: const Icon(Icons.person_add_alt_1_rounded, size: 20),
-                  ),
                 ],
               ),
-            if (_needsCategory) ...[
               const SizedBox(height: 14),
-              SelectField<Category>(
-                label: 'Category'.tr,
-                icon: Icons.category_outlined,
-                value: _category,
-                items: repo.categoriesOf(_kind, scope: _scope),
-                labelOf: (c) => c.name,
-                onChanged: (c) => setState(() => _category = c),
-              ),
-              if (_customer != null) ...[
-                const SizedBox(height: 6),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _credit,
-                  onChanged: (v) => setState(() => _credit = v),
-                  title: Text(
-                    _kind == TxnKind.income
-                        ? 'Credit (customer balance)'
-                        : 'Credit (our payable)',
-                    style: const TextStyle(fontSize: 13.5),
-                  ),
-                  subtitle: Text(
-                    'When on, record the charge first and enter any amount already settled below.'
-                        .tr,
-                    style: TextStyle(fontSize: 11.5),
-                  ),
+              // Scope: business or personal
+              SegmentedButton<TxnScope>(
+                segments: [
+                  for (final sc in TxnScope.values)
+                    ButtonSegment(value: sc, label: Text(sc.label)),
+                ],
+                selected: {_scope},
+                onSelectionChanged: (s) => setState(() {
+                  _scope = s.first;
+                  if (_scope == TxnScope.personal) {
+                    _customer = null;
+                    _subscription = null;
+                    _credit = false;
+                  }
+                  final list = repo.categoriesOf(_kind, scope: _scope);
+                  if (_category != null &&
+                      !list.any((c) => c.id == _category!.id)) {
+                    _category =
+                        repo.defaultCategoryId(_kind, scope: _scope) == null
+                        ? null
+                        : repo.categoryById(
+                            repo.defaultCategoryId(_kind, scope: _scope),
+                          );
+                  }
+                }),
+                style: SegmentedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  textStyle: const TextStyle(fontSize: 12),
                 ),
-              ],
-            ],
-            if (showSettle) ...[
-              const SizedBox(height: 6),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _scope.hint,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context).colorScheme.onSurface
+                      .withValues(alpha: 0.55),
+                ),
+              ),
+              const SizedBox(height: 16),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: AmountField(
-                      controller: _settled,
-                      label: _kind == TxnKind.income
-                          ? 'Cash received now'
-                          : 'Cash paid now',
-                      currency: _settleCurrency,
-                      validator: (_) => null,
+                      controller: _amount,
+                      label: 'Amount'.tr,
+                      currency: _currency,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -401,31 +284,153 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                     width: 112,
                     child: SelectField<String>(
                       label: 'Currency'.tr,
-                      value: _settleCurrency,
+                      value: _currency,
                       items: currencies.map((c) => c.code).toList(),
                       labelOf: (c) => Money.symbol(c),
-                      onChanged: (c) => setState(
-                        () => _settleCurrency = c ?? _settleCurrency,
-                      ),
+                      onChanged: (c) => setState(() {
+                        _currency = c ?? _currency;
+                        _settleCurrency = _currency;
+                      }),
                     ),
                   ),
                 ],
               ),
+              if (_currency != 'IRT')
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Base-currency equivalent at {rate} = {amount}'.trArgs({
+                      'rate': Money.text(
+                        repo.settings.currency(_currency).rateToBase,
+                      ),
+                      'amount': Money.text(
+                        parseAmount(_amount.text) *
+                            repo.settings.currency(_currency).rateToBase,
+                      ),
+                    }),
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: Theme.of(context).colorScheme.onSurface
+                          .withValues(alpha: 0.6),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 14),
+              JalaliDateField(
+                label: 'Date'.tr,
+                value: _date,
+                onChanged: (d) => setState(() => _date = d),
+              ),
+              const SizedBox(height: 14),
+
+              // Business contact. Personal spending is kept out of customer accounts.
+              if (_scope == TxnScope.business)
+                Row(
+                  children: [
+                    Expanded(
+                      child: SelectField<Customer>(
+                        label: 'Contact (optional)'.tr,
+                        icon: Icons.person_outline_rounded,
+                        value: _customer,
+                        items: repo.activeCustomers,
+                        clearable: true,
+                        labelOf: (c) => c.name,
+                        subOf: (c) => c.phone,
+                        searchHint: 'Customer name...'.tr,
+                        sheetTitle: 'Select contact'.tr,
+                        onChanged: (c) => setState(() => _customer = c),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filledTonal(
+                      tooltip: 'New contact'.tr,
+                      onPressed: () async {
+                        final created = await Navigator.push<Customer>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ContactEditPage(),
+                          ),
+                        );
+                        if (created != null)
+                          setState(() => _customer = created);
+                      },
+                      icon: const Icon(
+                        Icons.person_add_alt_1_rounded,
+                        size: 20,
+                      ),
+                    ),
+                  ],
+                ),
+              if (_needsCategory) ...[
+                const SizedBox(height: 14),
+                SelectField<Category>(
+                  label: 'Category'.tr,
+                  icon: Icons.category_outlined,
+                  value: _category,
+                  items: repo.categoriesOf(_kind, scope: _scope),
+                  labelOf: (c) => c.name,
+                  onChanged: (c) => setState(() => _category = c),
+                ),
+                if (_customer != null) ...[
+                  const SizedBox(height: 6),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _credit,
+                    onChanged: (v) => setState(() => _credit = v),
+                    title: Text(
+                      _kind == TxnKind.income
+                          ? 'Credit (customer balance)'
+                          : 'Credit (our payable)',
+                      style: const TextStyle(fontSize: 13.5),
+                    ),
+                    subtitle: Text(
+                      'When on, record the charge first and enter any amount already settled below.'
+                          .tr,
+                      style: TextStyle(fontSize: 11.5),
+                    ),
+                  ),
+                ],
+              ],
+              if (showSettle) ...[
+                const SizedBox(height: 6),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: AmountField(
+                        controller: _settled,
+                        label: _kind == TxnKind.income
+                            ? 'Cash received now'
+                            : 'Cash paid now',
+                        currency: _settleCurrency,
+                        validator: (_) => null,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 112,
+                      child: SelectField<String>(
+                        label: 'Currency'.tr,
+                        value: _settleCurrency,
+                        items: currencies.map((c) => c.code).toList(),
+                        labelOf: (c) => Money.symbol(c),
+                        onChanged: (c) => setState(
+                          () => _settleCurrency = c ?? _settleCurrency,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 14),
+              AppTextField(
+                controller: _note,
+                label: 'Description'.tr,
+                icon: Icons.notes_rounded,
+                maxLines: 2,
+              ),
             ],
-            const SizedBox(height: 14),
-            AppTextField(
-              controller: _note,
-              label: 'Description'.tr,
-              icon: Icons.notes_rounded,
-              maxLines: 2,
-            ),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: _save,
-              icon: const Icon(Icons.check_rounded),
-              label: Text((isEdit ? 'Save changes' : 'Record').tr),
-            ),
-          ],
+          ),
         ),
       ),
     );

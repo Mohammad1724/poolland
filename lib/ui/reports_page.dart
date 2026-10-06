@@ -26,6 +26,7 @@ enum _Range { thisMonth, lastMonth, threeMonths, sixMonths, thisYear, all }
 
 class _ReportsPageState extends State<ReportsPage> {
   _Range _range = _Range.thisMonth;
+  TxnScope? _scope = TxnScope.business;
   bool _busy = false;
 
   (DateTime, DateTime) _bounds(AppRepository repo) {
@@ -58,7 +59,7 @@ class _ReportsPageState extends State<ReportsPage> {
     final repo = context.watch<AppRepository>();
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final (from, to) = _bounds(repo);
-    final scope = repo.scopeFilter;
+    final scope = _scope;
     final s = repo.summary(from: from, to: to, scope: scope);
     final monthsSpan = _monthsBetween(from, to);
     final series = Ledger.monthlySeries(
@@ -114,8 +115,8 @@ class _ReportsPageState extends State<ReportsPage> {
                       style: const TextStyle(fontSize: 12),
                     ),
                     showCheckmark: false,
-                    selected: repo.scopeFilter == opt,
-                    onSelected: (_) => repo.setScopeFilter(opt),
+                    selected: _scope == opt,
+                    onSelected: (_) => setState(() => _scope = opt),
                   ),
                 ),
             ],
@@ -505,7 +506,7 @@ class _ReportsPageState extends State<ReportsPage> {
         repo: repo,
         from: from,
         to: to,
-        scope: repo.scopeFilter,
+        scope: _scope,
       );
       await Backup.shareBytes(
         fileName: 'report-${J.d(from, persian: false)}.pdf',
@@ -537,7 +538,7 @@ class _ReportsPageState extends State<ReportsPage> {
           repo.transactions,
           from: from,
           to: to,
-          scope: repo.scopeFilter,
+          scope: _scope,
         ).toList()..sort((a, b) => a.date.compareTo(b.date))))
           [
             J.d(t.date, persian: false),

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 class AppTheme {
   AppTheme._();
 
-  static const seed = Color(0xFF0EA5A4); // Teal
+  static const seed = Color(0xFF087F78); // Calm, high-contrast teal
   static const revenue = Color(0xFF16A34A);
   static const expense = Color(0xFFE11D48);
   static const warning = Color(0xFFF59E0B);
@@ -17,7 +17,7 @@ class AppTheme {
       seedColor: seed,
       brightness: Brightness.light,
     );
-    return _base(scheme, const Color(0xFFF4F6FA), Colors.white);
+    return _base(scheme, const Color(0xFFF7F8FA), Colors.white);
   }
 
   static ThemeData dark() {
@@ -33,15 +33,23 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       fontFamily: 'Vazirmatn',
+      visualDensity: VisualDensity.standard,
       colorScheme: scheme,
+      textTheme: const TextTheme(
+        bodyMedium: TextStyle(fontSize: 14, height: 1.45),
+        bodySmall: TextStyle(fontSize: 12.5, height: 1.45),
+        titleMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+      ),
       scaffoldBackgroundColor: bg,
       cardColor: card,
       cardTheme: CardThemeData(
         color: card,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         margin: EdgeInsets.zero,
+        clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
           side: BorderSide(
             color: isDark ? const Color(0xFF243149) : const Color(0xFFE6EAF2),
           ),
@@ -62,22 +70,22 @@ class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: card,
         surfaceTintColor: Colors.transparent,
-        indicatorColor: scheme.primary.withValues(alpha: 0.15),
+        indicatorColor: scheme.primary.withValues(alpha: 0.12),
         labelTextStyle: WidgetStateProperty.all(
           const TextStyle(
             fontFamily: 'Vazirmatn',
-            fontSize: 11,
+            fontSize: 11.5,
             fontWeight: FontWeight.w600,
           ),
         ),
-        height: 66,
+        height: 72,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark ? const Color(0xFF1B2540) : const Color(0xFFF5F7FB),
+        fillColor: isDark ? const Color(0xFF1B2540) : const Color(0xFFF8FAFB),
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 14,
+          horizontal: 16,
+          vertical: 15,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -93,7 +101,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: seed, width: 1.4),
+          borderSide: const BorderSide(color: seed, width: 1.8),
         ),
         labelStyle: const TextStyle(fontFamily: 'Vazirmatn', fontSize: 13),
         hintStyle: TextStyle(
@@ -141,7 +149,7 @@ class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(50),
+          minimumSize: const Size.fromHeight(52),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),

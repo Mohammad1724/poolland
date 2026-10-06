@@ -27,6 +27,7 @@ import 'package:poolland/ui/subscriptions_page.dart';
 import 'package:poolland/ui/unrecognized_sms_page.dart';
 import 'package:poolland/ui/theme.dart';
 import 'package:poolland/ui/transactions_page.dart';
+import 'package:poolland/ui/widgets/widgets.dart';
 
 /// Smoke test: all pages should render without errors.
 void main() {
@@ -92,6 +93,16 @@ void main() {
     );
   }
 
+  Future<void> tapTab(WidgetTester tester, int index) async {
+    final bar = find.byType(NavigationBar);
+    final rect = tester.getRect(bar);
+    await tester.tapAt(
+      Offset(rect.left + rect.width * (index + 0.5) / 5, rect.center.dy),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+
   testWidgets('Dashboard renders with sample data', (tester) async {
     await tester.pumpWidget(wrap(DashboardPage(onNavigate: (_) {})));
     await tester.pumpAndSettle();
@@ -124,17 +135,26 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(tester.takeException(), isNull);
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('Personal')),
+      findsOneWidget,
+      reason: 'Personal finance should be the first screen for daily use',
+    );
 
-    for (final tab in [
-      'Personal',
-      'Customers',
-      'Subscriptions',
-      'Transactions',
-      'Dashboard',
-    ]) {
-      await tester.tap(find.text(tab).last);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+    const tabs = <(int, String)>[
+      (0, 'Personal'),
+      (2, 'Customers'),
+      (3, 'Subscriptions'),
+      (4, 'Transactions'),
+      (1, 'Dashboard'),
+    ];
+    for (final (index, tab) in tabs) {
+      await tapTab(tester, index);
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: find.text(tab)),
+        findsOneWidget,
+        reason: 'Tab $tab was not selected',
+      );
       expect(
         tester.takeException(),
         isNull,
@@ -149,7 +169,7 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('System back returns from a tab to the dashboard', (
+  testWidgets('Personal quick add opens a personal expense form', (
     tester,
   ) async {
     await tester.pumpWidget(wrapShell());
@@ -159,8 +179,50 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tester.tap(find.text('Subscriptions').last);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Add personal entry'),
+    );
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Personal expense').last);
+    await tester.pumpAndSettle();
+
+    final scopeSelector = tester.widget<SegmentedButton<TxnScope>>(
+      find.byType(SegmentedButton<TxnScope>),
+    );
+    expect(scopeSelector.selected, {TxnScope.personal});
+    expect(find.byType(FormActionBar), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Wide layout switches to a navigation rail', (tester) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(wrapShell());
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 400)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('System back returns from a tab to the personal home', (
+    tester,
+  ) async {
+    await tester.pumpWidget(wrapShell());
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 400)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tapTab(tester, 3);
     expect(
       find.descendant(
         of: find.byType(AppBar),
@@ -172,10 +234,7 @@ void main() {
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(
-      find.descendant(
-        of: find.byType(AppBar),
-        matching: find.text('Dashboard'),
-      ),
+      find.descendant(of: find.byType(AppBar), matching: find.text('Personal')),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
@@ -191,8 +250,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tester.tap(find.text('Customers').last);
-    await tester.pumpAndSettle();
+    await tapTab(tester, 2);
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
     expect(find.text('Settings'), findsOneWidget);
@@ -246,6 +304,25 @@ void main() {
     }
   });
 
+  testWidgets('Report scope is independent of the global transaction filter', (
+    tester,
+  ) async {
+    repo.setScopeFilter(TxnScope.business);
+    await tester.pumpWidget(wrap(const ReportsPage()));
+    await tester.pump();
+
+    final reportScopeChips = find.descendant(
+      of: find.byType(ReportsPage),
+      matching: find.byType(ChoiceChip),
+    );
+    expect(reportScopeChips, findsWidgets);
+    await tester.tap(reportScopeChips.first);
+    await tester.pump();
+
+    expect(repo.scopeFilter, TxnScope.business);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Settings and subpages render', (tester) async {
     for (final page in [
       const SettingsPage(),
@@ -283,6 +360,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Category'), findsOneWidget);
+    expect(find.byType(FormActionBar), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(wrap(const ContactEditPage()));
@@ -320,8 +398,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Amount'), findsNothing);
-    final buttonFinder =
-        find.widgetWithText(FilledButton, 'Record transaction');
+    final buttonFinder = find.widgetWithText(
+      FilledButton,
+      'Record transaction',
+    );
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNull);
 
     await tester.tap(find.text('VPN business'));

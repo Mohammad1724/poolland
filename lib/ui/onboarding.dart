@@ -106,7 +106,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
               child: Column(
                 children: [
                   Text(
-                    'A simple offline ledger for VPN sellers'.tr,
+                    'Personal finances and VPN business in one private app'.tr,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 12.5,
@@ -115,7 +115,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    'Customers, balances, subscriptions, and real profit — all in one place'
+                    'Track daily personal expenses first, while keeping your VPN business accounts separate.'
                         .tr,
                     textAlign: TextAlign.center,
                     style: TextStyle(
@@ -129,26 +129,52 @@ class _OnboardingPageState extends State<OnboardingPage> {
             ),
             const SizedBox(height: 26),
             CardBox(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AppTextField(
-                    controller: _name,
-                    label: 'Business name'.tr,
-                    icon: Icons.storefront_outlined,
-                    hint: 'e.g. Alex VPN'.tr,
+              padding: EdgeInsets.zero,
+              child: Theme(
+                data: theme.copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  leading: Icon(
+                    Icons.storefront_outlined,
+                    color: theme.colorScheme.primary,
                   ),
-                  const SizedBox(height: 14),
-                  AmountField(
-                    controller: _cash,
-                    label: 'Opening cash balance (optional)'.tr,
-                    currency: 'IRT',
-                    validator: (_) => null,
+                  title: Text(
+                    'Set up VPN business (optional)'.tr,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ],
+                  subtitle: Text(
+                    'You can also do this later in Settings.'.tr,
+                    style: const TextStyle(fontSize: 11.5),
+                  ),
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+                  childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
+                  children: [
+                    AppTextField(
+                      controller: _name,
+                      label: 'VPN business name (optional)'.tr,
+                      icon: Icons.storefront_outlined,
+                      hint: 'e.g. Alex VPN'.tr,
+                    ),
+                    const SizedBox(height: 14),
+                    AmountField(
+                      controller: _cash,
+                      label: 'VPN opening cash balance (optional)'.tr,
+                      currency: 'IRT',
+                      validator: (_) => null,
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 18),
+            _feature(
+              context,
+              Icons.account_balance_wallet_outlined,
+              'Personal expenses and budgets',
+              'Record everyday spending quickly and keep monthly limits visible.',
+            ),
             _feature(
               context,
               Icons.people_alt_outlined,
@@ -174,24 +200,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
               'Toman, US dollars, USDT, and any currency you add',
             ),
             const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _busy ? null : () => _finish(repo, demo: false),
-              icon: _busy
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.play_arrow_rounded),
-              label: Text('Get started'.tr),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: _busy ? null : () => _finish(repo, demo: true),
-              icon: const Icon(Icons.auto_awesome_outlined, size: 18),
-              label: Text('Try with sample data first'.tr),
-            ),
-            const SizedBox(height: 14),
             Center(
               child: Column(
                 children: [
@@ -216,6 +224,44 @@ class _OnboardingPageState extends State<OnboardingPage> {
               ),
             ),
           ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            border: Border(top: BorderSide(color: theme.dividerColor)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _busy ? null : () => _finish(repo, demo: false),
+                  icon: _busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.play_arrow_rounded),
+                  label: Text('Get started'.tr),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _busy ? null : () => _finish(repo, demo: true),
+                  icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+                  label: Text('Try with sample data first'.tr),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

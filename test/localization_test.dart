@@ -11,6 +11,16 @@ void main() {
     AppLocalization.languageCode = 'fa';
     expect('Dashboard'.tr, 'داشبورد');
     expect('Reports'.tr, 'گزارش‌ها');
+    expect(
+      'Set up VPN business (optional)'.tr,
+      'راه‌اندازی کسب‌وکار VPN (اختیاری)',
+    );
+    expect(
+      'You can also do this later in Settings.'.tr,
+      'می‌توانید این کار را بعداً از تنظیمات انجام دهید.',
+    );
+    expect('Add personal entry'.tr, 'ثبت مورد شخصی');
+    expect('Monthly net'.tr, 'ماندهٔ خالص ماه');
     expect('{count} customers'.trArgs({'count': 3}), '3 مشتری');
     expect(Fmt.monthName(1), 'فروردین');
     expect(Fmt.weekDayName(1), 'شنبه');

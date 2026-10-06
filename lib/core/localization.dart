@@ -10,7 +10,21 @@ class AppLocalization {
         'پایگاه دادهٔ محلی باز نشد. لطفاً دوباره تلاش کنید.',
     'Try again': 'تلاش دوباره',
     'Dashboard': 'داشبورد',
+    'Monthly net': 'ماندهٔ خالص ماه',
+    'Add personal entry': 'ثبت مورد شخصی',
     'Personal': 'شخصی',
+    'Personal finances and VPN business in one private app':
+        'حساب شخصی و کسب‌وکار VPN، در یک برنامهٔ آفلاین',
+    'Track daily personal expenses first, while keeping your VPN business accounts separate.': 'هزینه‌های روزانهٔ شخصی را ثبت کنید و حساب کسب‌وکار VPN را جدا نگه دارید.',
+    'VPN business name (optional)': 'نام کسب‌وکار VPN (اختیاری)',
+    'Set up VPN business (optional)': 'راه‌اندازی کسب‌وکار VPN (اختیاری)',
+    'You can also do this later in Settings.':
+        'می‌توانید این کار را بعداً از تنظیمات انجام دهید.',
+    'VPN opening cash balance (optional)':
+        'موجودی نقد اولیهٔ کسب‌وکار VPN (اختیاری)',
+    'Personal expenses and budgets': 'هزینه‌های شخصی و بودجه‌ها',
+    'Record everyday spending quickly and keep monthly limits visible.':
+        'هزینه‌های روزمره را سریع ثبت کنید و سقف ماهانه را همیشه ببینید.',
     'Customers': 'مشتریان',
     'Subscriptions': 'اشتراک‌ها',
     'Transactions': 'تراکنش‌ها',
@@ -238,51 +252,42 @@ class AppLocalization {
     'No review history yet': 'هنوز سابقهٔ بررسی وجود ندارد',
     'Approved or rejected SMS messages will appear here.':
         'پیامک‌های تأییدشده یا ردشده در اینجا نمایش داده می‌شوند.',
-    'Reviewed SMS history is kept in this app’s storage and omitted from its export/restore files. Recorded entries can be opened from here; rejected messages do not create transactions. Older status-only records may not be displayable.':
-        'تاریخچهٔ پیامک‌های بررسی‌شده در حافظهٔ همین برنامه نگهداری می‌شود و در فایل‌های خروجی/بازیابی برنامه قرار نمی‌گیرد. تراکنش‌های ثبت‌شده را می‌توان از همین‌جا باز کرد؛ پیامک‌های ردشده تراکنشی ایجاد نمی‌کنند. ممکن است سابقه‌های قدیمیِ فاقد متن پیامک نمایش داده نشوند.',
+    'Reviewed SMS history is kept in this app’s storage and omitted from its export/restore files. Recorded entries can be opened from here; rejected messages do not create transactions. Older status-only records may not be displayable.': 'تاریخچهٔ پیامک‌های بررسی‌شده در حافظهٔ همین برنامه نگهداری می‌شود و در فایل‌های خروجی/بازیابی برنامه قرار نمی‌گیرد. تراکنش‌های ثبت‌شده را می‌توان از همین‌جا باز کرد؛ پیامک‌های ردشده تراکنشی ایجاد نمی‌کنند. ممکن است سابقه‌های قدیمیِ فاقد متن پیامک نمایش داده نشوند.',
     'Open transaction': 'بازکردن تراکنش',
     'Recorded': 'ثبت‌شده',
     'Rejected': 'ردشده',
     'Unrecognized SMS': 'پیامک‌های شناسایی‌نشده',
     'Scan again': 'اسکن دوباره',
-    'These messages look like deposits or withdrawals but do not match an enabled rule. Create a sender or phrase rule to add matching messages to manual review. Nothing is recorded automatically.':
-        'این پیامک‌ها شبیه واریز یا برداشت هستند اما با قاعدهٔ فعالی تطبیق ندارند. با ساخت قاعدهٔ فرستنده یا عبارت، پیامک‌های منطبق به صف بررسی دستی می‌روند. هیچ‌چیز خودکار ثبت نمی‌شود.',
+    'These messages look like deposits or withdrawals but do not match an enabled rule. Create a sender or phrase rule to add matching messages to manual review. Nothing is recorded automatically.': 'این پیامک‌ها شبیه واریز یا برداشت هستند اما با قاعدهٔ فعالی تطبیق ندارند. با ساخت قاعدهٔ فرستنده یا عبارت، پیامک‌های منطبق به صف بررسی دستی می‌روند. هیچ‌چیز خودکار ثبت نمی‌شود.',
     'No unrecognized transaction SMS found':
         'پیامک تراکنشی شناسایی‌نشده‌ای پیدا نشد',
     'Try scanning again after receiving a bank or payment-service SMS.':
         'پس از دریافت پیامک بانک یا سرویس پرداخت، دوباره اسکن کنید.',
-    'SMS access is needed to scan for unrecognized messages. Messages are read on this device only.':
-        'برای جست‌وجوی پیامک‌های شناسایی‌نشده، دسترسی پیامک لازم است. پیامک‌ها فقط روی همین دستگاه خوانده می‌شوند.',
+    'SMS access is needed to scan for unrecognized messages. Messages are read on this device only.': 'برای جست‌وجوی پیامک‌های شناسایی‌نشده، دسترسی پیامک لازم است. پیامک‌ها فقط روی همین دستگاه خوانده می‌شوند.',
     'Unknown sender': 'فرستندهٔ ناشناس',
     'Identify unrecognized SMS': 'شناسایی پیامک ناشناخته',
     'Create recognition rule': 'ساخت قاعدهٔ شناسایی',
-    'The sender and SMS sample are prefilled. Confirm the bank or service name and detection hints before saving.':
-        'فرستنده و نمونهٔ پیامک از قبل وارد شده‌اند. پیش از ذخیره، نام بانک یا سرویس و نشانه‌های شناسایی را بررسی کنید.',
-    'Enabled {enabled} of {total} rules': '{enabled} قاعده از {total} قاعده فعال است',
-    'Only messages matched by an enabled rule can enter the review queue. No transaction is recorded until you review it and explicitly choose Personal or VPN business.':
-        'فقط پیامک‌های منطبق با قاعدهٔ فعال وارد صف بررسی می‌شوند. هیچ تراکنشی ثبت نمی‌شود مگر اینکه آن را بررسی و صریحاً بخش شخصی یا کسب‌وکار VPN را انتخاب کنید.',
+    'The sender and SMS sample are prefilled. Confirm the bank or service name and detection hints before saving.': 'فرستنده و نمونهٔ پیامک از قبل وارد شده‌اند. پیش از ذخیره، نام بانک یا سرویس و نشانه‌های شناسایی را بررسی کنید.',
+    'Enabled {enabled} of {total} rules':
+        '{enabled} قاعده از {total} قاعده فعال است',
+    'Only messages matched by an enabled rule can enter the review queue. No transaction is recorded until you review it and explicitly choose Personal or VPN business.': 'فقط پیامک‌های منطبق با قاعدهٔ فعال وارد صف بررسی می‌شوند. هیچ تراکنشی ثبت نمی‌شود مگر اینکه آن را بررسی و صریحاً بخش شخصی یا کسب‌وکار VPN را انتخاب کنید.',
     'Built-in banks': 'بانک‌های داخلی',
     'Custom rules': 'قواعد سفارشی',
-    'No custom rules yet. Add a sender ID or phrase to recognize a bank or payment service not listed above.':
-        'هنوز قاعدهٔ سفارشی ندارید. شناسهٔ فرستنده یا عبارتی را برای شناسایی بانک یا سرویس پرداختی که در فهرست بالا نیست اضافه کنید.',
+    'No custom rules yet. Add a sender ID or phrase to recognize a bank or payment service not listed above.': 'هنوز قاعدهٔ سفارشی ندارید. شناسهٔ فرستنده یا عبارتی را برای شناسایی بانک یا سرویس پرداختی که در فهرست بالا نیست اضافه کنید.',
     'Sender IDs: {value}': 'شناسه‌های فرستنده: {value}',
     'Message phrases: {value}': 'عبارت‌های پیام: {value}',
     'Enable rule': 'فعال‌کردن قاعده',
     'Disable rule': 'غیرفعال‌کردن قاعده',
     'Recognition rule enabled.': 'قاعدهٔ شناسایی فعال شد.',
-    'Recognition rule disabled. Messages that no longer match an enabled rule are removed from the review queue.':
-        'قاعدهٔ شناسایی غیرفعال شد. پیامک‌هایی که دیگر با قاعدهٔ فعالی منطبق نیستند از صف بررسی حذف می‌شوند.',
+    'Recognition rule disabled. Messages that no longer match an enabled rule are removed from the review queue.': 'قاعدهٔ شناسایی غیرفعال شد. پیامک‌هایی که دیگر با قاعدهٔ فعالی منطبق نیستند از صف بررسی حذف می‌شوند.',
     'Delete custom rule': 'حذف قاعدهٔ سفارشی',
     'Delete custom rule?': 'قاعدهٔ سفارشی حذف شود؟',
-    'This rule will no longer identify SMS messages. Existing transactions will not be changed.':
-        'این قاعده دیگر پیامک‌ها را شناسایی نمی‌کند. تراکنش‌های ثبت‌شده تغییری نمی‌کنند.',
+    'This rule will no longer identify SMS messages. Existing transactions will not be changed.': 'این قاعده دیگر پیامک‌ها را شناسایی نمی‌کند. تراکنش‌های ثبت‌شده تغییری نمی‌کنند.',
     'Custom rule deleted.': 'قاعدهٔ سفارشی حذف شد.',
     'Custom rule added.': 'قاعدهٔ سفارشی افزوده شد.',
     'Add custom SMS rule': 'افزودن قاعدهٔ سفارشی پیامک',
-    'Choose which built-in banks and custom senders can match SMS.':
-        'انتخاب کنید پیامک‌های کدام بانک‌های داخلی و فرستنده‌های سفارشی شناسایی شوند.',
-    'Use a sender ID or a phrase that reliably appears in the message. The sample is only for testing; it is not saved.':
-        'شناسهٔ فرستنده یا عبارتی را وارد کنید که به‌طور ثابت در پیامک دیده می‌شود. نمونه فقط برای آزمایش است و ذخیره نمی‌شود.',
+    'Choose which built-in banks and custom senders can match SMS.': 'انتخاب کنید پیامک‌های کدام بانک‌های داخلی و فرستنده‌های سفارشی شناسایی شوند.',
+    'Use a sender ID or a phrase that reliably appears in the message. The sample is only for testing; it is not saved.': 'شناسهٔ فرستنده یا عبارتی را وارد کنید که به‌طور ثابت در پیامک دیده می‌شود. نمونه فقط برای آزمایش است و ذخیره نمی‌شود.',
     'Bank or service name': 'نام بانک یا سرویس',
     'Enter a bank or service name.': 'نام بانک یا سرویس را وارد کنید.',
     'Sender IDs or numbers': 'شناسه‌ها یا شماره‌های فرستنده',
@@ -290,8 +295,7 @@ class AppLocalization {
         'با ویرگول جدا کنید؛ مثلاً MYBANK، 30001234',
     'Optional phrase in SMS body': 'عبارت اختیاری در متن پیامک',
     'e.g. Your wallet balance': 'مثلاً موجودی کیف پول شما',
-    'Add a sender ID or body phrase to identify messages.':
-        'برای شناسایی پیامک، شناسهٔ فرستنده یا عبارتی از متن پیام را وارد کنید.',
+    'Add a sender ID or body phrase to identify messages.': 'برای شناسایی پیامک، شناسهٔ فرستنده یا عبارتی از متن پیام را وارد کنید.',
     'Assumed amount unit (if the message omits it)':
         'واحد پیش‌فرض مبلغ (اگر در پیام ذکر نشده باشد)',
     'Rials': 'ریال',
@@ -300,9 +304,9 @@ class AppLocalization {
     'Test sample': 'آزمایش نمونه',
     'Saving…': 'در حال ذخیره…',
     'Save rule': 'ذخیرهٔ قاعده',
-    'Matched {bank}: {direction} {amount}.': '{bank}: {direction}، مبلغ {amount}.',
-    'No complete transaction was detected. Check the sender, phrase, amount, and direction.':
-        'تراکنش کاملی شناسایی نشد. فرستنده، عبارت، مبلغ و جهت واریز یا برداشت را بررسی کنید.',
+    'Matched {bank}: {direction} {amount}.':
+        '{bank}: {direction}، مبلغ {amount}.',
+    'No complete transaction was detected. Check the sender, phrase, amount, and direction.': 'تراکنش کاملی شناسایی نشد. فرستنده، عبارت، مبلغ و جهت واریز یا برداشت را بررسی کنید.',
     'Enter sample SMS text first.': 'ابتدا متن نمونهٔ پیامک را وارد کنید.',
     'Could not save the custom rule.': 'ذخیرهٔ قاعدهٔ سفارشی ناموفق بود.',
     'Mellat Bank': 'بانک ملت',

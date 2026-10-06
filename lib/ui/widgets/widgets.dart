@@ -48,6 +48,7 @@ class MoneyText extends StatelessWidget {
         signed: signed,
         compact: compact,
       ),
+      textDirection: TextDirection.ltr,
       style: style?.copyWith(color: color) ?? TextStyle(color: color),
     );
   }
@@ -119,6 +120,62 @@ class SectionTitle extends StatelessWidget {
               child: Text(action!.tr, style: const TextStyle(fontSize: 12)),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Centers data-entry forms on large screens while remaining full-width on phones.
+class FormPageContent extends StatelessWidget {
+  const FormPageContent({super.key, required this.child, this.maxWidth = 760});
+
+  final Widget child;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: child,
+    ),
+  );
+}
+
+/// A persistent save action for long mobile forms. Keeping the primary action
+/// visible avoids scrolling back to the end of a form after editing fields.
+class FormActionBar extends StatelessWidget {
+  const FormActionBar({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.icon = Icons.check_rounded,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.scaffoldBackgroundColor,
+      child: SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: theme.dividerColor)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: onPressed,
+              icon: Icon(icon),
+              label: Text(label.tr),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -800,6 +857,8 @@ class TxnTile extends StatelessWidget {
               currency: txn.currency,
               signed: false,
             ),
+            textDirection: TextDirection.ltr,
+            textAlign: TextAlign.end,
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
@@ -811,6 +870,8 @@ class TxnTile extends StatelessWidget {
               padding: const EdgeInsets.only(top: 2),
               child: Text(
                 Money.text(txn.amount * txn.rateToBase, withSymbol: false),
+                textDirection: TextDirection.ltr,
+                textAlign: TextAlign.end,
                 style: TextStyle(
                   fontSize: 10.5,
                   color: onSurface.withValues(alpha: 0.55),

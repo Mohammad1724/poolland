@@ -26,9 +26,11 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
+  // Personal bookkeeping is the first destination because it is the most
+  // frequent task; business tools remain one tap away.
   static const _titles = [
-    'Dashboard',
     'Personal',
+    'Dashboard',
     'Customers',
     'Subscriptions',
     'Transactions',
@@ -65,79 +67,183 @@ class _HomeShellState extends State<HomeShell> {
 
   void _goTo(int i) => setState(() => _index = i);
 
-  Future<void> _quickAdd() async {
+  Future<void> _personalAdd() async {
     final choice = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(ctx).cardColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(ctx).cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(ctx).dividerColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Text(
+                  'Add personal entry'.tr,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              _menuTile(
+                ctx,
+                'Personal expense',
+                Icons.remove_circle_outline_rounded,
+                'p_expense',
+              ),
+              _menuTile(
+                ctx,
+                'Personal income',
+                Icons.add_circle_outline_rounded,
+                'p_income',
+              ),
+            ],
+          ),
         ),
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 26),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 42,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(ctx).dividerColor,
-                borderRadius: BorderRadius.circular(2),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    final kind = choice == 'p_expense' ? TxnKind.expense : TxnKind.income;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TransactionEditPage(
+          initialKind: kind,
+          initialScope: TxnScope.personal,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _quickAdd() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(ctx).cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(ctx).height * 0.82,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Theme.of(ctx).dividerColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      'What would you like to do?'.tr,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      'VPN business'.tr,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(ctx).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  _menuTile(
+                    ctx,
+                    'Sell a subscription',
+                    Icons.vpn_key_rounded,
+                    'sale_sub',
+                  ),
+                  _menuTile(
+                    ctx,
+                    'Record income (no subscription)',
+                    Icons.trending_up_rounded,
+                    'income',
+                  ),
+                  _menuTile(
+                    ctx,
+                    'Receive from customer',
+                    Icons.call_received_rounded,
+                    'receive',
+                  ),
+                  _menuTile(
+                    ctx,
+                    'Record expense',
+                    Icons.trending_down_rounded,
+                    'expense',
+                  ),
+                  _menuTile(
+                    ctx,
+                    'Payment / refund',
+                    Icons.call_made_rounded,
+                    'refund',
+                  ),
+                  const Divider(height: 16),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      'Personal'.tr,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(ctx).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  _menuTile(
+                    ctx,
+                    'Personal expense',
+                    Icons.person_outline_rounded,
+                    'p_expense',
+                  ),
+                  _menuTile(
+                    ctx,
+                    'Personal income',
+                    Icons.savings_outlined,
+                    'p_income',
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: Text(
-                'What would you like to do?'.tr,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-              ),
-            ),
-            const SizedBox(height: 10),
-            _menuTile(
-              ctx,
-              'Sell a subscription',
-              Icons.vpn_key_rounded,
-              'sale_sub',
-            ),
-            _menuTile(
-              ctx,
-              'Record income (no subscription)',
-              Icons.trending_up_rounded,
-              'income',
-            ),
-            _menuTile(
-              ctx,
-              'Receive from customer',
-              Icons.call_received_rounded,
-              'receive',
-            ),
-            _menuTile(
-              ctx,
-              'Record expense',
-              Icons.trending_down_rounded,
-              'expense',
-            ),
-            _menuTile(
-              ctx,
-              'Personal expense',
-              Icons.person_outline_rounded,
-              'p_expense',
-            ),
-            _menuTile(
-              ctx,
-              'Personal income',
-              Icons.savings_outlined,
-              'p_income',
-            ),
-            _menuTile(
-              ctx,
-              'Payment / refund',
-              Icons.call_made_rounded,
-              'refund',
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -177,22 +283,14 @@ class _HomeShellState extends State<HomeShell> {
         );
         break;
       case 'p_expense':
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const TransactionEditPage(
-              initialKind: TxnKind.expense,
-              initialScope: TxnScope.personal,
-            ),
-          ),
-        );
-        break;
       case 'p_income':
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => const TransactionEditPage(
-              initialKind: TxnKind.income,
+            builder: (_) => TransactionEditPage(
+              initialKind: choice == 'p_expense'
+                  ? TxnKind.expense
+                  : TxnKind.income,
               initialScope: TxnScope.personal,
             ),
           ),
@@ -215,49 +313,51 @@ class _HomeShellState extends State<HomeShell> {
     String title,
     IconData icon,
     String value,
-  ) => ListTile(
-    leading: Container(
-      padding: const EdgeInsets.all(9),
-      decoration: BoxDecoration(
-        color: Theme.of(ctx).colorScheme.primary.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
+  ) => Material(
+    color: Colors.transparent,
+    child: ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: Theme.of(ctx).colorScheme.primary.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, size: 18, color: Theme.of(ctx).colorScheme.primary),
       ),
-      child: Icon(icon, size: 18, color: Theme.of(ctx).colorScheme.primary),
+      title: Text(title.tr),
+      trailing: const Icon(Icons.chevron_right_rounded, size: 18),
+      onTap: () => Navigator.pop(ctx, value),
     ),
-    title: Text(title.tr),
-    trailing: const Icon(Icons.chevron_right_rounded, size: 18),
-    onTap: () => Navigator.pop(ctx, value),
   );
 
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width >= 840;
+    final isExtended = width >= 1120;
+    final content = !repo.isReady
+        ? const Center(child: CircularProgressIndicator())
+        : IndexedStack(
+            index: _index,
+            children: [
+              PersonalPage(onNavigate: _goTo),
+              DashboardPage(onNavigate: _goTo),
+              const CustomersPage(),
+              const SubscriptionsPage(),
+              const TransactionsPage(),
+            ],
+          );
 
     return PopScope<Object?>(
       canPop: _index == 0,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && _index != 0) {
-          setState(() => _index = 0);
-        }
+        if (!didPop && _index != 0) setState(() => _index = 0);
       },
       child: Scaffold(
         appBar: AppBar(
           title: Text(_titles[_index].tr),
           actions: [
-            if (repo.settings.businessName.isNotEmpty)
-              Padding(
-                padding: const EdgeInsetsDirectional.only(start: 4),
-                child: Center(
-                  child: Text(
-                    repo.settings.businessName,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurface
-                          .withValues(alpha: 0.55),
-                    ),
-                  ),
-                ),
-              ),
             IconButton(
               tooltip: 'Reports'.tr,
               icon: const Icon(Icons.insights_outlined),
@@ -281,18 +381,54 @@ class _HomeShellState extends State<HomeShell> {
             ),
           ],
         ),
-        body: !repo.isReady
-            ? const Center(child: CircularProgressIndicator())
-            : IndexedStack(
-                index: _index,
+        body: isWide
+            ? Row(
                 children: [
-                  DashboardPage(onNavigate: _goTo),
-                  const PersonalPage(),
-                  const CustomersPage(),
-                  const SubscriptionsPage(),
-                  const TransactionsPage(),
+                  NavigationRail(
+                    selectedIndex: _index,
+                    onDestinationSelected: _goTo,
+                    labelType: isExtended ? null : NavigationRailLabelType.all,
+                    extended: isExtended,
+                    destinations: [
+                      NavigationRailDestination(
+                        icon: const Icon(Icons.person_outline_rounded),
+                        selectedIcon: const Icon(Icons.person_rounded),
+                        label: Text('Personal'.tr),
+                      ),
+                      NavigationRailDestination(
+                        icon: const Icon(Icons.dashboard_outlined),
+                        selectedIcon: const Icon(Icons.dashboard_rounded),
+                        label: Text('Dashboard'.tr),
+                      ),
+                      NavigationRailDestination(
+                        icon: const Icon(Icons.people_outline_rounded),
+                        selectedIcon: const Icon(Icons.people_rounded),
+                        label: Text('Customers'.tr),
+                      ),
+                      NavigationRailDestination(
+                        icon: const Icon(Icons.vpn_key_outlined),
+                        selectedIcon: const Icon(Icons.vpn_key_rounded),
+                        label: Text('Subscriptions'.tr),
+                      ),
+                      NavigationRailDestination(
+                        icon: const Icon(Icons.receipt_long_outlined),
+                        selectedIcon: const Icon(Icons.receipt_long_rounded),
+                        label: Text('Transactions'.tr),
+                      ),
+                    ],
+                  ),
+                  const VerticalDivider(width: 1),
+                  Expanded(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1180),
+                        child: content,
+                      ),
+                    ),
+                  ),
                 ],
-              ),
+              )
+            : content,
         floatingActionButton: !repo.isReady
             ? null
             : _index == 2
@@ -304,56 +440,68 @@ class _HomeShellState extends State<HomeShell> {
                 icon: const Icon(Icons.person_add_alt_1_rounded),
                 label: Text('New customer'.tr),
               )
-            : _index == 1
+            : _index == 0
+            ? FloatingActionButton.extended(
+                onPressed: _personalAdd,
+                icon: const Icon(Icons.add_rounded),
+                label: Text('Add personal entry'.tr),
+              )
+            : _index == 3
             ? FloatingActionButton.extended(
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const TransactionEditPage(
-                      initialKind: TxnKind.expense,
-                      initialScope: TxnScope.personal,
-                    ),
+                    builder: (_) => const SellSubscriptionPage(),
                   ),
                 ),
-                icon: const Icon(Icons.remove_rounded),
-                label: Text('Personal expense'.tr),
+                icon: const Icon(Icons.vpn_key_rounded),
+                label: Text('Sell a subscription'.tr),
               )
             : FloatingActionButton(
                 onPressed: _quickAdd,
                 tooltip: 'Quick add'.tr,
                 child: const Icon(Icons.add_rounded),
               ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _index,
-          onDestinationSelected: _goTo,
-          destinations: [
-            NavigationDestination(
-              icon: Icon(Icons.dashboard_outlined),
-              selectedIcon: Icon(Icons.dashboard_rounded),
-              label: 'Dashboard'.tr,
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline_rounded),
-              selectedIcon: Icon(Icons.person_rounded),
-              label: 'Personal'.tr,
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.people_outline_rounded),
-              selectedIcon: Icon(Icons.people_rounded),
-              label: 'Customers'.tr,
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.vpn_key_outlined),
-              selectedIcon: Icon(Icons.vpn_key_rounded),
-              label: 'Subscriptions'.tr,
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.receipt_long_outlined),
-              selectedIcon: Icon(Icons.receipt_long_rounded),
-              label: 'Transactions'.tr,
-            ),
-          ],
-        ),
+        bottomNavigationBar: isWide
+            ? null
+            : NavigationBar(
+                selectedIndex: _index,
+                onDestinationSelected: _goTo,
+                labelBehavior:
+                    NavigationDestinationLabelBehavior.onlyShowSelected,
+                destinations: [
+                  NavigationDestination(
+                    icon: const Icon(Icons.person_outline_rounded),
+                    selectedIcon: const Icon(Icons.person_rounded),
+                    label: 'Personal'.tr,
+                    tooltip: 'Personal'.tr,
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.dashboard_outlined),
+                    selectedIcon: const Icon(Icons.dashboard_rounded),
+                    label: 'Dashboard'.tr,
+                    tooltip: 'Dashboard'.tr,
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.people_outline_rounded),
+                    selectedIcon: const Icon(Icons.people_rounded),
+                    label: 'Customers'.tr,
+                    tooltip: 'Customers'.tr,
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.vpn_key_outlined),
+                    selectedIcon: const Icon(Icons.vpn_key_rounded),
+                    label: 'Subscriptions'.tr,
+                    tooltip: 'Subscriptions'.tr,
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.receipt_long_outlined),
+                    selectedIcon: const Icon(Icons.receipt_long_rounded),
+                    label: 'Transactions'.tr,
+                    tooltip: 'Transactions'.tr,
+                  ),
+                ],
+              ),
       ),
     );
   }

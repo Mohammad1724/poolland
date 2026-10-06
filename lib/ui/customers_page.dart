@@ -31,12 +31,18 @@ class _CustomersPageState extends State<CustomersPage> {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final balances = repo.balancesMap();
 
-    var list = repo.activeCustomers;
-    if (_q.isNotEmpty) {
-      list = list
-          .where((c) => c.name.contains(_q) || c.phone.contains(_q))
-          .toList();
-    }
+    final query = _q.trim().toLowerCase();
+    final queryDigits = query.replaceAll(RegExp(r'[^0-9]'), '');
+    final matchingCustomers = repo.activeCustomers.where((c) {
+      if (query.isEmpty) return true;
+      final matchesName = c.name.toLowerCase().contains(query);
+      final normalizedPhone = c.phone.replaceAll(RegExp(r'[^0-9]'), '');
+      final matchesPhone =
+          c.phone.toLowerCase().contains(query) ||
+          (queryDigits.isNotEmpty && normalizedPhone.contains(queryDigits));
+      return matchesName || matchesPhone;
+    }).toList();
+    var list = matchingCustomers;
     if (_filter == _Filter.debtors) {
       list = list.where((c) => (balances[c.id] ?? 0) > 0.5).toList()
         ..sort((a, b) => (balances[b.id] ?? 0).compareTo(balances[a.id] ?? 0));
@@ -61,7 +67,7 @@ class _CustomersPageState extends State<CustomersPage> {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  _chip('All', _Filter.all, list.length),
+                  _chip('All', _Filter.all, matchingCustomers.length),
                   const SizedBox(width: 8),
                   _chip('Debtors', _Filter.debtors, null),
                   const SizedBox(width: 8),

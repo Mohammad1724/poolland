@@ -212,104 +212,107 @@ class _PlanEditPageState extends State<PlanEditPage> {
             ),
         ],
       ),
+      bottomNavigationBar: FormActionBar(
+        label: isEdit ? 'Save' : 'Add plan',
+        onPressed: _save,
+      ),
       body: Form(
         key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-          children: [
-            AppTextField(
-              controller: _name,
-              label: 'Plan name'.tr,
-              hint: 'e.g. 1 month, 50 GB'.tr,
-              icon: Icons.label_outline_rounded,
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Enter a name' : null,
-            ),
-            const SizedBox(height: 14),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: AmountField(
-                    controller: _price,
-                    label: 'Price'.tr,
-                    currency: _currency,
-                    validator: (_) => null,
+        child: FormPageContent(
+          maxWidth: 760,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+            children: [
+              AppTextField(
+                controller: _name,
+                label: 'Plan name'.tr,
+                hint: 'e.g. 1 month, 50 GB'.tr,
+                icon: Icons.label_outline_rounded,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Enter a name' : null,
+              ),
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: AmountField(
+                      controller: _price,
+                      label: 'Price'.tr,
+                      currency: _currency,
+                      validator: (_) => null,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 112,
-                  child: SelectField<String>(
-                    label: 'Currency'.tr,
-                    value: _currency,
-                    items: repo.settings.currencies.map((c) => c.code).toList(),
-                    labelOf: (c) => Money.symbol(c),
-                    onChanged: (c) =>
-                        setState(() => _currency = c ?? _currency),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 112,
+                    child: SelectField<String>(
+                      label: 'Currency'.tr,
+                      value: _currency,
+                      items: repo.settings.currencies
+                          .map((c) => c.code)
+                          .toList(),
+                      labelOf: (c) => Money.symbol(c),
+                      onChanged: (c) =>
+                          setState(() => _currency = c ?? _currency),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Duration'.tr,
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                IconButton.outlined(
-                  onPressed: _duration > 1
-                      ? () => setState(() => _duration--)
-                      : null,
-                  icon: const Icon(Icons.remove_rounded, size: 18),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      '$_duration',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                ],
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Duration'.tr,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  IconButton.outlined(
+                    onPressed: _duration > 1
+                        ? () => setState(() => _duration--)
+                        : null,
+                    icon: const Icon(Icons.remove_rounded, size: 18),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        '$_duration',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                IconButton.outlined(
-                  onPressed: () => setState(() => _duration++),
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            SegmentedButton<PlanDurationUnit>(
-              segments: [
-                ButtonSegment(
-                  value: PlanDurationUnit.month,
-                  label: Text('month'.tr),
-                ),
-                ButtonSegment(
-                  value: PlanDurationUnit.day,
-                  label: Text('day'.tr),
-                ),
-              ],
-              selected: {_unit},
-              onSelectionChanged: (s) => setState(() => _unit = s.first),
-            ),
-            const SizedBox(height: 16),
-            AppTextField(
-              controller: _note,
-              label: 'Description (optional)'.tr,
-              maxLines: 2,
-            ),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: _save,
-              icon: const Icon(Icons.check_rounded),
-              label: Text((isEdit ? 'Save' : 'Add plan').tr),
-            ),
-          ],
+                  IconButton.outlined(
+                    onPressed: () => setState(() => _duration++),
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              SegmentedButton<PlanDurationUnit>(
+                segments: [
+                  ButtonSegment(
+                    value: PlanDurationUnit.month,
+                    label: Text('month'.tr),
+                  ),
+                  ButtonSegment(
+                    value: PlanDurationUnit.day,
+                    label: Text('day'.tr),
+                  ),
+                ],
+                selected: {_unit},
+                onSelectionChanged: (s) => setState(() => _unit = s.first),
+              ),
+              const SizedBox(height: 16),
+              AppTextField(
+                controller: _note,
+                label: 'Description (optional)'.tr,
+                maxLines: 2,
+              ),
+            ],
+          ),
         ),
       ),
     );

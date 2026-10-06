@@ -8,6 +8,7 @@ import '../data/ledger.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 import '../data/store.dart';
+import 'forms/transaction_edit_page.dart';
 import 'widgets/period_chart.dart';
 import 'widgets/quick_buttons.dart';
 import 'widgets/widgets.dart';
@@ -17,7 +18,9 @@ import '../core/localization.dart';
 /// Personal finance page: quick entry, budgeting,
 /// recurring transactions, and daily, weekly, and monthly charts.
 class PersonalPage extends StatelessWidget {
-  const PersonalPage({super.key});
+  const PersonalPage({super.key, this.onNavigate});
+
+  final ValueChanged<int>? onNavigate;
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +97,7 @@ class PersonalPage extends StatelessWidget {
                   const Icon(Icons.account_balance_wallet_rounded, size: 18),
                   const SizedBox(width: 8),
                   Text(
-                    'Balance'.tr,
+                    'Monthly net'.tr,
                     style: TextStyle(
                       fontSize: 12.5,
                       color: onSurface.withValues(alpha: 0.7),
@@ -129,6 +132,54 @@ class PersonalPage extends StatelessWidget {
               .tr,
           onLongPress: (q) => _editQuick(context, q),
         ),
+
+        // ---- Recent personal transactions ----
+        SectionTitle(
+          'Recent personal transactions',
+          icon: Icons.receipt_long_outlined,
+          action: onNavigate == null ? null : 'All',
+          onAction: onNavigate == null
+              ? null
+              : () {
+                  repo.setScopeFilter(TxnScope.personal);
+                  onNavigate!(4);
+                },
+        ),
+        if (personal.isEmpty)
+          CardBox(
+            child: Text(
+              'Nothing recorded yet. Start with the buttons above.'.tr,
+              style: TextStyle(
+                fontSize: 12,
+                color: onSurface.withValues(alpha: 0.65),
+              ),
+            ),
+          )
+        else
+          CardBox(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Column(
+              children: [
+                for (final t in personal.take(8))
+                  TxnTile(
+                    txn: t,
+                    categoryName:
+                        repo.categories
+                            .where((c) => c.id == t.categoryId)
+                            .firstOrNull
+                            ?.name ??
+                        'Uncategorized',
+                    showCustomer: false,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TransactionEditPage(existing: t),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
 
         // ---- Monthly budgets ----
         SectionTitle(
@@ -247,41 +298,6 @@ class PersonalPage extends StatelessWidget {
           ),
           monthly: repo.series(months: 6, scope: TxnScope.personal),
         ),
-
-        // ---- Recent personal transactions ----
-        SectionTitle(
-          'Recent personal transactions',
-          icon: Icons.receipt_long_outlined,
-        ),
-        if (personal.isEmpty)
-          CardBox(
-            child: Text(
-              'Nothing recorded yet. Start with the buttons above.'.tr,
-              style: TextStyle(
-                fontSize: 12,
-                color: onSurface.withValues(alpha: 0.65),
-              ),
-            ),
-          )
-        else
-          CardBox(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Column(
-              children: [
-                for (final t in personal.take(8))
-                  TxnTile(
-                    txn: t,
-                    categoryName:
-                        repo.categories
-                            .where((c) => c.id == t.categoryId)
-                            .firstOrNull
-                            ?.name ??
-                        'Uncategorized',
-                    showCustomer: false,
-                  ),
-              ],
-            ),
-          ),
       ],
     );
   }

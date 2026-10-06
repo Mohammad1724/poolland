@@ -136,115 +136,116 @@ class _ContactEditPageState extends State<ContactEditPage> {
             ),
         ],
       ),
+      bottomNavigationBar: FormActionBar(
+        label: isEdit ? 'Save changes' : 'Add',
+        onPressed: _save,
+      ),
       body: Form(
         key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
-          children: [
-            AppTextField(
-              controller: _name,
-              label: 'Name'.tr,
-              icon: Icons.person_outline_rounded,
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Enter a name' : null,
-            ),
-            const SizedBox(height: 14),
-            AppTextField(
-              controller: _phone,
-              label: 'Phone number'.tr,
-              hint: '0912...'.tr,
-              icon: Icons.phone_outlined,
-              keyboardType: TextInputType.phone,
-            ),
-            const SizedBox(height: 14),
-            AppTextField(
-              controller: _telegram,
-              label: 'Telegram username (optional)'.tr,
-              hint: '@username'.tr,
-              icon: Icons.send_outlined,
-            ),
-            const SizedBox(height: 14),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: AmountField(
-                    controller: _opening,
-                    label: 'Opening balance'.tr,
-                    validator: (_) => null,
+        child: FormPageContent(
+          maxWidth: 760,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
+            children: [
+              AppTextField(
+                controller: _name,
+                label: 'Name'.tr,
+                icon: Icons.person_outline_rounded,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Enter a name' : null,
+              ),
+              const SizedBox(height: 14),
+              AppTextField(
+                controller: _phone,
+                label: 'Phone number'.tr,
+                hint: '0912...'.tr,
+                icon: Icons.phone_outlined,
+                keyboardType: TextInputType.phone,
+              ),
+              const SizedBox(height: 14),
+              AppTextField(
+                controller: _telegram,
+                label: 'Telegram username (optional)'.tr,
+                hint: '@username'.tr,
+                icon: Icons.send_outlined,
+              ),
+              const SizedBox(height: 14),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: AmountField(
+                      controller: _opening,
+                      label: 'Opening balance'.tr,
+                      validator: (_) => null,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SegmentedButton<bool>(
+                    showSelectedIcon: false,
+                    segments: [
+                      ButtonSegment(value: true, label: Text('Debtor'.tr)),
+                      ButtonSegment(value: false, label: Text('Creditor'.tr)),
+                    ],
+                    selected: {_openingIsDebt},
+                    onSelectionChanged: (s) =>
+                        setState(() => _openingIsDebt = s.first),
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  'Enter any existing balance here (for example, an old customer who owes 500,000).'
+                      .tr,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSurface
+                        .withValues(alpha: 0.55),
                   ),
                 ),
-                const SizedBox(width: 8),
-                SegmentedButton<bool>(
-                  showSelectedIcon: false,
-                  segments: [
-                    ButtonSegment(value: true, label: Text('Debtor'.tr)),
-                    ButtonSegment(value: false, label: Text('Creditor'.tr)),
-                  ],
-                  selected: {_openingIsDebt},
-                  onSelectionChanged: (s) =>
-                      setState(() => _openingIsDebt = s.first),
-                ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                'Enter any existing balance here (for example, an old customer who owes 500,000).'
-                    .tr,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Theme.of(context).colorScheme.onSurface
-                      .withValues(alpha: 0.55),
+              ),
+              const SizedBox(height: 14),
+              AppTextField(
+                controller: _note,
+                label: 'Note'.tr,
+                maxLines: 3,
+                icon: Icons.notes_rounded,
+              ),
+              const SizedBox(height: 14),
+              AppTextField(
+                controller: _identifiers,
+                label: 'Bank identifiers (for automatic SMS matching)'.tr,
+                hint: 'e.g. 1234, 6104********5678'.tr,
+                icon: Icons.credit_card_rounded,
+                maxLines: 2,
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  'Enter this customer’s last four card digits or full card number here, and incoming payments in bank SMS messages can be matched automatically.'
+                      .tr,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSurface
+                        .withValues(alpha: 0.55),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 14),
-            AppTextField(
-              controller: _note,
-              label: 'Note'.tr,
-              maxLines: 3,
-              icon: Icons.notes_rounded,
-            ),
-            const SizedBox(height: 14),
-            AppTextField(
-              controller: _identifiers,
-              label: 'Bank identifiers (for automatic SMS matching)'.tr,
-              hint: 'e.g. 1234, 6104********5678'.tr,
-              icon: Icons.credit_card_rounded,
-              maxLines: 2,
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                'Enter this customer’s last four card digits or full card number here, and incoming payments in bank SMS messages can be matched automatically.'
-                    .tr,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Theme.of(context).colorScheme.onSurface
-                      .withValues(alpha: 0.55),
+              const SizedBox(height: 14),
+              if (isEdit)
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _archived,
+                  onChanged: (v) => setState(() => _archived = v),
+                  title: Text('Archived'.tr, style: TextStyle(fontSize: 13.5)),
+                  subtitle: Text(
+                    'Hidden from the main list'.tr,
+                    style: TextStyle(fontSize: 11.5),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            if (isEdit)
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _archived,
-                onChanged: (v) => setState(() => _archived = v),
-                title: Text('Archived'.tr, style: TextStyle(fontSize: 13.5)),
-                subtitle: Text(
-                  'Hidden from the main list'.tr,
-                  style: TextStyle(fontSize: 11.5),
-                ),
-              ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: _save,
-              icon: const Icon(Icons.check_rounded),
-              label: Text((isEdit ? 'Save changes' : 'Add').tr),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
