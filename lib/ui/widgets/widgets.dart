@@ -79,6 +79,44 @@ class CardBox extends StatelessWidget {
   }
 }
 
+/// A compact localized search field with a one-tap clear action.
+class AppSearchField extends StatelessWidget {
+  const AppSearchField({
+    super.key,
+    required this.controller,
+    required this.hint,
+    required this.onChanged,
+    this.isDense = false,
+  });
+
+  final TextEditingController controller;
+  final String hint;
+  final ValueChanged<String> onChanged;
+  final bool isDense;
+
+  @override
+  Widget build(BuildContext context) => TextField(
+    controller: controller,
+    textInputAction: TextInputAction.search,
+    decoration: InputDecoration(
+      hintText: hint.tr,
+      prefixIcon: const Icon(Icons.search_rounded, size: 20),
+      isDense: isDense,
+      suffixIcon: controller.text.isEmpty
+          ? null
+          : IconButton(
+              tooltip: 'Clear search'.tr,
+              icon: const Icon(Icons.close_rounded),
+              onPressed: () {
+                controller.clear();
+                onChanged('');
+              },
+            ),
+    ),
+    onChanged: onChanged,
+  );
+}
+
 class SectionTitle extends StatelessWidget {
   const SectionTitle(
     this.title, {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/format_utils.dart';
 import '../core/jalali_utils.dart';
 import '../core/money.dart';
 import '../data/ledger.dart';
@@ -19,9 +20,16 @@ class TransactionsPage extends StatefulWidget {
 }
 
 class _TransactionsPageState extends State<TransactionsPage> {
+  final _searchController = TextEditingController();
   int _monthOffset = 0; // 0 = current month
   TxnKind? _kind;
   String _q = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,23 +45,29 @@ class _TransactionsPageState extends State<TransactionsPage> {
       scope: repo.scopeFilter,
     );
 
-    var list =
+    final monthTransactions =
         (repo.scopeFilter == null
                 ? repo.transactions
                 : repo.transactions.where((t) => t.scope == repo.scopeFilter))
             .where((t) => Ledger.inRange(t.date, monthStart, monthEnd))
             .toList();
+    var list = monthTransactions;
     if (_kind != null) list = list.where((t) => t.kind == _kind).toList();
-    if (_q.isNotEmpty) {
+    final query = Fmt.normalizeSearchText(_q);
+    if (query.isNotEmpty) {
       list = list
           .where(
             (t) =>
-                t.note.contains(_q) ||
-                repo.customerName(t.customerId).contains(_q) ||
-                repo.categoryName(t.categoryId).contains(_q),
+                Fmt.normalizeSearchText(t.note).contains(query) ||
+                Fmt.normalizeSearchText(repo.customerName(t.customerId))
+                    .contains(query) ||
+                Fmt.normalizeSearchText(repo.categoryName(t.categoryId))
+                    .contains(query),
           )
           .toList();
     }
+    final hasActiveFilters = query.isNotEmpty || _kind != null;
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
 
     // Group by date
     final groups = <String, List<Txn>>{};
@@ -72,7 +86,11 @@ class _TransactionsPageState extends State<TransactionsPage> {
               IconButton(
                 tooltip: 'Previous month'.tr,
                 onPressed: () => setState(() => _monthOffset--),
-                icon: const Icon(Icons.chevron_left_rounded),
+                icon: Icon(
+                  isRtl
+                      ? Icons.chevron_right_rounded
+                      : Icons.chevron_left_rounded,
+                ),
               ),
               Expanded(
                 child: Center(
@@ -86,12 +104,14 @@ class _TransactionsPageState extends State<TransactionsPage> {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        'Income ${Money.text(summary.income, compact: true)} • Expense ${Money.text(summary.expense, compact: true)}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: onSurface.withValues(alpha: 0.6),
-                        ),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 10,
+                        runSpacing: 2,
+                        children: [
+                          _monthAmount(context, 'Income', summary.income),
+                          _monthAmount(context, 'Expense', summary.expense),
+                        ],
                       ),
                     ],
                   ),
@@ -102,7 +122,11 @@ class _TransactionsPageState extends State<TransactionsPage> {
                 onPressed: _monthOffset < 0
                     ? () => setState(() => _monthOffset++)
                     : null,
-                icon: const Icon(Icons.chevron_right_rounded),
+                icon: Icon(
+                  isRtl
+                      ? Icons.chevron_left_rounded
+                      : Icons.chevron_right_rounded,
+                ),
               ),
             ],
           ),
@@ -111,62 +135,90 @@ class _TransactionsPageState extends State<TransactionsPage> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
             children: [
-              TextField(
-                decoration: const InputDecoration(
-                  hintText: 'Search descriptions, customers, and categories...',
-                  prefixIcon: Icon(Icons.search_rounded, size: 20),
-                  isDense: true,
-                ),
-                onChanged: (v) => setState(() => _q = v.trim()),
+              AppSearchField(
+                controller: _searchController,
+                hint: 'Search descriptions, customers, and categories...',
+                isDense: true,
+                onChanged: (v) => setState(() => _q = v),
               ),
               const SizedBox(height: 10),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    for (final opt in <TxnScope?>[
-                      null,
-                      TxnScope.business,
-                      TxnScope.personal,
-                    ])
-                      Padding(
-                        padding: const EdgeInsetsDirectional.only(start: 6),
-                        child: ChoiceChip(
-                          label: Text(
-                            opt == null ? 'All'.tr : opt.label,
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          showCheckmark: false,
-                          selected: repo.scopeFilter == opt,
-                          onSelected: (_) => repo.setScopeFilter(opt),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    ChoiceChip(
-                      label: Text('All'.tr),
-                      showCheckmark: false,
-                      selected: _kind == null,
-                      onSelected: (_) => setState(() => _kind = null),
+              Row(
+                children: [
+                  Text(
+                    'Scope'.tr,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: onSurface.withValues(alpha: 0.65),
                     ),
-                    for (final k in TxnKind.values) ...[
-                      const SizedBox(width: 8),
-                      ChoiceChip(
-                        avatar: Icon(k.icon, size: 15),
-                        label: Text(k.shortLabel),
-                        showCheckmark: false,
-                        selected: _kind == k,
-                        onSelected: (_) => setState(() => _kind = k),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (final opt in <TxnScope?>[
+                            null,
+                            TxnScope.business,
+                            TxnScope.personal,
+                          ])
+                            Padding(
+                              padding: const EdgeInsetsDirectional.only(
+                                start: 6,
+                              ),
+                              child: ChoiceChip(
+                                label: Text(
+                                  opt == null ? 'All'.tr : opt.label,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                showCheckmark: false,
+                                selected: repo.scopeFilter == opt,
+                                onSelected: (_) => repo.setScopeFilter(opt),
+                              ),
+                            ),
+                        ],
                       ),
-                    ],
-                  ],
-                ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(
+                    'Type'.tr,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: onSurface.withValues(alpha: 0.65),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          ChoiceChip(
+                            label: Text('All'.tr),
+                            showCheckmark: false,
+                            selected: _kind == null,
+                            onSelected: (_) => setState(() => _kind = null),
+                          ),
+                          for (final k in TxnKind.values) ...[
+                            const SizedBox(width: 8),
+                            ChoiceChip(
+                              avatar: Icon(k.icon, size: 15),
+                              label: Text(k.shortLabel),
+                              showCheckmark: false,
+                              selected: _kind == k,
+                              onSelected: (_) => setState(() => _kind = k),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -174,10 +226,24 @@ class _TransactionsPageState extends State<TransactionsPage> {
         const SizedBox(height: 8),
         Expanded(
           child: list.isEmpty
-              ? const EmptyState(
+              ? EmptyState(
                   icon: Icons.receipt_long_outlined,
-                  title: 'No transactions this month',
-                  text: 'Tap + to record a sale, receipt, or expense.',
+                  title: hasActiveFilters
+                      ? 'No transactions match these filters'
+                      : 'No transactions this month',
+                  text: hasActiveFilters
+                      ? 'Try changing or clearing the search and transaction type.'
+                      : 'Tap + to record a sale, receipt, or expense.',
+                  actionLabel: hasActiveFilters
+                      ? 'Clear search and type filter'
+                      : null,
+                  onAction: hasActiveFilters
+                      ? () => setState(() {
+                          _searchController.clear();
+                          _q = '';
+                          _kind = null;
+                        })
+                      : null,
                 )
               : ListView(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
@@ -189,31 +255,39 @@ class _TransactionsPageState extends State<TransactionsPage> {
                           children: [
                             Text(
                               entry.key,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 color: onSurface.withValues(alpha: 0.6),
                               ),
                             ),
-                            const Spacer(),
-                            Text(
-                              Money.text(
-                                entry.value.fold<double>(
-                                  0,
-                                  (a, t) =>
-                                      a +
-                                      (t.kind == TxnKind.expense ||
-                                              t.kind == TxnKind.refund ||
-                                              t.kind == TxnKind.payablePayment
-                                          ? -Ledger.base(t)
-                                          : Ledger.base(t)),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                Money.text(
+                                  entry.value.fold<double>(
+                                    0,
+                                    (a, t) =>
+                                        a +
+                                        (t.kind == TxnKind.expense ||
+                                                t.kind == TxnKind.refund ||
+                                                t.kind == TxnKind.payablePayment
+                                            ? -Ledger.base(t)
+                                            : Ledger.base(t)),
+                                  ),
+                                  compact: true,
                                 ),
-                                compact: true,
-                              ),
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                                color: onSurface.withValues(alpha: 0.6),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textDirection: TextDirection.ltr,
+                                textAlign: TextAlign.end,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: onSurface.withValues(alpha: 0.6),
+                                ),
                               ),
                             ),
                           ],
@@ -256,4 +330,30 @@ class _TransactionsPageState extends State<TransactionsPage> {
       ],
     );
   }
+
+  Widget _monthAmount(BuildContext context, String label, double amount) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(
+        '${label.tr}:',
+        style: TextStyle(
+          fontSize: 10.5,
+          color: Theme.of(context).colorScheme.onSurface
+              .withValues(alpha: 0.62),
+        ),
+      ),
+      const SizedBox(width: 3),
+      MoneyText(
+        amount,
+        compact: true,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w600,
+          color: label == 'Income'
+              ? const Color(0xFF16A34A)
+              : const Color(0xFFE11D48),
+        ),
+      ),
+    ],
+  );
 }

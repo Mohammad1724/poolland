@@ -23,6 +23,26 @@ class Fmt {
     return sb.toString();
   }
 
+  /// Convert Persian and Arabic-Indic digits to Latin digits for matching.
+  static String toLatinDigits(String input) => String.fromCharCodes(
+    input.runes.map((rune) {
+      if (rune >= 0x06F0 && rune <= 0x06F9) return rune - 0x06F0 + 0x30;
+      if (rune >= 0x0660 && rune <= 0x0669) return rune - 0x0660 + 0x30;
+      return rune;
+    }),
+  );
+
+  /// Normalize user-entered search text across Persian and Arabic keyboards.
+  static String normalizeSearchText(String input) =>
+      toLatinDigits(input)
+          .toLowerCase()
+          .replaceAll('ي', 'ی')
+          .replaceAll('ك', 'ک')
+          .replaceAll('\u200c', '')
+          .replaceAll('\u200e', '')
+          .replaceAll('\u200f', '')
+          .trim();
+
   /// Use Persian digits and separators when requested.
   static String _localize(String s, bool persian) {
     if (!persian) return s;

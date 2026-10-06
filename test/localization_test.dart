@@ -26,6 +26,10 @@ void main() {
     expect(Fmt.weekDayName(1), 'شنبه');
   });
 
+  test('Search normalization accepts Persian and Arabic keyboard forms', () {
+    expect(Fmt.normalizeSearchText('  كیف ۱۲٣ ي '), 'کیف 123 ی');
+  });
+
   test('English can be selected and is restored from settings', () {
     AppLocalization.languageCode = 'en';
     expect('Dashboard'.tr, 'Dashboard');
