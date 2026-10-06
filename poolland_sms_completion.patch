@@ -1,0 +1,2157 @@
+diff --git a/lib/core/localization.dart b/lib/core/localization.dart
+index 20d3c9c..c67f6e5 100644
+--- a/lib/core/localization.dart
++++ b/lib/core/localization.dart
+@@ -228,6 +228,104 @@ class AppLocalization {
+     'SMS lookback period': 'بازهٔ بررسی پیامک‌ها',
+     'How many past days should be checked?':
+         'پیامک‌های چند روز گذشته بررسی شوند؟',
++    'Recognition rules': 'قواعد شناسایی',
++    'Manage recognition rules': 'مدیریت قواعد شناسایی',
++    'SMS recognition rules': 'قواعد شناسایی پیامک',
++    'Unregistered ({count})': 'ثبت‌نشده ({count})',
++    'Review history ({count})': 'تاریخچهٔ بررسی ({count})',
++    'Received {received} · reviewed {reviewed}':
++        'دریافت: {received} · بررسی: {reviewed}',
++    'No review history yet': 'هنوز سابقهٔ بررسی وجود ندارد',
++    'Approved or rejected SMS messages will appear here.':
++        'پیامک‌های تأییدشده یا ردشده در اینجا نمایش داده می‌شوند.',
++    'Reviewed SMS history is kept in this app’s storage and omitted from its export/restore files. Recorded entries can be opened from here; rejected messages do not create transactions. Older status-only records may not be displayable.':
++        'تاریخچهٔ پیامک‌های بررسی‌شده در حافظهٔ همین برنامه نگهداری می‌شود و در فایل‌های خروجی/بازیابی برنامه قرار نمی‌گیرد. تراکنش‌های ثبت‌شده را می‌توان از همین‌جا باز کرد؛ پیامک‌های ردشده تراکنشی ایجاد نمی‌کنند. ممکن است سابقه‌های قدیمیِ فاقد متن پیامک نمایش داده نشوند.',
++    'Open transaction': 'بازکردن تراکنش',
++    'Recorded': 'ثبت‌شده',
++    'Rejected': 'ردشده',
++    'Unrecognized SMS': 'پیامک‌های شناسایی‌نشده',
++    'Scan again': 'اسکن دوباره',
++    'These messages look like deposits or withdrawals but do not match an enabled rule. Create a sender or phrase rule to add matching messages to manual review. Nothing is recorded automatically.':
++        'این پیامک‌ها شبیه واریز یا برداشت هستند اما با قاعدهٔ فعالی تطبیق ندارند. با ساخت قاعدهٔ فرستنده یا عبارت، پیامک‌های منطبق به صف بررسی دستی می‌روند. هیچ‌چیز خودکار ثبت نمی‌شود.',
++    'No unrecognized transaction SMS found':
++        'پیامک تراکنشی شناسایی‌نشده‌ای پیدا نشد',
++    'Try scanning again after receiving a bank or payment-service SMS.':
++        'پس از دریافت پیامک بانک یا سرویس پرداخت، دوباره اسکن کنید.',
++    'SMS access is needed to scan for unrecognized messages. Messages are read on this device only.':
++        'برای جست‌وجوی پیامک‌های شناسایی‌نشده، دسترسی پیامک لازم است. پیامک‌ها فقط روی همین دستگاه خوانده می‌شوند.',
++    'Unknown sender': 'فرستندهٔ ناشناس',
++    'Identify unrecognized SMS': 'شناسایی پیامک ناشناخته',
++    'Create recognition rule': 'ساخت قاعدهٔ شناسایی',
++    'The sender and SMS sample are prefilled. Confirm the bank or service name and detection hints before saving.':
++        'فرستنده و نمونهٔ پیامک از قبل وارد شده‌اند. پیش از ذخیره، نام بانک یا سرویس و نشانه‌های شناسایی را بررسی کنید.',
++    'Enabled {enabled} of {total} rules': '{enabled} قاعده از {total} قاعده فعال است',
++    'Only messages matched by an enabled rule can enter the review queue. No transaction is recorded until you review it and explicitly choose Personal or VPN business.':
++        'فقط پیامک‌های منطبق با قاعدهٔ فعال وارد صف بررسی می‌شوند. هیچ تراکنشی ثبت نمی‌شود مگر اینکه آن را بررسی و صریحاً بخش شخصی یا کسب‌وکار VPN را انتخاب کنید.',
++    'Built-in banks': 'بانک‌های داخلی',
++    'Custom rules': 'قواعد سفارشی',
++    'No custom rules yet. Add a sender ID or phrase to recognize a bank or payment service not listed above.':
++        'هنوز قاعدهٔ سفارشی ندارید. شناسهٔ فرستنده یا عبارتی را برای شناسایی بانک یا سرویس پرداختی که در فهرست بالا نیست اضافه کنید.',
++    'Sender IDs: {value}': 'شناسه‌های فرستنده: {value}',
++    'Message phrases: {value}': 'عبارت‌های پیام: {value}',
++    'Enable rule': 'فعال‌کردن قاعده',
++    'Disable rule': 'غیرفعال‌کردن قاعده',
++    'Recognition rule enabled.': 'قاعدهٔ شناسایی فعال شد.',
++    'Recognition rule disabled. Messages that no longer match an enabled rule are removed from the review queue.':
++        'قاعدهٔ شناسایی غیرفعال شد. پیامک‌هایی که دیگر با قاعدهٔ فعالی منطبق نیستند از صف بررسی حذف می‌شوند.',
++    'Delete custom rule': 'حذف قاعدهٔ سفارشی',
++    'Delete custom rule?': 'قاعدهٔ سفارشی حذف شود؟',
++    'This rule will no longer identify SMS messages. Existing transactions will not be changed.':
++        'این قاعده دیگر پیامک‌ها را شناسایی نمی‌کند. تراکنش‌های ثبت‌شده تغییری نمی‌کنند.',
++    'Custom rule deleted.': 'قاعدهٔ سفارشی حذف شد.',
++    'Custom rule added.': 'قاعدهٔ سفارشی افزوده شد.',
++    'Add custom SMS rule': 'افزودن قاعدهٔ سفارشی پیامک',
++    'Choose which built-in banks and custom senders can match SMS.':
++        'انتخاب کنید پیامک‌های کدام بانک‌های داخلی و فرستنده‌های سفارشی شناسایی شوند.',
++    'Use a sender ID or a phrase that reliably appears in the message. The sample is only for testing; it is not saved.':
++        'شناسهٔ فرستنده یا عبارتی را وارد کنید که به‌طور ثابت در پیامک دیده می‌شود. نمونه فقط برای آزمایش است و ذخیره نمی‌شود.',
++    'Bank or service name': 'نام بانک یا سرویس',
++    'Enter a bank or service name.': 'نام بانک یا سرویس را وارد کنید.',
++    'Sender IDs or numbers': 'شناسه‌ها یا شماره‌های فرستنده',
++    'Comma-separated; e.g. MYBANK, 30001234':
++        'با ویرگول جدا کنید؛ مثلاً MYBANK، 30001234',
++    'Optional phrase in SMS body': 'عبارت اختیاری در متن پیامک',
++    'e.g. Your wallet balance': 'مثلاً موجودی کیف پول شما',
++    'Add a sender ID or body phrase to identify messages.':
++        'برای شناسایی پیامک، شناسهٔ فرستنده یا عبارتی از متن پیام را وارد کنید.',
++    'Assumed amount unit (if the message omits it)':
++        'واحد پیش‌فرض مبلغ (اگر در پیام ذکر نشده باشد)',
++    'Rials': 'ریال',
++    'Tomans': 'تومان',
++    'Sample SMS text (optional)': 'متن نمونهٔ پیامک (اختیاری)',
++    'Test sample': 'آزمایش نمونه',
++    'Saving…': 'در حال ذخیره…',
++    'Save rule': 'ذخیرهٔ قاعده',
++    'Matched {bank}: {direction} {amount}.': '{bank}: {direction}، مبلغ {amount}.',
++    'No complete transaction was detected. Check the sender, phrase, amount, and direction.':
++        'تراکنش کاملی شناسایی نشد. فرستنده، عبارت، مبلغ و جهت واریز یا برداشت را بررسی کنید.',
++    'Enter sample SMS text first.': 'ابتدا متن نمونهٔ پیامک را وارد کنید.',
++    'Could not save the custom rule.': 'ذخیرهٔ قاعدهٔ سفارشی ناموفق بود.',
++    'Mellat Bank': 'بانک ملت',
++    'Saderat Bank': 'بانک صادرات',
++    'Tejarat Bank': 'بانک تجارت',
++    'Melli Bank': 'بانک ملی',
++    'Parsian Bank': 'بانک پارسیان',
++    'Saman Bank': 'بانک سامان',
++    'Pasargad Bank': 'بانک پاسارگاد',
++    'Ayandeh Bank': 'بانک آینده',
++    'Resalat Bank': 'بانک رسالت',
++    'Sina Bank / Blu Bank': 'بانک سینا / بلوبانک',
++    'Keshavarzi Bank': 'بانک کشاورزی',
++    'Refah Bank': 'بانک رفاه',
++    'Shahr Bank': 'بانک شهر',
++    'Karafarin Bank': 'بانک کارآفرین',
++    'Sarmayeh Bank': 'بانک سرمایه',
++    'Sepah Bank': 'بانک سپه',
++    'Post Bank': 'پست‌بانک',
++    'Iran Zamin Bank': 'بانک ایران‌زمین',
++    'Day Bank': 'بانک دی',
++    'Tourism Bank': 'بانک گردشگری',
++    'Mehr Bank / Qarz al-Hasaneh': 'بانک مهر / قرض‌الحسنه',
+     'Poolland reminder test': 'آزمایش یادآور پول‌لند',
+     'A simple offline ledger for VPN sellers\\nCustomers, balances, subscriptions, and real profit — all in one place': 'دفتر حساب آفلاین برای فروشندگان VPN\\nمشتریان، مانده‌ها، اشتراک‌ها و سود واقعی؛ همه در یک‌جا',
+     'All data stays on this device\\nNo account and no internet required': 'همهٔ داده‌ها روی همین دستگاه می‌ماند\\nبدون حساب کاربری و بدون نیاز به اینترنت',
+@@ -328,6 +426,7 @@ class AppLocalization {
+     'Grant access to identify incoming payments automatically':
+         'برای شناسایی خودکار دریافتی‌ها دسترسی بدهید',
+     'All data stays on this device': 'همهٔ داده‌ها روی همین دستگاه می‌مانند',
++    'All data stays on this device.': 'همهٔ داده‌ها روی همین دستگاه می‌ماند.',
+     'No account and no internet required':
+         'بدون حساب کاربری و بدون نیاز به اینترنت',
+     '(Auto-matched)': '(تطبیق خودکار)',
+@@ -470,6 +569,7 @@ class AppLocalization {
+     'End: Never': 'پایان: هرگز',
+     'End: {date}': 'پایان: {date}',
+     'Last checked: {date}': 'آخرین بررسی: {date}',
++    ' · {label}': ' · {label}',
+     'Card {card}': 'کارت {card}',
+     'Reference {reference}': 'شناسه {reference}',
+     'Balance {balance}': 'مانده {balance}',
+diff --git a/lib/core/sms/bank_rules.dart b/lib/core/sms/bank_rules.dart
+index 30782cd..a84cb24 100644
+--- a/lib/core/sms/bank_rules.dart
++++ b/lib/core/sms/bank_rules.dart
+@@ -9,7 +9,7 @@
+ enum AmountUnit { rial, toman }
+ 
+ class BankRule {
+-  /// Identifier (used for custom user rules).
++  /// Stable identifier for this built-in or custom rule.
+   final String id;
+ 
+   /// Bank name shown in the app.
+diff --git a/lib/core/sms/sms_models.dart b/lib/core/sms/sms_models.dart
+index 8e292f5..b7f733a 100644
+--- a/lib/core/sms/sms_models.dart
++++ b/lib/core/sms/sms_models.dart
+@@ -69,6 +69,74 @@ class SmsMessage {
+   };
+ }
+ 
++/// A locally stored record of an SMS that the user reviewed.
++/// History stays out of the app's explicit JSON export/restore format.
++class SmsHistoryEntry {
++  static const String approvedStatus = 'approved';
++  static const String rejectedStatus = 'rejected';
++
++  final String key;
++  final SmsMessage message;
++  final String status;
++  final String? bankName;
++  final double amount;
++  final String currency;
++  final SmsDirection direction;
++  final DateTime reviewedAt;
++  final String? transactionId;
++
++  const SmsHistoryEntry({
++    required this.key,
++    required this.message,
++    required this.status,
++    this.bankName,
++    this.amount = 0,
++    this.currency = 'IRT',
++    this.direction = SmsDirection.unknown,
++    required this.reviewedAt,
++    this.transactionId,
++  });
++
++  bool get wasRecorded => status == approvedStatus;
++  bool get wasRejected => status == rejectedStatus;
++
++  Map<String, dynamic> toMap() => {
++    'key': key,
++    'status': status,
++    'message': message.toMap(),
++    'bankName': bankName,
++    'amount': amount,
++    'currency': currency,
++    'direction': direction.name,
++    'at': reviewedAt.millisecondsSinceEpoch,
++    'transactionId': transactionId,
++  };
++
++  factory SmsHistoryEntry.fromMap(Map map) {
++    final rawMessage = map['message'];
++    if (rawMessage is! Map) {
++      throw const FormatException('SMS review record has no message.');
++    }
++    final directionName = '${map['direction'] ?? SmsDirection.unknown.name}';
++    return SmsHistoryEntry(
++      key: '${map['key'] ?? ''}',
++      status: '${map['status'] ?? ''}',
++      message: SmsMessage.fromMap(Map<dynamic, dynamic>.from(rawMessage)),
++      bankName: map['bankName'] as String?,
++      amount: (map['amount'] as num?)?.toDouble() ?? 0,
++      currency: '${map['currency'] ?? 'IRT'}',
++      direction: SmsDirection.values.firstWhere(
++        (value) => value.name == directionName,
++        orElse: () => SmsDirection.unknown,
++      ),
++      reviewedAt: DateTime.fromMillisecondsSinceEpoch(
++        (map['at'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch,
++      ),
++      transactionId: map['transactionId'] as String?,
++    );
++  }
++}
++
+ /// Result of parsing an SMS message.
+ class ParsedSms {
+   final SmsMessage message;
+@@ -124,6 +192,10 @@ class ParsedSms {
+   bool get isTransaction =>
+       bankName != null && amount > 0 && direction != SmsDirection.unknown;
+ 
++  /// Message has transaction-like direction and amount but no active rule.
++  bool get isPotentialUnrecognizedTransaction =>
++      bankName == null && amount > 0 && direction != SmsDirection.unknown;
++
+   /// Suggested transaction type for the ledger.
+   /// Deposit → customer receipt or income; withdrawal → expense.
+   String get suggestedKindLabel => switch (direction) {
+diff --git a/lib/core/sms/sms_parser.dart b/lib/core/sms/sms_parser.dart
+index eea2f15..4730d05 100644
+--- a/lib/core/sms/sms_parser.dart
++++ b/lib/core/sms/sms_parser.dart
+@@ -160,10 +160,16 @@ class SmsParser {
+   static ParsedSms parse(
+     SmsMessage msg, {
+     List<BankRule> extraRules = const <BankRule>[],
++    Set<String> disabledRuleIds = const <String>{},
+   }) {
+     final body = normalize(msg.body);
+     final address = normalize(msg.address).toUpperCase();
+-    final rule = findRule(address, body, extraRules);
++    final rule = findRule(
++      address,
++      body,
++      extraRules,
++      disabledRuleIds: disabledRuleIds,
++    );
+ 
+     if (isIgnored(body)) {
+       return ParsedSms(
+@@ -205,7 +211,16 @@ class SmsParser {
+   static List<ParsedSms> parseAll(
+     Iterable<SmsMessage> messages, {
+     List<BankRule> extraRules = const <BankRule>[],
+-  }) => messages.map((m) => parse(m, extraRules: extraRules)).toList();
++    Set<String> disabledRuleIds = const <String>{},
++  }) => messages
++      .map(
++        (m) => parse(
++          m,
++          extraRules: extraRules,
++          disabledRuleIds: disabledRuleIds,
++        ),
++      )
++      .toList();
+ 
+   // ---------------------------------------------------------
+   // Bank identification
+@@ -213,10 +228,15 @@ class SmsParser {
+   static BankRule? findRule(
+     String upperAddress,
+     String body,
+-    List<BankRule> extraRules,
+-  ) {
+-    // Custom user rules take priority.
+-    for (final rule in [...extraRules, ...builtinBankRules]) {
++    List<BankRule> extraRules, {
++    Set<String> disabledRuleIds = const <String>{},
++  }) {
++    // Custom user rules take priority, but a disabled rule is never used to
++    // identify a message from either its sender or its body.
++    final rules = [...extraRules, ...builtinBankRules]
++        .where((rule) => !disabledRuleIds.contains(rule.id))
++        .toList();
++    for (final rule in rules) {
+       for (final hint in rule.senderHints) {
+         final h = normalize(hint).toUpperCase();
+         if (h.isEmpty) continue;
+@@ -224,7 +244,7 @@ class SmsParser {
+         if (h.length >= 4 && upperAddress.contains(h)) return rule;
+       }
+     }
+-    for (final rule in [...extraRules, ...builtinBankRules]) {
++    for (final rule in rules) {
+       for (final hint in rule.bodyHints) {
+         if (hint.isNotEmpty && body.contains(normalize(hint))) return rule;
+       }
+diff --git a/lib/data/models.dart b/lib/data/models.dart
+index 73c9664..9b68769 100644
+--- a/lib/data/models.dart
++++ b/lib/data/models.dart
+@@ -74,6 +74,8 @@ class AppSettings {
+   final bool smsEnabled; // Whether SMS reading is enabled.
+   final int smsSyncDays; // Number of past days to scan.
+   final int smsLastSyncAt; // Last sync timestamp (for incremental updates).
++  /// Built-in or custom rules turned off; empty preserves legacy behavior.
++  final List<String> disabledSmsRuleIds;
+ 
+   // ---- Daily expense reminder ----
+   final bool dailyReminder; // Whether the daily reminder is enabled.
+@@ -94,6 +96,7 @@ class AppSettings {
+     this.smsEnabled = false,
+     this.smsSyncDays = 90,
+     this.smsLastSyncAt = 0,
++    this.disabledSmsRuleIds = const [],
+     this.dailyReminder = false,
+     this.reminderHour = 21,
+     this.reminderMinute = 0,
+@@ -162,6 +165,7 @@ class AppSettings {
+     bool? smsEnabled,
+     int? smsSyncDays,
+     int? smsLastSyncAt,
++    List<String>? disabledSmsRuleIds,
+     bool? dailyReminder,
+     int? reminderHour,
+     int? reminderMinute,
+@@ -179,6 +183,7 @@ class AppSettings {
+     smsEnabled: smsEnabled ?? this.smsEnabled,
+     smsSyncDays: smsSyncDays ?? this.smsSyncDays,
+     smsLastSyncAt: smsLastSyncAt ?? this.smsLastSyncAt,
++    disabledSmsRuleIds: disabledSmsRuleIds ?? this.disabledSmsRuleIds,
+     dailyReminder: dailyReminder ?? this.dailyReminder,
+     reminderHour: reminderHour ?? this.reminderHour,
+     reminderMinute: reminderMinute ?? this.reminderMinute,
+@@ -198,6 +203,7 @@ class AppSettings {
+     'smsEnabled': smsEnabled,
+     'smsSyncDays': smsSyncDays,
+     'smsLastSyncAt': smsLastSyncAt,
++    'disabledSmsRuleIds': disabledSmsRuleIds,
+     'dailyReminder': dailyReminder,
+     'reminderHour': reminderHour,
+     'reminderMinute': reminderMinute,
+@@ -221,6 +227,11 @@ class AppSettings {
+     smsEnabled: map['smsEnabled'] as bool? ?? false,
+     smsSyncDays: (map['smsSyncDays'] as num?)?.toInt() ?? 90,
+     smsLastSyncAt: (map['smsLastSyncAt'] as num?)?.toInt() ?? 0,
++    disabledSmsRuleIds: (map['disabledSmsRuleIds'] as List? ?? const [])
++        .map((e) => '$e')
++        .where((e) => e.isNotEmpty)
++        .toSet()
++        .toList(),
+     dailyReminder: map['dailyReminder'] as bool? ?? false,
+     reminderHour: (map['reminderHour'] as num?)?.toInt() ?? 21,
+     reminderMinute: (map['reminderMinute'] as num?)?.toInt() ?? 0,
+diff --git a/lib/data/repository.dart b/lib/data/repository.dart
+index d3fe3dc..9afeb8d 100644
+--- a/lib/data/repository.dart
++++ b/lib/data/repository.dart
+@@ -53,9 +53,12 @@ class AppRepository extends ChangeNotifier {
+ 
+   // ---- Bank SMS ----
+   List<ParsedSms> smsSuggestions = [];
++  List<SmsHistoryEntry> smsHistory = [];
++  List<SmsMessage> smsUnrecognizedMessages = [];
+   List<BankRule> smsRules = [];
+   bool smsPermissionGranted = false;
+   bool smsBusy = false;
++  bool smsUnrecognizedBusy = false;
+   bool _smsInited = false;
+ 
+   /// Initialize the repository and open the database.
+@@ -95,6 +98,7 @@ class AppRepository extends ChangeNotifier {
+     categories = _readBox('categories', s.loadCategories);
+     plans = _readBox('plans', s.loadPlans);
+     smsRules = _readBox('sms_rules', s.loadSmsRules);
++    smsHistory = _readBox('sms_state_v2', s.loadSmsHistory);
+     budgets = _readBox('budgets', s.loadBudgets);
+     recurringRules = _readBox('recurring', s.loadRecurring);
+     quickExpenses = _readBox('quick_expenses', s.loadQuickExpenses);
+@@ -802,6 +806,56 @@ class AppRepository extends ChangeNotifier {
+   /// Number of suggestions awaiting approval.
+   int get smsPendingCount => smsSuggestions.length;
+ 
++  /// Built-in rules are enabled unless explicitly disabled in settings.
++  bool isSmsRuleEnabled(String ruleId) =>
++      !settings.disabledSmsRuleIds.contains(ruleId);
++
++  /// Persist a per-rule switch and immediately apply it to the review queue.
++  Future<void> setSmsRuleEnabled(String ruleId, bool enabled) async {
++    final disabledRuleIds = settings.disabledSmsRuleIds.toSet();
++    final wasEnabled = !disabledRuleIds.contains(ruleId);
++    if (wasEnabled == enabled) return;
++
++    if (enabled) {
++      disabledRuleIds.remove(ruleId);
++    } else {
++      disabledRuleIds.add(ruleId);
++    }
++    final sortedIds = disabledRuleIds.toList()..sort();
++    await updateSettings(
++      settings.copyWith(disabledSmsRuleIds: sortedIds),
++    );
++    _refreshPendingSms();
++
++    // Enabling a rule may make messages already in the inbox eligible for
++    // manual review. It still never records a transaction automatically.
++    if (enabled && smsPermissionGranted) {
++      try {
++        await syncSms(force: true);
++      } catch (_) {
++        // The setting is saved; the user can retry from the SMS review page.
++      }
++    }
++  }
++
++  void _refreshPendingSms() {
++    final disabledRuleIds = settings.disabledSmsRuleIds.toSet();
++    final refreshed = smsSuggestions
++        .map(
++          (sms) => SmsParser.parse(
++            sms.message,
++            extraRules: smsRules,
++            disabledRuleIds: disabledRuleIds,
++          ),
++        )
++        .where((sms) => sms.isTransaction)
++        .toList()
++      ..sort((a, b) => b.message.date.compareTo(a.message.date));
++    smsSuggestions = refreshed;
++    smsUnrecognizedMessages = [];
++    notifyListeners();
++  }
++
+   /// Initialize listening for new SMS messages.
+   void initSms() {
+     if (_smsInited || !SmsService.isSupported) return;
+@@ -811,7 +865,11 @@ class AppRepository extends ChangeNotifier {
+   }
+ 
+   void _onIncomingSms(SmsMessage msg) {
+-    final parsed = SmsParser.parse(msg, extraRules: smsRules);
++    final parsed = SmsParser.parse(
++      msg,
++      extraRules: smsRules,
++      disabledRuleIds: settings.disabledSmsRuleIds.toSet(),
++    );
+     if (!parsed.isTransaction) return;
+     final state = store.loadSmsState();
+     if (state.containsKey(parsed.key)) return;
+@@ -853,10 +911,26 @@ class AppRepository extends ChangeNotifier {
+       final messages = await SmsService.readInbox(since: since);
+       final state = store.loadSmsState();
+ 
++      final disabledRuleIds = settings.disabledSmsRuleIds.toSet();
++      final current = smsSuggestions
++          .map(
++            (sms) => SmsParser.parse(
++              sms.message,
++              extraRules: smsRules,
++              disabledRuleIds: disabledRuleIds,
++            ),
++          )
++          .where((sms) => sms.isTransaction && !state.containsKey(sms.key))
++          .toList();
++
+       final pending = <ParsedSms>[];
+       for (final m in messages) {
+         if (state.containsKey(m.key)) continue;
+-        final parsed = SmsParser.parse(m, extraRules: smsRules);
++        final parsed = SmsParser.parse(
++          m,
++          extraRules: smsRules,
++          disabledRuleIds: disabledRuleIds,
++        );
+         if (parsed.isTransaction) {
+           pending.add(parsed);
+         } else {
+@@ -866,9 +940,9 @@ class AppRepository extends ChangeNotifier {
+         }
+       }
+ 
+-      final known = smsSuggestions.map((e) => e.key).toSet();
++      final known = current.map((e) => e.key).toSet();
+       final merged = <ParsedSms>[
+-        ...smsSuggestions,
++        ...current,
+         ...pending.where((p) => !known.contains(p.key)),
+       ]..sort((a, b) => b.message.date.compareTo(a.message.date));
+       smsSuggestions = merged;
+@@ -884,6 +958,57 @@ class AppRepository extends ChangeNotifier {
+     }
+   }
+ 
++  /// Find transaction-like messages that do not match any active rule.
++  /// These remain out of the review queue until the user explicitly creates a
++  /// rule for their sender or a phrase in the body.
++  Future<int> scanUnrecognizedSms({bool force = false}) async {
++    if (!isReady || !SmsService.isSupported || !smsPermissionGranted) return 0;
++    if (smsUnrecognizedBusy && !force) return 0;
++
++    smsUnrecognizedBusy = true;
++    notifyListeners();
++    try {
++      final days = settings.smsSyncDays < 1 ? 1 : settings.smsSyncDays;
++      final since = DateTime.now().subtract(Duration(days: days));
++      final messages = await SmsService.readInbox(since: since);
++      final state = store.loadSmsState();
++      final disabledRuleIds = settings.disabledSmsRuleIds.toSet();
++      final candidates = <String, SmsMessage>{};
++
++      for (final message in messages) {
++        if (state.containsKey(message.key)) continue;
++        final body = SmsParser.normalize(message.body);
++        if (SmsParser.isIgnored(body)) continue;
++
++        final parsed = SmsParser.parse(
++          message,
++          extraRules: smsRules,
++          disabledRuleIds: disabledRuleIds,
++        );
++        if (!parsed.isPotentialUnrecognizedTransaction) continue;
++
++        // Do not advertise a known-but-disabled bank as an unknown sender.
++        final disabledMatch = SmsParser.findRule(
++          SmsParser.normalize(message.address).toUpperCase(),
++          body,
++          smsRules,
++        );
++        if (disabledMatch != null &&
++            disabledRuleIds.contains(disabledMatch.id)) {
++          continue;
++        }
++        candidates[message.key] = message;
++      }
++
++      smsUnrecognizedMessages = candidates.values.toList()
++        ..sort((a, b) => b.date.compareTo(a.date));
++      return smsUnrecognizedMessages.length;
++    } finally {
++      smsUnrecognizedBusy = false;
++      notifyListeners();
++    }
++  }
++
+   /// Match an SMS to a customer using their bank identifiers.
+   Customer? matchCustomerForSms(ParsedSms sms) {
+     for (final c in activeCustomers) {
+@@ -950,7 +1075,15 @@ class AppRepository extends ChangeNotifier {
+       createdAt: DateTime.now(),
+     );
+     await store.putTxn(txn);
+-    await store.setSmsState(sms.key, 'approved');
++    await store.setSmsState(
++      sms.key,
++      SmsHistoryEntry.approvedStatus,
++      history: _smsHistoryEntry(
++        sms,
++        SmsHistoryEntry.approvedStatus,
++        transactionId: txn.id,
++      ),
++    );
+     smsSuggestions = smsSuggestions.where((e) => e.key != sms.key).toList();
+     await reload();
+     return txn;
+@@ -958,35 +1091,80 @@ class AppRepository extends ChangeNotifier {
+ 
+   /// Reject a suggestion (it will no longer be displayed).
+   Future<void> rejectSms(ParsedSms sms) async {
+-    await store.setSmsState(sms.key, 'rejected');
++    await store.setSmsState(
++      sms.key,
++      SmsHistoryEntry.rejectedStatus,
++      history: _smsHistoryEntry(sms, SmsHistoryEntry.rejectedStatus),
++    );
+     smsSuggestions = smsSuggestions.where((e) => e.key != sms.key).toList();
++    smsHistory = store.loadSmsHistory();
+     notifyListeners();
+   }
+ 
+   /// Reject all suggestions.
+   Future<void> rejectAllSms() async {
+-    for (final s in smsSuggestions) {
+-      await store.setSmsState(s.key, 'rejected');
++    for (final sms in smsSuggestions) {
++      await store.setSmsState(
++        sms.key,
++        SmsHistoryEntry.rejectedStatus,
++        history: _smsHistoryEntry(sms, SmsHistoryEntry.rejectedStatus),
++      );
+     }
+     smsSuggestions = [];
++    smsHistory = store.loadSmsHistory();
+     notifyListeners();
+   }
+ 
++  SmsHistoryEntry _smsHistoryEntry(
++    ParsedSms sms,
++    String status, {
++    String? transactionId,
++  }) => SmsHistoryEntry(
++    key: sms.key,
++    message: sms.message,
++    status: status,
++    bankName: sms.bankName,
++    amount: sms.amount,
++    currency: sms.currency,
++    direction: sms.direction,
++    reviewedAt: DateTime.now(),
++    transactionId: transactionId,
++  );
++
+   /// Clear review history so all messages are scanned again.
+   Future<void> resetSmsState() async {
+     await store.clearSmsState();
+     smsSuggestions = [];
++    smsHistory = [];
++    smsUnrecognizedMessages = [];
+     notifyListeners();
+   }
+ 
+   Future<void> addSmsRule(BankRule rule) async {
+     await store.putSmsRule(rule);
+     await reload();
++    _refreshPendingSms();
++    if (smsPermissionGranted) {
++      try {
++        await syncSms(force: true);
++      } catch (_) {
++        // Keep the new rule even if inbox scanning is temporarily unavailable.
++      }
++    }
+   }
+ 
+   Future<void> deleteSmsRule(String id) async {
+     await store.deleteSmsRule(id);
++    final disabledRuleIds = settings.disabledSmsRuleIds
++        .where((ruleId) => ruleId != id)
++        .toList();
++    if (disabledRuleIds.length != settings.disabledSmsRuleIds.length) {
++      await updateSettings(
++        settings.copyWith(disabledSmsRuleIds: disabledRuleIds),
++      );
++    }
+     await reload();
++    _refreshPendingSms();
+   }
+ 
+   static String _smsNote(ParsedSms sms) {
+diff --git a/lib/data/store.dart b/lib/data/store.dart
+index 97ca7db..1d1a47f 100644
+--- a/lib/data/store.dart
++++ b/lib/data/store.dart
+@@ -2,6 +2,7 @@ import 'package:hive_ce_flutter/hive_flutter.dart';
+ import 'package:uuid/uuid.dart';
+ 
+ import '../core/sms/bank_rules.dart';
++import '../core/sms/sms_models.dart';
+ import 'models.dart';
+ 
+ /// Local storage layer built on Hive.
+@@ -473,7 +474,7 @@ class LocalStore {
+   }
+ 
+   // ---------- Bank SMS ----------
+-  /// Review status for each recognized SMS: compact key → status.
++  /// Review status for each SMS: compact key → status.
+   /// Possible statuses: approved | rejected.
+   Map<String, String> loadSmsState() {
+     final out = <String, String>{};
+@@ -487,11 +488,47 @@ class LocalStore {
+     return out;
+   }
+ 
+-  Future<void> setSmsState(String key, String status) => smsState.put(key, {
+-    'key': key,
+-    'status': status,
+-    'at': DateTime.now().millisecondsSinceEpoch,
+-  });
++  /// Full local review history. Older status-only records remain valid for
++  /// duplicate prevention but cannot be shown because their SMS body was not
++  /// stored by earlier app versions.
++  List<SmsHistoryEntry> loadSmsHistory() {
++    final out = <SmsHistoryEntry>[];
++    for (final e in smsState.values) {
++      if (e is! Map) continue;
++      try {
++        final m = Map<String, dynamic>.from(e);
++        final status = m['status'];
++        if (status != SmsHistoryEntry.approvedStatus &&
++            status != SmsHistoryEntry.rejectedStatus) {
++          continue;
++        }
++        if (m['message'] is! Map) continue;
++        out.add(SmsHistoryEntry.fromMap(m));
++      } catch (_) {
++        // A malformed history entry should not prevent the SMS feature from
++        // loading or block the rest of the local database.
++      }
++    }
++    return out..sort((a, b) => b.reviewedAt.compareTo(a.reviewedAt));
++  }
++
++  Future<void> setSmsState(
++    String key,
++    String status, {
++    SmsHistoryEntry? history,
++  }) {
++    final previous = smsState.get(key);
++    final record = previous is Map
++        ? Map<String, dynamic>.from(previous)
++        : <String, dynamic>{};
++    if (history != null) record.addAll(history.toMap());
++    record.addAll({
++      'key': key,
++      'status': status,
++      'at': DateTime.now().millisecondsSinceEpoch,
++    });
++    return smsState.put(key, record);
++  }
+ 
+   Future<void> clearSmsState() => smsState.clear();
+ 
+diff --git a/lib/ui/settings_page.dart b/lib/ui/settings_page.dart
+index 67b0998..804d637 100644
+--- a/lib/ui/settings_page.dart
++++ b/lib/ui/settings_page.dart
+@@ -12,6 +12,7 @@ import '../data/models.dart';
+ import '../data/repository.dart';
+ import 'forms/plan_edit_page.dart';
+ import 'sms_page.dart';
++import 'sms_rules_page.dart';
+ import 'widgets/widgets.dart';
+ 
+ import '../core/localization.dart';
+@@ -346,6 +347,16 @@ class SettingsPage extends StatelessWidget {
+                     page: const SmsPage(),
+                   ),
+                   Divider(color: Theme.of(context).dividerColor),
++                  _navTile(
++                    context,
++                    icon: Icons.tune_rounded,
++                    title: 'Recognition rules'.tr,
++                    subtitle:
++                        'Choose which built-in banks and custom senders can match SMS.'
++                            .tr,
++                    page: const SmsRulesPage(),
++                  ),
++                  Divider(color: Theme.of(context).dividerColor),
+                   ListTile(
+                     contentPadding: EdgeInsets.zero,
+                     leading: const Icon(Icons.date_range_outlined, size: 20),
+diff --git a/lib/ui/sms_page.dart b/lib/ui/sms_page.dart
+index c4a020e..a99b282 100644
+--- a/lib/ui/sms_page.dart
++++ b/lib/ui/sms_page.dart
+@@ -7,6 +7,9 @@ import '../core/money.dart';
+ import '../core/sms/sms_models.dart';
+ import '../data/models.dart';
+ import '../data/repository.dart';
++import 'forms/transaction_edit_page.dart';
++import 'sms_rules_page.dart';
++import 'unrecognized_sms_page.dart';
+ import 'widgets/widgets.dart';
+ 
+ import '../core/localization.dart';
+@@ -25,9 +28,11 @@ class SmsPage extends StatefulWidget {
+ }
+ 
+ enum _SmsFilter { all, deposit, withdraw }
++enum _HistoryFilter { all, recorded, rejected }
+ 
+ class _SmsPageState extends State<SmsPage> {
+   _SmsFilter _filter = _SmsFilter.all;
++  _HistoryFilter _historyFilter = _HistoryFilter.all;
+ 
+   @override
+   void initState() {
+@@ -67,115 +72,232 @@ class _SmsPageState extends State<SmsPage> {
+         all.where((s) => s.direction == SmsDirection.withdraw).toList(),
+     };
+ 
+-    return Scaffold(
+-      appBar: AppBar(
+-        title: Text('Bank SMS'.tr),
+-        actions: [
+-          IconButton(
+-            tooltip: 'Sync'.tr,
+-            icon: repo.smsBusy
+-                ? const SizedBox(
+-                    width: 18,
+-                    height: 18,
+-                    child: CircularProgressIndicator(strokeWidth: 2),
+-                  )
+-                : const Icon(Icons.sync_rounded),
+-            onPressed: repo.smsBusy ? null : () => repo.syncSms(force: true),
+-          ),
+-          PopupMenuButton<String>(
+-            onSelected: (v) async {
+-              switch (v) {
+-                case 'reject_all':
+-                  final ok = await confirmDialog(
+-                    context,
+-                    title: 'Reject all'.tr,
+-                    message: 'Reject all suggestions? (They will no longer appear, but no transactions will be deleted.)'
+-                        .tr,
+-                    okLabel: 'Reject'.tr,
+-                    danger: true,
+-                  );
+-                  if (ok) await repo.rejectAllSms();
+-                  break;
+-                case 'reset':
+-                  final ok = await confirmDialog(
+-                    context,
+-                    title: 'Review again'.tr,
+-                    message:
+-                        'Clear the review history and scan SMS messages '
+-                        'again?',
+-                    okLabel: 'Clear',
+-                  );
+-                  if (ok) {
+-                    await repo.resetSmsState();
+-                    await repo.syncSms(force: true);
+-                  }
+-                  break;
+-              }
+-            },
+-            itemBuilder: (_) => [
+-              PopupMenuItem(value: 'reject_all', child: Text('Reject all'.tr)),
+-              PopupMenuItem(value: 'reset', child: Text('Rescan SMS'.tr)),
+-            ],
+-          ),
+-        ],
+-      ),
+-      body: !repo.smsPermissionGranted
+-          ? _permissionView(context, repo)
+-          : RefreshIndicator(
+-              onRefresh: () => repo.syncSms(force: true),
+-              child: ListView(
+-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
+-                children: [
+-                  _summaryCard(context, repo, all.length),
+-                  const SizedBox(height: 12),
+-                  Row(
+-                    children: [
+-                      _chip('All', _SmsFilter.all, all.length),
+-                      const SizedBox(width: 8),
+-                      _chip(
+-                        'Deposit',
+-                        _SmsFilter.deposit,
+-                        all
+-                            .where((s) => s.direction == SmsDirection.deposit)
+-                            .length,
+-                      ),
+-                      const SizedBox(width: 8),
+-                      _chip(
+-                        'Withdrawal',
+-                        _SmsFilter.withdraw,
+-                        all
+-                            .where((s) => s.direction == SmsDirection.withdraw)
+-                            .length,
+-                      ),
+-                    ],
+-                  ),
+-                  const SizedBox(height: 12),
+-                  if (list.isEmpty)
+-                    Padding(
+-                      padding: const EdgeInsets.only(top: 40),
+-                      child: EmptyState(
+-                        icon: Icons.sms_outlined,
+-                        title: repo.smsBusy
+-                            ? 'Checking SMS...'
+-                            : 'No items found',
+-                        text: repo.smsBusy
+-                            ? 'Please wait'
+-                            : 'No new transaction messages found. Tap '
+-                                  'Sync to check recent messages.',
+-                      ),
++    return DefaultTabController(
++      length: 2,
++      child: Scaffold(
++        appBar: AppBar(
++          title: Text('Bank SMS'.tr),
++          actions: [
++            IconButton(
++              tooltip: 'Manage recognition rules'.tr,
++              icon: const Icon(Icons.tune_rounded),
++              onPressed: () => Navigator.push(
++                context,
++                MaterialPageRoute(builder: (_) => const SmsRulesPage()),
++              ),
++            ),
++            IconButton(
++              tooltip: 'Sync'.tr,
++              icon: repo.smsBusy
++                  ? const SizedBox(
++                      width: 18,
++                      height: 18,
++                      child: CircularProgressIndicator(strokeWidth: 2),
+                     )
+-                  else
+-                    for (final sms in list)
+-                      Padding(
+-                        padding: const EdgeInsets.only(bottom: 10),
+-                        child: _SmsCard(sms: sms, onSurface: onSurface),
+-                      ),
++                  : const Icon(Icons.sync_rounded),
++              onPressed: repo.smsBusy ? null : () => repo.syncSms(force: true),
++            ),
++            PopupMenuButton<String>(
++              onSelected: (v) async {
++                switch (v) {
++                  case 'reject_all':
++                    final ok = await confirmDialog(
++                      context,
++                      title: 'Reject all'.tr,
++                      message: 'Reject all suggestions? (They will no longer appear, but no transactions will be deleted.)'
++                          .tr,
++                      okLabel: 'Reject'.tr,
++                      danger: true,
++                    );
++                    if (ok) await repo.rejectAllSms();
++                    break;
++                  case 'reset':
++                    final ok = await confirmDialog(
++                      context,
++                      title: 'Review again'.tr,
++                      message:
++                          'Clear the review history and scan SMS messages '
++                          'again?',
++                      okLabel: 'Clear',
++                    );
++                    if (ok) {
++                      await repo.resetSmsState();
++                      await repo.syncSms(force: true);
++                    }
++                    break;
++                }
++              },
++              itemBuilder: (_) => [
++                PopupMenuItem(value: 'reject_all', child: Text('Reject all'.tr)),
++                PopupMenuItem(value: 'reset', child: Text('Rescan SMS'.tr)),
++              ],
++            ),
++          ],
++          bottom: repo.smsPermissionGranted
++              ? TabBar(
++                  tabs: [
++                    Tab(
++                      text: 'Unregistered ({count})'.trArgs({
++                        'count': all.length,
++                      }),
++                    ),
++                    Tab(
++                      text: 'Review history ({count})'.trArgs({
++                        'count': repo.smsHistory.length,
++                      }),
++                    ),
++                  ],
++                )
++              : null,
++        ),
++        body: !repo.smsPermissionGranted
++            ? _permissionView(context, repo)
++            : TabBarView(
++                children: [
++                  _pendingTab(context, repo, all, list, onSurface),
++                  _historyTab(context, repo),
+                 ],
+               ),
++      ),
++    );
++  }
++
++  Widget _pendingTab(
++    BuildContext context,
++    AppRepository repo,
++    List<ParsedSms> all,
++    List<ParsedSms> list,
++    Color onSurface,
++  ) => RefreshIndicator(
++    onRefresh: () => repo.syncSms(force: true),
++    child: ListView(
++      physics: const AlwaysScrollableScrollPhysics(),
++      padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
++      children: [
++        _summaryCard(context, repo, all.length),
++        const SizedBox(height: 12),
++        Row(
++          children: [
++            _chip('All', _SmsFilter.all, all.length),
++            const SizedBox(width: 8),
++            _chip(
++              'Deposit',
++              _SmsFilter.deposit,
++              all.where((s) => s.direction == SmsDirection.deposit).length,
++            ),
++            const SizedBox(width: 8),
++            _chip(
++              'Withdrawal',
++              _SmsFilter.withdraw,
++              all.where((s) => s.direction == SmsDirection.withdraw).length,
+             ),
++          ],
++        ),
++        const SizedBox(height: 12),
++        if (list.isEmpty)
++          Padding(
++            padding: const EdgeInsets.only(top: 40),
++            child: EmptyState(
++              icon: Icons.sms_outlined,
++              title: repo.smsBusy ? 'Checking SMS...' : 'No items found',
++              text: repo.smsBusy
++                  ? 'Please wait'
++                  : 'No new transaction messages found. Tap '
++                        'Sync to check recent messages.',
++            ),
++          )
++        else
++          for (final sms in list)
++            Padding(
++              padding: const EdgeInsets.only(bottom: 10),
++              child: _SmsCard(sms: sms, onSurface: onSurface),
++            ),
++        const SizedBox(height: 6),
++        OutlinedButton.icon(
++          onPressed: () => Navigator.push(
++            context,
++            MaterialPageRoute(
++              builder: (_) => const UnrecognizedSmsPage(),
++            ),
++          ),
++          icon: const Icon(Icons.manage_search_rounded),
++          label: Text('Identify unrecognized SMS'.tr),
++        ),
++      ],
++    ),
++  );
++
++  Widget _historyTab(BuildContext context, AppRepository repo) {
++    final history = repo.smsHistory;
++    final visible = switch (_historyFilter) {
++      _HistoryFilter.all => history,
++      _HistoryFilter.recorded => history.where((e) => e.wasRecorded).toList(),
++      _HistoryFilter.rejected => history.where((e) => e.wasRejected).toList(),
++    };
++
++    return ListView(
++      physics: const AlwaysScrollableScrollPhysics(),
++      padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
++      children: [
++        CardBox(
++          child: Text(
++            'Reviewed SMS history is kept in this app’s storage and omitted from its export/restore files. Recorded entries can be opened from here; rejected messages do not create transactions. Older status-only records may not be displayable.'
++                .tr,
++            style: TextStyle(
++              fontSize: 12,
++              height: 1.6,
++              color: Theme.of(
++                context,
++              ).colorScheme.onSurface.withValues(alpha: 0.68),
++            ),
++          ),
++        ),
++        const SizedBox(height: 10),
++        Wrap(
++          spacing: 8,
++          runSpacing: 8,
++          children: [
++            _historyChip('All', _HistoryFilter.all, history.length),
++            _historyChip(
++              'Recorded',
++              _HistoryFilter.recorded,
++              history.where((e) => e.wasRecorded).length,
++            ),
++            _historyChip(
++              'Rejected',
++              _HistoryFilter.rejected,
++              history.where((e) => e.wasRejected).length,
++            ),
++          ],
++        ),
++        const SizedBox(height: 12),
++        if (visible.isEmpty)
++          const Padding(
++            padding: EdgeInsets.only(top: 35),
++            child: EmptyState(
++              icon: Icons.history_rounded,
++              title: 'No review history yet',
++              text: 'Approved or rejected SMS messages will appear here.',
++            ),
++          )
++        else
++          for (final entry in visible)
++            Padding(
++              padding: const EdgeInsets.only(bottom: 10),
++              child: _SmsHistoryCard(entry: entry),
++            ),
++      ],
+     );
+   }
+ 
++  Widget _historyChip(String label, _HistoryFilter filter, int count) =>
++      ChoiceChip(
++        label: Text('${label.tr} ($count)'),
++        showCheckmark: false,
++        selected: _historyFilter == filter,
++        onSelected: (_) => setState(() => _historyFilter = filter),
++      );
++
+   Widget _chip(String label, _SmsFilter f, int count) => ChoiceChip(
+     label: Text(count > 0 ? '${label.tr} ($count)' : label.tr),
+     showCheckmark: false,
+@@ -469,6 +591,146 @@ class _SmsCard extends StatelessWidget {
+   }
+ }
+ 
++class _SmsHistoryCard extends StatelessWidget {
++  const _SmsHistoryCard({required this.entry});
++
++  final SmsHistoryEntry entry;
++
++  @override
++  Widget build(BuildContext context) {
++    final recorded = entry.wasRecorded;
++    final statusColor = recorded
++        ? const Color(0xFF16A34A)
++        : const Color(0xFF64748B);
++    final directionColor = entry.direction == SmsDirection.deposit
++        ? const Color(0xFF16A34A)
++        : const Color(0xFFE11D48);
++    final title = entry.bankName?.isNotEmpty == true
++        ? entry.bankName!
++        : entry.message.address;
++    Txn? transaction;
++    if (entry.transactionId != null) {
++      for (final item in context.read<AppRepository>().transactions) {
++        if (item.id == entry.transactionId) {
++          transaction = item;
++          break;
++        }
++      }
++    }
++    final transactionToOpen = transaction;
++
++    return CardBox(
++      child: Column(
++        crossAxisAlignment: CrossAxisAlignment.start,
++        children: [
++          Row(
++            children: [
++              Icon(
++                recorded ? Icons.check_circle_outline : Icons.block_outlined,
++                color: statusColor,
++                size: 20,
++              ),
++              const SizedBox(width: 8),
++              Expanded(
++                child: Column(
++                  crossAxisAlignment: CrossAxisAlignment.start,
++                  children: [
++                    Text(
++                      title.isEmpty ? 'Unknown sender'.tr : title,
++                      style: const TextStyle(
++                        fontSize: 13,
++                        fontWeight: FontWeight.w700,
++                      ),
++                    ),
++                    Text(
++                      'Received {received} · reviewed {reviewed}'.trArgs({
++                        'received': '${J.d(entry.message.date)} · ${Fmt.clock(entry.message.date)}',
++                        'reviewed': '${J.d(entry.reviewedAt)} · ${Fmt.clock(entry.reviewedAt)}',
++                      }),
++                      style: TextStyle(
++                        fontSize: 10.5,
++                        color: Theme.of(context).colorScheme.onSurface
++                            .withValues(alpha: 0.6),
++                      ),
++                    ),
++                  ],
++                ),
++              ),
++              if (entry.amount > 0)
++                Text(
++                  '${entry.direction == SmsDirection.deposit ? '+' : '−'}'
++                  '${Money.text(entry.amount, currency: entry.currency)}',
++                  style: TextStyle(
++                    fontSize: 13,
++                    fontWeight: FontWeight.w700,
++                    color: directionColor,
++                  ),
++                ),
++            ],
++          ),
++          const SizedBox(height: 8),
++          Wrap(
++            spacing: 6,
++            runSpacing: 6,
++            children: [
++              TagChip(
++                recorded ? 'Recorded'.tr : 'Rejected'.tr,
++                color: statusColor,
++                dense: true,
++              ),
++              if (entry.direction != SmsDirection.unknown)
++                TagChip(entry.direction.label, color: directionColor, dense: true),
++            ],
++          ),
++          const SizedBox(height: 8),
++          Text(
++            entry.message.body,
++            maxLines: 3,
++            overflow: TextOverflow.ellipsis,
++            style: TextStyle(
++              fontSize: 11.5,
++              height: 1.55,
++              color: Theme.of(
++                context,
++              ).colorScheme.onSurface.withValues(alpha: 0.68),
++            ),
++          ),
++          if (entry.transactionId != null) ...[
++            const SizedBox(height: 6),
++            if (transactionToOpen != null)
++              Align(
++                alignment: AlignmentDirectional.centerStart,
++                child: TextButton.icon(
++                  onPressed: () => Navigator.push(
++                    context,
++                    MaterialPageRoute(
++                      builder: (_) => TransactionEditPage(
++                        existing: transactionToOpen,
++                      ),
++                    ),
++                  ),
++                  icon: const Icon(Icons.open_in_new_rounded, size: 16),
++                  label: Text('Open transaction'.tr),
++                ),
++              )
++            else
++              Row(
++                children: [
++                  const Icon(Icons.receipt_long_outlined, size: 15),
++                  const SizedBox(width: 5),
++                  Text(
++                    'Transaction recorded'.tr,
++                    style: const TextStyle(fontSize: 10.5),
++                  ),
++                ],
++              ),
++          ],
++        ],
++      ),
++    );
++  }
++}
++
+ /// ---------------- Review or edit before recording ----------------
+ class SmsReviewSheet extends StatefulWidget {
+   const SmsReviewSheet({super.key, required this.sms, this.initialCustomer});
+diff --git a/test/app_smoke_test.dart b/test/app_smoke_test.dart
+index 699a121..865ce3b 100644
+--- a/test/app_smoke_test.dart
++++ b/test/app_smoke_test.dart
+@@ -22,7 +22,9 @@ import 'package:poolland/ui/personal_page.dart';
+ import 'package:poolland/ui/reports_page.dart';
+ import 'package:poolland/ui/settings_page.dart';
+ import 'package:poolland/ui/sms_page.dart';
++import 'package:poolland/ui/sms_rules_page.dart';
+ import 'package:poolland/ui/subscriptions_page.dart';
++import 'package:poolland/ui/unrecognized_sms_page.dart';
+ import 'package:poolland/ui/theme.dart';
+ import 'package:poolland/ui/transactions_page.dart';
+ 
+@@ -250,6 +252,9 @@ void main() {
+       const PlansPage(),
+       const CategoriesPage(),
+       const RatesPage(),
++      const SmsRulesPage(),
++      const SmsRuleEditPage(),
++      const UnrecognizedSmsPage(),
+     ]) {
+       await tester.pumpWidget(wrap(page));
+       await tester.pump();
+diff --git a/test/repository_test.dart b/test/repository_test.dart
+index 42b4aa7..3aeaec4 100644
+--- a/test/repository_test.dart
++++ b/test/repository_test.dart
+@@ -37,6 +37,41 @@ void main() {
+     expect(repo.scopeFilter, TxnScope.business);
+   });
+ 
++  test('SMS rule enablement defaults on and persists per rule', () async {
++    expect(repo.isSmsRuleEnabled('melat'), isTrue);
++    expect(
++      AppSettings.fromMap({'smsEnabled': true}).disabledSmsRuleIds,
++      isEmpty,
++      reason: 'Legacy settings keep every built-in rule enabled',
++    );
++
++    final sms = SmsParser.parse(
++      SmsMessage(
++        id: 'mellat-pending',
++        address: 'BANKMELAT',
++        body: 'واریز مبلغ 100,000 ریال',
++        date: J.today,
++      ),
++    );
++    repo.smsSuggestions = [sms];
++
++    await repo.setSmsRuleEnabled('melat', false);
++    expect(repo.isSmsRuleEnabled('melat'), isFalse);
++    expect(repo.settings.disabledSmsRuleIds, contains('melat'));
++    expect(repo.smsSuggestions, isEmpty);
++    expect(
++      repo.transactions,
++      isEmpty,
++      reason: 'Changing a rule never records a transaction',
++    );
++
++    await repo.reload();
++    expect(repo.isSmsRuleEnabled('melat'), isFalse);
++    await repo.setSmsRuleEnabled('melat', true);
++    expect(repo.isSmsRuleEnabled('melat'), isTrue);
++    expect(repo.settings.disabledSmsRuleIds, isNot(contains('melat')));
++  });
++
+   test('Sale records income, customer debt, and cash received', () async {
+     final customer = await repo.addCustomer(name: 'Reza');
+     await repo.sellSubscription(
+@@ -111,9 +146,38 @@ void main() {
+     expect(repo.summary(scope: TxnScope.personal).income, 100000);
+     expect(repo.summary(scope: TxnScope.business).income, 0);
+     expect(store.loadSmsState(), containsPair(sms.key, 'approved'));
++    expect(repo.smsHistory, hasLength(1));
++    expect(repo.smsHistory.single.wasRecorded, isTrue);
++    expect(repo.smsHistory.single.message.body, sms.message.body);
++    expect(repo.smsHistory.single.transactionId, txn.id);
+     expect(sms.key, matches(RegExp(r'^v2:[0-9a-f]{64}$')));
+   });
+ 
++  test('Rejected SMS remains in review history but creates no transaction', () async {
++    final sms = SmsParser.parse(
++      SmsMessage(
++        id: 'rejected-sms',
++        address: 'BANKMELAT',
++        body: 'برداشت مبلغ 75,000 تومان',
++        date: J.today,
++      ),
++    );
++    repo.smsSuggestions = [sms];
++
++    await repo.rejectSms(sms);
++
++    expect(repo.smsSuggestions, isEmpty);
++    expect(repo.smsHistory, hasLength(1));
++    expect(repo.smsHistory.single.wasRejected, isTrue);
++    expect(repo.smsHistory.single.message.body, sms.message.body);
++    expect(repo.transactions, isEmpty);
++    expect(
++      store.exportAll().keys,
++      isNot(contains('smsState')),
++      reason: 'Review history stays on the device and out of backups',
++    );
++  });
++
+   test('A customer SMS receipt clears debt and is recognized as income', () async {
+     final customer = await repo.addCustomer(
+       name: 'SMS customer',
+diff --git a/test/sms_parser_test.dart b/test/sms_parser_test.dart
+index 3e27b11..2907bd9 100644
+--- a/test/sms_parser_test.dart
++++ b/test/sms_parser_test.dart
+@@ -52,6 +52,39 @@ void main() {
+       expect(r.isTransaction, isTrue);
+     });
+ 
++    test('A disabled built-in rule cannot match sender or body hints', () {
++      final fromSender = SmsParser.parse(
++        msg('واریز مبلغ 100,000 ریال', address: 'BANKMELAT'),
++        disabledRuleIds: {'melat'},
++      );
++      final fromBody = SmsParser.parse(
++        msg('بانک ملت\nواریز مبلغ 100,000 ریال', address: 'UNKNOWN'),
++        disabledRuleIds: {'melat'},
++      );
++
++      expect(fromSender.bankName, isNull);
++      expect(fromSender.isTransaction, isFalse);
++      expect(fromBody.bankName, isNull);
++      expect(fromBody.isTransaction, isFalse);
++    });
++
++    test('A disabled custom rule cannot match its sender', () {
++      final r = SmsParser.parse(
++        msg('واریز مبلغ 250,000 تومان', address: 'MYBANK'),
++        extraRules: const [
++          BankRule(
++            id: 'my_bank',
++            bankName: 'My Bank',
++            senderHints: ['MYBANK'],
++          ),
++        ],
++        disabledRuleIds: {'my_bank'},
++      );
++
++      expect(r.bankName, isNull);
++      expect(r.isTransaction, isFalse);
++    });
++
+     test('JibJit requires an explicit custom rule', () {
+       final message = msg(
+         'کاربر گرامی، مبلغ 576,290 ریال به شماره سریال 177326665 '
+@@ -95,6 +128,15 @@ void main() {
+       expect(r.confident, isTrue);
+     });
+ 
++    test('Unknown transaction-like SMS can be offered for rule identification', () {
++      final r = SmsParser.parse(
++        msg('واریز مبلغ 50,000 ریال', address: '30001234'),
++      );
++
++      expect(r.isTransaction, isFalse);
++      expect(r.isPotentialUnrecognizedTransaction, isTrue);
++    });
++
+     test('Unknown sender', () {
+       final r = p('واریز مبلغ 50,000 ریال', address: '30001234');
+       expect(r.bankName, isNull);
+diff --git a/lib/ui/sms_rules_page.dart b/lib/ui/sms_rules_page.dart
+new file mode 100644
+index 0000000..cfe125b
+--- /dev/null
++++ b/lib/ui/sms_rules_page.dart
+@@ -0,0 +1,466 @@
++import 'package:flutter/material.dart';
++import 'package:provider/provider.dart';
++
++import '../core/localization.dart';
++import '../core/money.dart';
++import '../core/sms/bank_rules.dart';
++import '../core/sms/sms_models.dart';
++import '../core/sms/sms_parser.dart';
++import '../data/repository.dart';
++import '../data/store.dart';
++import 'widgets/widgets.dart';
++
++/// Manage the rules that are allowed to identify bank SMS messages.
++/// A matched message is still only a suggestion; approval remains manual.
++class SmsRulesPage extends StatelessWidget {
++  const SmsRulesPage({super.key});
++
++  @override
++  Widget build(BuildContext context) {
++    final repo = context.watch<AppRepository>();
++    final customRules = [...repo.smsRules]
++      ..sort((a, b) => a.bankName.compareTo(b.bankName));
++    final rules = [...builtinBankRules, ...customRules];
++    final enabledCount = rules
++        .where((rule) => repo.isSmsRuleEnabled(rule.id))
++        .length;
++
++    return Scaffold(
++      appBar: AppBar(title: Text('SMS recognition rules'.tr)),
++      body: ListView(
++        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
++        children: [
++          CardBox(
++            child: Column(
++              crossAxisAlignment: CrossAxisAlignment.start,
++              children: [
++                Row(
++                  children: [
++                    const Icon(Icons.fact_check_outlined, size: 20),
++                    const SizedBox(width: 8),
++                    Expanded(
++                      child: Text(
++                        'Enabled {enabled} of {total} rules'.trArgs({
++                          'enabled': enabledCount,
++                          'total': rules.length,
++                        }),
++                        style: const TextStyle(fontWeight: FontWeight.w700),
++                      ),
++                    ),
++                  ],
++                ),
++                const SizedBox(height: 8),
++                Text(
++                  'Only messages matched by an enabled rule can enter the review queue. No transaction is recorded until you review it and explicitly choose Personal or VPN business.'
++                      .tr,
++                  style: TextStyle(
++                    fontSize: 12,
++                    height: 1.6,
++                    color: Theme.of(
++                      context,
++                    ).colorScheme.onSurface.withValues(alpha: 0.68),
++                  ),
++                ),
++              ],
++            ),
++          ),
++          SectionTitle(
++            'Built-in banks',
++            icon: Icons.account_balance_outlined,
++          ),
++          _ruleCard(
++            context,
++            repo,
++            builtinBankRules,
++            allowDelete: false,
++          ),
++          SectionTitle(
++            'Custom rules',
++            icon: Icons.rule_rounded,
++            action: 'Add',
++            onAction: () => _addRule(context),
++          ),
++          if (customRules.isEmpty)
++            CardBox(
++              child: Text(
++                'No custom rules yet. Add a sender ID or phrase to recognize a bank or payment service not listed above.'
++                    .tr,
++                style: TextStyle(
++                  fontSize: 12,
++                  height: 1.6,
++                  color: Theme.of(
++                    context,
++                  ).colorScheme.onSurface.withValues(alpha: 0.68),
++                ),
++              ),
++            )
++          else
++            _ruleCard(context, repo, customRules, allowDelete: true),
++        ],
++      ),
++    );
++  }
++
++  Widget _ruleCard(
++    BuildContext context,
++    AppRepository repo,
++    List<BankRule> rules, {
++    required bool allowDelete,
++  }) {
++    final dividerColor = Theme.of(context).dividerColor;
++    return CardBox(
++      child: Column(
++        children: [
++          for (var i = 0; i < rules.length; i++) ...[
++            if (i > 0) Divider(color: dividerColor, height: 1),
++            _ruleTile(context, repo, rules[i], allowDelete: allowDelete),
++          ],
++        ],
++      ),
++    );
++  }
++
++  Widget _ruleTile(
++    BuildContext context,
++    AppRepository repo,
++    BankRule rule, {
++    required bool allowDelete,
++  }) {
++    final enabled = repo.isSmsRuleEnabled(rule.id);
++    return ListTile(
++      contentPadding: EdgeInsets.zero,
++      leading: Icon(
++        allowDelete ? Icons.rule_rounded : Icons.account_balance_outlined,
++        size: 20,
++      ),
++      title: Text(rule.bankName.tr, style: const TextStyle(fontSize: 13.5)),
++      subtitle: Text(
++        _ruleDescription(rule),
++        maxLines: 2,
++        overflow: TextOverflow.ellipsis,
++        style: const TextStyle(fontSize: 10.5, height: 1.35),
++      ),
++      trailing: Row(
++        mainAxisSize: MainAxisSize.min,
++        children: [
++          if (allowDelete)
++            IconButton(
++              tooltip: 'Delete custom rule'.tr,
++              onPressed: () => _deleteRule(context, repo, rule),
++              icon: const Icon(Icons.delete_outline_rounded),
++            ),
++          Tooltip(
++            message: (enabled ? 'Disable rule' : 'Enable rule').tr,
++            child: Switch(
++              value: enabled,
++              onChanged: (value) async {
++                await repo.setSmsRuleEnabled(rule.id, value);
++                if (context.mounted) {
++                  showSnack(
++                    context,
++                    value
++                        ? 'Recognition rule enabled.'
++                        : 'Recognition rule disabled. Messages that no longer match an enabled rule are removed from the review queue.',
++                  );
++                }
++              },
++            ),
++          ),
++        ],
++      ),
++    );
++  }
++
++  String _ruleDescription(BankRule rule) {
++    final details = <String>[];
++    if (rule.senderHints.isNotEmpty) {
++      details.add(
++        'Sender IDs: {value}'.trArgs({'value': rule.senderHints.join(', ')}),
++      );
++    }
++    if (rule.bodyHints.isNotEmpty) {
++      details.add(
++        'Message phrases: {value}'.trArgs({'value': rule.bodyHints.join(', ')}),
++      );
++    }
++    return details.join(' · ');
++  }
++
++  Future<void> _addRule(BuildContext context) async {
++    await Navigator.push<bool>(
++      context,
++      MaterialPageRoute(builder: (_) => const SmsRuleEditPage()),
++    );
++  }
++
++  Future<void> _deleteRule(
++    BuildContext context,
++    AppRepository repo,
++    BankRule rule,
++  ) async {
++    final confirmed = await confirmDialog(
++      context,
++      title: 'Delete custom rule?'.tr,
++      message:
++          'This rule will no longer identify SMS messages. Existing transactions will not be changed.'
++              .tr,
++      okLabel: 'Delete'.tr,
++      danger: true,
++    );
++    if (!confirmed) return;
++    await repo.deleteSmsRule(rule.id);
++    if (context.mounted) showSnack(context, 'Custom rule deleted.');
++  }
++}
++
++/// Form for adding one custom bank or payment-provider sender rule.
++class SmsRuleEditPage extends StatefulWidget {
++  const SmsRuleEditPage({super.key, this.initialMessage});
++
++  final SmsMessage? initialMessage;
++
++  @override
++  State<SmsRuleEditPage> createState() => _SmsRuleEditPageState();
++}
++
++class _SmsRuleEditPageState extends State<SmsRuleEditPage> {
++  final _formKey = GlobalKey<FormState>();
++  final _nameController = TextEditingController();
++  final _senderController = TextEditingController();
++  final _bodyHintController = TextEditingController();
++  final _sampleController = TextEditingController();
++
++  AmountUnit _unit = AmountUnit.rial;
++  ParsedSms? _preview;
++  bool _saving = false;
++
++  List<String> get _senderHints => _senderController.text
++      .split(RegExp(r'[,;\n]+'))
++      .map((hint) => hint.trim())
++      .where((hint) => hint.isNotEmpty)
++      .toList();
++
++  String get _bodyHint => _bodyHintController.text.trim();
++
++  BankRule _buildRule(String id) => BankRule(
++    id: id,
++    bankName: _nameController.text.trim(),
++    senderHints: _senderHints,
++    bodyHints: _bodyHint.isEmpty ? const [] : [_bodyHint],
++    defaultUnit: _unit,
++    custom: true,
++  );
++
++  @override
++  void initState() {
++    super.initState();
++    final message = widget.initialMessage;
++    if (message != null) {
++      _nameController.text = message.address.trim();
++      _senderController.text = message.address.trim();
++      _sampleController.text = message.body;
++    }
++  }
++
++  @override
++  void dispose() {
++    _nameController.dispose();
++    _senderController.dispose();
++    _bodyHintController.dispose();
++    _sampleController.dispose();
++    super.dispose();
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    return Scaffold(
++      appBar: AppBar(title: Text('Add custom SMS rule'.tr)),
++      body: Form(
++        key: _formKey,
++        child: ListView(
++          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
++          children: [
++            CardBox(
++              child: Text(
++                (widget.initialMessage == null
++                        ? 'Use a sender ID or a phrase that reliably appears in the message. The sample is only for testing; it is not saved.'
++                        : 'The sender and SMS sample are prefilled. Confirm the bank or service name and detection hints before saving.')
++                    .tr,
++                style: TextStyle(
++                  fontSize: 12,
++                  height: 1.6,
++                  color: Theme.of(
++                    context,
++                  ).colorScheme.onSurface.withValues(alpha: 0.68),
++                ),
++              ),
++            ),
++            const SizedBox(height: 14),
++            TextFormField(
++              controller: _nameController,
++              textCapitalization: TextCapitalization.words,
++              decoration: InputDecoration(
++                labelText: 'Bank or service name'.tr,
++                border: const OutlineInputBorder(),
++              ),
++              validator: (value) => value == null || value.trim().isEmpty
++                  ? 'Enter a bank or service name.'.tr
++                  : null,
++              onChanged: (_) => _clearPreview(),
++            ),
++            const SizedBox(height: 12),
++            TextFormField(
++              controller: _senderController,
++              decoration: InputDecoration(
++                labelText: 'Sender IDs or numbers'.tr,
++                hintText: 'Comma-separated; e.g. MYBANK, 30001234'.tr,
++                border: const OutlineInputBorder(),
++              ),
++              onChanged: (_) => _clearPreview(),
++            ),
++            const SizedBox(height: 12),
++            TextFormField(
++              controller: _bodyHintController,
++              decoration: InputDecoration(
++                labelText: 'Optional phrase in SMS body'.tr,
++                hintText: 'e.g. Your wallet balance'.tr,
++                border: const OutlineInputBorder(),
++              ),
++              validator: (_) => _senderHints.isEmpty && _bodyHint.isEmpty
++                  ? 'Add a sender ID or body phrase to identify messages.'.tr
++                  : null,
++              onChanged: (_) => _clearPreview(),
++            ),
++            const SizedBox(height: 18),
++            Text(
++              'Assumed amount unit (if the message omits it)'.tr,
++              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
++            ),
++            const SizedBox(height: 8),
++            SegmentedButton<AmountUnit>(
++              segments: [
++                ButtonSegment(
++                  value: AmountUnit.rial,
++                  label: Text('Rials'.tr),
++                ),
++                ButtonSegment(
++                  value: AmountUnit.toman,
++                  label: Text('Tomans'.tr),
++                ),
++              ],
++              selected: {_unit},
++              onSelectionChanged: (selection) {
++                setState(() {
++                  _unit = selection.first;
++                  _preview = null;
++                });
++              },
++            ),
++            const SizedBox(height: 18),
++            TextFormField(
++              controller: _sampleController,
++              minLines: 3,
++              maxLines: 5,
++              decoration: InputDecoration(
++                labelText: 'Sample SMS text (optional)'.tr,
++                alignLabelWithHint: true,
++                border: const OutlineInputBorder(),
++              ),
++              onChanged: (_) => _clearPreview(),
++            ),
++            const SizedBox(height: 10),
++            OutlinedButton.icon(
++              onPressed: _testSample,
++              icon: const Icon(Icons.science_outlined),
++              label: Text('Test sample'.tr),
++            ),
++            if (_preview != null) ...[
++              const SizedBox(height: 10),
++              _previewCard(context, _preview!),
++            ],
++            const SizedBox(height: 22),
++            FilledButton.icon(
++              onPressed: _saving ? null : _save,
++              icon: _saving
++                  ? const SizedBox(
++                      width: 18,
++                      height: 18,
++                      child: CircularProgressIndicator(strokeWidth: 2),
++                    )
++                  : const Icon(Icons.save_outlined),
++              label: Text(_saving ? 'Saving…'.tr : 'Save rule'.tr),
++            ),
++          ],
++        ),
++      ),
++    );
++  }
++
++  Widget _previewCard(BuildContext context, ParsedSms preview) {
++    final colorScheme = Theme.of(context).colorScheme;
++    final recognized = preview.isTransaction;
++    final message = recognized
++        ? 'Matched {bank}: {direction} {amount}.'.trArgs({
++            'bank': preview.bankName ?? '',
++            'direction': preview.direction.label,
++            'amount': Money.text(preview.amount, currency: preview.currency),
++          })
++        : 'No complete transaction was detected. Check the sender, phrase, amount, and direction.'
++              .tr;
++    return CardBox(
++      child: Row(
++        crossAxisAlignment: CrossAxisAlignment.start,
++        children: [
++          Icon(
++            recognized ? Icons.check_circle_outline : Icons.info_outline,
++            color: recognized ? colorScheme.primary : colorScheme.error,
++          ),
++          const SizedBox(width: 10),
++          Expanded(
++            child: Text(message, style: const TextStyle(fontSize: 12, height: 1.5)),
++          ),
++        ],
++      ),
++    );
++  }
++
++  void _clearPreview() {
++    if (_preview != null) setState(() => _preview = null);
++  }
++
++  void _testSample() {
++    final sample = _sampleController.text.trim();
++    if (sample.isEmpty) {
++      showSnack(context, 'Enter sample SMS text first.', error: true);
++      return;
++    }
++    final hints = _senderHints;
++    final message = SmsMessage(
++      id: 'rule-preview',
++      address: hints.isEmpty ? '' : hints.first,
++      body: sample,
++      date: DateTime.now(),
++    );
++    final parsed = SmsParser.parse(
++      message,
++      extraRules: [_buildRule('rule-preview')],
++    );
++    setState(() => _preview = parsed);
++  }
++
++  Future<void> _save() async {
++    if (!_formKey.currentState!.validate()) return;
++    final repo = context.read<AppRepository>();
++    setState(() => _saving = true);
++    try {
++      await repo.addSmsRule(_buildRule(LocalStore.newId()));
++      if (!mounted) return;
++      showSnack(context, 'Custom rule added.');
++      Navigator.of(context).pop(true);
++    } catch (_) {
++      if (mounted) showSnack(context, 'Could not save the custom rule.', error: true);
++    } finally {
++      if (mounted) setState(() => _saving = false);
++    }
++  }
++}
+diff --git a/lib/ui/unrecognized_sms_page.dart b/lib/ui/unrecognized_sms_page.dart
+new file mode 100644
+index 0000000..69c5a0b
+--- /dev/null
++++ b/lib/ui/unrecognized_sms_page.dart
+@@ -0,0 +1,251 @@
++import 'package:flutter/material.dart';
++import 'package:provider/provider.dart';
++
++import '../core/format_utils.dart';
++import '../core/jalali_utils.dart';
++import '../core/localization.dart';
++import '../core/money.dart';
++import '../core/sms/sms_models.dart';
++import '../core/sms/sms_parser.dart';
++import '../data/repository.dart';
++import 'sms_rules_page.dart';
++import 'widgets/widgets.dart';
++
++/// Transaction-shaped SMS messages that did not match an active recognition
++/// rule. Adding a rule only moves future matches into manual review.
++class UnrecognizedSmsPage extends StatefulWidget {
++  const UnrecognizedSmsPage({super.key});
++
++  @override
++  State<UnrecognizedSmsPage> createState() => _UnrecognizedSmsPageState();
++}
++
++class _UnrecognizedSmsPageState extends State<UnrecognizedSmsPage> {
++  @override
++  void initState() {
++    super.initState();
++    WidgetsBinding.instance.addPostFrameCallback((_) async {
++      final repo = context.read<AppRepository>();
++      repo.initSms();
++      final allowed = await repo.refreshSmsPermission();
++      if (allowed) await repo.scanUnrecognizedSms(force: true);
++    });
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    final repo = context.watch<AppRepository>();
++    if (!repo.smsSupported) {
++      return Scaffold(
++        appBar: AppBar(title: Text('Unrecognized SMS'.tr)),
++        body: const EmptyState(
++          icon: Icons.sms_outlined,
++          title: 'Android only',
++          text: 'SMS access is not available on web or desktop. Try this feature on an Android phone.',
++        ),
++      );
++    }
++
++    return Scaffold(
++      appBar: AppBar(
++        title: Text('Unrecognized SMS'.tr),
++        actions: [
++          IconButton(
++            tooltip: 'Scan again'.tr,
++            onPressed: repo.smsUnrecognizedBusy
++                ? null
++                : () => repo.scanUnrecognizedSms(force: true),
++            icon: repo.smsUnrecognizedBusy
++                ? const SizedBox(
++                    width: 18,
++                    height: 18,
++                    child: CircularProgressIndicator(strokeWidth: 2),
++                  )
++                : const Icon(Icons.sync_rounded),
++          ),
++        ],
++      ),
++      body: !repo.smsPermissionGranted
++          ? _permissionView(context, repo)
++          : RefreshIndicator(
++              onRefresh: () async {
++                await repo.scanUnrecognizedSms(force: true);
++              },
++              child: ListView(
++                physics: const AlwaysScrollableScrollPhysics(),
++                padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
++                children: [
++                  CardBox(
++                    child: Text(
++                      'These messages look like deposits or withdrawals but do not match an enabled rule. Create a sender or phrase rule to add matching messages to manual review. Nothing is recorded automatically.'
++                          .tr,
++                      style: TextStyle(
++                        fontSize: 12,
++                        height: 1.6,
++                        color: Theme.of(
++                          context,
++                        ).colorScheme.onSurface.withValues(alpha: 0.68),
++                      ),
++                    ),
++                  ),
++                  const SizedBox(height: 10),
++                  if (repo.smsUnrecognizedMessages.isEmpty)
++                    Padding(
++                      padding: const EdgeInsets.only(top: 26),
++                      child: EmptyState(
++                        icon: Icons.mark_email_read_outlined,
++                        title: repo.smsUnrecognizedBusy
++                            ? 'Checking SMS...'
++                            : 'No unrecognized transaction SMS found',
++                        text: repo.smsUnrecognizedBusy
++                            ? 'Please wait'
++                            : 'Try scanning again after receiving a bank or payment-service SMS.',
++                      ),
++                    )
++                  else
++                    for (final message in repo.smsUnrecognizedMessages)
++                      Padding(
++                        padding: const EdgeInsets.only(bottom: 10),
++                        child: _UnrecognizedSmsCard(message: message),
++                      ),
++                ],
++              ),
++            ),
++    );
++  }
++
++  Widget _permissionView(BuildContext context, AppRepository repo) => ListView(
++    padding: const EdgeInsets.all(16),
++    children: [
++      CardBox(
++        child: Column(
++          children: [
++            Text(
++              'SMS access is needed to scan for unrecognized messages. Messages are read on this device only.'
++                  .tr,
++              textAlign: TextAlign.center,
++              style: const TextStyle(fontSize: 12.5, height: 1.6),
++            ),
++            const SizedBox(height: 12),
++            FilledButton.icon(
++              onPressed: () async {
++                final allowed = await repo.requestSmsPermission();
++                if (allowed) await repo.scanUnrecognizedSms(force: true);
++              },
++              icon: const Icon(Icons.sms_rounded),
++              label: Text('Grant SMS access'.tr),
++            ),
++          ],
++        ),
++      ),
++    ],
++  );
++}
++
++class _UnrecognizedSmsCard extends StatelessWidget {
++  const _UnrecognizedSmsCard({required this.message});
++
++  final SmsMessage message;
++
++  @override
++  Widget build(BuildContext context) {
++    final repo = context.watch<AppRepository>();
++    final parsed = SmsParser.parse(
++      message,
++      extraRules: repo.smsRules,
++      disabledRuleIds: repo.settings.disabledSmsRuleIds.toSet(),
++    );
++    final isDeposit = parsed.direction == SmsDirection.deposit;
++    final color = isDeposit
++        ? const Color(0xFF16A34A)
++        : const Color(0xFFE11D48);
++
++    return CardBox(
++      child: Column(
++        crossAxisAlignment: CrossAxisAlignment.start,
++        children: [
++          Row(
++            children: [
++              Icon(Icons.sms_outlined, color: color, size: 20),
++              const SizedBox(width: 8),
++              Expanded(
++                child: Column(
++                  crossAxisAlignment: CrossAxisAlignment.start,
++                  children: [
++                    Text(
++                      message.address.isEmpty
++                          ? 'Unknown sender'.tr
++                          : message.address,
++                      style: const TextStyle(
++                        fontSize: 13,
++                        fontWeight: FontWeight.w700,
++                      ),
++                    ),
++                    Text(
++                      '${J.d(message.date)} · ${Fmt.clock(message.date)}',
++                      style: TextStyle(
++                        fontSize: 10.5,
++                        color: Theme.of(context).colorScheme.onSurface
++                            .withValues(alpha: 0.6),
++                      ),
++                    ),
++                  ],
++                ),
++              ),
++              if (parsed.isPotentialUnrecognizedTransaction)
++                Column(
++                  crossAxisAlignment: CrossAxisAlignment.end,
++                  children: [
++                    Text(
++                      Money.text(parsed.amount, currency: parsed.currency),
++                      style: TextStyle(
++                        fontSize: 13,
++                        fontWeight: FontWeight.w700,
++                        color: color,
++                      ),
++                    ),
++                    Text(
++                      parsed.direction.label,
++                      style: TextStyle(fontSize: 10, color: color),
++                    ),
++                  ],
++                ),
++            ],
++          ),
++          const SizedBox(height: 8),
++          Text(
++            message.body,
++            maxLines: 3,
++            overflow: TextOverflow.ellipsis,
++            style: TextStyle(
++              fontSize: 11.5,
++              height: 1.55,
++              color: Theme.of(
++                context,
++              ).colorScheme.onSurface.withValues(alpha: 0.7),
++            ),
++          ),
++          const SizedBox(height: 10),
++          SizedBox(
++            width: double.infinity,
++            child: OutlinedButton.icon(
++              onPressed: () async {
++                final saved = await Navigator.push<bool>(
++                  context,
++                  MaterialPageRoute(
++                    builder: (_) => SmsRuleEditPage(initialMessage: message),
++                  ),
++                );
++                if (saved == true && context.mounted) {
++                  await repo.scanUnrecognizedSms(force: true);
++                }
++              },
++              icon: const Icon(Icons.add_circle_outline_rounded),
++              label: Text('Create recognition rule'.tr),
++            ),
++          ),
++        ],
++      ),
++    );
++  }
++}
