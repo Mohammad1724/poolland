@@ -52,6 +52,33 @@ void main() {
       expect(r.isTransaction, isTrue);
     });
 
+    test('JibJit requires an explicit custom rule', () {
+      final message = msg(
+        'کاربر گرامی، مبلغ 576,290 ریال به شماره سریال 177326665 '
+        'با موفقیت از «جیب‌جت» شما کسر گردید.',
+        address: 'JIBJET',
+      );
+      final unconfigured = SmsParser.parse(message);
+      expect(unconfigured.bankName, isNull);
+      expect(unconfigured.isTransaction, isFalse);
+
+      final configured = SmsParser.parse(
+        message,
+        extraRules: const [
+          BankRule(
+            id: 'jibjet',
+            bankName: 'JibJit wallet',
+            senderHints: ['JIBJET'],
+            defaultUnit: AmountUnit.rial,
+          ),
+        ],
+      );
+      expect(configured.bankName, 'JibJit wallet');
+      expect(configured.direction, SmsDirection.withdraw);
+      expect(configured.amount, 57629);
+      expect(configured.isTransaction, isTrue);
+    });
+
     test('A custom sender rule is accepted as a recognized bank', () {
       final r = SmsParser.parse(
         msg('واریز مبلغ 250,000 تومان', address: 'MYBANK'),
@@ -92,6 +119,29 @@ void main() {
     test('Assume Rials when the bank rule specifies the default unit', () {
       final r = p('بانک ملت\nبرداشت\nمبلغ: 300,000', address: 'BANKMELAT');
       expect(r.amount, 30000);
+    });
+
+    test('Transaction amount after verb is not confused with account number', () {
+      final withdrawal = p(
+        'حساب 8206786296 برداشت 10,000,000',
+        address: 'BANKMELAT',
+      );
+      final deposit = p(
+        'حساب 8206786296 واریز 10,000,000',
+        address: 'BANKMELAT',
+      );
+
+      expect(withdrawal.direction, SmsDirection.withdraw);
+      expect(withdrawal.amount, 1000000);
+      expect(deposit.direction, SmsDirection.deposit);
+      expect(deposit.amount, 1000000);
+    });
+
+    test('Account number alone is never used as transaction amount', () {
+      final r = p('حساب 8206786296 برداشت', address: 'BANKMELAT');
+
+      expect(r.amount, 0);
+      expect(r.isTransaction, isFalse);
     });
 
     test('Persian digits and separators are parsed', () {

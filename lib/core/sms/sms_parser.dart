@@ -49,6 +49,7 @@ class SmsParser {
     'حوله',
     'اقساط',
     'کارمزد',
+    'کسر',
     'withdraw',
     'purchase',
     'debit',
@@ -80,6 +81,11 @@ class SmsParser {
     caseSensitive: false,
   );
 
+  static final RegExp _verbAmountRe = RegExp(
+    r'(?:برداشت|خرید|خريد|پرداخت|واریز|واريز|وصول|دریافت\s+وجه|دريافت\s+وجه|withdraw|purchase|debit|deposit|credited)[^0-9\u06F0-\u06F9\u0660-\u0669]{0,32}([0-9\u06F0-\u06F9\u0660-\u0669][0-9\u06F0-\u06F9\u0660-\u0669,\u066C\u200c ]*)',
+    caseSensitive: false,
+  );
+
   static final RegExp _balanceRe = RegExp(
     r'(?:مانده|موجودی|موجودي|balance)[^0-9\u06F0-\u06F9\u0660-\u0669]{0,10}([0-9\u06F0-\u06F9\u0660-\u0669][0-9\u06F0-\u06F9\u0660-\u0669,\u066C\u200c ]*)',
     caseSensitive: false,
@@ -96,6 +102,16 @@ class SmsParser {
 
   static final RegExp _refRe = RegExp(
     r'(?:پیگیری|پيگيري|مرجع|سریال|سريال|ref|reference|sequence)[^0-9\u06F0-\u06F9\u0660-\u0669]{0,8}([0-9\u06F0-\u06F9\u0660-\u0669]{4,})',
+    caseSensitive: false,
+  );
+
+  static final RegExp _accountContextRe = RegExp(
+    r'(?:حساب|account)(?:\s*(?:شماره|number|no\.?))?\s*[:：\-]?\s*$',
+    caseSensitive: false,
+  );
+
+  static final RegExp _cardContextRe = RegExp(
+    r'(?:کارت|card)\s*[:：\-]?\s*$',
     caseSensitive: false,
   );
 
@@ -262,16 +278,29 @@ class SmsParser {
       }
     }
 
-    // 3) Fall back to the first remaining significant number.
-    double? fallback;
+    // 3) A number following the transaction verb (e.g. “برداشت 10,000,000”).
+    // Many banks omit the word “مبلغ” and the currency unit in these messages.
+    for (final m in _verbAmountRe.allMatches(body)) {
+      final valueStart = m.start(1);
+      final valueEnd = m.end(1);
+      if (_isExcludedRange(body, valueStart, valueEnd)) continue;
+      final value = _toDouble(m.group(1)!.trim());
+      if (value > 0) {
+        return _convert(value, _unitAfter(body, valueEnd), rule);
+      }
+    }
+
+    // 4) A conservative fallback is allowed only when exactly one significant
+    // number remains and the message has a recognized transaction direction.
+    final candidates = <double>[];
     for (final m in _numberRe.allMatches(body)) {
       if (_isExcluded(body, m)) continue;
-      final v = _toDouble(m.group(0)!.trim());
-      if (v >= 1000) return _convert(v, '', rule);
-      fallback ??= v;
+      final value = _toDouble(m.group(0)!.trim());
+      if (value >= 1000) candidates.add(value);
     }
-    if (fallback != null && fallback > 0) {
-      return _convert(fallback, '', rule);
+    if (candidates.length == 1 &&
+        detectDirection(body) != SmsDirection.unknown) {
+      return _convert(candidates.single, '', rule);
     }
     return const _Amount(0, 'IRT', '');
   }
@@ -318,10 +347,10 @@ class SmsParser {
 
   /// Should this number be excluded from amount detection?
   /// (For example, a date, card digits, balance, or reference number.)
-  static bool _isExcluded(String body, Match m) {
-    final start = m.start;
-    final end = m.end;
+  static bool _isExcluded(String body, Match m) =>
+      _isExcludedRange(body, m.start, m.end);
 
+  static bool _isExcludedRange(String body, int start, int end) {
     // Adjacent to an asterisk (part of a card number).
     if (start > 0 && body[start - 1] == '*') return true;
     if (end < body.length && body[end] == '*') return true;
@@ -335,19 +364,28 @@ class SmsParser {
     }
     if (before == '/' || before == '-') return true;
 
-    // Balance
-    final headStart = (start - 12).clamp(0, body.length);
+    // Account and card numbers are identifiers, not transaction amounts.
+    final headStart = (start - 32).clamp(0, body.length);
     final head = body.substring(headStart, start);
-    if (head.contains('مانده') ||
-        head.contains('موجودی') ||
-        head.contains('موجودي')) {
+    if (_accountContextRe.hasMatch(head) || _cardContextRe.hasMatch(head)) {
       return true;
     }
 
-    // Reference number
-    if (head.contains('پیگیری') ||
-        head.contains('پيگيري') ||
-        head.contains('سریال')) {
+    // Balance and reference/serial numbers are not the transaction amount.
+    final normalizedHead = head.toLowerCase();
+    if (normalizedHead.contains('مانده') ||
+        normalizedHead.contains('موجودی') ||
+        normalizedHead.contains('موجودي')) {
+      return true;
+    }
+    if (normalizedHead.contains('پیگیری') ||
+        normalizedHead.contains('پيگيري') ||
+        normalizedHead.contains('مرجع') ||
+        normalizedHead.contains('سریال') ||
+        normalizedHead.contains('سريال') ||
+        normalizedHead.contains('شناسه') ||
+        normalizedHead.contains('reference') ||
+        normalizedHead.contains('sequence')) {
       return true;
     }
     return false;

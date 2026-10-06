@@ -78,7 +78,8 @@ class BankRule {
   );
 }
 
-/// Built-in rules for common Iranian banks and digital wallets.
+/// Built-in rules for common Iranian banks.
+/// Wallet and payment-app senders require an explicit custom rule.
 const List<BankRule> builtinBankRules = <BankRule>[
   BankRule(
     id: 'melat',
@@ -205,12 +206,5 @@ const List<BankRule> builtinBankRules = <BankRule>[
     bankName: 'Mehr Bank / Qarz al-Hasaneh',
     senderHints: ['MEHRBANK', 'QARZ', 'مهر'],
     bodyHints: ['بانک مهر', 'قرض الحسنه'],
-  ),
-  BankRule(
-    id: 'mellat_wallet',
-    bankName: 'Digital wallet / payment app',
-    senderHints: ['JIBJET', 'TOOMAN', 'TOMAN', 'APPAY', 'جیب جت', 'تومن'],
-    bodyHints: ['کیف پول', 'جیب جت'],
-    defaultUnit: AmountUnit.toman,
   ),
 ];
