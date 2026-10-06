@@ -53,9 +53,12 @@ class AppRepository extends ChangeNotifier {
 
   // ---- Bank SMS ----
   List<ParsedSms> smsSuggestions = [];
+  List<SmsHistoryEntry> smsHistory = [];
+  List<SmsMessage> smsUnrecognizedMessages = [];
   List<BankRule> smsRules = [];
   bool smsPermissionGranted = false;
   bool smsBusy = false;
+  bool smsUnrecognizedBusy = false;
   bool _smsInited = false;
 
   /// Initialize the repository and open the database.
@@ -95,6 +98,7 @@ class AppRepository extends ChangeNotifier {
     categories = _readBox('categories', s.loadCategories);
     plans = _readBox('plans', s.loadPlans);
     smsRules = _readBox('sms_rules', s.loadSmsRules);
+    smsHistory = _readBox('sms_state_v2', s.loadSmsHistory);
     budgets = _readBox('budgets', s.loadBudgets);
     recurringRules = _readBox('recurring', s.loadRecurring);
     quickExpenses = _readBox('quick_expenses', s.loadQuickExpenses);
@@ -802,6 +806,56 @@ class AppRepository extends ChangeNotifier {
   /// Number of suggestions awaiting approval.
   int get smsPendingCount => smsSuggestions.length;
 
+  /// Built-in rules are enabled unless explicitly disabled in settings.
+  bool isSmsRuleEnabled(String ruleId) =>
+      !settings.disabledSmsRuleIds.contains(ruleId);
+
+  /// Persist a per-rule switch and immediately apply it to the review queue.
+  Future<void> setSmsRuleEnabled(String ruleId, bool enabled) async {
+    final disabledRuleIds = settings.disabledSmsRuleIds.toSet();
+    final wasEnabled = !disabledRuleIds.contains(ruleId);
+    if (wasEnabled == enabled) return;
+
+    if (enabled) {
+      disabledRuleIds.remove(ruleId);
+    } else {
+      disabledRuleIds.add(ruleId);
+    }
+    final sortedIds = disabledRuleIds.toList()..sort();
+    await updateSettings(
+      settings.copyWith(disabledSmsRuleIds: sortedIds),
+    );
+    _refreshPendingSms();
+
+    // Enabling a rule may make messages already in the inbox eligible for
+    // manual review. It still never records a transaction automatically.
+    if (enabled && smsPermissionGranted) {
+      try {
+        await syncSms(force: true);
+      } catch (_) {
+        // The setting is saved; the user can retry from the SMS review page.
+      }
+    }
+  }
+
+  void _refreshPendingSms() {
+    final disabledRuleIds = settings.disabledSmsRuleIds.toSet();
+    final refreshed = smsSuggestions
+        .map(
+          (sms) => SmsParser.parse(
+            sms.message,
+            extraRules: smsRules,
+            disabledRuleIds: disabledRuleIds,
+          ),
+        )
+        .where((sms) => sms.isTransaction)
+        .toList()
+      ..sort((a, b) => b.message.date.compareTo(a.message.date));
+    smsSuggestions = refreshed;
+    smsUnrecognizedMessages = [];
+    notifyListeners();
+  }
+
   /// Initialize listening for new SMS messages.
   void initSms() {
     if (_smsInited || !SmsService.isSupported) return;
@@ -811,7 +865,11 @@ class AppRepository extends ChangeNotifier {
   }
 
   void _onIncomingSms(SmsMessage msg) {
-    final parsed = SmsParser.parse(msg, extraRules: smsRules);
+    final parsed = SmsParser.parse(
+      msg,
+      extraRules: smsRules,
+      disabledRuleIds: settings.disabledSmsRuleIds.toSet(),
+    );
     if (!parsed.isTransaction) return;
     final state = store.loadSmsState();
     if (state.containsKey(parsed.key)) return;
@@ -853,10 +911,26 @@ class AppRepository extends ChangeNotifier {
       final messages = await SmsService.readInbox(since: since);
       final state = store.loadSmsState();
 
+      final disabledRuleIds = settings.disabledSmsRuleIds.toSet();
+      final current = smsSuggestions
+          .map(
+            (sms) => SmsParser.parse(
+              sms.message,
+              extraRules: smsRules,
+              disabledRuleIds: disabledRuleIds,
+            ),
+          )
+          .where((sms) => sms.isTransaction && !state.containsKey(sms.key))
+          .toList();
+
       final pending = <ParsedSms>[];
       for (final m in messages) {
         if (state.containsKey(m.key)) continue;
-        final parsed = SmsParser.parse(m, extraRules: smsRules);
+        final parsed = SmsParser.parse(
+          m,
+          extraRules: smsRules,
+          disabledRuleIds: disabledRuleIds,
+        );
         if (parsed.isTransaction) {
           pending.add(parsed);
         } else {
@@ -866,9 +940,9 @@ class AppRepository extends ChangeNotifier {
         }
       }
 
-      final known = smsSuggestions.map((e) => e.key).toSet();
+      final known = current.map((e) => e.key).toSet();
       final merged = <ParsedSms>[
-        ...smsSuggestions,
+        ...current,
         ...pending.where((p) => !known.contains(p.key)),
       ]..sort((a, b) => b.message.date.compareTo(a.message.date));
       smsSuggestions = merged;
@@ -880,6 +954,57 @@ class AppRepository extends ChangeNotifier {
       return pending.length;
     } finally {
       smsBusy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Find transaction-like messages that do not match any active rule.
+  /// These remain out of the review queue until the user explicitly creates a
+  /// rule for their sender or a phrase in the body.
+  Future<int> scanUnrecognizedSms({bool force = false}) async {
+    if (!isReady || !SmsService.isSupported || !smsPermissionGranted) return 0;
+    if (smsUnrecognizedBusy && !force) return 0;
+
+    smsUnrecognizedBusy = true;
+    notifyListeners();
+    try {
+      final days = settings.smsSyncDays < 1 ? 1 : settings.smsSyncDays;
+      final since = DateTime.now().subtract(Duration(days: days));
+      final messages = await SmsService.readInbox(since: since);
+      final state = store.loadSmsState();
+      final disabledRuleIds = settings.disabledSmsRuleIds.toSet();
+      final candidates = <String, SmsMessage>{};
+
+      for (final message in messages) {
+        if (state.containsKey(message.key)) continue;
+        final body = SmsParser.normalize(message.body);
+        if (SmsParser.isIgnored(body)) continue;
+
+        final parsed = SmsParser.parse(
+          message,
+          extraRules: smsRules,
+          disabledRuleIds: disabledRuleIds,
+        );
+        if (!parsed.isPotentialUnrecognizedTransaction) continue;
+
+        // Do not advertise a known-but-disabled bank as an unknown sender.
+        final disabledMatch = SmsParser.findRule(
+          SmsParser.normalize(message.address).toUpperCase(),
+          body,
+          smsRules,
+        );
+        if (disabledMatch != null &&
+            disabledRuleIds.contains(disabledMatch.id)) {
+          continue;
+        }
+        candidates[message.key] = message;
+      }
+
+      smsUnrecognizedMessages = candidates.values.toList()
+        ..sort((a, b) => b.date.compareTo(a.date));
+      return smsUnrecognizedMessages.length;
+    } finally {
+      smsUnrecognizedBusy = false;
       notifyListeners();
     }
   }
@@ -950,7 +1075,15 @@ class AppRepository extends ChangeNotifier {
       createdAt: DateTime.now(),
     );
     await store.putTxn(txn);
-    await store.setSmsState(sms.key, 'approved');
+    await store.setSmsState(
+      sms.key,
+      SmsHistoryEntry.approvedStatus,
+      history: _smsHistoryEntry(
+        sms,
+        SmsHistoryEntry.approvedStatus,
+        transactionId: txn.id,
+      ),
+    );
     smsSuggestions = smsSuggestions.where((e) => e.key != sms.key).toList();
     await reload();
     return txn;
@@ -958,35 +1091,80 @@ class AppRepository extends ChangeNotifier {
 
   /// Reject a suggestion (it will no longer be displayed).
   Future<void> rejectSms(ParsedSms sms) async {
-    await store.setSmsState(sms.key, 'rejected');
+    await store.setSmsState(
+      sms.key,
+      SmsHistoryEntry.rejectedStatus,
+      history: _smsHistoryEntry(sms, SmsHistoryEntry.rejectedStatus),
+    );
     smsSuggestions = smsSuggestions.where((e) => e.key != sms.key).toList();
+    smsHistory = store.loadSmsHistory();
     notifyListeners();
   }
 
   /// Reject all suggestions.
   Future<void> rejectAllSms() async {
-    for (final s in smsSuggestions) {
-      await store.setSmsState(s.key, 'rejected');
+    for (final sms in smsSuggestions) {
+      await store.setSmsState(
+        sms.key,
+        SmsHistoryEntry.rejectedStatus,
+        history: _smsHistoryEntry(sms, SmsHistoryEntry.rejectedStatus),
+      );
     }
     smsSuggestions = [];
+    smsHistory = store.loadSmsHistory();
     notifyListeners();
   }
+
+  SmsHistoryEntry _smsHistoryEntry(
+    ParsedSms sms,
+    String status, {
+    String? transactionId,
+  }) => SmsHistoryEntry(
+    key: sms.key,
+    message: sms.message,
+    status: status,
+    bankName: sms.bankName,
+    amount: sms.amount,
+    currency: sms.currency,
+    direction: sms.direction,
+    reviewedAt: DateTime.now(),
+    transactionId: transactionId,
+  );
 
   /// Clear review history so all messages are scanned again.
   Future<void> resetSmsState() async {
     await store.clearSmsState();
     smsSuggestions = [];
+    smsHistory = [];
+    smsUnrecognizedMessages = [];
     notifyListeners();
   }
 
   Future<void> addSmsRule(BankRule rule) async {
     await store.putSmsRule(rule);
     await reload();
+    _refreshPendingSms();
+    if (smsPermissionGranted) {
+      try {
+        await syncSms(force: true);
+      } catch (_) {
+        // Keep the new rule even if inbox scanning is temporarily unavailable.
+      }
+    }
   }
 
   Future<void> deleteSmsRule(String id) async {
     await store.deleteSmsRule(id);
+    final disabledRuleIds = settings.disabledSmsRuleIds
+        .where((ruleId) => ruleId != id)
+        .toList();
+    if (disabledRuleIds.length != settings.disabledSmsRuleIds.length) {
+      await updateSettings(
+        settings.copyWith(disabledSmsRuleIds: disabledRuleIds),
+      );
+    }
     await reload();
+    _refreshPendingSms();
   }
 
   static String _smsNote(ParsedSms sms) {

@@ -2,6 +2,7 @@ import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../core/sms/bank_rules.dart';
+import '../core/sms/sms_models.dart';
 import 'models.dart';
 
 /// Local storage layer built on Hive.
@@ -473,7 +474,7 @@ class LocalStore {
   }
 
   // ---------- Bank SMS ----------
-  /// Review status for each recognized SMS: compact key → status.
+  /// Review status for each SMS: compact key → status.
   /// Possible statuses: approved | rejected.
   Map<String, String> loadSmsState() {
     final out = <String, String>{};
@@ -487,11 +488,47 @@ class LocalStore {
     return out;
   }
 
-  Future<void> setSmsState(String key, String status) => smsState.put(key, {
-    'key': key,
-    'status': status,
-    'at': DateTime.now().millisecondsSinceEpoch,
-  });
+  /// Full local review history. Older status-only records remain valid for
+  /// duplicate prevention but cannot be shown because their SMS body was not
+  /// stored by earlier app versions.
+  List<SmsHistoryEntry> loadSmsHistory() {
+    final out = <SmsHistoryEntry>[];
+    for (final e in smsState.values) {
+      if (e is! Map) continue;
+      try {
+        final m = Map<String, dynamic>.from(e);
+        final status = m['status'];
+        if (status != SmsHistoryEntry.approvedStatus &&
+            status != SmsHistoryEntry.rejectedStatus) {
+          continue;
+        }
+        if (m['message'] is! Map) continue;
+        out.add(SmsHistoryEntry.fromMap(m));
+      } catch (_) {
+        // A malformed history entry should not prevent the SMS feature from
+        // loading or block the rest of the local database.
+      }
+    }
+    return out..sort((a, b) => b.reviewedAt.compareTo(a.reviewedAt));
+  }
+
+  Future<void> setSmsState(
+    String key,
+    String status, {
+    SmsHistoryEntry? history,
+  }) {
+    final previous = smsState.get(key);
+    final record = previous is Map
+        ? Map<String, dynamic>.from(previous)
+        : <String, dynamic>{};
+    if (history != null) record.addAll(history.toMap());
+    record.addAll({
+      'key': key,
+      'status': status,
+      'at': DateTime.now().millisecondsSinceEpoch,
+    });
+    return smsState.put(key, record);
+  }
 
   Future<void> clearSmsState() => smsState.clear();
 

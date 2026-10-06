@@ -12,6 +12,7 @@ import '../data/models.dart';
 import '../data/repository.dart';
 import 'forms/plan_edit_page.dart';
 import 'sms_page.dart';
+import 'sms_rules_page.dart';
 import 'widgets/widgets.dart';
 
 import '../core/localization.dart';
@@ -344,6 +345,16 @@ class SettingsPage extends StatelessWidget {
                           })
                         : 'Nothing awaiting review'.tr,
                     page: const SmsPage(),
+                  ),
+                  Divider(color: Theme.of(context).dividerColor),
+                  _navTile(
+                    context,
+                    icon: Icons.tune_rounded,
+                    title: 'Recognition rules'.tr,
+                    subtitle:
+                        'Choose which built-in banks and custom senders can match SMS.'
+                            .tr,
+                    page: const SmsRulesPage(),
                   ),
                   Divider(color: Theme.of(context).dividerColor),
                   ListTile(

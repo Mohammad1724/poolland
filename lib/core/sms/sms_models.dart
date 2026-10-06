@@ -69,6 +69,74 @@ class SmsMessage {
   };
 }
 
+/// A locally stored record of an SMS that the user reviewed.
+/// History stays out of the app's explicit JSON export/restore format.
+class SmsHistoryEntry {
+  static const String approvedStatus = 'approved';
+  static const String rejectedStatus = 'rejected';
+
+  final String key;
+  final SmsMessage message;
+  final String status;
+  final String? bankName;
+  final double amount;
+  final String currency;
+  final SmsDirection direction;
+  final DateTime reviewedAt;
+  final String? transactionId;
+
+  const SmsHistoryEntry({
+    required this.key,
+    required this.message,
+    required this.status,
+    this.bankName,
+    this.amount = 0,
+    this.currency = 'IRT',
+    this.direction = SmsDirection.unknown,
+    required this.reviewedAt,
+    this.transactionId,
+  });
+
+  bool get wasRecorded => status == approvedStatus;
+  bool get wasRejected => status == rejectedStatus;
+
+  Map<String, dynamic> toMap() => {
+    'key': key,
+    'status': status,
+    'message': message.toMap(),
+    'bankName': bankName,
+    'amount': amount,
+    'currency': currency,
+    'direction': direction.name,
+    'at': reviewedAt.millisecondsSinceEpoch,
+    'transactionId': transactionId,
+  };
+
+  factory SmsHistoryEntry.fromMap(Map map) {
+    final rawMessage = map['message'];
+    if (rawMessage is! Map) {
+      throw const FormatException('SMS review record has no message.');
+    }
+    final directionName = '${map['direction'] ?? SmsDirection.unknown.name}';
+    return SmsHistoryEntry(
+      key: '${map['key'] ?? ''}',
+      status: '${map['status'] ?? ''}',
+      message: SmsMessage.fromMap(Map<dynamic, dynamic>.from(rawMessage)),
+      bankName: map['bankName'] as String?,
+      amount: (map['amount'] as num?)?.toDouble() ?? 0,
+      currency: '${map['currency'] ?? 'IRT'}',
+      direction: SmsDirection.values.firstWhere(
+        (value) => value.name == directionName,
+        orElse: () => SmsDirection.unknown,
+      ),
+      reviewedAt: DateTime.fromMillisecondsSinceEpoch(
+        (map['at'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch,
+      ),
+      transactionId: map['transactionId'] as String?,
+    );
+  }
+}
+
 /// Result of parsing an SMS message.
 class ParsedSms {
   final SmsMessage message;
@@ -123,6 +191,10 @@ class ParsedSms {
   /// is not enough: a built-in or user-defined sender/body rule must match.
   bool get isTransaction =>
       bankName != null && amount > 0 && direction != SmsDirection.unknown;
+
+  /// Message has transaction-like direction and amount but no active rule.
+  bool get isPotentialUnrecognizedTransaction =>
+      bankName == null && amount > 0 && direction != SmsDirection.unknown;
 
   /// Suggested transaction type for the ledger.
   /// Deposit → customer receipt or income; withdrawal → expense.

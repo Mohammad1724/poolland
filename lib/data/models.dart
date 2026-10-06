@@ -74,6 +74,8 @@ class AppSettings {
   final bool smsEnabled; // Whether SMS reading is enabled.
   final int smsSyncDays; // Number of past days to scan.
   final int smsLastSyncAt; // Last sync timestamp (for incremental updates).
+  /// Built-in or custom rules turned off; empty preserves legacy behavior.
+  final List<String> disabledSmsRuleIds;
 
   // ---- Daily expense reminder ----
   final bool dailyReminder; // Whether the daily reminder is enabled.
@@ -94,6 +96,7 @@ class AppSettings {
     this.smsEnabled = false,
     this.smsSyncDays = 90,
     this.smsLastSyncAt = 0,
+    this.disabledSmsRuleIds = const [],
     this.dailyReminder = false,
     this.reminderHour = 21,
     this.reminderMinute = 0,
@@ -162,6 +165,7 @@ class AppSettings {
     bool? smsEnabled,
     int? smsSyncDays,
     int? smsLastSyncAt,
+    List<String>? disabledSmsRuleIds,
     bool? dailyReminder,
     int? reminderHour,
     int? reminderMinute,
@@ -179,6 +183,7 @@ class AppSettings {
     smsEnabled: smsEnabled ?? this.smsEnabled,
     smsSyncDays: smsSyncDays ?? this.smsSyncDays,
     smsLastSyncAt: smsLastSyncAt ?? this.smsLastSyncAt,
+    disabledSmsRuleIds: disabledSmsRuleIds ?? this.disabledSmsRuleIds,
     dailyReminder: dailyReminder ?? this.dailyReminder,
     reminderHour: reminderHour ?? this.reminderHour,
     reminderMinute: reminderMinute ?? this.reminderMinute,
@@ -198,6 +203,7 @@ class AppSettings {
     'smsEnabled': smsEnabled,
     'smsSyncDays': smsSyncDays,
     'smsLastSyncAt': smsLastSyncAt,
+    'disabledSmsRuleIds': disabledSmsRuleIds,
     'dailyReminder': dailyReminder,
     'reminderHour': reminderHour,
     'reminderMinute': reminderMinute,
@@ -221,6 +227,11 @@ class AppSettings {
     smsEnabled: map['smsEnabled'] as bool? ?? false,
     smsSyncDays: (map['smsSyncDays'] as num?)?.toInt() ?? 90,
     smsLastSyncAt: (map['smsLastSyncAt'] as num?)?.toInt() ?? 0,
+    disabledSmsRuleIds: (map['disabledSmsRuleIds'] as List? ?? const [])
+        .map((e) => '$e')
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList(),
     dailyReminder: map['dailyReminder'] as bool? ?? false,
     reminderHour: (map['reminderHour'] as num?)?.toInt() ?? 21,
     reminderMinute: (map['reminderMinute'] as num?)?.toInt() ?? 0,

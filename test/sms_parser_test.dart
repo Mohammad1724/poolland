@@ -52,6 +52,39 @@ void main() {
       expect(r.isTransaction, isTrue);
     });
 
+    test('A disabled built-in rule cannot match sender or body hints', () {
+      final fromSender = SmsParser.parse(
+        msg('واریز مبلغ 100,000 ریال', address: 'BANKMELAT'),
+        disabledRuleIds: {'melat'},
+      );
+      final fromBody = SmsParser.parse(
+        msg('بانک ملت\nواریز مبلغ 100,000 ریال', address: 'UNKNOWN'),
+        disabledRuleIds: {'melat'},
+      );
+
+      expect(fromSender.bankName, isNull);
+      expect(fromSender.isTransaction, isFalse);
+      expect(fromBody.bankName, isNull);
+      expect(fromBody.isTransaction, isFalse);
+    });
+
+    test('A disabled custom rule cannot match its sender', () {
+      final r = SmsParser.parse(
+        msg('واریز مبلغ 250,000 تومان', address: 'MYBANK'),
+        extraRules: const [
+          BankRule(
+            id: 'my_bank',
+            bankName: 'My Bank',
+            senderHints: ['MYBANK'],
+          ),
+        ],
+        disabledRuleIds: {'my_bank'},
+      );
+
+      expect(r.bankName, isNull);
+      expect(r.isTransaction, isFalse);
+    });
+
     test('JibJit requires an explicit custom rule', () {
       final message = msg(
         'کاربر گرامی، مبلغ 576,290 ریال به شماره سریال 177326665 '
@@ -93,6 +126,15 @@ void main() {
       expect(r.bankName, 'My Bank');
       expect(r.isTransaction, isTrue);
       expect(r.confident, isTrue);
+    });
+
+    test('Unknown transaction-like SMS can be offered for rule identification', () {
+      final r = SmsParser.parse(
+        msg('واریز مبلغ 50,000 ریال', address: '30001234'),
+      );
+
+      expect(r.isTransaction, isFalse);
+      expect(r.isPotentialUnrecognizedTransaction, isTrue);
     });
 
     test('Unknown sender', () {

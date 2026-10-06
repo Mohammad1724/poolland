@@ -7,6 +7,9 @@ import '../core/money.dart';
 import '../core/sms/sms_models.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
+import 'forms/transaction_edit_page.dart';
+import 'sms_rules_page.dart';
+import 'unrecognized_sms_page.dart';
 import 'widgets/widgets.dart';
 
 import '../core/localization.dart';
@@ -25,9 +28,11 @@ class SmsPage extends StatefulWidget {
 }
 
 enum _SmsFilter { all, deposit, withdraw }
+enum _HistoryFilter { all, recorded, rejected }
 
 class _SmsPageState extends State<SmsPage> {
   _SmsFilter _filter = _SmsFilter.all;
+  _HistoryFilter _historyFilter = _HistoryFilter.all;
 
   @override
   void initState() {
@@ -67,114 +72,231 @@ class _SmsPageState extends State<SmsPage> {
         all.where((s) => s.direction == SmsDirection.withdraw).toList(),
     };
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Bank SMS'.tr),
-        actions: [
-          IconButton(
-            tooltip: 'Sync'.tr,
-            icon: repo.smsBusy
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.sync_rounded),
-            onPressed: repo.smsBusy ? null : () => repo.syncSms(force: true),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (v) async {
-              switch (v) {
-                case 'reject_all':
-                  final ok = await confirmDialog(
-                    context,
-                    title: 'Reject all'.tr,
-                    message: 'Reject all suggestions? (They will no longer appear, but no transactions will be deleted.)'
-                        .tr,
-                    okLabel: 'Reject'.tr,
-                    danger: true,
-                  );
-                  if (ok) await repo.rejectAllSms();
-                  break;
-                case 'reset':
-                  final ok = await confirmDialog(
-                    context,
-                    title: 'Review again'.tr,
-                    message:
-                        'Clear the review history and scan SMS messages '
-                        'again?',
-                    okLabel: 'Clear',
-                  );
-                  if (ok) {
-                    await repo.resetSmsState();
-                    await repo.syncSms(force: true);
-                  }
-                  break;
-              }
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(value: 'reject_all', child: Text('Reject all'.tr)),
-              PopupMenuItem(value: 'reset', child: Text('Rescan SMS'.tr)),
-            ],
-          ),
-        ],
-      ),
-      body: !repo.smsPermissionGranted
-          ? _permissionView(context, repo)
-          : RefreshIndicator(
-              onRefresh: () => repo.syncSms(force: true),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
-                children: [
-                  _summaryCard(context, repo, all.length),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      _chip('All', _SmsFilter.all, all.length),
-                      const SizedBox(width: 8),
-                      _chip(
-                        'Deposit',
-                        _SmsFilter.deposit,
-                        all
-                            .where((s) => s.direction == SmsDirection.deposit)
-                            .length,
-                      ),
-                      const SizedBox(width: 8),
-                      _chip(
-                        'Withdrawal',
-                        _SmsFilter.withdraw,
-                        all
-                            .where((s) => s.direction == SmsDirection.withdraw)
-                            .length,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (list.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 40),
-                      child: EmptyState(
-                        icon: Icons.sms_outlined,
-                        title: repo.smsBusy
-                            ? 'Checking SMS...'
-                            : 'No items found',
-                        text: repo.smsBusy
-                            ? 'Please wait'
-                            : 'No new transaction messages found. Tap '
-                                  'Sync to check recent messages.',
-                      ),
-                    )
-                  else
-                    for (final sms in list)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _SmsCard(sms: sms, onSurface: onSurface),
-                      ),
-                ],
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('Bank SMS'.tr),
+          actions: [
+            IconButton(
+              tooltip: 'Manage recognition rules'.tr,
+              icon: const Icon(Icons.tune_rounded),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SmsRulesPage()),
               ),
             ),
+            IconButton(
+              tooltip: 'Sync'.tr,
+              icon: repo.smsBusy
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync_rounded),
+              onPressed: repo.smsBusy ? null : () => repo.syncSms(force: true),
+            ),
+            PopupMenuButton<String>(
+              onSelected: (v) async {
+                switch (v) {
+                  case 'reject_all':
+                    final ok = await confirmDialog(
+                      context,
+                      title: 'Reject all'.tr,
+                      message: 'Reject all suggestions? (They will no longer appear, but no transactions will be deleted.)'
+                          .tr,
+                      okLabel: 'Reject'.tr,
+                      danger: true,
+                    );
+                    if (ok) await repo.rejectAllSms();
+                    break;
+                  case 'reset':
+                    final ok = await confirmDialog(
+                      context,
+                      title: 'Review again'.tr,
+                      message:
+                          'Clear the review history and scan SMS messages '
+                          'again?',
+                      okLabel: 'Clear',
+                    );
+                    if (ok) {
+                      await repo.resetSmsState();
+                      await repo.syncSms(force: true);
+                    }
+                    break;
+                }
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(value: 'reject_all', child: Text('Reject all'.tr)),
+                PopupMenuItem(value: 'reset', child: Text('Rescan SMS'.tr)),
+              ],
+            ),
+          ],
+          bottom: repo.smsPermissionGranted
+              ? TabBar(
+                  tabs: [
+                    Tab(
+                      text: 'Unregistered ({count})'.trArgs({
+                        'count': all.length,
+                      }),
+                    ),
+                    Tab(
+                      text: 'Review history ({count})'.trArgs({
+                        'count': repo.smsHistory.length,
+                      }),
+                    ),
+                  ],
+                )
+              : null,
+        ),
+        body: !repo.smsPermissionGranted
+            ? _permissionView(context, repo)
+            : TabBarView(
+                children: [
+                  _pendingTab(context, repo, all, list, onSurface),
+                  _historyTab(context, repo),
+                ],
+              ),
+      ),
     );
   }
+
+  Widget _pendingTab(
+    BuildContext context,
+    AppRepository repo,
+    List<ParsedSms> all,
+    List<ParsedSms> list,
+    Color onSurface,
+  ) => RefreshIndicator(
+    onRefresh: () => repo.syncSms(force: true),
+    child: ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
+      children: [
+        _summaryCard(context, repo, all.length),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            _chip('All', _SmsFilter.all, all.length),
+            const SizedBox(width: 8),
+            _chip(
+              'Deposit',
+              _SmsFilter.deposit,
+              all.where((s) => s.direction == SmsDirection.deposit).length,
+            ),
+            const SizedBox(width: 8),
+            _chip(
+              'Withdrawal',
+              _SmsFilter.withdraw,
+              all.where((s) => s.direction == SmsDirection.withdraw).length,
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (list.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 40),
+            child: EmptyState(
+              icon: Icons.sms_outlined,
+              title: repo.smsBusy ? 'Checking SMS...' : 'No items found',
+              text: repo.smsBusy
+                  ? 'Please wait'
+                  : 'No new transaction messages found. Tap '
+                        'Sync to check recent messages.',
+            ),
+          )
+        else
+          for (final sms in list)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _SmsCard(sms: sms, onSurface: onSurface),
+            ),
+        const SizedBox(height: 6),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const UnrecognizedSmsPage(),
+            ),
+          ),
+          icon: const Icon(Icons.manage_search_rounded),
+          label: Text('Identify unrecognized SMS'.tr),
+        ),
+      ],
+    ),
+  );
+
+  Widget _historyTab(BuildContext context, AppRepository repo) {
+    final history = repo.smsHistory;
+    final visible = switch (_historyFilter) {
+      _HistoryFilter.all => history,
+      _HistoryFilter.recorded => history.where((e) => e.wasRecorded).toList(),
+      _HistoryFilter.rejected => history.where((e) => e.wasRejected).toList(),
+    };
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
+      children: [
+        CardBox(
+          child: Text(
+            'Reviewed SMS history is kept in this app’s storage and omitted from its export/restore files. Recorded entries can be opened from here; rejected messages do not create transactions. Older status-only records may not be displayable.'
+                .tr,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.6,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.68),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _historyChip('All', _HistoryFilter.all, history.length),
+            _historyChip(
+              'Recorded',
+              _HistoryFilter.recorded,
+              history.where((e) => e.wasRecorded).length,
+            ),
+            _historyChip(
+              'Rejected',
+              _HistoryFilter.rejected,
+              history.where((e) => e.wasRejected).length,
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (visible.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(top: 35),
+            child: EmptyState(
+              icon: Icons.history_rounded,
+              title: 'No review history yet',
+              text: 'Approved or rejected SMS messages will appear here.',
+            ),
+          )
+        else
+          for (final entry in visible)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _SmsHistoryCard(entry: entry),
+            ),
+      ],
+    );
+  }
+
+  Widget _historyChip(String label, _HistoryFilter filter, int count) =>
+      ChoiceChip(
+        label: Text('${label.tr} ($count)'),
+        showCheckmark: false,
+        selected: _historyFilter == filter,
+        onSelected: (_) => setState(() => _historyFilter = filter),
+      );
 
   Widget _chip(String label, _SmsFilter f, int count) => ChoiceChip(
     label: Text(count > 0 ? '${label.tr} ($count)' : label.tr),
@@ -466,6 +588,146 @@ class _SmsCard extends StatelessWidget {
     if (ok == true && context.mounted) {
       showSnack(context, 'Transaction recorded from SMS');
     }
+  }
+}
+
+class _SmsHistoryCard extends StatelessWidget {
+  const _SmsHistoryCard({required this.entry});
+
+  final SmsHistoryEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final recorded = entry.wasRecorded;
+    final statusColor = recorded
+        ? const Color(0xFF16A34A)
+        : const Color(0xFF64748B);
+    final directionColor = entry.direction == SmsDirection.deposit
+        ? const Color(0xFF16A34A)
+        : const Color(0xFFE11D48);
+    final title = entry.bankName?.isNotEmpty == true
+        ? entry.bankName!
+        : entry.message.address;
+    Txn? transaction;
+    if (entry.transactionId != null) {
+      for (final item in context.read<AppRepository>().transactions) {
+        if (item.id == entry.transactionId) {
+          transaction = item;
+          break;
+        }
+      }
+    }
+    final transactionToOpen = transaction;
+
+    return CardBox(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                recorded ? Icons.check_circle_outline : Icons.block_outlined,
+                color: statusColor,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title.isEmpty ? 'Unknown sender'.tr : title,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      'Received {received} · reviewed {reviewed}'.trArgs({
+                        'received': '${J.d(entry.message.date)} · ${Fmt.clock(entry.message.date)}',
+                        'reviewed': '${J.d(entry.reviewedAt)} · ${Fmt.clock(entry.reviewedAt)}',
+                      }),
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: Theme.of(context).colorScheme.onSurface
+                            .withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (entry.amount > 0)
+                Text(
+                  '${entry.direction == SmsDirection.deposit ? '+' : '−'}'
+                  '${Money.text(entry.amount, currency: entry.currency)}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: directionColor,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              TagChip(
+                recorded ? 'Recorded'.tr : 'Rejected'.tr,
+                color: statusColor,
+                dense: true,
+              ),
+              if (entry.direction != SmsDirection.unknown)
+                TagChip(entry.direction.label, color: directionColor, dense: true),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            entry.message.body,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11.5,
+              height: 1.55,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.68),
+            ),
+          ),
+          if (entry.transactionId != null) ...[
+            const SizedBox(height: 6),
+            if (transactionToOpen != null)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TransactionEditPage(
+                        existing: transactionToOpen,
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                  label: Text('Open transaction'.tr),
+                ),
+              )
+            else
+              Row(
+                children: [
+                  const Icon(Icons.receipt_long_outlined, size: 15),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Transaction recorded'.tr,
+                    style: const TextStyle(fontSize: 10.5),
+                  ),
+                ],
+              ),
+          ],
+        ],
+      ),
+    );
   }
 }
 

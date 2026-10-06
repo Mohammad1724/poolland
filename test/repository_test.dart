@@ -37,6 +37,41 @@ void main() {
     expect(repo.scopeFilter, TxnScope.business);
   });
 
+  test('SMS rule enablement defaults on and persists per rule', () async {
+    expect(repo.isSmsRuleEnabled('melat'), isTrue);
+    expect(
+      AppSettings.fromMap({'smsEnabled': true}).disabledSmsRuleIds,
+      isEmpty,
+      reason: 'Legacy settings keep every built-in rule enabled',
+    );
+
+    final sms = SmsParser.parse(
+      SmsMessage(
+        id: 'mellat-pending',
+        address: 'BANKMELAT',
+        body: 'واریز مبلغ 100,000 ریال',
+        date: J.today,
+      ),
+    );
+    repo.smsSuggestions = [sms];
+
+    await repo.setSmsRuleEnabled('melat', false);
+    expect(repo.isSmsRuleEnabled('melat'), isFalse);
+    expect(repo.settings.disabledSmsRuleIds, contains('melat'));
+    expect(repo.smsSuggestions, isEmpty);
+    expect(
+      repo.transactions,
+      isEmpty,
+      reason: 'Changing a rule never records a transaction',
+    );
+
+    await repo.reload();
+    expect(repo.isSmsRuleEnabled('melat'), isFalse);
+    await repo.setSmsRuleEnabled('melat', true);
+    expect(repo.isSmsRuleEnabled('melat'), isTrue);
+    expect(repo.settings.disabledSmsRuleIds, isNot(contains('melat')));
+  });
+
   test('Sale records income, customer debt, and cash received', () async {
     final customer = await repo.addCustomer(name: 'Reza');
     await repo.sellSubscription(
@@ -111,7 +146,36 @@ void main() {
     expect(repo.summary(scope: TxnScope.personal).income, 100000);
     expect(repo.summary(scope: TxnScope.business).income, 0);
     expect(store.loadSmsState(), containsPair(sms.key, 'approved'));
+    expect(repo.smsHistory, hasLength(1));
+    expect(repo.smsHistory.single.wasRecorded, isTrue);
+    expect(repo.smsHistory.single.message.body, sms.message.body);
+    expect(repo.smsHistory.single.transactionId, txn.id);
     expect(sms.key, matches(RegExp(r'^v2:[0-9a-f]{64}$')));
+  });
+
+  test('Rejected SMS remains in review history but creates no transaction', () async {
+    final sms = SmsParser.parse(
+      SmsMessage(
+        id: 'rejected-sms',
+        address: 'BANKMELAT',
+        body: 'برداشت مبلغ 75,000 تومان',
+        date: J.today,
+      ),
+    );
+    repo.smsSuggestions = [sms];
+
+    await repo.rejectSms(sms);
+
+    expect(repo.smsSuggestions, isEmpty);
+    expect(repo.smsHistory, hasLength(1));
+    expect(repo.smsHistory.single.wasRejected, isTrue);
+    expect(repo.smsHistory.single.message.body, sms.message.body);
+    expect(repo.transactions, isEmpty);
+    expect(
+      store.exportAll().keys,
+      isNot(contains('smsState')),
+      reason: 'Review history stays on the device and out of backups',
+    );
   });
 
   test('A customer SMS receipt clears debt and is recognized as income', () async {

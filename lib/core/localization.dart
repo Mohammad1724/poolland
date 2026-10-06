@@ -228,6 +228,104 @@ class AppLocalization {
     'SMS lookback period': 'بازهٔ بررسی پیامک‌ها',
     'How many past days should be checked?':
         'پیامک‌های چند روز گذشته بررسی شوند؟',
+    'Recognition rules': 'قواعد شناسایی',
+    'Manage recognition rules': 'مدیریت قواعد شناسایی',
+    'SMS recognition rules': 'قواعد شناسایی پیامک',
+    'Unregistered ({count})': 'ثبت‌نشده ({count})',
+    'Review history ({count})': 'تاریخچهٔ بررسی ({count})',
+    'Received {received} · reviewed {reviewed}':
+        'دریافت: {received} · بررسی: {reviewed}',
+    'No review history yet': 'هنوز سابقهٔ بررسی وجود ندارد',
+    'Approved or rejected SMS messages will appear here.':
+        'پیامک‌های تأییدشده یا ردشده در اینجا نمایش داده می‌شوند.',
+    'Reviewed SMS history is kept in this app’s storage and omitted from its export/restore files. Recorded entries can be opened from here; rejected messages do not create transactions. Older status-only records may not be displayable.':
+        'تاریخچهٔ پیامک‌های بررسی‌شده در حافظهٔ همین برنامه نگهداری می‌شود و در فایل‌های خروجی/بازیابی برنامه قرار نمی‌گیرد. تراکنش‌های ثبت‌شده را می‌توان از همین‌جا باز کرد؛ پیامک‌های ردشده تراکنشی ایجاد نمی‌کنند. ممکن است سابقه‌های قدیمیِ فاقد متن پیامک نمایش داده نشوند.',
+    'Open transaction': 'بازکردن تراکنش',
+    'Recorded': 'ثبت‌شده',
+    'Rejected': 'ردشده',
+    'Unrecognized SMS': 'پیامک‌های شناسایی‌نشده',
+    'Scan again': 'اسکن دوباره',
+    'These messages look like deposits or withdrawals but do not match an enabled rule. Create a sender or phrase rule to add matching messages to manual review. Nothing is recorded automatically.':
+        'این پیامک‌ها شبیه واریز یا برداشت هستند اما با قاعدهٔ فعالی تطبیق ندارند. با ساخت قاعدهٔ فرستنده یا عبارت، پیامک‌های منطبق به صف بررسی دستی می‌روند. هیچ‌چیز خودکار ثبت نمی‌شود.',
+    'No unrecognized transaction SMS found':
+        'پیامک تراکنشی شناسایی‌نشده‌ای پیدا نشد',
+    'Try scanning again after receiving a bank or payment-service SMS.':
+        'پس از دریافت پیامک بانک یا سرویس پرداخت، دوباره اسکن کنید.',
+    'SMS access is needed to scan for unrecognized messages. Messages are read on this device only.':
+        'برای جست‌وجوی پیامک‌های شناسایی‌نشده، دسترسی پیامک لازم است. پیامک‌ها فقط روی همین دستگاه خوانده می‌شوند.',
+    'Unknown sender': 'فرستندهٔ ناشناس',
+    'Identify unrecognized SMS': 'شناسایی پیامک ناشناخته',
+    'Create recognition rule': 'ساخت قاعدهٔ شناسایی',
+    'The sender and SMS sample are prefilled. Confirm the bank or service name and detection hints before saving.':
+        'فرستنده و نمونهٔ پیامک از قبل وارد شده‌اند. پیش از ذخیره، نام بانک یا سرویس و نشانه‌های شناسایی را بررسی کنید.',
+    'Enabled {enabled} of {total} rules': '{enabled} قاعده از {total} قاعده فعال است',
+    'Only messages matched by an enabled rule can enter the review queue. No transaction is recorded until you review it and explicitly choose Personal or VPN business.':
+        'فقط پیامک‌های منطبق با قاعدهٔ فعال وارد صف بررسی می‌شوند. هیچ تراکنشی ثبت نمی‌شود مگر اینکه آن را بررسی و صریحاً بخش شخصی یا کسب‌وکار VPN را انتخاب کنید.',
+    'Built-in banks': 'بانک‌های داخلی',
+    'Custom rules': 'قواعد سفارشی',
+    'No custom rules yet. Add a sender ID or phrase to recognize a bank or payment service not listed above.':
+        'هنوز قاعدهٔ سفارشی ندارید. شناسهٔ فرستنده یا عبارتی را برای شناسایی بانک یا سرویس پرداختی که در فهرست بالا نیست اضافه کنید.',
+    'Sender IDs: {value}': 'شناسه‌های فرستنده: {value}',
+    'Message phrases: {value}': 'عبارت‌های پیام: {value}',
+    'Enable rule': 'فعال‌کردن قاعده',
+    'Disable rule': 'غیرفعال‌کردن قاعده',
+    'Recognition rule enabled.': 'قاعدهٔ شناسایی فعال شد.',
+    'Recognition rule disabled. Messages that no longer match an enabled rule are removed from the review queue.':
+        'قاعدهٔ شناسایی غیرفعال شد. پیامک‌هایی که دیگر با قاعدهٔ فعالی منطبق نیستند از صف بررسی حذف می‌شوند.',
+    'Delete custom rule': 'حذف قاعدهٔ سفارشی',
+    'Delete custom rule?': 'قاعدهٔ سفارشی حذف شود؟',
+    'This rule will no longer identify SMS messages. Existing transactions will not be changed.':
+        'این قاعده دیگر پیامک‌ها را شناسایی نمی‌کند. تراکنش‌های ثبت‌شده تغییری نمی‌کنند.',
+    'Custom rule deleted.': 'قاعدهٔ سفارشی حذف شد.',
+    'Custom rule added.': 'قاعدهٔ سفارشی افزوده شد.',
+    'Add custom SMS rule': 'افزودن قاعدهٔ سفارشی پیامک',
+    'Choose which built-in banks and custom senders can match SMS.':
+        'انتخاب کنید پیامک‌های کدام بانک‌های داخلی و فرستنده‌های سفارشی شناسایی شوند.',
+    'Use a sender ID or a phrase that reliably appears in the message. The sample is only for testing; it is not saved.':
+        'شناسهٔ فرستنده یا عبارتی را وارد کنید که به‌طور ثابت در پیامک دیده می‌شود. نمونه فقط برای آزمایش است و ذخیره نمی‌شود.',
+    'Bank or service name': 'نام بانک یا سرویس',
+    'Enter a bank or service name.': 'نام بانک یا سرویس را وارد کنید.',
+    'Sender IDs or numbers': 'شناسه‌ها یا شماره‌های فرستنده',
+    'Comma-separated; e.g. MYBANK, 30001234':
+        'با ویرگول جدا کنید؛ مثلاً MYBANK، 30001234',
+    'Optional phrase in SMS body': 'عبارت اختیاری در متن پیامک',
+    'e.g. Your wallet balance': 'مثلاً موجودی کیف پول شما',
+    'Add a sender ID or body phrase to identify messages.':
+        'برای شناسایی پیامک، شناسهٔ فرستنده یا عبارتی از متن پیام را وارد کنید.',
+    'Assumed amount unit (if the message omits it)':
+        'واحد پیش‌فرض مبلغ (اگر در پیام ذکر نشده باشد)',
+    'Rials': 'ریال',
+    'Tomans': 'تومان',
+    'Sample SMS text (optional)': 'متن نمونهٔ پیامک (اختیاری)',
+    'Test sample': 'آزمایش نمونه',
+    'Saving…': 'در حال ذخیره…',
+    'Save rule': 'ذخیرهٔ قاعده',
+    'Matched {bank}: {direction} {amount}.': '{bank}: {direction}، مبلغ {amount}.',
+    'No complete transaction was detected. Check the sender, phrase, amount, and direction.':
+        'تراکنش کاملی شناسایی نشد. فرستنده، عبارت، مبلغ و جهت واریز یا برداشت را بررسی کنید.',
+    'Enter sample SMS text first.': 'ابتدا متن نمونهٔ پیامک را وارد کنید.',
+    'Could not save the custom rule.': 'ذخیرهٔ قاعدهٔ سفارشی ناموفق بود.',
+    'Mellat Bank': 'بانک ملت',
+    'Saderat Bank': 'بانک صادرات',
+    'Tejarat Bank': 'بانک تجارت',
+    'Melli Bank': 'بانک ملی',
+    'Parsian Bank': 'بانک پارسیان',
+    'Saman Bank': 'بانک سامان',
+    'Pasargad Bank': 'بانک پاسارگاد',
+    'Ayandeh Bank': 'بانک آینده',
+    'Resalat Bank': 'بانک رسالت',
+    'Sina Bank / Blu Bank': 'بانک سینا / بلوبانک',
+    'Keshavarzi Bank': 'بانک کشاورزی',
+    'Refah Bank': 'بانک رفاه',
+    'Shahr Bank': 'بانک شهر',
+    'Karafarin Bank': 'بانک کارآفرین',
+    'Sarmayeh Bank': 'بانک سرمایه',
+    'Sepah Bank': 'بانک سپه',
+    'Post Bank': 'پست‌بانک',
+    'Iran Zamin Bank': 'بانک ایران‌زمین',
+    'Day Bank': 'بانک دی',
+    'Tourism Bank': 'بانک گردشگری',
+    'Mehr Bank / Qarz al-Hasaneh': 'بانک مهر / قرض‌الحسنه',
     'Poolland reminder test': 'آزمایش یادآور پول‌لند',
     'A simple offline ledger for VPN sellers\\nCustomers, balances, subscriptions, and real profit — all in one place': 'دفتر حساب آفلاین برای فروشندگان VPN\\nمشتریان، مانده‌ها، اشتراک‌ها و سود واقعی؛ همه در یک‌جا',
     'All data stays on this device\\nNo account and no internet required': 'همهٔ داده‌ها روی همین دستگاه می‌ماند\\nبدون حساب کاربری و بدون نیاز به اینترنت',
@@ -328,6 +426,7 @@ class AppLocalization {
     'Grant access to identify incoming payments automatically':
         'برای شناسایی خودکار دریافتی‌ها دسترسی بدهید',
     'All data stays on this device': 'همهٔ داده‌ها روی همین دستگاه می‌مانند',
+    'All data stays on this device.': 'همهٔ داده‌ها روی همین دستگاه می‌ماند.',
     'No account and no internet required':
         'بدون حساب کاربری و بدون نیاز به اینترنت',
     '(Auto-matched)': '(تطبیق خودکار)',
@@ -470,6 +569,7 @@ class AppLocalization {
     'End: Never': 'پایان: هرگز',
     'End: {date}': 'پایان: {date}',
     'Last checked: {date}': 'آخرین بررسی: {date}',
+    ' · {label}': ' · {label}',
     'Card {card}': 'کارت {card}',
     'Reference {reference}': 'شناسه {reference}',
     'Balance {balance}': 'مانده {balance}',

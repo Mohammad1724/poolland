@@ -160,10 +160,16 @@ class SmsParser {
   static ParsedSms parse(
     SmsMessage msg, {
     List<BankRule> extraRules = const <BankRule>[],
+    Set<String> disabledRuleIds = const <String>{},
   }) {
     final body = normalize(msg.body);
     final address = normalize(msg.address).toUpperCase();
-    final rule = findRule(address, body, extraRules);
+    final rule = findRule(
+      address,
+      body,
+      extraRules,
+      disabledRuleIds: disabledRuleIds,
+    );
 
     if (isIgnored(body)) {
       return ParsedSms(
@@ -205,7 +211,16 @@ class SmsParser {
   static List<ParsedSms> parseAll(
     Iterable<SmsMessage> messages, {
     List<BankRule> extraRules = const <BankRule>[],
-  }) => messages.map((m) => parse(m, extraRules: extraRules)).toList();
+    Set<String> disabledRuleIds = const <String>{},
+  }) => messages
+      .map(
+        (m) => parse(
+          m,
+          extraRules: extraRules,
+          disabledRuleIds: disabledRuleIds,
+        ),
+      )
+      .toList();
 
   // ---------------------------------------------------------
   // Bank identification
@@ -213,10 +228,15 @@ class SmsParser {
   static BankRule? findRule(
     String upperAddress,
     String body,
-    List<BankRule> extraRules,
-  ) {
-    // Custom user rules take priority.
-    for (final rule in [...extraRules, ...builtinBankRules]) {
+    List<BankRule> extraRules, {
+    Set<String> disabledRuleIds = const <String>{},
+  }) {
+    // Custom user rules take priority, but a disabled rule is never used to
+    // identify a message from either its sender or its body.
+    final rules = [...extraRules, ...builtinBankRules]
+        .where((rule) => !disabledRuleIds.contains(rule.id))
+        .toList();
+    for (final rule in rules) {
       for (final hint in rule.senderHints) {
         final h = normalize(hint).toUpperCase();
         if (h.isEmpty) continue;
@@ -224,7 +244,7 @@ class SmsParser {
         if (h.length >= 4 && upperAddress.contains(h)) return rule;
       }
     }
-    for (final rule in [...extraRules, ...builtinBankRules]) {
+    for (final rule in rules) {
       for (final hint in rule.bodyHints) {
         if (hint.isNotEmpty && body.contains(normalize(hint))) return rule;
       }

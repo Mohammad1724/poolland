@@ -22,7 +22,9 @@ import 'package:poolland/ui/personal_page.dart';
 import 'package:poolland/ui/reports_page.dart';
 import 'package:poolland/ui/settings_page.dart';
 import 'package:poolland/ui/sms_page.dart';
+import 'package:poolland/ui/sms_rules_page.dart';
 import 'package:poolland/ui/subscriptions_page.dart';
+import 'package:poolland/ui/unrecognized_sms_page.dart';
 import 'package:poolland/ui/theme.dart';
 import 'package:poolland/ui/transactions_page.dart';
 
@@ -250,6 +252,9 @@ void main() {
       const PlansPage(),
       const CategoriesPage(),
       const RatesPage(),
+      const SmsRulesPage(),
+      const SmsRuleEditPage(),
+      const UnrecognizedSmsPage(),
     ]) {
       await tester.pumpWidget(wrap(page));
       await tester.pump();

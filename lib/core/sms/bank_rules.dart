@@ -9,7 +9,7 @@
 enum AmountUnit { rial, toman }
 
 class BankRule {
-  /// Identifier (used for custom user rules).
+  /// Stable identifier for this built-in or custom rule.
   final String id;
 
   /// Bank name shown in the app.
