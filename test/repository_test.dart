@@ -110,6 +110,8 @@ void main() {
     expect(txn.categoryId, incomeCategory.id);
     expect(repo.summary(scope: TxnScope.personal).income, 100000);
     expect(repo.summary(scope: TxnScope.business).income, 0);
+    expect(store.loadSmsState(), containsPair(sms.key, 'approved'));
+    expect(sms.key, matches(RegExp(r'^v2:[0-9a-f]{64}$')));
   });
 
   test('A customer SMS receipt clears debt and is recognized as income', () async {

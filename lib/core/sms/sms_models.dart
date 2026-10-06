@@ -1,9 +1,18 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+
 import '../localization.dart';
 
 // ============================================================
 //  Models for bank SMS messages.
 //  Platform-independent and testable without Flutter.
 // ============================================================
+
+/// Compact, stable key for persisting SMS review state without storing the
+/// full message text in Hive keys.
+String smsKeyDigest(String rawKey) =>
+    'v2:${sha256.convert(utf8.encode(rawKey))}';
 
 // Direction of money movement in an SMS.
 enum SmsDirection {
@@ -39,7 +48,8 @@ class SmsMessage {
   /// with different IDs.
   String get key {
     final minuteBucket = date.millisecondsSinceEpoch ~/ 60000;
-    return '${address.trim()}|$minuteBucket|$body';
+    final rawKey = '${address.trim()}|$minuteBucket|$body';
+    return smsKeyDigest(rawKey);
   }
 
   factory SmsMessage.fromMap(Map<dynamic, dynamic> map) => SmsMessage(

@@ -13,6 +13,25 @@ void main() {
   ParsedSms p(String body, {String address = ''}) =>
       SmsParser.parse(msg(body, address: address));
 
+  group('SMS state key', () {
+    test('uses a stable compact digest rather than storing the message body', () {
+      const body = 'واریز مبلغ 1,000,000 ریال';
+      final message = msg(body, address: 'BANKMELAT');
+      final key = message.key;
+
+      expect(key, matches(RegExp(r'^v2:[0-9a-f]{64}$')));
+      expect(key, isNot(contains(body)));
+      expect(msg(body, address: 'BANKMELAT').key, key);
+    });
+
+    test('different message content produces a different key', () {
+      final first = msg('واریز 100,000', address: 'BANKMELAT');
+      final second = msg('واریز 200,000', address: 'BANKMELAT');
+
+      expect(first.key, isNot(second.key));
+    });
+  });
+
   group('Bank identification', () {
     test('Identify Mellat Bank from the sender', () {
       final r = p(

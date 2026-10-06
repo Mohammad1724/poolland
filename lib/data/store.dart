@@ -13,7 +13,9 @@ class LocalStore {
   static const boxCategories = 'categories';
   static const boxPlans = 'plans';
   static const boxMeta = 'meta';
-  static const boxSmsState = 'sms_state';
+  // The v2 box uses compact SHA-256 message keys. The legacy box is left
+  // untouched so a damaged review cache cannot block the ledger database.
+  static const boxSmsState = 'sms_state_v2';
   static const boxSmsRules = 'sms_rules';
   static const boxBudgets = 'budgets';
   static const boxRecurring = 'recurring';
@@ -471,8 +473,8 @@ class LocalStore {
   }
 
   // ---------- Bank SMS ----------
-  /// Review status for each SMS: key → status.
-  /// Possible statuses: approved | rejected | ignored.
+  /// Review status for each recognized SMS: compact key → status.
+  /// Possible statuses: approved | rejected.
   Map<String, String> loadSmsState() {
     final out = <String, String>{};
     for (final e in smsState.values) {

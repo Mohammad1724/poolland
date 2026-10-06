@@ -860,8 +860,9 @@ class AppRepository extends ChangeNotifier {
         if (parsed.isTransaction) {
           pending.add(parsed);
         } else {
-          // Do not rescan non-financial messages on every sync.
-          await store.setSmsState(m.key, 'ignored');
+          // Unmatched messages are discarded by policy. Do not create review
+          // cache entries for them; they may be rechecked later but never enter
+          // the approval queue without a rule match.
         }
       }
 
