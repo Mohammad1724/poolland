@@ -351,8 +351,9 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                             builder: (_) => const ContactEditPage(),
                           ),
                         );
-                        if (created != null)
+                        if (created != null) {
                           setState(() => _customer = created);
+                        }
                       },
                       icon: const Icon(
                         Icons.person_add_alt_1_rounded,
