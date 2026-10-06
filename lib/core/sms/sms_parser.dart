@@ -281,10 +281,11 @@ class SmsParser {
     // 3) A number following the transaction verb (e.g. “برداشت 10,000,000”).
     // Many banks omit the word “مبلغ” and the currency unit in these messages.
     for (final m in _verbAmountRe.allMatches(body)) {
-      final valueStart = m.start(1);
-      final valueEnd = m.end(1);
+      final captured = m.group(1)!;
+      final valueEnd = m.end;
+      final valueStart = valueEnd - captured.length;
       if (_isExcludedRange(body, valueStart, valueEnd)) continue;
-      final value = _toDouble(m.group(1)!.trim());
+      final value = _toDouble(captured.trim());
       if (value > 0) {
         return _convert(value, _unitAfter(body, valueEnd), rule);
       }
