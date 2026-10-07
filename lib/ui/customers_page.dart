@@ -22,8 +22,15 @@ class CustomersPage extends StatefulWidget {
 enum _Filter { all, debtors, creditors }
 
 class _CustomersPageState extends State<CustomersPage> {
+  final _searchController = TextEditingController();
   String _q = '';
   _Filter _filter = _Filter.all;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,14 +38,15 @@ class _CustomersPageState extends State<CustomersPage> {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final balances = repo.balancesMap();
 
-    final query = _q.trim().toLowerCase();
+    final query = Fmt.normalizeSearchText(_q);
     final queryDigits = query.replaceAll(RegExp(r'[^0-9]'), '');
     final matchingCustomers = repo.activeCustomers.where((c) {
       if (query.isEmpty) return true;
-      final matchesName = c.name.toLowerCase().contains(query);
-      final normalizedPhone = c.phone.replaceAll(RegExp(r'[^0-9]'), '');
+      final matchesName = Fmt.normalizeSearchText(c.name).contains(query);
+      final phoneKey = Fmt.normalizeSearchText(c.phone);
+      final normalizedPhone = phoneKey.replaceAll(RegExp(r'[^0-9]'), '');
       final matchesPhone =
-          c.phone.toLowerCase().contains(query) ||
+          phoneKey.contains(query) ||
           (queryDigits.isNotEmpty && normalizedPhone.contains(queryDigits));
       return matchesName || matchesPhone;
     }).toList();
@@ -50,6 +58,7 @@ class _CustomersPageState extends State<CustomersPage> {
       list = list.where((c) => (balances[c.id] ?? 0) < -0.5).toList()
         ..sort((a, b) => (balances[a.id] ?? 0).compareTo(balances[b.id] ?? 0));
     }
+    final hasActiveFilters = query.isNotEmpty || _filter != _Filter.all;
 
     return Column(
       children: [
@@ -57,22 +66,23 @@ class _CustomersPageState extends State<CustomersPage> {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: Column(
             children: [
-              TextField(
-                decoration: const InputDecoration(
-                  hintText: 'Search name or phone...',
-                  prefixIcon: Icon(Icons.search_rounded, size: 20),
-                ),
-                onChanged: (v) => setState(() => _q = v.trim()),
+              AppSearchField(
+                controller: _searchController,
+                hint: 'Search name or phone...',
+                onChanged: (v) => setState(() => _q = v),
               ),
               const SizedBox(height: 10),
-              Row(
-                children: [
-                  _chip('All', _Filter.all, matchingCustomers.length),
-                  const SizedBox(width: 8),
-                  _chip('Debtors', _Filter.debtors, null),
-                  const SizedBox(width: 8),
-                  _chip('Creditors', _Filter.creditors, null),
-                ],
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _chip('All', _Filter.all, matchingCustomers.length),
+                    const SizedBox(width: 8),
+                    _chip('Debtors', _Filter.debtors, null),
+                    const SizedBox(width: 8),
+                    _chip('Creditors', _Filter.creditors, null),
+                  ],
+                ),
               ),
             ],
           ),
@@ -81,19 +91,27 @@ class _CustomersPageState extends State<CustomersPage> {
           child: list.isEmpty
               ? EmptyState(
                   icon: Icons.people_outline_rounded,
-                  title: _q.isEmpty ? 'No customers yet' : 'No items found',
-                  text: _q.isEmpty
-                      ? 'Add each customer once to keep their sales, balances, and renewals together.'
-                      : 'Try a different search.',
-                  actionLabel: _q.isEmpty ? 'Add customer' : null,
-                  onAction: _q.isEmpty
-                      ? () => Navigator.push(
+                  title: hasActiveFilters
+                      ? 'No customers match these filters'
+                      : 'No customers yet',
+                  text: hasActiveFilters
+                      ? 'Try changing or clearing the search or balance filter.'
+                      : 'Add each customer once to keep their sales, balances, and renewals together.',
+                  actionLabel: hasActiveFilters
+                      ? 'Clear search and balance filter'
+                      : 'Add customer',
+                  onAction: hasActiveFilters
+                      ? () => setState(() {
+                          _q = '';
+                          _searchController.clear();
+                          _filter = _Filter.all;
+                        })
+                      : () => Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => const ContactEditPage(),
                           ),
-                        )
-                      : null,
+                        ),
                 )
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),

@@ -43,6 +43,12 @@ class AppLocalization {
     'Delete': 'حذف',
     'Close': 'بستن',
     'Search': 'جست‌وجو',
+    'Clear search': 'پاک‌کردن جست‌وجو',
+    'Search name or phone...': 'جست‌وجوی نام یا شماره تلفن…',
+    'Search descriptions, customers, and categories...':
+        'جست‌وجوی شرح، مشتری یا دسته‌بندی…',
+    'Search customers or plans...': 'جست‌وجوی مشتری یا پلن…',
+    'Scope': 'حوزه',
     'Done': 'انجام شد',
     'Confirm': 'تأیید',
     'Continue': 'ادامه',
@@ -157,6 +163,20 @@ class AppLocalization {
     'No transactions yet': 'هنوز تراکنشی ثبت نشده است',
     'No transactions recorded.': 'تراکنشی ثبت نشده است.',
     'No transactions this month': 'این ماه تراکنشی ثبت نشده است',
+    'No transactions match these filters': 'تراکنشی با این فیلترها پیدا نشد',
+    'Try changing or clearing the search and transaction type.':
+        'عبارت جست‌وجو یا نوع تراکنش را تغییر دهید یا پاک کنید.',
+    'Clear search and type filter': 'پاک‌کردن جست‌وجو و نوع تراکنش',
+    'No subscriptions match these filters': 'اشتراکی با این فیلترها پیدا نشد',
+    'Try changing the search or subscription status filter.':
+        'جست‌وجو یا وضعیت اشتراک را تغییر دهید.',
+    'Clear search and status filter': 'پاک‌کردن جست‌وجو و وضعیت اشتراک',
+    'Record a sale to automatically create a customer subscription and expiry date.':
+        'با ثبت فروش، اشتراک مشتری و تاریخ انقضا به‌صورت خودکار ساخته می‌شود.',
+    'No customers match these filters': 'مشتری‌ای با این فیلترها پیدا نشد',
+    'Try changing or clearing the search or balance filter.':
+        'جست‌وجو یا فیلتر مانده را تغییر دهید یا پاک کنید.',
+    'Clear search and balance filter': 'پاک‌کردن جست‌وجو و فیلتر مانده',
     'Nothing recorded yet. Start with the buttons above.':
         'هنوز چیزی ثبت نشده است. از دکمه‌های بالا شروع کنید.',
     'Get started': 'شروع کنید',

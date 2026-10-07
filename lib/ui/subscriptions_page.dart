@@ -22,8 +22,15 @@ class SubscriptionsPage extends StatefulWidget {
 enum _SubFilter { all, active, soon, expired }
 
 class _SubscriptionsPageState extends State<SubscriptionsPage> {
+  final _searchController = TextEditingController();
   _SubFilter _filter = _SubFilter.all;
   String _q = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,41 +38,43 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final reminder = repo.settings.reminderDays;
 
-    var list = [...repo.subscriptions];
-    if (_q.isNotEmpty) {
-      list = list
-          .where(
-            (s) =>
-                repo.customerName(s.customerId).contains(_q) ||
-                s.planName.contains(_q),
-          )
-          .toList();
-    }
-    list = list.where((s) {
-      final st = Ledger.subStatus(s, reminderDays: reminder);
-      return switch (_filter) {
-        _SubFilter.all => true,
-        _SubFilter.active => st == SubStatus.active,
-        _SubFilter.soon => st == SubStatus.expiringSoon,
-        _SubFilter.expired => st == SubStatus.expired,
-      };
-    }).toList()..sort((a, b) => a.endDate.compareTo(b.endDate));
+    final query = Fmt.normalizeSearchText(_q);
+    final matchingSubscriptions = repo.subscriptions.where((s) {
+      if (query.isEmpty) return true;
+      return Fmt.normalizeSearchText(repo.customerName(s.customerId))
+              .contains(query) ||
+          Fmt.normalizeSearchText(s.planName).contains(query);
+    }).toList();
 
-    int count(_SubFilter f) {
-      if (f == _SubFilter.all) return repo.subscriptions.length;
-      return repo.subscriptions
-          .where(
-            (s) =>
-                Ledger.subStatus(s, reminderDays: reminder) ==
-                switch (f) {
-                  _SubFilter.active => SubStatus.active,
-                  _SubFilter.soon => SubStatus.expiringSoon,
-                  _SubFilter.expired => SubStatus.expired,
-                  _ => SubStatus.active,
-                },
-          )
-          .length;
-    }
+    SubStatus statusOf(Subscription s) =>
+        Ledger.subStatus(s, reminderDays: reminder);
+
+    bool matchesFilter(Subscription s, _SubFilter filter) => switch (filter) {
+      _SubFilter.all => true,
+      _SubFilter.active => statusOf(s) == SubStatus.active,
+      _SubFilter.soon => statusOf(s) == SubStatus.expiringSoon,
+      _SubFilter.expired => statusOf(s) == SubStatus.expired,
+    };
+
+    int priority(Subscription s) => switch (statusOf(s)) {
+      SubStatus.expiringSoon => 0,
+      SubStatus.active => 1,
+      SubStatus.expired => 2,
+    };
+
+    final list =
+        matchingSubscriptions.where((s) => matchesFilter(s, _filter)).toList()
+          ..sort((a, b) {
+            final statusOrder = priority(a).compareTo(priority(b));
+            if (statusOrder != 0) return statusOrder;
+            return priority(a) == 2
+                ? b.endDate.compareTo(a.endDate)
+                : a.endDate.compareTo(b.endDate);
+          });
+    final hasActiveFilters = query.isNotEmpty || _filter != _SubFilter.all;
+
+    int count(_SubFilter filter) =>
+        matchingSubscriptions.where((s) => matchesFilter(s, filter)).length;
 
     return Column(
       children: [
@@ -73,12 +82,10 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
           child: Column(
             children: [
-              TextField(
-                decoration: const InputDecoration(
-                  hintText: 'Search customers or plans...',
-                  prefixIcon: Icon(Icons.search_rounded, size: 20),
-                ),
-                onChanged: (v) => setState(() => _q = v.trim()),
+              AppSearchField(
+                controller: _searchController,
+                hint: 'Search customers or plans...',
+                onChanged: (v) => setState(() => _q = v),
               ),
               const SizedBox(height: 10),
               SingleChildScrollView(
@@ -112,18 +119,30 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
         ),
         Expanded(
           child: list.isEmpty
-              ? EmptyState(
-                  icon: Icons.vpn_key_outlined,
-                  title: 'No subscriptions found'.tr,
-                  text: 'Record a sale to automatically create a customer subscription and expiry date.',
-                  actionLabel: 'Sell a subscription',
-                  onAction: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const SellSubscriptionPage(),
-                    ),
-                  ),
-                )
+              ? hasActiveFilters
+                    ? EmptyState(
+                        icon: Icons.vpn_key_outlined,
+                        title: 'No subscriptions match these filters',
+                        text: 'Try changing the search or subscription status filter.',
+                        actionLabel: 'Clear search and status filter',
+                        onAction: () => setState(() {
+                          _searchController.clear();
+                          _q = '';
+                          _filter = _SubFilter.all;
+                        }),
+                      )
+                    : EmptyState(
+                        icon: Icons.vpn_key_outlined,
+                        title: 'No subscriptions recorded yet.',
+                        text: 'Record a sale to automatically create a customer subscription and expiry date.',
+                        actionLabel: 'Sell a subscription',
+                        onAction: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SellSubscriptionPage(),
+                          ),
+                        ),
+                      )
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 6, 16, 100),
                   itemCount: list.length,
@@ -216,17 +235,20 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                                 color: onSurface.withValues(alpha: 0.5),
                               ),
                               const SizedBox(width: 5),
-                              Text(
-                                '{from} to {to}'.trArgs({
-                                  'from': J.d(s.startDate),
-                                  'to': J.d(s.endDate),
-                                }),
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  color: onSurface.withValues(alpha: 0.6),
+                              Expanded(
+                                child: Text(
+                                  '{from} to {to}'.trArgs({
+                                    'from': J.d(s.startDate),
+                                    'to': J.d(s.endDate),
+                                  }),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: onSurface.withValues(alpha: 0.6),
+                                  ),
                                 ),
                               ),
-                              const Spacer(),
                               TextButton.icon(
                                 onPressed: () => Navigator.push(
                                   context,
