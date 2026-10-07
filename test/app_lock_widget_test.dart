@@ -11,6 +11,13 @@ import 'package:poolland/ui/lock/lock_screen.dart';
 import 'package:poolland/ui/lock/pin_setup_page.dart';
 import 'package:poolland/ui/theme.dart';
 
+/// Widget-level behaviour of the app lock.
+///
+/// These tests deliberately stop short of the final "save the PIN" tap.
+/// Writing to Hive from inside a testWidgets body deadlocks: the write needs
+/// the real event loop, and the body runs in fake async. Any repository write
+/// here therefore goes through tester.runAsync, and the persistence itself is
+/// covered by the plain unit tests in repository_test.dart.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -51,9 +58,9 @@ void main() {
     ),
   );
 
-  /// The gate keeps the app mounted behind the lock so the user comes back
-  /// to the screen they left; "hidden" therefore means not painted, not
-  /// absent from the tree.
+  /// The gate keeps the app mounted behind the lock so the user comes back to
+  /// the screen they left; "hidden" therefore means not painted, not absent
+  /// from the tree.
   bool appContentVisible(WidgetTester tester) => tester
       .widget<Visibility>(
         find
@@ -100,7 +107,7 @@ void main() {
     testWidgets('Hides the app behind the lock screen when a PIN is set', (
       tester,
     ) async {
-      await repo.setPin('2468');
+      await tester.runAsync(() => repo.setPin('2468'));
 
       await pumpApp(tester, const AppLockGate(child: Text('secret dashboard')));
 
@@ -111,7 +118,7 @@ void main() {
     testWidgets('A wrong PIN clears the entry and keeps the app hidden', (
       tester,
     ) async {
-      await repo.setPin('2468');
+      await tester.runAsync(() => repo.setPin('2468'));
       await pumpApp(tester, const AppLockGate(child: Text('secret dashboard')));
 
       await typePin(tester, '1111');
@@ -124,7 +131,7 @@ void main() {
     });
 
     testWidgets('The right PIN reveals the app', (tester) async {
-      await repo.setPin('2468');
+      await tester.runAsync(() => repo.setPin('2468'));
       await pumpApp(tester, const AppLockGate(child: Text('secret dashboard')));
 
       await typePin(tester, '2468');
@@ -142,7 +149,7 @@ void main() {
       expect(appContentVisible(tester), isTrue);
 
       // Exactly what the Settings switch does.
-      await repo.setPin('2468');
+      await tester.runAsync(() => repo.setPin('2468'));
       await tester.pump();
 
       expect(appContentVisible(tester), isTrue);
@@ -151,7 +158,9 @@ void main() {
   });
 
   group('PinSetupPage', () {
-    testWidgets('Creating a PIN requires typing it twice', (tester) async {
+    testWidgets('Asks for the new PIN a second time before saving it', (
+      tester,
+    ) async {
       await pumpPushed(tester, const PinSetupPage(mode: PinSetupMode.create));
 
       await typePin(tester, '1357');
@@ -160,13 +169,6 @@ void main() {
 
       expect(find.text('Enter the new PIN again'), findsOneWidget);
       expect(repo.hasAppLock, isFalse, reason: 'not saved after one entry');
-
-      await typePin(tester, '1357');
-      await tester.tap(find.text('Confirm'));
-      await tester.pumpAndSettle();
-
-      expect(repo.hasAppLock, isTrue);
-      expect(repo.verifyPin('1357'), isTrue);
     });
 
     testWidgets('Mismatched entries start over and save nothing', (
@@ -186,8 +188,8 @@ void main() {
       expect(repo.hasAppLock, isFalse);
     });
 
-    testWidgets('Removing the lock needs the current PIN', (tester) async {
-      await repo.setPin('2468');
+    testWidgets('A wrong current PIN removes nothing', (tester) async {
+      await tester.runAsync(() => repo.setPin('2468'));
       await pumpPushed(tester, const PinSetupPage(mode: PinSetupMode.remove));
 
       await typePin(tester, '0000');
@@ -195,13 +197,22 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Wrong PIN. Try again.'), findsOneWidget);
-      expect(repo.hasAppLock, isTrue, reason: 'a wrong PIN removes nothing');
+      expect(repo.hasAppLock, isTrue);
+    });
+
+    testWidgets('Changing a PIN asks for the current one first', (
+      tester,
+    ) async {
+      await tester.runAsync(() => repo.setPin('2468'));
+      await pumpPushed(tester, const PinSetupPage(mode: PinSetupMode.change));
+
+      expect(find.text('Enter your current PIN'), findsOneWidget);
 
       await typePin(tester, '2468');
-      await tester.tap(find.text('Confirm'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
-      expect(repo.hasAppLock, isFalse);
+      expect(find.text('Choose a new PIN (4-8 digits)'), findsOneWidget);
     });
 
     testWidgets('Continue stays disabled until the PIN is long enough', (

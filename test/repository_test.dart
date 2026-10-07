@@ -471,6 +471,39 @@ void main() {
     );
   });
 
+  test('Setting, changing and clearing the app-lock PIN round-trips', () async {
+    expect(repo.hasAppLock, isFalse);
+    expect(repo.verifyPin('1234'), isFalse, reason: 'no lock means no unlock');
+
+    await repo.setPin('1234');
+    expect(repo.hasAppLock, isTrue);
+    expect(repo.verifyPin('1234'), isTrue);
+    expect(repo.verifyPin('4321'), isFalse);
+    expect(repo.settings.pinHash, isNot(contains('1234')));
+
+    await repo.setPin('98765');
+    expect(repo.verifyPin('1234'), isFalse, reason: 'the old PIN is gone');
+    expect(repo.verifyPin('98765'), isTrue);
+
+    await repo.clearPin();
+    expect(repo.hasAppLock, isFalse);
+    expect(repo.settings.pinHash, isNull);
+
+    // The lock survives a restart, so it is actually on disk.
+    await repo.reload();
+    await repo.setPin('4321');
+    await repo.reload();
+    expect(repo.verifyPin('4321'), isTrue);
+  });
+
+  test('A PIN that is not 4-8 digits is rejected', () async {
+    // setPin is async, so the ArgumentError arrives as a failed future.
+    await expectLater(repo.setPin('123'), throwsArgumentError);
+    await expectLater(repo.setPin('123456789'), throwsArgumentError);
+    await expectLater(repo.setPin('12a4'), throwsArgumentError);
+    expect(repo.hasAppLock, isFalse);
+  });
+
   test('A backup file never carries the app-lock PIN', () async {
     await repo.setPin('2468');
 
