@@ -19,9 +19,12 @@ import '../core/localization.dart';
 /// Personal finance page: quick entry, budgeting,
 /// recurring transactions, and daily, weekly, and monthly charts.
 class PersonalPage extends StatelessWidget {
-  const PersonalPage({super.key, this.onNavigate});
+  const PersonalPage({super.key, this.onNavigate, this.controller});
 
   final ValueChanged<int>? onNavigate;
+  /// Owned by the shell, so tapping the already-open tab can scroll this page
+  /// back to the top. Tests and other callers can leave it null.
+  final ScrollController? controller;
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +42,7 @@ class PersonalPage extends StatelessWidget {
         .toList();
 
     return ListView(
+      controller: controller,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
       children: [
         // ---- Personal monthly summary ----
@@ -615,7 +619,7 @@ class _PeriodChartCardState extends State<_PeriodChartCard> {
             selected: {_mode},
             onSelectionChanged: (s) => setState(() => _mode = s.first),
             style: SegmentedButton.styleFrom(
-              visualDensity: VisualDensity.compact,
+              minimumSize: const Size(0, Taps.minHeight),
               textStyle: const TextStyle(fontSize: FontSizes.small),
             ),
           ),

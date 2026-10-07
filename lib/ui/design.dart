@@ -59,6 +59,23 @@ class Radii {
   static const double sheet = 22;
 }
 
+/// Minimum sizes for tappable controls.
+///
+/// Material's `compact` density shaves segmented buttons and dense icon
+/// buttons down to roughly 32–36 logical pixels, which is below the ~44 that a
+/// fingertip reliably hits. Screens ask for these values instead of shrinking
+/// any further.
+class Taps {
+  Taps._();
+
+  /// Minimum height of an interactive control; width stays as wide as the
+  /// content needs.
+  static const double minHeight = 44;
+
+  /// Minimum side of a square icon button.
+  static const double icon = 44;
+}
+
 /// Shared animation durations; keeping them equal keeps motion coherent.
 class Motion {
   Motion._();

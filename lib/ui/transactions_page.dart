@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/debounce.dart';
+import '../core/haptics.dart';
 import '../core/jalali_utils.dart';
 import '../core/money.dart';
 import '../data/ledger.dart';
@@ -14,7 +15,10 @@ import 'widgets/widgets.dart';
 import '../core/localization.dart';
 
 class TransactionsPage extends StatefulWidget {
-  const TransactionsPage({super.key});
+  const TransactionsPage({super.key, this.controller});
+  /// Owned by the shell, so tapping the already-open tab can scroll this page
+  /// back to the top. Tests and other callers can leave it null.
+  final ScrollController? controller;
 
   @override
   State<TransactionsPage> createState() => _TransactionsPageState();
@@ -287,6 +291,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                   text: 'Tap + to record a sale, receipt, or expense.',
                 )
               : ListView.builder(
+                  controller: widget.controller,
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
                   itemCount: groupList.length,
                   itemBuilder: (context, groupIndex) {
@@ -329,6 +334,9 @@ class _TransactionsPageState extends State<TransactionsPage> {
                           ),
                         ),
                         Card(
+                          // Clips the swipe hint to the card's rounded corners,
+                          // so a row can slide without spilling over the edge.
+                          clipBehavior: Clip.antiAlias,
                           child: Column(
                             children: [
                               for (
@@ -336,19 +344,69 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                 i < entry.value.length;
                                 i++
                               ) ...[
-                                TxnTile(
-                                  txn: entry.value[i],
-                                  categoryName: repo.categoryName(
-                                    entry.value[i].categoryId,
+                                // Swiping is a shortcut for the two things done
+                                // most often with an old entry: fixing it, or
+                                // recording the same thing again. The row snaps
+                                // back (nothing is dismissed), and the hint
+                                // behind it names the action being performed.
+                                Dismissible(
+                                  key: ValueKey(
+                                    'txn-swipe-${entry.value[i].id}',
                                   ),
-                                  customerName: repo.customerName(
-                                    entry.value[i].customerId,
+                                  direction: DismissDirection.horizontal,
+                                  dismissThresholds: const {
+                                    DismissDirection.horizontal: 0.25,
+                                  },
+                                  background: SwipeHint(
+                                    icon: Icons.edit_rounded,
+                                    label: 'Edit',
+                                    color: Theme.of(context).colorScheme.primary,
+                                    alignment: AlignmentDirectional.centerStart,
                                   ),
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => TransactionEditPage(
-                                        existing: entry.value[i],
+                                  secondaryBackground: SwipeHint(
+                                    icon: Icons.copy_all_rounded,
+                                    label: 'Duplicate',
+                                    color: const Color(0xFF2563EB),
+                                    alignment: AlignmentDirectional.centerEnd,
+                                  ),
+                                  confirmDismiss: (direction) async {
+                                    Haptics.tap();
+                                    final txn = entry.value[i];
+                                    if (direction ==
+                                        DismissDirection.startToEnd) {
+                                      await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              TransactionEditPage(existing: txn),
+                                        ),
+                                      );
+                                    } else {
+                                      await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => TransactionEditPage(
+                                            duplicateOf: txn,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    return false;
+                                  },
+                                  child: TxnTile(
+                                    txn: entry.value[i],
+                                    categoryName: repo.categoryName(
+                                      entry.value[i].categoryId,
+                                    ),
+                                    customerName: repo.customerName(
+                                      entry.value[i].customerId,
+                                    ),
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => TransactionEditPage(
+                                          existing: entry.value[i],
+                                        ),
                                       ),
                                     ),
                                   ),

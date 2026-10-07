@@ -41,6 +41,14 @@ class _HomeShellState extends State<HomeShell> {
   /// second, and only the button needs to rebuild, not the whole shell.
   final ValueNotifier<bool> _fabVisible = ValueNotifier<bool>(true);
 
+  /// One controller per tab, created the first time that tab is built.
+  ///
+  /// They exist for a single gesture: tapping the tab that is already open
+  /// scrolls its list back to the top, which is what people expect from a
+  /// bottom bar (and saves a lot of flicking to get back to the top of a long
+  /// list).
+  final Map<int, ScrollController> _scrollControllers = {};
+
   // Personal bookkeeping is the first destination because it is the most
   // frequent task; business tools remain one tap away.
   static const _titles = [
@@ -54,8 +62,16 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void dispose() {
     _fabVisible.dispose();
+    for (final controller in _scrollControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
+
+  /// Returns the controller for a tab, creating it on first use so an unopened
+  /// tab never allocates one.
+  ScrollController _controllerFor(int index) =>
+      _scrollControllers.putIfAbsent(index, ScrollController.new);
 
   @override
   void initState() {
@@ -88,6 +104,11 @@ class _HomeShellState extends State<HomeShell> {
 
   void _goTo(int i) {
     Haptics.selection();
+    // Tapping the tab that is already open means "take me back to the top".
+    if (i == _index) {
+      _scrollToTop(i);
+      return;
+    }
     setState(() {
       _index = i;
       // Tabs are built the first time they are opened; from then on they stay
@@ -97,6 +118,23 @@ class _HomeShellState extends State<HomeShell> {
       // button again.
       _fabVisible.value = true;
     });
+  }
+
+  /// Scrolls a tab back to the top, if that tab has a list and is mounted.
+  void _scrollToTop(int i) {
+    final controller = _scrollControllers[i];
+    if (controller == null || !controller.hasClients) {
+      // Nothing to scroll: the tab was never opened, or its list is shorter
+      // than the screen. Bring the action button back either way.
+      _fabVisible.value = true;
+      return;
+    }
+    controller.animateTo(
+      0,
+      duration: Motion.quick,
+      curve: Curves.easeOut,
+    );
+    _fabVisible.value = true;
   }
 
   /// Hides the floating action button while scrolling down, shows it while
@@ -147,6 +185,25 @@ class _HomeShellState extends State<HomeShell> {
       onPressed: _quickAdd,
       tooltip: 'Quick add'.tr,
       child: const Icon(Icons.add_rounded),
+    );
+  }
+
+  /// Opens the sale form filled in with the last sale's customer and plan, so
+  /// selling the same thing again is two taps instead of filling a form.
+  Future<void> _repeatLastSale() async {
+    final repo = context.read<AppRepository>();
+    Subscription? last;
+    for (final s in repo.subscriptions) {
+      if (last == null || s.createdAt.isAfter(last.createdAt)) last = s;
+    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SellSubscriptionPage(
+          contact: last == null ? null : repo.customerById(last.customerId),
+          plan: last == null ? null : repo.planById(last.planId),
+        ),
+      ),
     );
   }
 
@@ -422,11 +479,11 @@ class _HomeShellState extends State<HomeShell> {
     final isWide = width >= 840;
     final isExtended = width >= 1120;
     final pages = <Widget>[
-      PersonalPage(onNavigate: _goTo),
-      DashboardPage(onNavigate: _goTo),
-      const CustomersPage(),
-      const SubscriptionsPage(),
-      const TransactionsPage(),
+      PersonalPage(onNavigate: _goTo, controller: _controllerFor(0)),
+      DashboardPage(onNavigate: _goTo, controller: _controllerFor(1)),
+      CustomersPage(controller: _controllerFor(2)),
+      SubscriptionsPage(controller: _controllerFor(3)),
+      TransactionsPage(controller: _controllerFor(4)),
     ];
     final content = !isReady
         ? const Center(child: CircularProgressIndicator())
@@ -447,6 +504,14 @@ class _HomeShellState extends State<HomeShell> {
         appBar: AppBar(
           title: Text(_titles[_index].tr),
           actions: [
+            // Only where it applies: repeating a sale is the one shortcut that
+            // matters on the subscriptions tab, and it needs no new screen.
+            if (_index == 3)
+              IconButton(
+                tooltip: 'Repeat last sale'.tr,
+                icon: const Icon(Icons.replay_rounded),
+                onPressed: _repeatLastSale,
+              ),
             IconButton(
               tooltip: 'Reports'.tr,
               icon: const Icon(Icons.insights_outlined),

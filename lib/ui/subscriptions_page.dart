@@ -15,7 +15,10 @@ import 'widgets/widgets.dart';
 import '../core/localization.dart';
 
 class SubscriptionsPage extends StatefulWidget {
-  const SubscriptionsPage({super.key});
+  const SubscriptionsPage({super.key, this.controller});
+  /// Owned by the shell, so tapping the already-open tab can scroll this page
+  /// back to the top. Tests and other callers can leave it null.
+  final ScrollController? controller;
 
   @override
   State<SubscriptionsPage> createState() => _SubscriptionsPageState();
@@ -177,6 +180,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                   ),
                 )
               : ListView.separated(
+                  controller: widget.controller,
                   padding: const EdgeInsets.fromLTRB(16, 6, 16, 100),
                   itemCount: list.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 9),

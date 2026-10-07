@@ -17,9 +17,12 @@ import 'widgets/widgets.dart';
 import '../core/localization.dart';
 
 class DashboardPage extends StatelessWidget {
-  const DashboardPage({super.key, required this.onNavigate});
+  const DashboardPage({super.key, required this.onNavigate, this.controller});
 
   final void Function(int index) onNavigate;
+  /// Owned by the shell, so tapping the already-open tab can scroll this page
+  /// back to the top. Tests and other callers can leave it null.
+  final ScrollController? controller;
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +46,7 @@ class DashboardPage extends StatelessWidget {
     final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return ListView(
+      controller: controller,
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 100),
       children: [
         // Welcome message
@@ -502,7 +506,11 @@ class DashboardPage extends StatelessWidget {
                     const SizedBox(width: 6),
                     IconButton(
                       tooltip: 'Renew'.tr,
-                      visualDensity: VisualDensity.compact,
+                      // Small glyph, full-size target: the icon stays light
+                      // while the button is still easy to hit.
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size(Taps.icon, Taps.icon),
+                      ),
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(

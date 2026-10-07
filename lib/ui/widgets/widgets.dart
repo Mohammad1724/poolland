@@ -1248,6 +1248,65 @@ class FilterPill extends StatelessWidget {
   }
 }
 
+/// ---------------- Swipe hint ----------------
+/// Revealed behind a row while it is being swiped: the icon and the name of the
+/// action the swipe will perform.
+///
+/// A gesture has nothing to tap, so the hint is what makes it discoverable and
+/// what tells the two directions apart. The action itself is confirmed by the
+/// row snapping back (the row is never dismissed), so nothing disappears from
+/// the list.
+class SwipeHint extends StatelessWidget {
+  const SwipeHint({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.alignment,
+    this.borderRadius,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  /// Where the hint sits: the leading edge for a right swipe, the trailing edge
+  /// for a left swipe.
+  final AlignmentGeometry alignment;
+  final BorderRadius? borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: alignment,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: borderRadius,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: Insets.sm),
+          Flexible(
+            child: Text(
+              label.tr,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: FontSizes.small,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// ---------------- Status dot ----------------
 /// Tiny colored dot for a status that would otherwise need a full chip.
 ///

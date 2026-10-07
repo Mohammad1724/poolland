@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/debounce.dart';
 import '../core/format_utils.dart';
+import '../core/haptics.dart';
 import '../core/jalali_utils.dart';
 import '../core/localization.dart';
 import '../core/money.dart';
@@ -12,10 +13,15 @@ import '../data/repository.dart';
 import 'customer_detail_page.dart';
 import 'design.dart';
 import 'forms/contact_edit_page.dart';
+import 'forms/payment_sheet.dart';
 import 'widgets/widgets.dart';
 
 class CustomersPage extends StatefulWidget {
-  const CustomersPage({super.key});
+  const CustomersPage({super.key, this.controller});
+
+  /// Owned by the shell, so tapping the already-open tab can scroll this page
+  /// back to the top. Tests and other callers can leave it null.
+  final ScrollController? controller;
 
   @override
   State<CustomersPage> createState() => _CustomersPageState();
@@ -154,6 +160,7 @@ class _CustomersPageState extends State<CustomersPage> {
                       : null,
                 )
               : ListView.separated(
+                  controller: widget.controller,
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
                   itemCount: list.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 8),
@@ -170,122 +177,158 @@ class _CustomersPageState extends State<CustomersPage> {
                           SubStatus.expired,
                     );
                     final latest = subs.isEmpty ? null : subs.first;
-                    return CardBox(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
+                    // Swiping a row is a shortcut, never a delete: the row
+                    // snaps back and the payment sheet opens instead.
+                    return Dismissible(
+                      key: ValueKey('customer-swipe-${c.id}'),
+                      direction: DismissDirection.horizontal,
+                      // A shortcut, not a full dismiss: a short swipe is
+                      // enough, because the row is not going anywhere.
+                      dismissThresholds: const {
+                        DismissDirection.horizontal: 0.25,
+                      },
+                      background: SwipeHint(
+                        icon: Icons.south_west_rounded,
+                        label: 'Receive',
+                        color: const Color(0xFF16A34A),
+                        alignment: AlignmentDirectional.centerStart,
+                        borderRadius: BorderRadius.circular(Radii.card),
                       ),
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => CustomerDetailPage(customer: c),
+                      secondaryBackground: SwipeHint(
+                        icon: Icons.north_east_rounded,
+                        label: 'Payment',
+                        color: const Color(0xFFE11D48),
+                        alignment: AlignmentDirectional.centerEnd,
+                        borderRadius: BorderRadius.circular(Radii.card),
+                      ),
+                      confirmDismiss: (direction) async {
+                        Haptics.tap();
+                        final isReceive =
+                            direction == DismissDirection.startToEnd;
+                        await showPaymentSheet(
+                          context,
+                          customer: c,
+                          isReceive: isReceive,
+                        );
+                        return false;
+                      },
+                      child: CardBox(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
                         ),
-                      ),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundColor: Theme.of(context)
-                                .colorScheme
-                                .primary
-                                .withValues(alpha: 0.13),
-                            child: Text(
-                              c.name.characters.first,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: Theme.of(context).colorScheme.primary,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CustomerDetailPage(customer: c),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 20,
+                              backgroundColor: Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withValues(alpha: 0.13),
+                              child: Text(
+                                c.name.characters.first,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        c.name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          c.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    if (active.isNotEmpty) ...[
-                                      const SizedBox(width: Insets.sm),
-                                      // A dot says the same thing as the old
-                                      // chip without shouting. The label stays
-                                      // for screen readers and long-press.
-                                      const StatusDot(
-                                        color: Color(0xFF16A34A),
-                                        label: 'Active',
-                                      ),
-                                    ] else if (latest != null) ...[
-                                      const SizedBox(width: Insets.sm),
-                                      const StatusDot(
-                                        color: Color(0xFFE11D48),
-                                        label: 'Expired',
-                                      ),
+                                      if (active.isNotEmpty) ...[
+                                        const SizedBox(width: Insets.sm),
+                                        // A dot says the same thing as the old
+                                        // chip without shouting. The label stays
+                                        // for screen readers and long-press.
+                                        const StatusDot(
+                                          color: Color(0xFF16A34A),
+                                          label: 'Active',
+                                        ),
+                                      ] else if (latest != null) ...[
+                                        const SizedBox(width: Insets.sm),
+                                        const StatusDot(
+                                          color: Color(0xFFE11D48),
+                                          label: 'Expired',
+                                        ),
+                                      ],
                                     ],
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    latest == null
+                                        ? (c.phone.isEmpty
+                                              ? 'No subscription'.tr
+                                              : formatPhone(c.phone))
+                                        : '{plan} • until {date}'.trArgs({
+                                            'plan': latest.planName.tr,
+                                            'date': J.d(latest.endDate),
+                                          }),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      color: onSurface.withValues(alpha: 0.6),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
                                 Text(
-                                  latest == null
-                                      ? (c.phone.isEmpty
-                                            ? 'No subscription'.tr
-                                            : formatPhone(c.phone))
-                                      : '{plan} • until {date}'.trArgs({
-                                          'plan': latest.planName.tr,
-                                          'date': J.d(latest.endDate),
-                                        }),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                  balance.abs() < 1
+                                      ? 'Settled'.tr
+                                      : Money.text(
+                                          balance.abs(),
+                                          withSymbol: false,
+                                        ),
                                   style: TextStyle(
-                                    fontSize: 11.5,
-                                    color: onSurface.withValues(alpha: 0.6),
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: balance.abs() < 1
+                                        ? onSurface.withValues(alpha: 0.45)
+                                        : balance > 0
+                                        ? const Color(0xFF0F766E)
+                                        : const Color(0xFF2563EB),
                                   ),
                                 ),
+                                if (balance.abs() >= 1)
+                                  Text(
+                                    balance > 0 ? 'Debtor'.tr : 'Creditor'.tr,
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      color: onSurface.withValues(alpha: 0.55),
+                                    ),
+                                  ),
                               ],
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                balance.abs() < 1
-                                    ? 'Settled'.tr
-                                    : Money.text(
-                                        balance.abs(),
-                                        withSymbol: false,
-                                      ),
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: balance.abs() < 1
-                                      ? onSurface.withValues(alpha: 0.45)
-                                      : balance > 0
-                                      ? const Color(0xFF0F766E)
-                                      : const Color(0xFF2563EB),
-                                ),
-                              ),
-                              if (balance.abs() >= 1)
-                                Text(
-                                  balance > 0 ? 'Debtor'.tr : 'Creditor'.tr,
-                                  style: TextStyle(
-                                    fontSize: 10.5,
-                                    color: onSurface.withValues(alpha: 0.55),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     );
                   },
