@@ -1,7 +1,56 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// ---------------------------------------------------------------------------
+// Release signing
+//
+// Credentials are resolved in this order:
+//   1. android/key.properties          — local builds (git-ignored)
+//   2. POOLLAND_KEYSTORE_* env vars    — CI, fed from GitHub Secrets
+//   3. nothing                         — fall back to the debug key
+//
+// The debug fallback keeps `flutter run --release` and a fresh clone working,
+// but a debug-signed APK is signed with a throwaway key that differs per
+// machine, so users cannot upgrade over it ("App not installed") and it can
+// never be published. See android/key.properties.example.
+// ---------------------------------------------------------------------------
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+fun signingValue(fileKey: String, environmentKey: String): String? =
+    (keystoreProperties.getProperty(fileKey) ?: System.getenv(environmentKey))
+        ?.takeIf { it.isNotBlank() }
+
+val keystorePath = signingValue("storeFile", "POOLLAND_KEYSTORE_PATH")
+val keystorePassword = signingValue("storePassword", "POOLLAND_KEYSTORE_PASSWORD")
+val keystoreAlias = signingValue("keyAlias", "POOLLAND_KEY_ALIAS")
+val keystoreAliasPassword = signingValue("keyPassword", "POOLLAND_KEY_PASSWORD")
+
+// `storeFile` may be absolute, relative to android/app/, or relative to android/.
+val resolvedKeystore = keystorePath?.let { path ->
+    listOf(file(path), rootProject.file(path)).firstOrNull { it.exists() }
+}
+
+val hasReleaseSigning = resolvedKeystore != null &&
+    keystorePassword != null &&
+    keystoreAlias != null &&
+    keystoreAliasPassword != null
+
+if (keystorePath != null && resolvedKeystore == null) {
+    throw GradleException(
+        "poolland: a release keystore was configured at '$keystorePath' but no " +
+            "file exists there. Check storeFile in android/key.properties or " +
+            "the POOLLAND_KEYSTORE_PATH environment variable."
+    )
 }
 
 android {
@@ -17,7 +66,6 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.poolland.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
@@ -31,11 +79,29 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = resolvedKeystore
+                storePassword = keystorePassword
+                keyAlias = keystoreAlias
+                keyPassword = keystoreAliasPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn(
+                    "poolland: no release keystore found, signing with the debug key. " +
+                        "This APK cannot be upgraded in place by users or published. " +
+                        "See android/key.properties.example."
+                )
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

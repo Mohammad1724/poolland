@@ -136,7 +136,66 @@ flutter run                    # اجرا روی گوشی/شبیه‌ساز
 flutter build apk --release    # ساخت فایل APK
 ```
 
-### ۳) نسخه‌ی وب (قابل نصب روی گوشی مثل اپ)
+### ۳) امضای نسخه‌ی release (مهم)
+
+به‌صورت پیش‌فرض، اگر هیچ کلیدی تنظیم نشده باشد، بیلد release با **کلید debug** امضا می‌شود تا `flutter run --release` روی یک کلون تازه کار کند. ولی کلید debug روی هر ماشین فرق دارد، یعنی:
+
+- کاربری که نسخه‌ی قبلی را دارد، موقع نصب آپدیت خطای **«App not installed»** می‌گیرد،
+- و آن APK هیچ‌وقت قابل انتشار در Google Play نیست.
+
+برای بیلدهای واقعی یک کلید بساز (یک بار برای همیشه — **حتماً ازش بکاپ بگیر**؛ اگر گمش کنی دیگر نمی‌توانی برای کاربران فعلی آپدیت بدهی):
+
+```bash
+keytool -genkey -v \
+  -keystore ~/poolland-release.jks \
+  -keyalg RSA -keysize 2048 -validity 10000 \
+  -alias poolland
+```
+
+**بیلد محلی:** فایل `android/key.properties.example` را به `android/key.properties` کپی کن و پرش کن. این فایل در `.gitignore` هست و هیچ‌وقت کامیت نمی‌شود.
+
+**بیلد روی GitHub Actions:** کلید را base64 کن و به‌همراه رمزها در Secrets بگذار:
+
+```bash
+base64 -w0 ~/poolland-release.jks   # روی مک: base64 -i ~/poolland-release.jks
+```
+
+در **Settings → Secrets and variables → Actions** این چهار Secret را بساز:
+
+| نام Secret | مقدار |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | خروجی دستور بالا |
+| `ANDROID_KEYSTORE_PASSWORD` | رمز keystore |
+| `ANDROID_KEY_ALIAS` | `poolland` |
+| `ANDROID_KEY_PASSWORD` | رمز کلید |
+
+بعد در `.github/workflows/release.yml`، **قبل از** مرحله‌ی `Build split APKs` این مرحله را اضافه کن:
+
+```yaml
+      - name: Decode release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is not set — refusing to ship a debug-signed APK."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/poolland-release.jks"
+```
+
+و به هر دو مرحله‌ی build این `env` را بده:
+
+```yaml
+        env:
+          POOLLAND_KEYSTORE_PATH: ${{ runner.temp }}/poolland-release.jks
+          POOLLAND_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          POOLLAND_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          POOLLAND_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+```
+
+Gradle همین چهار متغیر محیطی را می‌خواند (یا `android/key.properties` را، اگر وجود داشته باشد). اگر هیچ‌کدام نبود، با کلید debug امضا می‌کند و در لاگ بیلد هشدار می‌دهد.
+
+### ۴) نسخه‌ی وب (قابل نصب روی گوشی مثل اپ)
 نسخه‌ی وب به‌صورت خودکار روی شاخه‌ی `gh-pages` ساخته و به‌روز می‌شود.
 برای فعال‌سازی یک‌باره: **Settings → Pages → Source: «Deploy from a branch» → Branch: `gh-pages` / root → Save**
 
@@ -164,7 +223,7 @@ flutter build apk --release    # ساخت فایل APK
 | وضعیت | معنی |
 |---|---|
 | مانده **مثبت** | مشتری **به تو بدهکار** است |
-| مانده **منفی** | **تو به مشتری بدهکار**ی (پیش‌پرداخت یا برگشت وجه) |
+| مانده **منفی** | **تو به مشتری بدهکار**ی (پیش‌پرداخت یا اضافه‌پرداخت) |
 | تراکنش **نقدی** | روی صندوق اثر دارد |
 | تراکنش **نسیه** | روی حساب مشتری اثر دارد |
 
@@ -173,6 +232,7 @@ flutter build apk --release    # ساخت فایل APK
 - فروش نسیه در حساب مشتری به‌عنوان طلب ثبت می‌شود، اما تا وقتی پولی دریافت نشده وارد درآمد و سود نمی‌شود.
 - مجموع خرید در پروفایل مشتری فروش کامل را نشان می‌دهد؛ درآمد و سود گزارش‌ها فقط بر مبنای مبلغ وصول‌شده‌اند.
 - با هر پرداخت مشتری، همان مبلغِ دریافت‌شده به درآمد اضافه و از بدهی او کم می‌شود؛ پرداخت‌های بعدی هم به همین شکل ثبت می‌شوند.
+- **برگشت وجه** پولی است که از صندوق خارج می‌شود: سود و موجودی صندوق را کم می‌کند، ولی مانده‌ی حساب مشتری را جابه‌جا نمی‌کند. (اگر مشتری تسویه کرده و پولش را پس بدهی، مانده‌اش صفر می‌ماند — نه منفی.)
 
 ---
 
