@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/app_info.dart';
 import '../core/backup.dart';
 import '../core/format_utils.dart';
 import '../core/jalali_utils.dart';
@@ -100,7 +101,9 @@ class SettingsPage extends StatelessWidget {
     final s = repo.settings;
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final aboutText = [
-      'Version 1.2.0 • Open-source software (MIT)'.tr,
+      'Version {version} • Open-source software (MIT)'.trArgs({
+        'version': appVersionLabel,
+      }),
       'A simple offline ledger for VPN sellers.'.tr,
       'All data stays on this device.'.tr,
       'The Personal section is for your own finances and is not included in business profit or loss.'

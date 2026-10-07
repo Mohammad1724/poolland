@@ -565,8 +565,8 @@ class AppLocalization {
         'دفتر حساب آفلاین برای فروشندگان VPN',
     'A simple offline ledger for VPN sellers.':
         'دفتر حساب آفلاین برای فروشندگان VPN.',
-    'Version 1.2.0 • Open-source software (MIT)':
-        'نسخهٔ ۱.۲.۰ • نرم‌افزار متن‌باز (MIT)',
+    'Version {version} • Open-source software (MIT)':
+        'نسخهٔ {version} • نرم‌افزار متن‌باز (MIT)',
     'The Personal section is for your own finances and is not included in business profit or loss.': 'بخش شخصی برای امور مالی خودتان است و در سود و زیان کسب‌وکار محاسبه نمی‌شود.',
     'SMS access is not available on web or desktop. Try this feature on an Android phone.': 'دسترسی پیامک در وب یا رایانه فراهم نیست. این قابلیت را در تلفن اندرویدی امتحان کنید.',
     'To let Poolland read bank SMS and automatically identify deposits and withdrawals, grant SMS permission.\n\n• SMS messages are read on this device only\n• No data is sent anywhere\n• No transaction is recorded until you approve it': 'برای شناسایی خودکار واریز و برداشت، دسترسی خواندن پیامک بانکی را به پول‌لند بدهید.\n\n• پیامک‌ها فقط روی همین دستگاه خوانده می‌شوند\n• هیچ داده‌ای جایی ارسال نمی‌شود\n• تا زمانی که تأیید نکنید، تراکنشی ثبت نمی‌شود',
