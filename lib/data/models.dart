@@ -66,6 +66,7 @@ class AppSettings {
   final String languageCode; // fa (default) | en
   final int reminderDays; // Days before expiry to send a reminder.
   final String? pinHash; // Optional app lock.
+  final bool biometricUnlock; // Fingerprint/face on top of the PIN.
   final String themeMode; // system | light | dark
   final double openingCash; // Initial cash/bank balance.
   final bool setupDone; // Whether initial setup is complete.
@@ -93,6 +94,7 @@ class AppSettings {
     this.languageCode = 'fa',
     this.reminderDays = 3,
     this.pinHash,
+    this.biometricUnlock = false,
     this.themeMode = 'system',
     this.openingCash = 0,
     this.setupDone = false,
@@ -164,6 +166,7 @@ class AppSettings {
     int? reminderDays,
     String? pinHash,
     bool clearPin = false,
+    bool? biometricUnlock,
     String? themeMode,
     double? openingCash,
     bool? setupDone,
@@ -185,6 +188,10 @@ class AppSettings {
     languageCode: languageCode ?? this.languageCode,
     reminderDays: reminderDays ?? this.reminderDays,
     pinHash: clearPin ? null : (pinHash ?? this.pinHash),
+    // No PIN means no lock at all, so biometrics cannot outlive it.
+    biometricUnlock: clearPin
+        ? false
+        : (biometricUnlock ?? this.biometricUnlock),
     themeMode: themeMode ?? this.themeMode,
     openingCash: openingCash ?? this.openingCash,
     setupDone: setupDone ?? this.setupDone,
@@ -203,14 +210,23 @@ class AppSettings {
         : (notificationSoundName ?? this.notificationSoundName),
   );
 
-  Map<String, dynamic> toMap({bool includeDeviceNotificationSound = true}) => {
+  /// [includeAppLock] and [includeDeviceNotificationSound] are turned off
+  /// when writing a backup file. Both describe this phone rather than the
+  /// ledger, and a backup is routinely shared through a messaging app.
+  Map<String, dynamic> toMap({
+    bool includeDeviceNotificationSound = true,
+    bool includeAppLock = true,
+  }) => {
     'businessName': businessName,
     'baseCurrency': baseCurrency,
     'currencies': currencies.map((e) => e.toMap()).toList(),
     'persianDigits': persianDigits,
     'languageCode': languageCode,
     'reminderDays': reminderDays,
-    'pinHash': pinHash,
+    if (includeAppLock) ...{
+      'pinHash': pinHash,
+      'biometricUnlock': biometricUnlock,
+    },
     'themeMode': themeMode,
     'openingCash': openingCash,
     'setupDone': setupDone,
@@ -239,6 +255,7 @@ class AppSettings {
     languageCode: map['languageCode'] == 'en' ? 'en' : 'fa',
     reminderDays: (map['reminderDays'] as num?)?.toInt() ?? 3,
     pinHash: map['pinHash'] as String?,
+    biometricUnlock: map['biometricUnlock'] as bool? ?? false,
     themeMode: '${map['themeMode'] ?? 'system'}',
     openingCash: (map['openingCash'] as num?)?.toDouble() ?? 0,
     setupDone: map['setupDone'] as bool? ?? false,
@@ -581,7 +598,7 @@ enum TxnKind {
   income, // Sale or income.
   expense, // Expense.
   receive, // Payment received from a customer (settlement).
-  refund, // Customer refund; reduces revenue and receivable.
+  refund, // Cash refunded to a customer; reduces revenue and cash, not the balance.
   payablePayment, // Cash paid to settle a supplier/contact payable.
 }
 
@@ -611,9 +628,6 @@ extension TxnKindX on TxnKind {
   };
 
   bool get isProfitKind => this == TxnKind.income || this == TxnKind.expense;
-
-  /// Does this transaction affect the contact’s balance?
-  bool get affectsBalance => this != TxnKind.income && this != TxnKind.expense;
 
   /// Cash direction: +1 inflow, −1 outflow, 0 no effect.
   int get cashDirection => switch (this) {

@@ -1,0 +1,23 @@
+# Release signing credentials for the Android build.
+#
+# Copy this file to `android/key.properties` and fill in your own values.
+# `key.properties`, `*.jks` and `*.keystore` are git-ignored on purpose:
+# never commit a keystore or its passwords.
+#
+# Create a keystore once (it is valid for ~27 years) and keep a backup
+# somewhere safe. If you lose it you can never ship an update to anyone who
+# already installed the app — they would have to uninstall first.
+#
+#   keytool -genkey -v \
+#     -keystore ~/poolland-release.jks \
+#     -keyalg RSA -keysize 2048 -validity 10000 \
+#     -alias poolland
+#
+# CI does not use this file. The GitHub Actions workflow reads the same four
+# values from the POOLLAND_KEYSTORE_* environment variables instead — see the
+# "Signing release builds" section in README.md.
+
+storeFile=/absolute/path/to/poolland-release.jks
+storePassword=your-keystore-password
+keyAlias=poolland
+keyPassword=your-key-password

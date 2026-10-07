@@ -565,8 +565,8 @@ class AppLocalization {
         'دفتر حساب آفلاین برای فروشندگان VPN',
     'A simple offline ledger for VPN sellers.':
         'دفتر حساب آفلاین برای فروشندگان VPN.',
-    'Version 1.2.0 • Open-source software (MIT)':
-        'نسخهٔ ۱.۲.۰ • نرم‌افزار متن‌باز (MIT)',
+    'Version {version} • Open-source software (MIT)':
+        'نسخهٔ {version} • نرم‌افزار متن‌باز (MIT)',
     'The Personal section is for your own finances and is not included in business profit or loss.': 'بخش شخصی برای امور مالی خودتان است و در سود و زیان کسب‌وکار محاسبه نمی‌شود.',
     'SMS access is not available on web or desktop. Try this feature on an Android phone.': 'دسترسی پیامک در وب یا رایانه فراهم نیست. این قابلیت را در تلفن اندرویدی امتحان کنید.',
     'To let Poolland read bank SMS and automatically identify deposits and withdrawals, grant SMS permission.\n\n• SMS messages are read on this device only\n• No data is sent anywhere\n• No transaction is recorded until you approve it': 'برای شناسایی خودکار واریز و برداشت، دسترسی خواندن پیامک بانکی را به پول‌لند بدهید.\n\n• پیامک‌ها فقط روی همین دستگاه خوانده می‌شوند\n• هیچ داده‌ای جایی ارسال نمی‌شود\n• تا زمانی که تأیید نکنید، تراکنشی ثبت نمی‌شود',
@@ -715,6 +715,43 @@ class AppLocalization {
     'Date range': 'بازهٔ زمانی',
     'From': 'از',
     'To': 'تا',
+
+    // ---- App lock ----
+    'Security': 'امنیت',
+    'App lock (PIN)': 'قفل برنامه (رمز عددی)',
+    'Ask for a PIN when the app opens': 'هنگام باز شدن برنامه، رمز عددی پرسیده می‌شود',
+    'Your bank SMS and customer debts are readable by anyone holding the phone':
+        'پیامک‌های بانکی و بدهی مشتریان برای هر کسی که گوشی دستش باشد قابل دیدن است',
+    'Change PIN': 'تغییر رمز عددی',
+    'Enter the current PIN, then pick a new one':
+        'ابتدا رمز فعلی را وارد کنید، سپس رمز تازه را انتخاب کنید',
+    'Set a PIN': 'تعیین رمز عددی',
+    'Turn off app lock': 'خاموش کردن قفل برنامه',
+    'Poolland is locked': 'پول‌لند قفل است',
+    'Enter your PIN to continue': 'برای ادامه رمز عددی را وارد کنید',
+    'Enter your current PIN': 'رمز عددی فعلی را وارد کنید',
+    'Choose a new PIN (4-8 digits)': 'رمز عددی تازه را انتخاب کنید (۴ تا ۸ رقم)',
+    'Enter the new PIN again': 'رمز عددی تازه را دوباره وارد کنید',
+    'If you forget this PIN there is no way to recover it. Keep a backup of your data.':
+        'اگر این رمز را فراموش کنید هیچ راهی برای بازیابی آن نیست. از داده‌هایتان پشتیبان بگیرید.',
+    'Unlock': 'باز کردن قفل',
+    'Wrong PIN. Try again.': 'رمز عددی نادرست است. دوباره تلاش کنید.',
+    'The PINs did not match. Start again.': 'دو رمز یکسان نبودند. از ابتدا وارد کنید.',
+    'A PIN must be 4-8 digits': 'رمز عددی باید ۴ تا ۸ رقم باشد',
+    'Could not save the PIN': 'ذخیرهٔ رمز عددی ناموفق بود',
+    'App lock is on': 'قفل برنامه روشن شد',
+    'App lock turned off': 'قفل برنامه خاموش شد',
+    'PIN changed': 'رمز عددی تغییر کرد',
+
+    // ---- Biometric unlock ----
+    'Unlock with fingerprint': 'باز کردن با اثر انگشت',
+    'The PIN still works if the sensor fails':
+        'اگر حسگر کار نکرد، رمز عددی همچنان کار می‌کند',
+    'Use fingerprint': 'استفاده از اثر انگشت',
+    'Unlock Poolland': 'باز کردن پول‌لند',
+    'Unlock Poolland with your fingerprint':
+        'پول‌لند را با اثر انگشت خود باز کنید',
+    'Use PIN': 'رمز عددی',
   };
 
   static String text(String source, {String? languageCode}) =>

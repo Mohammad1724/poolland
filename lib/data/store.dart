@@ -332,7 +332,10 @@ class LocalStore {
     'app': 'vpn_ledger',
     'schema': 1,
     'exportedAt': DateTime.now().toIso8601String(),
-    'settings': loadSettings().toMap(includeDeviceNotificationSound: false),
+    'settings': loadSettings().toMap(
+      includeDeviceNotificationSound: false,
+      includeAppLock: false,
+    ),
     'customers': loadCustomers().map((e) => e.toMap()).toList(),
     'subscriptions': loadSubscriptions().map((e) => e.toMap()).toList(),
     'transactions': loadTxns().map((e) => e.toMap()).toList(),
@@ -390,6 +393,13 @@ class LocalStore {
       return out;
     }
 
+    // The app lock stays with the phone, like the SMS review status below.
+    // Otherwise an old backup would quietly switch the lock off, and a
+    // backup from a phone whose PIN was forgotten would lock the user out.
+    final localSettings = loadSettings();
+    final localPinHash = localSettings.pinHash;
+    final localBiometricUnlock = localSettings.biometricUnlock;
+
     final settingsRaw = data['settings'];
     if (settingsRaw != null && settingsRaw is! Map) {
       throw const FormatException('Invalid settings data.');
@@ -428,7 +438,16 @@ class LocalStore {
     await recurring.clear();
     await quickExpenses.clear();
 
-    await meta.put('settings', restoredSettings.toMap());
+    await meta.put(
+      'settings',
+      restoredSettings
+          .copyWith(
+            pinHash: localPinHash,
+            clearPin: localPinHash == null,
+            biometricUnlock: localBiometricUnlock,
+          )
+          .toMap(),
+    );
     for (final value in restoredCustomers) {
       await customers.put(value.id, value.toMap());
     }

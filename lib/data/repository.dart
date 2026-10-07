@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart' show ChangeNotifier;
 
+import '../core/app_lock.dart';
 import '../core/jalali_utils.dart';
 import '../core/localization.dart';
 import '../core/money.dart';
@@ -801,6 +802,40 @@ class AppRepository extends ChangeNotifier {
     final list = settings.currencies.where((c) => c.code != code).toList();
     await updateSettings(settings.copyWith(currencies: list));
   }
+
+  // ---------------- App lock ----------------
+  /// Is the PIN lock turned on?
+  bool get hasAppLock => (settings.pinHash ?? '').isNotEmpty;
+
+  /// Check a PIN against the stored hash. Always false when there is no lock,
+  /// so callers cannot accidentally "unlock" an unprotected app with junk.
+  bool verifyPin(String pin) =>
+      hasAppLock && AppLock.verify(pin, settings.pinHash);
+
+  /// Turn the lock on, or change an existing PIN.
+  Future<void> setPin(String pin) async {
+    if (!AppLock.isValidPin(pin)) {
+      throw ArgumentError.value(pin, 'pin', 'A PIN must be 4-8 digits');
+    }
+    await updateSettings(settings.copyWith(pinHash: AppLock.hash(pin)));
+  }
+
+  /// Turn the lock off. This also drops biometric unlock, which only ever
+  /// existed as a shortcut past the PIN.
+  Future<void> clearPin() =>
+      updateSettings(settings.copyWith(clearPin: true));
+
+  /// Is fingerprint/face unlock switched on?
+  ///
+  /// Always false without a PIN: biometrics are a shortcut past the PIN, not
+  /// a lock of their own, so there would be nothing to unlock.
+  bool get biometricUnlock => hasAppLock && settings.biometricUnlock;
+
+  /// Turning it on without a PIN is ignored rather than stored, so the flag
+  /// on disk can never disagree with [biometricUnlock].
+  Future<void> setBiometricUnlock(bool enabled) => updateSettings(
+    settings.copyWith(biometricUnlock: enabled && hasAppLock),
+  );
 
   // ---------------- Bank SMS ----------------
   /// Whether SMS is supported on this device (Android only).

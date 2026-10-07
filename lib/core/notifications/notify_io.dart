@@ -27,10 +27,24 @@ class ReminderService {
     String? soundName,
   ) {
     final normalizedUri = soundUri?.trim();
-    final hasCustomSound = normalizedUri != null && normalizedUri.isNotEmpty;
-    final soundHash = normalizedUri == null
-        ? ''
-        : sha256.convert(utf8.encode(normalizedUri)).toString().substring(0, 12);
+
+    // Android caches channel settings, so a sound change needs a new channel
+    // id. Derive it from the URI hash and build the sound in the same branch
+    // to keep the non-null narrowing local and explicit.
+    final String soundHash;
+    final UriAndroidNotificationSound? customSound;
+    if (normalizedUri == null || normalizedUri.isEmpty) {
+      soundHash = '';
+      customSound = null;
+    } else {
+      soundHash = sha256
+          .convert(utf8.encode(normalizedUri))
+          .toString()
+          .substring(0, 12);
+      customSound = UriAndroidNotificationSound(normalizedUri);
+    }
+
+    final hasCustomSound = customSound != null;
     final channelId = hasCustomSound
         ? 'daily_reminder_$soundHash'
         : 'daily_reminder';
@@ -46,9 +60,7 @@ class ReminderService {
       priority: Priority.defaultPriority,
       ticker: 'Poolland reminder',
       playSound: true,
-      sound: hasCustomSound
-          ? UriAndroidNotificationSound(normalizedUri!)
-          : null,
+      sound: customSound,
     );
   }
 

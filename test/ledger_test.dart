@@ -143,7 +143,42 @@ void main() {
         txn(kind: TxnKind.receive, amount: 500000),
         txn(kind: TxnKind.refund, amount: 100000),
       ];
-      expect(Ledger.customerBalance(c, txns), 600000);
+      // 200,000 opening + 1,000,000 charged - 500,000 collected.
+      // The refund is cash out of the till; it does not reduce what the
+      // customer still owes us.
+      expect(Ledger.customerBalance(c, txns), 700000);
+    });
+
+    test('Refunding a settled customer leaves their balance at zero', () {
+      final c = customer();
+      final sale = txn(kind: TxnKind.income, amount: 500000, credit: true);
+      final payment = txn(kind: TxnKind.receive, amount: 500000);
+
+      expect(Ledger.customerBalance(c, [sale, payment]), 0);
+
+      // Service cancelled: we hand the 500,000 back.
+      final refund = txn(kind: TxnKind.refund, amount: 500000);
+      final txns = [sale, payment, refund];
+
+      // The customer is square with us — we must not claim to owe them again.
+      expect(Ledger.customerBalance(c, txns), 0);
+      expect(Ledger.totals([c], txns).payable, 0);
+      expect(Ledger.totals([c], txns).receivable, 0);
+
+      // The money really did leave, and the sale no longer counts as profit.
+      final s = Ledger.summarize(txns);
+      expect(s.refunds, 500000);
+      expect(s.profit, 0);
+      expect(s.netCash, 0);
+    });
+
+    test('A refund does not move per-currency balances either', () {
+      final c = customer();
+      final txns = [
+        txn(kind: TxnKind.income, amount: 40, credit: true, currency: 'USD'),
+        txn(kind: TxnKind.refund, amount: 40, currency: 'USD'),
+      ];
+      expect(Ledger.customerCurrencyTotals(c, txns), {'USD': 40.0});
     });
 
     test('Overpayment produces a negative balance (payable)', () {

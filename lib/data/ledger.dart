@@ -202,7 +202,13 @@ class Ledger {
       case TxnKind.receive:
         return -v;
       case TxnKind.refund:
-        return -v;
+        // A refund is cash handed back to the customer. It reduces profit and
+        // cash (see [summarize]) but settles nothing: the customer does not
+        // start owing us less, and we do not start owing them more. Returning
+        // -v here used to leave a fully refunded customer sitting at a
+        // negative balance, i.e. the app claimed we still owed them the money
+        // we had just paid out.
+        return 0;
       case TxnKind.payablePayment:
         return v;
     }
@@ -280,7 +286,8 @@ class Ledger {
         TxnKind.income => t.credit ? t.amount : 0.0,
         TxnKind.expense => t.credit ? -t.amount : 0.0,
         TxnKind.receive => -t.amount,
-        TxnKind.refund => -t.amount,
+        // Mirrors [balanceEffect]: a cash refund does not move the balance.
+        TxnKind.refund => 0.0,
         TxnKind.payablePayment => t.amount,
       };
       if (delta != 0) map[t.currency] = (map[t.currency] ?? 0) + delta;

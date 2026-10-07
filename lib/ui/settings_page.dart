@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/app_info.dart';
 import '../core/backup.dart';
+import '../core/biometrics.dart';
 import '../core/format_utils.dart';
 import '../core/jalali_utils.dart';
 import '../core/money.dart';
@@ -13,6 +15,7 @@ import '../core/platform_info.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 import 'forms/plan_edit_page.dart';
+import 'lock/pin_setup_page.dart';
 import 'sms_page.dart';
 import 'sms_rules_page.dart';
 import 'widgets/widgets.dart';
@@ -56,7 +59,7 @@ Future<void> _selectNotificationSound(
   } catch (error) {
     if (!context.mounted) return;
     final message = error is FormatException
-        ? '${error.message}'.tr
+        ? error.message.tr
         : 'Could not set notification sound'.tr;
     showSnack(context, message, error: true);
   }
@@ -100,7 +103,9 @@ class SettingsPage extends StatelessWidget {
     final s = repo.settings;
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final aboutText = [
-      'Version 1.2.0 • Open-source software (MIT)'.tr,
+      'Version {version} • Open-source software (MIT)'.trArgs({
+        'version': appVersionLabel,
+      }),
       'A simple offline ledger for VPN sellers.'.tr,
       'All data stays on this device.'.tr,
       'The Personal section is for your own finances and is not included in business profit or loss.'
@@ -294,6 +299,48 @@ class SettingsPage extends StatelessWidget {
                     ],
                   ),
                 ),
+              ],
+            ),
+          ),
+
+          // ---------- Security ----------
+          const SectionTitle('Security', icon: Icons.lock_outline_rounded),
+          CardBox(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: repo.hasAppLock,
+                  onChanged: (wantLock) =>
+                      _toggleAppLock(context, wantLock: wantLock),
+                  secondary: const Icon(Icons.pin_outlined, size: 20),
+                  title: Text(
+                    'App lock (PIN)'.tr,
+                    style: const TextStyle(fontSize: 13.5),
+                  ),
+                  subtitle: Text(
+                    (repo.hasAppLock
+                            ? 'Ask for a PIN when the app opens'
+                            : 'Your bank SMS and customer debts are readable by anyone holding the phone')
+                        .tr,
+                    style: const TextStyle(fontSize: 11.5),
+                  ),
+                ),
+                if (repo.hasAppLock) ...[
+                  Divider(color: Theme.of(context).dividerColor),
+                  const _BiometricUnlockTile(),
+                  _actionTile(
+                    context,
+                    icon: Icons.password_rounded,
+                    title: 'Change PIN'.tr,
+                    subtitle: 'Enter the current PIN, then pick a new one',
+                    onTap: () => _runPinSetup(
+                      context,
+                      PinSetupMode.change,
+                      'PIN changed',
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -672,6 +719,31 @@ class SettingsPage extends StatelessWidget {
     trailing: const Icon(Icons.chevron_right_rounded, size: 18),
     onTap: () =>
         Navigator.push(context, MaterialPageRoute(builder: (_) => page)),
+  );
+
+  /// Push the PIN flow and confirm the outcome once it comes back.
+  Future<void> _runPinSetup(
+    BuildContext context,
+    PinSetupMode mode,
+    String successMessage,
+  ) async {
+    final applied = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => PinSetupPage(mode: mode)),
+    );
+    if (applied != true || !context.mounted) return;
+    showSnack(context, successMessage);
+  }
+
+  /// Turning the switch on or off both require going through the PIN flow:
+  /// on needs a PIN to set, off needs the current PIN to prove it is you.
+  Future<void> _toggleAppLock(
+    BuildContext context, {
+    required bool wantLock,
+  }) => _runPinSetup(
+    context,
+    wantLock ? PinSetupMode.create : PinSetupMode.remove,
+    wantLock ? 'App lock is on' : 'App lock turned off',
   );
 
   Widget _actionTile(
@@ -1232,6 +1304,62 @@ class _CategoriesPageState extends State<CategoriesPage> {
           icon: const Icon(Icons.add_rounded, size: 18),
           label: Text('Add category'.tr),
         ),
+      ],
+    );
+  }
+}
+
+/// Fingerprint switch, shown only when the phone can actually do it.
+///
+/// Stateful so the availability check runs once per visit instead of on every
+/// rebuild: a plain FutureBuilder would restart the check each time the repo
+/// notifies, and the switch would blink out of existence as it was toggled.
+class _BiometricUnlockTile extends StatefulWidget {
+  const _BiometricUnlockTile();
+
+  @override
+  State<_BiometricUnlockTile> createState() => _BiometricUnlockTileState();
+}
+
+class _BiometricUnlockTileState extends State<_BiometricUnlockTile> {
+  bool _available = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    final available = await Biometrics.isAvailable();
+    if (!mounted) return;
+    setState(() => _available = available);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // A phone with no sensor, or with no fingerprint enrolled in Android
+    // itself, gets no switch at all rather than one that cannot work.
+    if (!_available) return const SizedBox.shrink();
+
+    final repo = context.watch<AppRepository>();
+    return Column(
+      children: [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: repo.biometricUnlock,
+          onChanged: repo.setBiometricUnlock,
+          secondary: const Icon(Icons.fingerprint_rounded, size: 20),
+          title: Text(
+            'Unlock with fingerprint'.tr,
+            style: const TextStyle(fontSize: 13.5),
+          ),
+          subtitle: Text(
+            'The PIN still works if the sensor fails'.tr,
+            style: const TextStyle(fontSize: 11.5),
+          ),
+        ),
+        Divider(color: Theme.of(context).dividerColor),
       ],
     );
   }

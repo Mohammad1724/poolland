@@ -471,6 +471,117 @@ void main() {
     );
   });
 
+  test('Setting, changing and clearing the app-lock PIN round-trips', () async {
+    expect(repo.hasAppLock, isFalse);
+    expect(repo.verifyPin('1234'), isFalse, reason: 'no lock means no unlock');
+
+    await repo.setPin('1234');
+    expect(repo.hasAppLock, isTrue);
+    expect(repo.verifyPin('1234'), isTrue);
+    expect(repo.verifyPin('4321'), isFalse);
+    expect(repo.settings.pinHash, isNot(contains('1234')));
+
+    await repo.setPin('98765');
+    expect(repo.verifyPin('1234'), isFalse, reason: 'the old PIN is gone');
+    expect(repo.verifyPin('98765'), isTrue);
+
+    await repo.clearPin();
+    expect(repo.hasAppLock, isFalse);
+    expect(repo.settings.pinHash, isNull);
+
+    // The lock survives a restart, so it is actually on disk.
+    await repo.reload();
+    await repo.setPin('4321');
+    await repo.reload();
+    expect(repo.verifyPin('4321'), isTrue);
+  });
+
+  test('A PIN that is not 4-8 digits is rejected', () async {
+    // setPin is async, so the ArgumentError arrives as a failed future.
+    await expectLater(repo.setPin('123'), throwsArgumentError);
+    await expectLater(repo.setPin('123456789'), throwsArgumentError);
+    await expectLater(repo.setPin('12a4'), throwsArgumentError);
+    expect(repo.hasAppLock, isFalse);
+  });
+
+  test('A backup file never carries the app-lock PIN', () async {
+    await repo.setPin('2468');
+
+    final backup = repo.exportData();
+    final exported = backup['settings'] as Map<String, dynamic>;
+
+    expect(exported.containsKey('pinHash'), isFalse);
+    expect(backup.toString(), isNot(contains('2468')));
+  });
+
+  test('Restoring a backup leaves this device\'s lock alone', () async {
+    await repo.setPin('2468');
+    final backup = repo.exportData();
+
+    // Restoring data taken from another phone must not unlock this one...
+    await repo.importData(backup);
+    expect(repo.hasAppLock, isTrue);
+    expect(repo.verifyPin('2468'), isTrue);
+
+    // ...and dropping the lock must stay dropped after a restore.
+    await repo.clearPin();
+    await repo.importData(backup);
+    expect(repo.hasAppLock, isFalse);
+  });
+
+  test('Biometric unlock is tied to the PIN and survives a restart', () async {
+    // Without a PIN there is nothing for a fingerprint to skip past.
+    expect(repo.biometricUnlock, isFalse);
+    await repo.setBiometricUnlock(true);
+    expect(
+      repo.biometricUnlock,
+      isFalse,
+      reason: 'biometrics are a shortcut past the PIN, not a lock of their own',
+    );
+
+    await repo.setPin('1379');
+    await repo.setBiometricUnlock(true);
+    expect(repo.biometricUnlock, isTrue);
+
+    await repo.reload();
+    expect(repo.biometricUnlock, isTrue, reason: 'the setting is on disk');
+
+    // Removing the lock must not leave biometrics armed, otherwise turning
+    // the PIN back on would silently re-enable fingerprint unlock too.
+    await repo.clearPin();
+    expect(repo.biometricUnlock, isFalse);
+    expect(repo.settings.biometricUnlock, isFalse);
+
+    await repo.setPin('1379');
+    expect(repo.biometricUnlock, isFalse);
+  });
+
+  test('A backup file never carries the biometric setting', () async {
+    await repo.setPin('2468');
+    await repo.setBiometricUnlock(true);
+
+    final exported = repo.exportData()['settings'] as Map<String, dynamic>;
+    expect(exported.containsKey('biometricUnlock'), isFalse);
+    expect(exported.containsKey('pinHash'), isFalse);
+  });
+
+  test('Restoring a backup leaves biometric unlock alone', () async {
+    await repo.setPin('2468');
+    await repo.setBiometricUnlock(true);
+    final backup = repo.exportData();
+
+    await repo.importData(backup);
+    expect(
+      repo.biometricUnlock,
+      isTrue,
+      reason: 'a backup must not switch off this phone\'s fingerprint unlock',
+    );
+
+    await repo.setBiometricUnlock(false);
+    await repo.importData(backup);
+    expect(repo.biometricUnlock, isFalse, reason: 'and must not switch it on');
+  });
+
   test('Custom SMS rules are saved and restored', () async {
     await repo.addSmsRule(
       const BankRule(id: 'r1', bankName: 'My Bank', senderHints: ['MYBANK']),
