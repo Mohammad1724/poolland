@@ -127,20 +127,27 @@ void main() {
 
       // The first tab is open, so its page is mounted...
       expect(find.byType(PersonalPage), findsOneWidget);
-      // ...while the tabs that were never opened are still blank slots.
-      expect(find.byType(CustomersPage), findsNothing);
-      expect(find.byType(DashboardPage), findsNothing);
+      // ...while tabs that were never opened are not in the tree at all,
+      // offstage or otherwise.
+      expect(find.byType(CustomersPage, skipOffstage: false), findsNothing);
+      expect(find.byType(DashboardPage, skipOffstage: false), findsNothing);
       expect(tester.takeException(), isNull);
 
-      // ...and opening another tab mounts that page.
+      // Opening another tab mounts that page.
       await tapTab(tester, 1);
       expect(find.byType(DashboardPage), findsOneWidget);
       expect(tester.takeException(), isNull);
 
       await tapTab(tester, 2);
       expect(find.byType(CustomersPage), findsOneWidget);
-      // Previously opened tabs stay mounted so their state is not lost.
-      expect(find.byType(DashboardPage), findsOneWidget);
+      // An opened tab stays mounted after switching away, so its scroll
+      // position and filters survive. IndexedStack keeps it offstage, so the
+      // finder has to look past the visible tab to see it.
+      expect(
+        find.byType(DashboardPage, skipOffstage: false),
+        findsOneWidget,
+        reason: 'an opened tab must stay mounted after switching away',
+      );
       expect(tester.takeException(), isNull);
     });
   });
