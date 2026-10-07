@@ -10,6 +10,7 @@ import '../data/ledger.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 import 'customer_detail_page.dart';
+import 'design.dart';
 import 'forms/contact_edit_page.dart';
 import 'widgets/widgets.dart';
 
@@ -26,12 +27,19 @@ class _CustomersPageState extends State<CustomersPage> {
   final _searchDebouncer = Debouncer();
   String _q = '';
   _Filter _filter = _Filter.all;
+  bool _filtersOpen = false;
 
   @override
   void dispose() {
     _searchDebouncer.dispose();
     super.dispose();
   }
+
+  String get _filterLabel => switch (_filter) {
+    _Filter.all => 'All',
+    _Filter.debtors => 'Debtors',
+    _Filter.creditors => 'Creditors',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -65,30 +73,64 @@ class _CustomersPageState extends State<CustomersPage> {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: Column(
             children: [
-              TextField(
-                decoration: const InputDecoration(
-                  hintText: 'Search name or phone...',
-                  prefixIcon: Icon(Icons.search_rounded, size: 20),
-                ),
-                // Filtering waits for a short pause in typing; the field itself
-                // still echoes every keystroke, so nothing feels laggy.
-                onChanged: (v) =>
-                    _searchDebouncer.run(() => setState(() => _q = v.trim())),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search name or phone...',
+                        prefixIcon: Icon(Icons.search_rounded, size: 20),
+                      ),
+                      // Filtering waits for a short pause in typing; the field
+                      // itself still echoes every keystroke, so nothing feels
+                      // laggy.
+                      onChanged: (v) => _searchDebouncer.run(
+                        () => setState(() => _q = v.trim()),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: Insets.sm),
+                  FilterToggleButton(
+                    activeCount: _filter == _Filter.all ? 0 : 1,
+                    expanded: _filtersOpen,
+                    onPressed: () =>
+                        setState(() => _filtersOpen = !_filtersOpen),
+                  ),
+                ],
               ),
-              const SizedBox(height: 10),
-              // Scrollable so the three filters never overflow on narrow
-              // screens (long Persian labels and large font scales).
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _chip('All', _Filter.all, matchingCustomers.length),
-                    const SizedBox(width: 8),
-                    _chip('Debtors', _Filter.debtors, null),
-                    const SizedBox(width: 8),
-                    _chip('Creditors', _Filter.creditors, null),
-                  ],
+              if (_filter != _Filter.all) ...[
+                const SizedBox(height: Insets.sm),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: FilterPill(
+                    label: _filterLabel.tr,
+                    icon: Icons.filter_alt_outlined,
+                    onClear: () => setState(() => _filter = _Filter.all),
+                  ),
                 ),
+              ],
+              AnimatedSize(
+                duration: Motion.expand,
+                curve: Curves.easeOut,
+                alignment: Alignment.topCenter,
+                child: _filtersOpen
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: Insets.md),
+                        child: Wrap(
+                          spacing: Insets.sm,
+                          runSpacing: Insets.sm,
+                          children: [
+                            _chip(
+                              'All',
+                              _Filter.all,
+                              matchingCustomers.length,
+                            ),
+                            _chip('Debtors', _Filter.debtors, null),
+                            _chip('Creditors', _Filter.creditors, null),
+                          ],
+                        ),
+                      )
+                    : const SizedBox(width: double.infinity),
               ),
             ],
           ),
@@ -175,18 +217,19 @@ class _CustomersPageState extends State<CustomersPage> {
                                       ),
                                     ),
                                     if (active.isNotEmpty) ...[
-                                      const SizedBox(width: 6),
-                                      TagChip(
-                                        'Active',
-                                        color: const Color(0xFF16A34A),
-                                        dense: true,
+                                      const SizedBox(width: Insets.sm),
+                                      // A dot says the same thing as the old
+                                      // chip without shouting. The label stays
+                                      // for screen readers and long-press.
+                                      const StatusDot(
+                                        color: Color(0xFF16A34A),
+                                        label: 'Active',
                                       ),
                                     ] else if (latest != null) ...[
-                                      const SizedBox(width: 6),
-                                      TagChip(
-                                        'Expired',
-                                        color: const Color(0xFFE11D48),
-                                        dense: true,
+                                      const SizedBox(width: Insets.sm),
+                                      const StatusDot(
+                                        color: Color(0xFFE11D48),
+                                        label: 'Expired',
                                       ),
                                     ],
                                   ],

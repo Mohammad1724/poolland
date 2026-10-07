@@ -6,6 +6,7 @@ import '../data/models.dart';
 import '../data/repository.dart';
 import 'customers_page.dart';
 import 'dashboard_page.dart';
+import 'design.dart';
 import 'forms/contact_edit_page.dart';
 import 'forms/sell_subscription_page.dart';
 import 'forms/transaction_edit_page.dart';
@@ -34,6 +35,9 @@ class _HomeShellState extends State<HomeShell> {
   /// actually opened are mounted now.
   final Set<int> _visited = {0};
 
+  /// Whether the floating action button is currently on screen.
+  bool _fabVisible = true;
+
   // Personal bookkeeping is the first destination because it is the most
   // frequent task; business tools remain one tap away.
   static const _titles = [
@@ -43,6 +47,12 @@ class _HomeShellState extends State<HomeShell> {
     'Subscriptions',
     'Transactions',
   ];
+
+  @override
+  void dispose() {
+    _fabVisible.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -80,7 +90,61 @@ class _HomeShellState extends State<HomeShell> {
       // Tabs are built the first time they are opened; from then on they stay
       // mounted, so their scroll position and filters survive switching.
       _visited.add(i);
+      // A freshly opened tab may be scrolled to the top, so show the action
+      // button again.
+      _fabVisible.value = true;
     });
+  }
+
+  /// Hides the floating action button while scrolling down, shows it while
+  /// scrolling up. Scroll notifications bubble up from whichever list is
+  /// currently visible, so no page has to know about this.
+  bool _handleScroll(ScrollNotification notification) {
+    if (notification is ScrollUpdateNotification) {
+      final delta = notification.scrollDelta ?? 0;
+      if (delta > 4 && _fabVisible.value) {
+        _fabVisible.value = false;
+      } else if (delta < -4 && !_fabVisible.value) {
+        _fabVisible.value = true;
+      }
+    }
+    // Never absorb the notification: charts and nested lists still need it.
+    return false;
+  }
+
+  Widget _buildFab() {
+    if (_index == 2) {
+      return FloatingActionButton.extended(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ContactEditPage()),
+        ),
+        icon: const Icon(Icons.person_add_alt_1_rounded),
+        label: Text('New customer'.tr),
+      );
+    }
+    if (_index == 0) {
+      return FloatingActionButton.extended(
+        onPressed: _personalAdd,
+        icon: const Icon(Icons.add_rounded),
+        label: Text('Add personal entry'.tr),
+      );
+    }
+    if (_index == 3) {
+      return FloatingActionButton.extended(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SellSubscriptionPage()),
+        ),
+        icon: const Icon(Icons.vpn_key_rounded),
+        label: Text('Sell a subscription'.tr),
+      );
+    }
+    return FloatingActionButton(
+      onPressed: _quickAdd,
+      tooltip: 'Quick add'.tr,
+      child: const Icon(Icons.add_rounded),
+    );
   }
 
   Future<void> _personalAdd() async {
@@ -403,8 +467,10 @@ class _HomeShellState extends State<HomeShell> {
             ),
           ],
         ),
-        body: isWide
-            ? Row(
+        body: NotificationListener<ScrollNotification>(
+          onNotification: _handleScroll,
+          child: isWide
+              ? Row(
                 children: [
                   NavigationRail(
                     selectedIndex: _index,
@@ -450,39 +516,21 @@ class _HomeShellState extends State<HomeShell> {
                   ),
                 ],
               )
-            : content,
+              : content,
+        ),
         floatingActionButton: !isReady
             ? null
-            : _index == 2
-            ? FloatingActionButton.extended(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ContactEditPage()),
+            // Slides out of the way while the user scrolls down a list and
+            // comes back on the first upward scroll or a tab change, so it
+            // stops covering the last rows of long pages.
+            : ValueListenableBuilder<bool>(
+                valueListenable: _fabVisible,
+                builder: (context, visible, _) => AnimatedSlide(
+                  offset: visible ? Offset.zero : const Offset(0, 2.5),
+                  duration: Motion.quick,
+                  curve: Curves.easeOut,
+                  child: _buildFab(),
                 ),
-                icon: const Icon(Icons.person_add_alt_1_rounded),
-                label: Text('New customer'.tr),
-              )
-            : _index == 0
-            ? FloatingActionButton.extended(
-                onPressed: _personalAdd,
-                icon: const Icon(Icons.add_rounded),
-                label: Text('Add personal entry'.tr),
-              )
-            : _index == 3
-            ? FloatingActionButton.extended(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const SellSubscriptionPage(),
-                  ),
-                ),
-                icon: const Icon(Icons.vpn_key_rounded),
-                label: Text('Sell a subscription'.tr),
-              )
-            : FloatingActionButton(
-                onPressed: _quickAdd,
-                tooltip: 'Quick add'.tr,
-                child: const Icon(Icons.add_rounded),
               ),
         bottomNavigationBar: isWide
             ? null

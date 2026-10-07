@@ -7,6 +7,7 @@ import '../data/ledger.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 import 'customer_detail_page.dart';
+import 'design.dart';
 import 'forms/sell_subscription_page.dart';
 import 'sms_page.dart';
 import 'widgets/common_charts.dart';
@@ -517,10 +518,22 @@ class DashboardPage extends StatelessWidget {
           }),
         ],
 
-        // Chart
-        const SectionTitle('Last 6 months', icon: Icons.bar_chart_rounded),
-        CardBox(
-          padding: const EdgeInsets.fromLTRB(10, 16, 10, 8),
+        // Chart. Collapsed by default: the title and the six-month total stay
+        // in the header, and the bars open on tap so the page stays short.
+        const SizedBox(height: 14),
+        CollapsibleCard(
+          title: 'Last 6 months',
+          icon: Icons.bar_chart_rounded,
+          summary: MoneyText(
+            series.fold<double>(0, (sum, p) => sum + p.profit),
+            compact: true,
+            signed: true,
+            style: const TextStyle(
+              fontSize: FontSizes.small,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          bodyPadding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
           child: SizedBox(height: 190, child: MonthlyBarChart(points: series)),
         ),
 

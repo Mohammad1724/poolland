@@ -8,6 +8,7 @@ import '../data/ledger.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 import '../data/store.dart';
+import 'design.dart';
 import 'forms/transaction_edit_page.dart';
 import 'widgets/period_chart.dart';
 import 'widgets/quick_buttons.dart';
@@ -280,11 +281,9 @@ class PersonalPage extends StatelessWidget {
           ),
         ],
 
-        // ---- Charts ----
-        const SectionTitle(
-          'Income and expense trend',
-          icon: Icons.bar_chart_rounded,
-        ),
+        // ---- Charts (collapsible: the card header carries the title and the
+        // six-month total, the chart opens on tap) ----
+        const SizedBox(height: 14),
         _PeriodChartCard(
           daily: Ledger.dailySeries(
             repo.transactions,
@@ -590,8 +589,21 @@ class _PeriodChartCardState extends State<_PeriodChartCard> {
 
   @override
   Widget build(BuildContext context) {
-    return CardBox(
-      padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
+    // The section header doubles as the collapsible card header, so the title
+    // and the six-month total are always visible while the chart opens on tap.
+    return CollapsibleCard(
+      title: 'Income and expense trend',
+      icon: Icons.bar_chart_rounded,
+      summary: MoneyText(
+        widget.monthly.fold<double>(0, (sum, p) => sum + p.profit),
+        compact: true,
+        signed: true,
+        style: const TextStyle(
+          fontSize: FontSizes.small,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      bodyPadding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
       child: Column(
         children: [
           SegmentedButton<int>(
@@ -604,7 +616,7 @@ class _PeriodChartCardState extends State<_PeriodChartCard> {
             onSelectionChanged: (s) => setState(() => _mode = s.first),
             style: SegmentedButton.styleFrom(
               visualDensity: VisualDensity.compact,
-              textStyle: const TextStyle(fontSize: 12),
+              textStyle: const TextStyle(fontSize: FontSizes.small),
             ),
           ),
           const SizedBox(height: 12),

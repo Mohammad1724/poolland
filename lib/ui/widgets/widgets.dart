@@ -6,6 +6,7 @@ import '../../core/haptics.dart';
 import '../../core/jalali_utils.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
+import '../design.dart';
 import 'date_picker.dart';
 
 import '../../core/localization.dart';
@@ -1000,6 +1001,281 @@ class TxnTile extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// ---------------- Collapsible section ----------------
+/// A card whose header (title, optional summary, and chevron) is always
+/// visible while the body expands on tap.
+///
+/// Used for reference content such as charts: the section stays one glance
+/// away, but the page does not have to carry it at full height all the time.
+/// The header summary is a good place for the key number, so collapsing never
+/// hides the headline figure.
+class CollapsibleCard extends StatefulWidget {
+  const CollapsibleCard({
+    super.key,
+    required this.title,
+    required this.child,
+    this.icon,
+    this.summary,
+    this.bodyPadding = const EdgeInsets.fromLTRB(14, 0, 14, 14),
+    this.initiallyExpanded = false,
+  });
+
+  final String title;
+  final Widget child;
+  final IconData? icon;
+
+  /// Key figure shown in the header, always visible.
+  final Widget? summary;
+  final EdgeInsets bodyPadding;
+  final bool initiallyExpanded;
+
+  @override
+  State<CollapsibleCard> createState() => _CollapsibleCardState();
+}
+
+class _CollapsibleCardState extends State<CollapsibleCard> {
+  late bool _expanded = widget.initiallyExpanded;
+
+  void _toggle() {
+    Haptics.selection();
+    setState(() => _expanded = !_expanded);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            button: true,
+            expanded: _expanded,
+            child: InkWell(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(18),
+              ),
+              onTap: _toggle,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                child: Row(
+                  children: [
+                    if (widget.icon != null) ...[
+                      Icon(
+                        widget.icon,
+                        size: 17,
+                        color: onSurface.withValues(alpha: 0.6),
+                      ),
+                      const SizedBox(width: Insets.sm),
+                    ],
+                    Expanded(
+                      child: Text(
+                        widget.title.tr,
+                        style: TextStyle(
+                          fontSize: FontSizes.body,
+                          fontWeight: FontWeight.w700,
+                          color: onSurface.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ),
+                    if (widget.summary != null) ...[
+                      widget.summary!,
+                      const SizedBox(width: Insets.xs),
+                    ],
+                    AnimatedRotation(
+                      turns: _expanded ? 0.5 : 0,
+                      duration: Motion.expand,
+                      child: Icon(
+                        Icons.expand_more_rounded,
+                        size: 20,
+                        color: onSurface.withValues(alpha: 0.55),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          AnimatedSize(
+            duration: Motion.expand,
+            curve: Curves.easeOut,
+            alignment: Alignment.topCenter,
+            child: _expanded
+                ? Padding(padding: widget.bodyPadding, child: widget.child)
+                : const SizedBox(width: double.infinity),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ---------------- Filter toggle ----------------
+/// Square button that opens the filter panel. A count badge shows how many
+/// filters are active, and the icon highlights while the panel is open, so the
+/// current filter state stays visible even though the chips are tucked away.
+class FilterToggleButton extends StatelessWidget {
+  const FilterToggleButton({
+    super.key,
+    required this.activeCount,
+    required this.expanded,
+    required this.onPressed,
+  });
+
+  final int activeCount;
+  final bool expanded;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final highlighted = expanded || activeCount > 0;
+    return Tooltip(
+      message: 'Filters'.tr,
+      child: Material(
+        color: highlighted
+            ? scheme.primary.withValues(alpha: 0.12)
+            : Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(Radii.field),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(Radii.field),
+          onTap: () {
+            Haptics.tap();
+            onPressed();
+          },
+          child: Container(
+            width: 52,
+            height: 56,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(Radii.field),
+              border: Border.all(
+                color: highlighted
+                    ? scheme.primary.withValues(alpha: 0.5)
+                    : Theme.of(context).dividerColor,
+              ),
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(
+                  Icons.tune_rounded,
+                  size: 20,
+                  color: highlighted ? scheme.primary : null,
+                ),
+                if (activeCount > 0)
+                  PositionedDirectional(
+                    top: 8,
+                    end: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: scheme.primary,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '$activeCount',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Removable chip describing one active filter; tapping it clears that filter.
+class FilterPill extends StatelessWidget {
+  const FilterPill({
+    super.key,
+    required this.label,
+    required this.onClear,
+    this.icon,
+  });
+
+  final String label;
+  final VoidCallback onClear;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.primary.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onClear,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 13, color: scheme.primary),
+                const SizedBox(width: Insets.xs),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: FontSizes.caption,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.primary,
+                ),
+              ),
+              const SizedBox(width: Insets.xs),
+              Icon(Icons.close_rounded, size: 13, color: scheme.primary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// ---------------- Status dot ----------------
+/// Tiny colored dot for a status that would otherwise need a full chip.
+///
+/// The label is not dropped: screen readers announce it and long-pressing the
+/// dot shows it as a tooltip.
+class StatusDot extends StatelessWidget {
+  const StatusDot({
+    super.key,
+    required this.color,
+    required this.label,
+    this.size = 8,
+  });
+
+  final Color color;
+  final String label;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: label.tr,
+      child: Tooltip(
+        message: label.tr,
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
       ),
     );
   }

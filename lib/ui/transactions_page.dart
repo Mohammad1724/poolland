@@ -7,6 +7,7 @@ import '../core/money.dart';
 import '../data/ledger.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
+import 'design.dart';
 import 'forms/transaction_edit_page.dart';
 import 'widgets/widgets.dart';
 
@@ -24,12 +25,27 @@ class _TransactionsPageState extends State<TransactionsPage> {
   int _monthOffset = 0; // 0 = current month
   TxnKind? _kind;
   String _q = '';
+  bool _filtersOpen = false;
 
   @override
   void dispose() {
     _searchDebouncer.dispose();
     super.dispose();
   }
+
+  void _resetFilters() {
+    context.read<AppRepository>().setScopeFilter(null);
+    setState(() => _kind = null);
+  }
+
+  Widget _filterGroupLabel(String label) => Text(
+    label.tr,
+    style: TextStyle(
+      fontSize: FontSizes.small,
+      fontWeight: FontWeight.w700,
+      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -122,63 +138,136 @@ class _TransactionsPageState extends State<TransactionsPage> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
             children: [
-              TextField(
-                decoration: const InputDecoration(
-                  hintText: 'Search descriptions, customers, and categories...',
-                  prefixIcon: Icon(Icons.search_rounded, size: 20),
-                  isDense: true,
-                ),
-                onChanged: (v) =>
-                    _searchDebouncer.run(() => setState(() => _q = v.trim())),
-              ),
-              const SizedBox(height: 10),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    for (final opt in <TxnScope?>[
-                      null,
-                      TxnScope.business,
-                      TxnScope.personal,
-                    ])
-                      Padding(
-                        padding: const EdgeInsetsDirectional.only(start: 6),
-                        child: ChoiceChip(
-                          label: Text(
-                            opt == null ? 'All'.tr : opt.label,
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          showCheckmark: false,
-                          selected: repo.scopeFilter == opt,
-                          onSelected: (_) => repo.setScopeFilter(opt),
-                        ),
+              // Search stays in view; the filter chips moved into a panel
+              // behind the button below, so the list gets the space instead.
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText:
+                            'Search descriptions, customers, and categories...',
+                        prefixIcon: Icon(Icons.search_rounded, size: 20),
+                        isDense: true,
                       ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    ChoiceChip(
-                      label: Text('All'.tr),
-                      showCheckmark: false,
-                      selected: _kind == null,
-                      onSelected: (_) => setState(() => _kind = null),
+                      onChanged: (v) => _searchDebouncer.run(
+                        () => setState(() => _q = v.trim()),
+                      ),
                     ),
-                    for (final k in TxnKind.values) ...[
-                      const SizedBox(width: 8),
-                      ChoiceChip(
-                        avatar: Icon(k.icon, size: 15),
-                        label: Text(k.shortLabel),
-                        showCheckmark: false,
-                        selected: _kind == k,
-                        onSelected: (_) => setState(() => _kind = k),
-                      ),
+                  ),
+                  const SizedBox(width: Insets.sm),
+                  FilterToggleButton(
+                    activeCount: _activeFilterCount,
+                    expanded: _filtersOpen,
+                    onPressed: () =>
+                        setState(() => _filtersOpen = !_filtersOpen),
+                  ),
+                ],
+              ),
+              if (_activeFilterCount > 0) ...[
+                const SizedBox(height: Insets.sm),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final pill in <Widget>[
+                        if (repo.scopeFilter != null)
+                          FilterPill(
+                            label: repo.scopeFilter!.label,
+                            icon: Icons.pie_chart_outline_rounded,
+                            onClear: () => repo.setScopeFilter(null),
+                          ),
+                        if (_kind != null)
+                          FilterPill(
+                            label: _kind!.shortLabel,
+                            icon: _kind!.icon,
+                            onClear: () => setState(() => _kind = null),
+                          ),
+                      ]) ...[
+                        pill,
+                        const SizedBox(width: Insets.sm),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
+              ],
+              AnimatedSize(
+                duration: Motion.expand,
+                curve: Curves.easeOut,
+                alignment: Alignment.topCenter,
+                child: _filtersOpen
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: Insets.md),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _filterGroupLabel('Scope'),
+                            const SizedBox(height: Insets.sm),
+                            Wrap(
+                              spacing: Insets.sm,
+                              runSpacing: Insets.sm,
+                              children: [
+                                for (final opt in <TxnScope?>[
+                                  null,
+                                  TxnScope.business,
+                                  TxnScope.personal,
+                                ])
+                                  ChoiceChip(
+                                    label: Text(
+                                      opt == null ? 'All'.tr : opt.label,
+                                      style: const TextStyle(
+                                        fontSize: FontSizes.small,
+                                      ),
+                                    ),
+                                    showCheckmark: false,
+                                    selected: repo.scopeFilter == opt,
+                                    onSelected: (_) =>
+                                        repo.setScopeFilter(opt),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: Insets.md),
+                            _filterGroupLabel('Type'),
+                            const SizedBox(height: Insets.sm),
+                            Wrap(
+                              spacing: Insets.sm,
+                              runSpacing: Insets.sm,
+                              children: [
+                                ChoiceChip(
+                                  label: Text('All'.tr),
+                                  showCheckmark: false,
+                                  selected: _kind == null,
+                                  onSelected: (_) =>
+                                      setState(() => _kind = null),
+                                ),
+                                for (final k in TxnKind.values)
+                                  ChoiceChip(
+                                    avatar: Icon(k.icon, size: 15),
+                                    label: Text(k.shortLabel),
+                                    showCheckmark: false,
+                                    selected: _kind == k,
+                                    onSelected: (_) =>
+                                        setState(() => _kind = k),
+                                  ),
+                              ],
+                            ),
+                            Align(
+                              alignment: AlignmentDirectional.centerEnd,
+                              child: TextButton.icon(
+                                onPressed: _activeFilterCount == 0
+                                    ? null
+                                    : _resetFilters,
+                                icon: const Icon(
+                                  Icons.restart_alt_rounded,
+                                  size: 16,
+                                ),
+                                label: Text('Reset'.tr),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : const SizedBox(width: double.infinity),
               ),
             ],
           ),
