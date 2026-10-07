@@ -45,7 +45,7 @@ class NotificationSoundPicker {
   /// Selects an audio file and copies it into Android's notification media
   /// collection so the notification service can keep reading it later.
   static Future<NotificationSoundChoice?> pickAudioFile() async {
-    final selection = await FilePicker.platform.pickFiles(
+    final selection = await FilePicker.pickFiles(
       type: FileType.audio,
       allowMultiple: false,
       withData: true,
