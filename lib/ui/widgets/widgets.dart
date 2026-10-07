@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/format_utils.dart';
+import '../../core/haptics.dart';
 import '../../core/jalali_utils.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
+import '../design.dart';
 import 'date_picker.dart';
 
 import '../../core/localization.dart';
@@ -143,7 +145,13 @@ class FormPageContent extends StatelessWidget {
 
 /// A persistent save action for long mobile forms. Keeping the primary action
 /// visible avoids scrolling back to the end of a form after editing fields.
-class FormActionBar extends StatelessWidget {
+///
+/// The bar also owns the saving feedback: while [onPressed] is running the
+/// button shows a spinner and its label switches to “Saving…”. Taps during
+/// that window are ignored, so a nervous double-tap cannot record the same
+/// entry twice. If the callback throws, a red snackbar reports the failure
+/// instead of silently swallowing it.
+class FormActionBar extends StatefulWidget {
   const FormActionBar({
     super.key,
     required this.label,
@@ -152,8 +160,38 @@ class FormActionBar extends StatelessWidget {
   });
 
   final String label;
-  final VoidCallback? onPressed;
+  final Future<void> Function()? onPressed;
   final IconData icon;
+
+  @override
+  State<FormActionBar> createState() => _FormActionBarState();
+}
+
+class _FormActionBarState extends State<FormActionBar> {
+  bool _busy = false;
+
+  Future<void> _handleTap() async {
+    final action = widget.onPressed;
+    // Ignore taps while a save is already in flight (double-tap guard).
+    if (_busy || action == null) return;
+    Haptics.confirm();
+    // Resolved before the await so nothing below reads the BuildContext.
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      await action();
+    } catch (_) {
+      showMessengerSnack(
+        messenger,
+        'Saving failed. Please try again.',
+        error: true,
+      );
+    } finally {
+      // The page usually pops itself after a successful save, so this state
+      // may already be disposed by the time the future completes.
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -170,9 +208,15 @@ class FormActionBar extends StatelessWidget {
           child: SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: onPressed,
-              icon: Icon(icon),
-              label: Text(label.tr),
+              onPressed: widget.onPressed == null ? null : _handleTap,
+              icon: _busy
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(widget.icon),
+              label: Text((_busy ? 'Saving…' : widget.label).tr),
             ),
           ),
         ),
@@ -312,6 +356,8 @@ class AmountField extends StatelessWidget {
     this.autofocus = false,
     this.validator,
     this.onChanged,
+    this.livePreview = true,
+    this.textInputAction = TextInputAction.done,
   });
 
   final TextEditingController controller;
@@ -321,12 +367,22 @@ class AmountField extends StatelessWidget {
   final String? Function(String?)? validator;
   final VoidCallback? onChanged;
 
+  /// Keyboard action button. Pass [TextInputAction.next] when another field
+  /// follows, so the user can move on without reaching for the screen.
+  final TextInputAction textInputAction;
+
+  /// Shows a live, grouped preview of the entered amount below the field
+  /// (e.g. typing `1500000` renders `= 1,500,000 Toman` while typing),
+  /// so users always see the value that will actually be saved.
+  final bool livePreview;
+
   @override
   Widget build(BuildContext context) {
     final decimals = Money.decimals(currency);
-    return TextFormField(
+    final field = TextFormField(
       controller: controller,
       autofocus: autofocus,
+      textInputAction: textInputAction,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       textDirection: TextDirection.ltr,
       inputFormatters: [
@@ -352,24 +408,65 @@ class AmountField extends StatelessWidget {
       },
       onTapOutside: (_) => FocusScope.of(context).unfocus(),
       onEditingComplete: () {
-        final v = parseAmount(controller.text);
-        final s = groupedNumber(v, decimals: decimals);
-        controller.value = TextEditingValue(
-          text: s,
-          selection: TextSelection.collapsed(offset: s.length),
-        );
-        FocusScope.of(context).unfocus();
+        _groupAmount(controller, decimals);
+        // Supplying onEditingComplete turns off Flutter's own focus handling,
+        // so advancing to the next field is done by hand here: move from the
+        // node that currently has focus, exactly like TextField would.
+        if (textInputAction == TextInputAction.next) {
+          FocusManager.instance.primaryFocus?.nextFocus();
+        } else {
+          FocusScope.of(context).unfocus();
+        }
       },
-      onFieldSubmitted: (_) {
-        final v = parseAmount(controller.text);
-        final s = groupedNumber(v, decimals: decimals);
-        controller.value = TextEditingValue(
-          text: s,
-          selection: TextSelection.collapsed(offset: s.length),
+      onFieldSubmitted: (_) => _groupAmount(controller, decimals),
+    );
+
+    if (!livePreview) return field;
+
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) {
+        final parsed = parseAmount(value.text);
+        final preview = value.text.trim().isNotEmpty && parsed > 0
+            ? Money.text(parsed, currency: currency)
+            : null;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            field,
+            AnimatedSize(
+              duration: const Duration(milliseconds: 160),
+              alignment: Alignment.topCenter,
+              child: preview == null
+                  ? const SizedBox(width: double.infinity)
+                  : Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        '= $preview',
+                        textDirection: TextDirection.ltr,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.primary
+                              .withValues(alpha: 0.9),
+                        ),
+                      ),
+                    ),
+            ),
+          ],
         );
       },
     );
   }
+}
+
+/// Rewrite the field with grouped digits, keeping the caret at the end.
+void _groupAmount(TextEditingController controller, int decimals) {
+  final s = groupedNumber(parseAmount(controller.text), decimals: decimals);
+  controller.value = TextEditingValue(
+    text: s,
+    selection: TextSelection.collapsed(offset: s.length),
+  );
 }
 
 /// ---------------- Jalali date field ----------------
@@ -665,6 +762,7 @@ class AppTextField extends StatelessWidget {
     this.maxLines = 1,
     this.keyboardType,
     this.validator,
+    this.textInputAction,
   });
 
   final TextEditingController controller;
@@ -675,12 +773,19 @@ class AppTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final String? Function(String?)? validator;
 
+  /// Keyboard action button; single-line fields default to "next" so tabbing
+  /// through a form never requires tapping the screen. Pass
+  /// [TextInputAction.done] on the last field of a form.
+  final TextInputAction? textInputAction;
+
   @override
   Widget build(BuildContext context) {
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      textInputAction:
+          textInputAction ?? (maxLines == 1 ? TextInputAction.next : null),
       decoration: InputDecoration(
         labelText: label.tr,
         hintText: hint?.tr,
@@ -725,7 +830,24 @@ Future<bool> confirmDialog(
 }
 
 void showSnack(BuildContext context, String message, {bool error = false}) {
-  ScaffoldMessenger.of(context)
+  showMessengerSnack(
+    ScaffoldMessenger.of(context),
+    message,
+    error: error,
+  );
+}
+
+/// Same as [showSnack], but for callers that already hold the messenger.
+///
+/// Saving flows resolve the messenger *before* their `await` and then use this
+/// function afterwards, so no `BuildContext` is read once the async work has
+/// started (see `use_build_context_synchronously`).
+void showMessengerSnack(
+  ScaffoldMessengerState messenger,
+  String message, {
+  bool error = false,
+}) {
+  messenger
     ..hideCurrentSnackBar()
     ..showSnackBar(
       SnackBar(
@@ -879,6 +1001,340 @@ class TxnTile extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// ---------------- Collapsible section ----------------
+/// A card whose header (title, optional summary, and chevron) is always
+/// visible while the body expands on tap.
+///
+/// Used for reference content such as charts: the section stays one glance
+/// away, but the page does not have to carry it at full height all the time.
+/// The header summary is a good place for the key number, so collapsing never
+/// hides the headline figure.
+class CollapsibleCard extends StatefulWidget {
+  const CollapsibleCard({
+    super.key,
+    required this.title,
+    required this.child,
+    this.icon,
+    this.summary,
+    this.bodyPadding = const EdgeInsets.fromLTRB(14, 0, 14, 14),
+    this.initiallyExpanded = false,
+  });
+
+  final String title;
+  final Widget child;
+  final IconData? icon;
+
+  /// Key figure shown in the header, always visible.
+  final Widget? summary;
+  final EdgeInsets bodyPadding;
+  final bool initiallyExpanded;
+
+  @override
+  State<CollapsibleCard> createState() => _CollapsibleCardState();
+}
+
+class _CollapsibleCardState extends State<CollapsibleCard> {
+  late bool _expanded = widget.initiallyExpanded;
+
+  void _toggle() {
+    Haptics.selection();
+    setState(() => _expanded = !_expanded);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            button: true,
+            expanded: _expanded,
+            child: InkWell(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(18),
+              ),
+              onTap: _toggle,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                child: Row(
+                  children: [
+                    if (widget.icon != null) ...[
+                      Icon(
+                        widget.icon,
+                        size: 17,
+                        color: onSurface.withValues(alpha: 0.6),
+                      ),
+                      const SizedBox(width: Insets.sm),
+                    ],
+                    Expanded(
+                      child: Text(
+                        widget.title.tr,
+                        style: TextStyle(
+                          fontSize: FontSizes.body,
+                          fontWeight: FontWeight.w700,
+                          color: onSurface.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ),
+                    if (widget.summary != null) ...[
+                      widget.summary!,
+                      const SizedBox(width: Insets.xs),
+                    ],
+                    AnimatedRotation(
+                      turns: _expanded ? 0.5 : 0,
+                      duration: Motion.expand,
+                      child: Icon(
+                        Icons.expand_more_rounded,
+                        size: 20,
+                        color: onSurface.withValues(alpha: 0.55),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          AnimatedSize(
+            duration: Motion.expand,
+            curve: Curves.easeOut,
+            alignment: Alignment.topCenter,
+            child: _expanded
+                ? Padding(padding: widget.bodyPadding, child: widget.child)
+                : const SizedBox(width: double.infinity),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ---------------- Filter toggle ----------------
+/// Square button that opens the filter panel. A count badge shows how many
+/// filters are active, and the icon highlights while the panel is open, so the
+/// current filter state stays visible even though the chips are tucked away.
+class FilterToggleButton extends StatelessWidget {
+  const FilterToggleButton({
+    super.key,
+    required this.activeCount,
+    required this.expanded,
+    required this.onPressed,
+  });
+
+  final int activeCount;
+  final bool expanded;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final highlighted = expanded || activeCount > 0;
+    return Tooltip(
+      message: 'Filters'.tr,
+      child: Material(
+        color: highlighted
+            ? scheme.primary.withValues(alpha: 0.12)
+            : Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(Radii.field),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(Radii.field),
+          onTap: () {
+            Haptics.tap();
+            onPressed();
+          },
+          child: Container(
+            width: 52,
+            height: 56,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(Radii.field),
+              border: Border.all(
+                color: highlighted
+                    ? scheme.primary.withValues(alpha: 0.5)
+                    : Theme.of(context).dividerColor,
+              ),
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(
+                  Icons.tune_rounded,
+                  size: 20,
+                  color: highlighted ? scheme.primary : null,
+                ),
+                if (activeCount > 0)
+                  PositionedDirectional(
+                    top: 8,
+                    end: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: scheme.primary,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '$activeCount',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Removable chip describing one active filter; tapping it clears that filter.
+class FilterPill extends StatelessWidget {
+  const FilterPill({
+    super.key,
+    required this.label,
+    required this.onClear,
+    this.icon,
+  });
+
+  final String label;
+  final VoidCallback onClear;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.primary.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onClear,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 13, color: scheme.primary),
+                const SizedBox(width: Insets.xs),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: FontSizes.caption,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.primary,
+                ),
+              ),
+              const SizedBox(width: Insets.xs),
+              Icon(Icons.close_rounded, size: 13, color: scheme.primary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// ---------------- Swipe hint ----------------
+/// Revealed behind a row while it is being swiped: the icon and the name of the
+/// action the swipe will perform.
+///
+/// A gesture has nothing to tap, so the hint is what makes it discoverable and
+/// what tells the two directions apart. The action itself is confirmed by the
+/// row snapping back (the row is never dismissed), so nothing disappears from
+/// the list.
+class SwipeHint extends StatelessWidget {
+  const SwipeHint({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.alignment,
+    this.borderRadius,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  /// Where the hint sits: the leading edge for a right swipe, the trailing edge
+  /// for a left swipe.
+  final AlignmentGeometry alignment;
+  final BorderRadius? borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: alignment,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: borderRadius,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: Insets.sm),
+          Flexible(
+            child: Text(
+              label.tr,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: FontSizes.small,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ---------------- Status dot ----------------
+/// Tiny colored dot for a status that would otherwise need a full chip.
+///
+/// The label is not dropped: screen readers announce it and long-pressing the
+/// dot shows it as a tooltip.
+class StatusDot extends StatelessWidget {
+  const StatusDot({
+    super.key,
+    required this.color,
+    required this.label,
+    this.size = 8,
+  });
+
+  final Color color;
+  final String label;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: label.tr,
+      child: Tooltip(
+        message: label.tr,
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
       ),
     );
   }

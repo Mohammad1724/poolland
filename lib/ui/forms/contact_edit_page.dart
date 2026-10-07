@@ -172,11 +172,13 @@ class _ContactEditPageState extends State<ContactEditPage> {
               const SizedBox(height: 14),
               const SizedBox(height: 16),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: AmountField(
                       controller: _opening,
                       label: 'Opening balance'.tr,
+                      textInputAction: TextInputAction.next,
                       validator: (_) => null,
                     ),
                   ),

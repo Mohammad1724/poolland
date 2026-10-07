@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/format_utils.dart';
+import '../design.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
@@ -19,13 +20,29 @@ class TransactionEditPage extends StatefulWidget {
     this.initialScope = TxnScope.business,
     this.customer,
     this.categoryId,
+    this.autofocusAmount = true,
+    this.duplicateOf,
   });
 
   final Txn? existing;
+
+  /// Prefills this form from an existing entry **without** editing it, so
+  /// saving records a second, separate transaction ("same as last time").
+  ///
+  /// Everything is copied except the parts that would make it the same entry:
+  /// the date becomes today, the received/prepaid amount is left empty, and no
+  /// subscription is linked (a duplicate must not silently count as another
+  /// sale of the same subscription).
+  final Txn? duplicateOf;
   final TxnKind initialKind;
   final TxnScope initialScope;
   final Customer? customer;
   final String? categoryId;
+
+  /// Opens the keyboard on the amount field right away, so a new entry can be
+  /// typed without a tap. Ignored while editing (and turned off by flows such
+  /// as SMS review, where the details are being checked first).
+  final bool autofocusAmount;
 
   @override
   State<TransactionEditPage> createState() => _TransactionEditPageState();
@@ -49,6 +66,14 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
 
   bool get isEdit => widget.existing != null;
 
+  /// A duplicate is a new entry, but the title says so, so it is obvious that
+  /// the original is not being changed.
+  String get _pageTitle => isEdit
+      ? 'Edit transaction'
+      : widget.duplicateOf != null
+      ? 'Duplicate transaction'
+      : 'New transaction';
+
   bool get _needsCategory =>
       _kind == TxnKind.income || _kind == TxnKind.expense;
 
@@ -57,6 +82,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
     super.initState();
     final repo = context.read<AppRepository>();
     final t = widget.existing;
+    final copy = widget.duplicateOf;
     _currency = repo.settings.baseCurrency;
     _settleCurrency = repo.settings.baseCurrency;
     _date = DateTime.now();
@@ -78,6 +104,21 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
       _category = repo.categoryById(t.categoryId);
       _credit = t.credit;
       _scope = t.scope;
+    } else if (copy != null) {
+      // Same as last time: everything is filled in, but the date is today and
+      // the entry stays separate from the one it was copied from.
+      _kind = copy.kind;
+      _amount.text = groupedNumber(
+        copy.amount,
+        decimals: Money.decimals(copy.currency),
+      );
+      _currency = copy.currency;
+      _settleCurrency = copy.currency;
+      _note.text = copy.note;
+      _customer = repo.customerById(copy.customerId);
+      _category = repo.categoryById(copy.categoryId);
+      _credit = copy.credit;
+      _scope = copy.scope;
     } else {
       _customer = widget.customer;
       _category =
@@ -180,7 +221,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text((isEdit ? 'Edit transaction' : 'New transaction').tr),
+        title: Text(_pageTitle.tr),
         actions: [
           if (isEdit)
             IconButton(
@@ -255,7 +296,9 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                   }
                 }),
                 style: SegmentedButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
+                  // Compact density would shave this down to ~32dp, which is
+                  // too small to hit reliably; ask for a real 44dp instead.
+                  minimumSize: const Size(0, Taps.minHeight),
                   textStyle: const TextStyle(fontSize: 12),
                 ),
               ),
@@ -277,6 +320,8 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                       controller: _amount,
                       label: 'Amount'.tr,
                       currency: _currency,
+                      autofocus: widget.autofocusAmount && !isEdit,
+                      textInputAction: TextInputAction.next,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -404,6 +449,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                             ? 'Cash received now'
                             : 'Cash paid now',
                         currency: _settleCurrency,
+                        textInputAction: TextInputAction.next,
                         validator: (_) => null,
                       ),
                     ),

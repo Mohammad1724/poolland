@@ -9,6 +9,20 @@ class Fmt {
   static const _en = 'en_US';
   static final NumberFormat _grouped = NumberFormat('#,##0', _en);
   static final NumberFormat _plainDecimal = NumberFormat('#,##0.##', _en);
+  static final NumberFormat _compactDecimal = NumberFormat('#,##0.#', _en);
+  static final NumberFormat _percent = NumberFormat('#,##0.#', _en);
+
+  /// Fixed-decimal formats, created once per decimal count.
+  ///
+  /// `NumberFormat` construction is not free and these helpers format every
+  /// amount rendered on screen (often dozens per frame), so the instances are
+  /// cached instead of being rebuilt on each call.
+  static final Map<int, NumberFormat> _fixedDecimals = {};
+
+  static NumberFormat _fixed(int decimals) => _fixedDecimals.putIfAbsent(
+    decimals,
+    () => NumberFormat('#,##0.${'0' * decimals}', _en),
+  );
 
   static const _faDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
 
@@ -32,7 +46,7 @@ class Fmt {
   /// Format a number without a currency unit.
   static String number(num value, {int decimals = 0, bool persian = false}) {
     final s = decimals > 0
-        ? NumberFormat('#,##0.${'0' * decimals}', _en).format(value)
+        ? _fixed(decimals).format(value)
         : _grouped.format(value.round());
     return _localize(s, persian);
   }
@@ -48,7 +62,7 @@ class Fmt {
   }) {
     String s;
     if (decimals > 0) {
-      s = NumberFormat('#,##0.${'0' * decimals}', _en).format(value.abs());
+      s = _fixed(decimals).format(value.abs());
     } else {
       s = _grouped.format(value.abs().round());
     }
@@ -66,13 +80,11 @@ class Fmt {
     final v = value.abs();
     String out;
     if (v >= 1000000000) {
-      out =
-          '${NumberFormat('#,##0.##', _en).format(v / 1000000000)} ${'billion'.tr}';
+      out = '${_plainDecimal.format(v / 1000000000)} ${'billion'.tr}';
     } else if (v >= 1000000) {
-      out =
-          '${NumberFormat('#,##0.##', _en).format(v / 1000000)} ${'million'.tr}';
+      out = '${_plainDecimal.format(v / 1000000)} ${'million'.tr}';
     } else if (v >= 1000) {
-      out = '${NumberFormat('#,##0.#', _en).format(v / 1000)} ${'thousand'.tr}';
+      out = '${_compactDecimal.format(v / 1000)} ${'thousand'.tr}';
     } else {
       out = _plainDecimal.format(v);
     }
@@ -198,7 +210,7 @@ class Fmt {
   }
 
   static String percent(double ratio, {bool persian = false}) =>
-      '${_localize(NumberFormat('#,##0.#', _en).format(ratio * 100), persian)}${persian ? '٪' : '%'}';
+      '${_localize(_percent.format(ratio * 100), persian)}${persian ? '٪' : '%'}';
 
   /// Format a clock time, e.g. 14:30.
   static String clock(DateTime dt, {bool persian = false}) {

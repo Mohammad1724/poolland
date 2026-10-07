@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/format_utils.dart';
+import '../../core/haptics.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
@@ -40,6 +41,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
   final _note = TextEditingController();
   late String _currency;
   bool _receive = true;
+  bool _busy = false;
 
   @override
   void initState() {
@@ -59,11 +61,51 @@ class _PaymentSheetState extends State<_PaymentSheet> {
     super.dispose();
   }
 
+  Future<void> _save() async {
+    if (_busy) return; // Double-tap guard.
+    if (_formKey.currentState?.validate() != true) return;
+    Haptics.confirm();
+    // The repository, navigator, and messenger are resolved before the await
+    // so the rest of this method never reads the BuildContext again.
+    final repo = context.read<AppRepository>();
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      final amount = parseAmount(_amount.text);
+      await repo.addPayment(
+        customer: widget.customer,
+        amount: amount,
+        currencyCode: _currency,
+        date: DateTime.now(),
+        isReceive: _receive,
+        note: _note.text.trim(),
+      );
+      if (!mounted) return;
+      showMessengerSnack(
+        messenger,
+        _receive ? 'Payment received' : 'Payment made',
+      );
+      navigator.pop(true);
+    } catch (_) {
+      showMessengerSnack(
+        messenger,
+        'Saving failed. Please try again.',
+        error: true,
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
     final theme = Theme.of(context);
     final balance = repo.balanceOf(widget.customer);
+    final actionLabel = _busy
+        ? 'Saving…'
+        : (_receive ? 'Record receipt' : 'Record payment');
 
     return Padding(
       padding: EdgeInsets.only(
@@ -137,6 +179,10 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                       controller: _amount,
                       label: 'Amount'.tr,
                       currency: _currency,
+                      // The amount is the only thing this sheet really needs,
+                      // so start there instead of asking for an extra tap.
+                      autofocus: true,
+                      textInputAction: TextInputAction.next,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -160,35 +206,23 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                 controller: _note,
                 label: 'Description (optional)'.tr,
                 icon: Icons.notes_rounded,
+                textInputAction: TextInputAction.done,
               ),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: () async {
-                  if (_formKey.currentState?.validate() != true) return;
-                  final amount = parseAmount(_amount.text);
-                  await repo.addPayment(
-                    customer: widget.customer,
-                    amount: amount,
-                    currencyCode: _currency,
-                    date: DateTime.now(),
-                    isReceive: _receive,
-                    note: _note.text.trim(),
-                  );
-                  if (!context.mounted) return;
-                  Navigator.pop(context, true);
-                  showSnack(
-                    context,
-                    _receive ? 'Payment received' : 'Payment made',
-                  );
-                },
-                icon: Icon(
-                  _receive
-                      ? Icons.call_received_rounded
-                      : Icons.call_made_rounded,
-                ),
-                label: Text(
-                  (_receive ? 'Record receipt' : 'Record payment').tr,
-                ),
+                onPressed: _busy ? null : _save,
+                icon: _busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        _receive
+                            ? Icons.call_received_rounded
+                            : Icons.call_made_rounded,
+                      ),
+                label: Text(actionLabel.tr),
               ),
             ],
           ),

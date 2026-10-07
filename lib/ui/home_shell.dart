@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/haptics.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 import 'customers_page.dart';
 import 'dashboard_page.dart';
+import 'design.dart';
 import 'forms/contact_edit_page.dart';
 import 'forms/sell_subscription_page.dart';
 import 'forms/transaction_edit_page.dart';
@@ -26,6 +28,27 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
+  /// Tab indexes that have been opened at least once.
+  ///
+  /// Building all five pages up front made the first frame do the work of
+  /// five screens (lists, charts, and summaries). Only the tabs the user has
+  /// actually opened are mounted now.
+  final Set<int> _visited = {0};
+
+  /// Whether the floating action button is currently on screen.
+  ///
+  /// A notifier rather than plain state: scrolling flips it many times a
+  /// second, and only the button needs to rebuild, not the whole shell.
+  final ValueNotifier<bool> _fabVisible = ValueNotifier<bool>(true);
+
+  /// One controller per tab, created the first time that tab is built.
+  ///
+  /// They exist for a single gesture: tapping the tab that is already open
+  /// scrolls its list back to the top, which is what people expect from a
+  /// bottom bar (and saves a lot of flicking to get back to the top of a long
+  /// list).
+  final Map<int, ScrollController> _scrollControllers = {};
+
   // Personal bookkeeping is the first destination because it is the most
   // frequent task; business tools remain one tap away.
   static const _titles = [
@@ -35,6 +58,20 @@ class _HomeShellState extends State<HomeShell> {
     'Subscriptions',
     'Transactions',
   ];
+
+  @override
+  void dispose() {
+    _fabVisible.dispose();
+    for (final controller in _scrollControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  /// Returns the controller for a tab, creating it on first use so an unopened
+  /// tab never allocates one.
+  ScrollController _controllerFor(int index) =>
+      _scrollControllers.putIfAbsent(index, ScrollController.new);
 
   @override
   void initState() {
@@ -65,7 +102,110 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
-  void _goTo(int i) => setState(() => _index = i);
+  void _goTo(int i) {
+    Haptics.selection();
+    // Tapping the tab that is already open means "take me back to the top".
+    if (i == _index) {
+      _scrollToTop(i);
+      return;
+    }
+    setState(() {
+      _index = i;
+      // Tabs are built the first time they are opened; from then on they stay
+      // mounted, so their scroll position and filters survive switching.
+      _visited.add(i);
+      // A freshly opened tab may be scrolled to the top, so show the action
+      // button again.
+      _fabVisible.value = true;
+    });
+  }
+
+  /// Scrolls a tab back to the top, if that tab has a list and is mounted.
+  void _scrollToTop(int i) {
+    final controller = _scrollControllers[i];
+    if (controller == null || !controller.hasClients) {
+      // Nothing to scroll: the tab was never opened, or its list is shorter
+      // than the screen. Bring the action button back either way.
+      _fabVisible.value = true;
+      return;
+    }
+    controller.animateTo(
+      0,
+      duration: Motion.quick,
+      curve: Curves.easeOut,
+    );
+    _fabVisible.value = true;
+  }
+
+  /// Hides the floating action button while scrolling down, shows it while
+  /// scrolling up. Scroll notifications bubble up from whichever list is
+  /// currently visible, so no page has to know about this.
+  bool _handleScroll(ScrollNotification notification) {
+    if (notification is ScrollUpdateNotification) {
+      final delta = notification.scrollDelta ?? 0;
+      if (delta > 4 && _fabVisible.value) {
+        _fabVisible.value = false;
+      } else if (delta < -4 && !_fabVisible.value) {
+        _fabVisible.value = true;
+      }
+    }
+    // Never absorb the notification: charts and nested lists still need it.
+    return false;
+  }
+
+  Widget _buildFab() {
+    if (_index == 2) {
+      return FloatingActionButton.extended(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ContactEditPage()),
+        ),
+        icon: const Icon(Icons.person_add_alt_1_rounded),
+        label: Text('New customer'.tr),
+      );
+    }
+    if (_index == 0) {
+      return FloatingActionButton.extended(
+        onPressed: _personalAdd,
+        icon: const Icon(Icons.add_rounded),
+        label: Text('Add personal entry'.tr),
+      );
+    }
+    if (_index == 3) {
+      return FloatingActionButton.extended(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SellSubscriptionPage()),
+        ),
+        icon: const Icon(Icons.vpn_key_rounded),
+        label: Text('Sell a subscription'.tr),
+      );
+    }
+    return FloatingActionButton(
+      onPressed: _quickAdd,
+      tooltip: 'Quick add'.tr,
+      child: const Icon(Icons.add_rounded),
+    );
+  }
+
+  /// Opens the sale form filled in with the last sale's customer and plan, so
+  /// selling the same thing again is two taps instead of filling a form.
+  Future<void> _repeatLastSale() async {
+    final repo = context.read<AppRepository>();
+    Subscription? last;
+    for (final s in repo.subscriptions) {
+      if (last == null || s.createdAt.isAfter(last.createdAt)) last = s;
+    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SellSubscriptionPage(
+          contact: last == null ? null : repo.customerById(last.customerId),
+          plan: last == null ? null : repo.planById(last.planId),
+        ),
+      ),
+    );
+  }
 
   Future<void> _personalAdd() async {
     final choice = await showModalBottomSheet<String>(
@@ -332,20 +472,26 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
-    final repo = context.watch<AppRepository>();
+    // Only readiness is needed here; watching the whole repository would
+    // rebuild the shell (and therefore every open tab) on each data change.
+    final isReady = context.select<AppRepository, bool>((r) => r.isReady);
     final width = MediaQuery.of(context).size.width;
     final isWide = width >= 840;
     final isExtended = width >= 1120;
-    final content = !repo.isReady
+    final pages = <Widget>[
+      PersonalPage(onNavigate: _goTo, controller: _controllerFor(0)),
+      DashboardPage(onNavigate: _goTo, controller: _controllerFor(1)),
+      CustomersPage(controller: _controllerFor(2)),
+      SubscriptionsPage(controller: _controllerFor(3)),
+      TransactionsPage(controller: _controllerFor(4)),
+    ];
+    final content = !isReady
         ? const Center(child: CircularProgressIndicator())
         : IndexedStack(
             index: _index,
             children: [
-              PersonalPage(onNavigate: _goTo),
-              DashboardPage(onNavigate: _goTo),
-              const CustomersPage(),
-              const SubscriptionsPage(),
-              const TransactionsPage(),
+              for (var i = 0; i < pages.length; i++)
+                if (_visited.contains(i)) pages[i] else const SizedBox.shrink(),
             ],
           );
 
@@ -358,6 +504,14 @@ class _HomeShellState extends State<HomeShell> {
         appBar: AppBar(
           title: Text(_titles[_index].tr),
           actions: [
+            // Only where it applies: repeating a sale is the one shortcut that
+            // matters on the subscriptions tab, and it needs no new screen.
+            if (_index == 3)
+              IconButton(
+                tooltip: 'Repeat last sale'.tr,
+                icon: const Icon(Icons.replay_rounded),
+                onPressed: _repeatLastSale,
+              ),
             IconButton(
               tooltip: 'Reports'.tr,
               icon: const Icon(Icons.insights_outlined),
@@ -381,8 +535,10 @@ class _HomeShellState extends State<HomeShell> {
             ),
           ],
         ),
-        body: isWide
-            ? Row(
+        body: NotificationListener<ScrollNotification>(
+          onNotification: _handleScroll,
+          child: isWide
+              ? Row(
                 children: [
                   NavigationRail(
                     selectedIndex: _index,
@@ -428,47 +584,31 @@ class _HomeShellState extends State<HomeShell> {
                   ),
                 ],
               )
-            : content,
-        floatingActionButton: !repo.isReady
+              : content,
+        ),
+        floatingActionButton: !isReady
             ? null
-            : _index == 2
-            ? FloatingActionButton.extended(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ContactEditPage()),
+            // Slides out of the way while the user scrolls down a list and
+            // comes back on the first upward scroll or a tab change, so it
+            // stops covering the last rows of long pages.
+            : ValueListenableBuilder<bool>(
+                valueListenable: _fabVisible,
+                builder: (context, visible, _) => AnimatedSlide(
+                  offset: visible ? Offset.zero : const Offset(0, 2.5),
+                  duration: Motion.quick,
+                  curve: Curves.easeOut,
+                  child: _buildFab(),
                 ),
-                icon: const Icon(Icons.person_add_alt_1_rounded),
-                label: Text('New customer'.tr),
-              )
-            : _index == 0
-            ? FloatingActionButton.extended(
-                onPressed: _personalAdd,
-                icon: const Icon(Icons.add_rounded),
-                label: Text('Add personal entry'.tr),
-              )
-            : _index == 3
-            ? FloatingActionButton.extended(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const SellSubscriptionPage(),
-                  ),
-                ),
-                icon: const Icon(Icons.vpn_key_rounded),
-                label: Text('Sell a subscription'.tr),
-              )
-            : FloatingActionButton(
-                onPressed: _quickAdd,
-                tooltip: 'Quick add'.tr,
-                child: const Icon(Icons.add_rounded),
               ),
         bottomNavigationBar: isWide
             ? null
             : NavigationBar(
                 selectedIndex: _index,
                 onDestinationSelected: _goTo,
+                // Labels stay visible at all times: with five look-alike
+                // icons, the text is what users actually scan for.
                 labelBehavior:
-                    NavigationDestinationLabelBehavior.onlyShowSelected,
+                    NavigationDestinationLabelBehavior.alwaysShow,
                 destinations: [
                   NavigationDestination(
                     icon: const Icon(Icons.person_outline_rounded),

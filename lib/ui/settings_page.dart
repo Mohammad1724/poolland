@@ -13,6 +13,7 @@ import '../core/notifications/notify.dart';
 import '../core/notifications/notification_sound_picker.dart';
 import '../core/platform_info.dart';
 import '../data/models.dart';
+import 'design.dart';
 import '../data/repository.dart';
 import 'forms/plan_edit_page.dart';
 import 'lock/pin_setup_page.dart';
@@ -1172,7 +1173,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
               selected: {_scope},
               onSelectionChanged: (s) => setState(() => _scope = s.first),
               style: SegmentedButton.styleFrom(
-                visualDensity: VisualDensity.compact,
+                minimumSize: const Size(0, Taps.minHeight),
                 textStyle: const TextStyle(fontSize: 12),
               ),
             ),

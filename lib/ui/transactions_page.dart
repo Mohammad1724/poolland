@@ -1,27 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/debounce.dart';
+import '../core/haptics.dart';
 import '../core/jalali_utils.dart';
 import '../core/money.dart';
 import '../data/ledger.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
+import 'design.dart';
 import 'forms/transaction_edit_page.dart';
 import 'widgets/widgets.dart';
 
 import '../core/localization.dart';
 
 class TransactionsPage extends StatefulWidget {
-  const TransactionsPage({super.key});
+  const TransactionsPage({super.key, this.controller});
+  /// Owned by the shell, so tapping the already-open tab can scroll this page
+  /// back to the top. Tests and other callers can leave it null.
+  final ScrollController? controller;
 
   @override
   State<TransactionsPage> createState() => _TransactionsPageState();
 }
 
 class _TransactionsPageState extends State<TransactionsPage> {
+  final _searchDebouncer = Debouncer();
   int _monthOffset = 0; // 0 = current month
   TxnKind? _kind;
   String _q = '';
+  bool _filtersOpen = false;
+
+  @override
+  void dispose() {
+    _searchDebouncer.dispose();
+    super.dispose();
+  }
+
+  /// Number of filters currently narrowing the list (scope + type).
+  /// Shown on the filter button badge so the state stays visible while the
+  /// chips themselves are tucked away inside the panel.
+  int get _activeFilterCount =>
+      (context.read<AppRepository>().scopeFilter == null ? 0 : 1) +
+      (_kind == null ? 0 : 1);
+
+  void _resetFilters() {
+    context.read<AppRepository>().setScopeFilter(null);
+    setState(() => _kind = null);
+  }
+
+  Widget _filterGroupLabel(String label) => Text(
+    label.tr,
+    style: TextStyle(
+      fontSize: FontSizes.small,
+      fontWeight: FontWeight.w700,
+      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +96,9 @@ class _TransactionsPageState extends State<TransactionsPage> {
       final key = J.d(t.date);
       groups.putIfAbsent(key, () => []).add(t);
     }
+    // Materialized once so the list below can lazily build only the days that
+    // are actually on screen.
+    final groupList = groups.entries.toList(growable: false);
 
     return Column(
       children: [
@@ -111,62 +149,135 @@ class _TransactionsPageState extends State<TransactionsPage> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
             children: [
-              TextField(
-                decoration: const InputDecoration(
-                  hintText: 'Search descriptions, customers, and categories...',
-                  prefixIcon: Icon(Icons.search_rounded, size: 20),
-                  isDense: true,
-                ),
-                onChanged: (v) => setState(() => _q = v.trim()),
-              ),
-              const SizedBox(height: 10),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    for (final opt in <TxnScope?>[
-                      null,
-                      TxnScope.business,
-                      TxnScope.personal,
-                    ])
-                      Padding(
-                        padding: const EdgeInsetsDirectional.only(start: 6),
-                        child: ChoiceChip(
-                          label: Text(
-                            opt == null ? 'All'.tr : opt.label,
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          showCheckmark: false,
-                          selected: repo.scopeFilter == opt,
-                          onSelected: (_) => repo.setScopeFilter(opt),
-                        ),
+              // Search stays in view; the filter chips moved into a panel
+              // behind the button below, so the list gets the space instead.
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText:
+                            'Search descriptions, customers, and categories...',
+                        prefixIcon: Icon(Icons.search_rounded, size: 20),
+                        isDense: true,
                       ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    ChoiceChip(
-                      label: Text('All'.tr),
-                      showCheckmark: false,
-                      selected: _kind == null,
-                      onSelected: (_) => setState(() => _kind = null),
+                      onChanged: (v) => _searchDebouncer.run(
+                        () => setState(() => _q = v.trim()),
+                      ),
                     ),
-                    for (final k in TxnKind.values) ...[
-                      const SizedBox(width: 8),
-                      ChoiceChip(
-                        avatar: Icon(k.icon, size: 15),
-                        label: Text(k.shortLabel),
-                        showCheckmark: false,
-                        selected: _kind == k,
-                        onSelected: (_) => setState(() => _kind = k),
-                      ),
+                  ),
+                  const SizedBox(width: Insets.sm),
+                  FilterToggleButton(
+                    activeCount: _activeFilterCount,
+                    expanded: _filtersOpen,
+                    onPressed: () =>
+                        setState(() => _filtersOpen = !_filtersOpen),
+                  ),
+                ],
+              ),
+              if (_activeFilterCount > 0) ...[
+                const SizedBox(height: Insets.sm),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      if (repo.scopeFilter != null) ...[
+                        FilterPill(
+                          label: repo.scopeFilter!.label,
+                          icon: Icons.pie_chart_outline_rounded,
+                          onClear: () => repo.setScopeFilter(null),
+                        ),
+                        const SizedBox(width: Insets.sm),
+                      ],
+                      if (_kind != null) ...[
+                        FilterPill(
+                          label: _kind!.shortLabel,
+                          icon: _kind!.icon,
+                          onClear: () => setState(() => _kind = null),
+                        ),
+                        const SizedBox(width: Insets.sm),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
+              ],
+              AnimatedSize(
+                duration: Motion.expand,
+                curve: Curves.easeOut,
+                alignment: Alignment.topCenter,
+                child: _filtersOpen
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: Insets.md),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _filterGroupLabel('Scope'),
+                            const SizedBox(height: Insets.sm),
+                            Wrap(
+                              spacing: Insets.sm,
+                              runSpacing: Insets.sm,
+                              children: [
+                                for (final opt in <TxnScope?>[
+                                  null,
+                                  TxnScope.business,
+                                  TxnScope.personal,
+                                ])
+                                  ChoiceChip(
+                                    label: Text(
+                                      opt == null ? 'All'.tr : opt.label,
+                                      style: const TextStyle(
+                                        fontSize: FontSizes.small,
+                                      ),
+                                    ),
+                                    showCheckmark: false,
+                                    selected: repo.scopeFilter == opt,
+                                    onSelected: (_) =>
+                                        repo.setScopeFilter(opt),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: Insets.md),
+                            _filterGroupLabel('Type'),
+                            const SizedBox(height: Insets.sm),
+                            Wrap(
+                              spacing: Insets.sm,
+                              runSpacing: Insets.sm,
+                              children: [
+                                ChoiceChip(
+                                  label: Text('All'.tr),
+                                  showCheckmark: false,
+                                  selected: _kind == null,
+                                  onSelected: (_) =>
+                                      setState(() => _kind = null),
+                                ),
+                                for (final k in TxnKind.values)
+                                  ChoiceChip(
+                                    avatar: Icon(k.icon, size: 15),
+                                    label: Text(k.shortLabel),
+                                    showCheckmark: false,
+                                    selected: _kind == k,
+                                    onSelected: (_) =>
+                                        setState(() => _kind = k),
+                                  ),
+                              ],
+                            ),
+                            Align(
+                              alignment: AlignmentDirectional.centerEnd,
+                              child: TextButton.icon(
+                                onPressed: _activeFilterCount == 0
+                                    ? null
+                                    : _resetFilters,
+                                icon: const Icon(
+                                  Icons.restart_alt_rounded,
+                                  size: 16,
+                                ),
+                                label: Text('Reset'.tr),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : const SizedBox(width: double.infinity),
               ),
             ],
           ),
@@ -179,78 +290,142 @@ class _TransactionsPageState extends State<TransactionsPage> {
                   title: 'No transactions this month',
                   text: 'Tap + to record a sale, receipt, or expense.',
                 )
-              : ListView(
+              : ListView.builder(
+                  controller: widget.controller,
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
-                  children: [
-                    for (final entry in groups.entries) ...[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
-                        child: Row(
-                          children: [
-                            Text(
-                              entry.key,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: onSurface.withValues(alpha: 0.6),
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              Money.text(
-                                entry.value.fold<double>(
-                                  0,
-                                  (a, t) =>
-                                      a +
-                                      (t.kind == TxnKind.expense ||
-                                              t.kind == TxnKind.refund ||
-                                              t.kind == TxnKind.payablePayment
-                                          ? -Ledger.base(t)
-                                          : Ledger.base(t)),
+                  itemCount: groupList.length,
+                  itemBuilder: (context, groupIndex) {
+                    final entry = groupList[groupIndex];
+                    final dayTotal = entry.value.fold<double>(
+                      0,
+                      (a, t) =>
+                          a +
+                          (t.kind == TxnKind.expense ||
+                                  t.kind == TxnKind.refund ||
+                                  t.kind == TxnKind.payablePayment
+                              ? -Ledger.base(t)
+                              : Ledger.base(t)),
+                    );
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
+                          child: Row(
+                            children: [
+                              Text(
+                                entry.key,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: onSurface.withValues(alpha: 0.6),
                                 ),
-                                compact: true,
                               ),
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                                color: onSurface.withValues(alpha: 0.6),
+                              const Spacer(),
+                              Text(
+                                Money.text(dayTotal, compact: true),
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: onSurface.withValues(alpha: 0.6),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      Card(
-                        child: Column(
-                          children: [
-                            for (var i = 0; i < entry.value.length; i++) ...[
-                              TxnTile(
-                                txn: entry.value[i],
-                                categoryName: repo.categoryName(
-                                  entry.value[i].categoryId,
-                                ),
-                                customerName: repo.customerName(
-                                  entry.value[i].customerId,
-                                ),
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => TransactionEditPage(
-                                      existing: entry.value[i],
+                        Card(
+                          // Clips the swipe hint to the card's rounded corners,
+                          // so a row can slide without spilling over the edge.
+                          clipBehavior: Clip.antiAlias,
+                          child: Column(
+                            children: [
+                              for (
+                                var i = 0;
+                                i < entry.value.length;
+                                i++
+                              ) ...[
+                                // Swiping is a shortcut for the two things done
+                                // most often with an old entry: fixing it, or
+                                // recording the same thing again. The row snaps
+                                // back (nothing is dismissed), and the hint
+                                // behind it names the action being performed.
+                                Dismissible(
+                                  key: ValueKey(
+                                    'txn-swipe-${entry.value[i].id}',
+                                  ),
+                                  direction: DismissDirection.horizontal,
+                                  dismissThresholds: const {
+                                    // Resolved directions, not
+                                    // [DismissDirection.horizontal].
+                                    DismissDirection.startToEnd: 0.25,
+                                    DismissDirection.endToStart: 0.25,
+                                  },
+                                  background: SwipeHint(
+                                    icon: Icons.edit_rounded,
+                                    label: 'Edit',
+                                    color: Theme.of(context).colorScheme.primary,
+                                    alignment: AlignmentDirectional.centerStart,
+                                  ),
+                                  secondaryBackground: SwipeHint(
+                                    icon: Icons.copy_all_rounded,
+                                    label: 'Duplicate',
+                                    color: const Color(0xFF2563EB),
+                                    alignment: AlignmentDirectional.centerEnd,
+                                  ),
+                                  confirmDismiss: (direction) async {
+                                    Haptics.tap();
+                                    final txn = entry.value[i];
+                                    if (direction ==
+                                        DismissDirection.startToEnd) {
+                                      await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              TransactionEditPage(existing: txn),
+                                        ),
+                                      );
+                                    } else {
+                                      await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => TransactionEditPage(
+                                            duplicateOf: txn,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    return false;
+                                  },
+                                  child: TxnTile(
+                                    txn: entry.value[i],
+                                    categoryName: repo.categoryName(
+                                      entry.value[i].categoryId,
+                                    ),
+                                    customerName: repo.customerName(
+                                      entry.value[i].customerId,
+                                    ),
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => TransactionEditPage(
+                                          existing: entry.value[i],
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              if (i != entry.value.length - 1)
-                                Divider(
-                                  height: 1,
-                                  color: Theme.of(context).dividerColor,
-                                ),
+                                if (i != entry.value.length - 1)
+                                  Divider(
+                                    height: 1,
+                                    color: Theme.of(context).dividerColor,
+                                  ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ],
+                      ],
+                    );
+                  },
                 ),
         ),
       ],

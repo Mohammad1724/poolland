@@ -6,6 +6,7 @@ import '../../core/jalali_utils.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
+import '../design.dart';
 import '../widgets/widgets.dart';
 import 'contact_edit_page.dart';
 import 'plan_edit_page.dart';
@@ -275,6 +276,7 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                       controller: _price,
                       label: 'Sale amount'.tr,
                       currency: _currency,
+                      textInputAction: TextInputAction.next,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -327,7 +329,9 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                                 })
                               : null,
                           icon: const Icon(Icons.remove_rounded, size: 18),
-                          visualDensity: VisualDensity.compact,
+                          style: IconButton.styleFrom(
+                            minimumSize: const Size(Taps.icon, Taps.icon),
+                          ),
                         ),
                         Expanded(
                           child: Center(
@@ -347,7 +351,9 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                             _end = _computeEnd();
                           }),
                           icon: const Icon(Icons.add_rounded, size: 18),
-                          visualDensity: VisualDensity.compact,
+                          style: IconButton.styleFrom(
+                            minimumSize: const Size(Taps.icon, Taps.icon),
+                          ),
                         ),
                       ],
                     ),
@@ -391,6 +397,7 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                       controller: _received,
                       label: 'Received now'.tr,
                       currency: _receiveCurrency,
+                      textInputAction: TextInputAction.next,
                       validator: (_) => null,
                     ),
                   ),
