@@ -180,6 +180,7 @@ void main() {
   testWidgets('empty state remains usable with larger system text', (
     tester,
   ) async {
+    var actionInvoked = false;
     tester.view.physicalSize = const Size(320, 640);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -194,12 +195,15 @@ void main() {
           ),
           child: child ?? const SizedBox.shrink(),
         ),
-        home: const Scaffold(
+        home: Scaffold(
           body: EmptyState(
             icon: Icons.people_outline_rounded,
             title: 'No items found',
             text: 'Try a different search or filter.',
             actionLabel: 'Clear search and filters',
+            onAction: () {
+              actionInvoked = true;
+            },
           ),
         ),
       ),
@@ -207,7 +211,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('No items found'), findsOneWidget);
-    expect(find.text('Clear search and filters'), findsOneWidget);
+    final clearAction = find.widgetWithText(
+      FilledButton,
+      'Clear search and filters',
+    );
+    expect(clearAction, findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(clearAction);
+    await tester.pump();
+    expect(actionInvoked, isTrue);
     expect(tester.takeException(), isNull);
   });
 
