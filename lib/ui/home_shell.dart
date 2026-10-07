@@ -36,7 +36,10 @@ class _HomeShellState extends State<HomeShell> {
   final Set<int> _visited = {0};
 
   /// Whether the floating action button is currently on screen.
-  bool _fabVisible = true;
+  ///
+  /// A notifier rather than plain state: scrolling flips it many times a
+  /// second, and only the button needs to rebuild, not the whole shell.
+  final ValueNotifier<bool> _fabVisible = ValueNotifier<bool>(true);
 
   // Personal bookkeeping is the first destination because it is the most
   // frequent task; business tools remain one tap away.

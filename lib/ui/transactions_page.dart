@@ -33,6 +33,13 @@ class _TransactionsPageState extends State<TransactionsPage> {
     super.dispose();
   }
 
+  /// Number of filters currently narrowing the list (scope + type).
+  /// Shown on the filter button badge so the state stays visible while the
+  /// chips themselves are tucked away inside the panel.
+  int get _activeFilterCount =>
+      (context.read<AppRepository>().scopeFilter == null ? 0 : 1) +
+      (_kind == null ? 0 : 1);
+
   void _resetFilters() {
     context.read<AppRepository>().setScopeFilter(null);
     setState(() => _kind = null);
@@ -170,21 +177,20 @@ class _TransactionsPageState extends State<TransactionsPage> {
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      for (final pill in <Widget>[
-                        if (repo.scopeFilter != null)
-                          FilterPill(
-                            label: repo.scopeFilter!.label,
-                            icon: Icons.pie_chart_outline_rounded,
-                            onClear: () => repo.setScopeFilter(null),
-                          ),
-                        if (_kind != null)
-                          FilterPill(
-                            label: _kind!.shortLabel,
-                            icon: _kind!.icon,
-                            onClear: () => setState(() => _kind = null),
-                          ),
-                      ]) ...[
-                        pill,
+                      if (repo.scopeFilter != null) ...[
+                        FilterPill(
+                          label: repo.scopeFilter!.label,
+                          icon: Icons.pie_chart_outline_rounded,
+                          onClear: () => repo.setScopeFilter(null),
+                        ),
+                        const SizedBox(width: Insets.sm),
+                      ],
+                      if (_kind != null) ...[
+                        FilterPill(
+                          label: _kind!.shortLabel,
+                          icon: _kind!.icon,
+                          onClear: () => setState(() => _kind = null),
+                        ),
                         const SizedBox(width: Insets.sm),
                       ],
                     ],
