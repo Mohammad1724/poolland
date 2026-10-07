@@ -117,10 +117,11 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  /// Closes the modal sheet that a swipe opened by tapping the barrier above
-  /// it, which is also how a user backs out of it.
+  /// Closes the modal sheet that a swipe opened, the way backing out of it
+  /// does. Popping the route is used instead of tapping above the sheet so the
+  /// test does not depend on where the sheet happens to end on screen.
   Future<void> closeSheet(WidgetTester tester) async {
-    await tester.tapAt(const Offset(400, 20));
+    tester.state<NavigatorState>(find.byType(Navigator).first).pop();
     await tester.pumpAndSettle();
   }
 
@@ -279,11 +280,22 @@ void main() {
       await tester.pumpWidget(wrap(const SellSubscriptionPage()));
       await tester.pumpAndSettle();
 
+      // The stepper sits further down the form than the viewport reaches, so
+      // bring it into view before measuring it.
+      await tester.scrollUntilVisible(
+        find.byIcon(Icons.remove_rounded),
+        120,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+
       final minus = tester.getSize(
-        find.ancestor(
-          of: find.byIcon(Icons.remove_rounded),
-          matching: find.byType(IconButton),
-        ),
+        find
+            .ancestor(
+              of: find.byIcon(Icons.remove_rounded),
+              matching: find.byType(IconButton),
+            )
+            .first,
       );
       expect(minus.height, greaterThanOrEqualTo(44));
       expect(minus.width, greaterThanOrEqualTo(44));
