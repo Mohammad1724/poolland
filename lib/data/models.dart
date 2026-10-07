@@ -81,6 +81,9 @@ class AppSettings {
   final bool dailyReminder; // Whether the daily reminder is enabled.
   final int reminderHour; // Reminder hour (0–23).
   final int reminderMinute; // Reminder minute.
+  /// Android device-specific notification sound URI; omitted from backups.
+  final String? notificationSoundUri;
+  final String? notificationSoundName;
 
   const AppSettings({
     this.businessName = 'My VPN Business',
@@ -100,6 +103,8 @@ class AppSettings {
     this.dailyReminder = false,
     this.reminderHour = 21,
     this.reminderMinute = 0,
+    this.notificationSoundUri,
+    this.notificationSoundName,
   });
 
   /// Default currencies: Toman (base) plus currencies commonly used by VPN sellers.
@@ -169,6 +174,9 @@ class AppSettings {
     bool? dailyReminder,
     int? reminderHour,
     int? reminderMinute,
+    String? notificationSoundUri,
+    String? notificationSoundName,
+    bool clearNotificationSound = false,
   }) => AppSettings(
     businessName: businessName ?? this.businessName,
     baseCurrency: baseCurrency ?? this.baseCurrency,
@@ -187,9 +195,15 @@ class AppSettings {
     dailyReminder: dailyReminder ?? this.dailyReminder,
     reminderHour: reminderHour ?? this.reminderHour,
     reminderMinute: reminderMinute ?? this.reminderMinute,
+    notificationSoundUri: clearNotificationSound
+        ? null
+        : (notificationSoundUri ?? this.notificationSoundUri),
+    notificationSoundName: clearNotificationSound
+        ? null
+        : (notificationSoundName ?? this.notificationSoundName),
   );
 
-  Map<String, dynamic> toMap() => {
+  Map<String, dynamic> toMap({bool includeDeviceNotificationSound = true}) => {
     'businessName': businessName,
     'baseCurrency': baseCurrency,
     'currencies': currencies.map((e) => e.toMap()).toList(),
@@ -207,6 +221,10 @@ class AppSettings {
     'dailyReminder': dailyReminder,
     'reminderHour': reminderHour,
     'reminderMinute': reminderMinute,
+    if (includeDeviceNotificationSound) ...{
+      'notificationSoundUri': notificationSoundUri,
+      'notificationSoundName': notificationSoundName,
+    },
   };
 
   factory AppSettings.fromMap(Map map) => AppSettings(
@@ -235,6 +253,8 @@ class AppSettings {
     dailyReminder: map['dailyReminder'] as bool? ?? false,
     reminderHour: (map['reminderHour'] as num?)?.toInt() ?? 21,
     reminderMinute: (map['reminderMinute'] as num?)?.toInt() ?? 0,
+    notificationSoundUri: map['notificationSoundUri'] as String?,
+    notificationSoundName: map['notificationSoundName'] as String?,
   );
 }
 

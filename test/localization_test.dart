@@ -37,4 +37,23 @@ void main() {
     expect(english.languageCode, 'en');
     expect(AppSettings.fromMap(const AppSettings().toMap()).languageCode, 'fa');
   });
+
+  test('Notification sound settings persist locally but stay out of backups', () {
+    const uri = 'content://media/external/audio/media/123';
+    const name = 'My notification tone';
+    final settings = const AppSettings().copyWith(
+      notificationSoundUri: uri,
+      notificationSoundName: name,
+    );
+
+    final restored = AppSettings.fromMap(settings.toMap());
+    expect(restored.notificationSoundUri, uri);
+    expect(restored.notificationSoundName, name);
+
+    final backupSettings = settings.toMap(
+      includeDeviceNotificationSound: false,
+    );
+    expect(backupSettings.containsKey('notificationSoundUri'), isFalse);
+    expect(backupSettings.containsKey('notificationSoundName'), isFalse);
+  });
 }

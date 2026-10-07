@@ -332,7 +332,7 @@ class LocalStore {
     'app': 'vpn_ledger',
     'schema': 1,
     'exportedAt': DateTime.now().toIso8601String(),
-    'settings': loadSettings().toMap(),
+    'settings': loadSettings().toMap(includeDeviceNotificationSound: false),
     'customers': loadCustomers().map((e) => e.toMap()).toList(),
     'subscriptions': loadSubscriptions().map((e) => e.toMap()).toList(),
     'transactions': loadTxns().map((e) => e.toMap()).toList(),

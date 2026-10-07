@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
@@ -16,24 +19,45 @@ class ReminderService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
-  static const AndroidNotificationDetails _androidDetails =
-      AndroidNotificationDetails(
-        'daily_reminder',
-        'Daily reminder',
-        channelDescription: 'Reminder to record daily expenses and income',
-        importance: Importance.defaultImportance,
-        priority: Priority.defaultPriority,
-        ticker: 'Poolland reminder',
-      );
-
   static const DarwinNotificationDetails _darwinDetails =
       DarwinNotificationDetails();
 
-  static const NotificationDetails _details = NotificationDetails(
-    android: _androidDetails,
-    iOS: _darwinDetails,
-    macOS: _darwinDetails,
-  );
+  AndroidNotificationDetails _androidDetailsFor(
+    String? soundUri,
+    String? soundName,
+  ) {
+    final normalizedUri = soundUri?.trim();
+    final hasCustomSound = normalizedUri != null && normalizedUri.isNotEmpty;
+    final soundHash = normalizedUri == null
+        ? ''
+        : sha256.convert(utf8.encode(normalizedUri)).toString().substring(0, 12);
+    final channelId = hasCustomSound
+        ? 'daily_reminder_$soundHash'
+        : 'daily_reminder';
+    final channelName = hasCustomSound && soundName != null
+        ? 'Daily reminder — $soundName'
+        : 'Daily reminder';
+
+    return AndroidNotificationDetails(
+      channelId,
+      channelName,
+      channelDescription: 'Reminder to record daily expenses and income',
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+      ticker: 'Poolland reminder',
+      playSound: true,
+      sound: hasCustomSound
+          ? UriAndroidNotificationSound(normalizedUri!)
+          : null,
+    );
+  }
+
+  NotificationDetails _detailsFor(String? soundUri, String? soundName) =>
+      NotificationDetails(
+        android: _androidDetailsFor(soundUri, soundName),
+        iOS: _darwinDetails,
+        macOS: _darwinDetails,
+      );
 
   bool _inited = false;
 
@@ -100,6 +124,8 @@ class ReminderService {
     required int minute,
     String title = 'Expense reminder',
     String body = 'Have you recorded today’s expenses and income?',
+    String? soundUri,
+    String? soundName,
   }) async {
     await init();
     await _plugin.cancel(id: _dailyReminderId);
@@ -108,7 +134,7 @@ class ReminderService {
       title: title,
       body: body,
       scheduledDate: _nextInstanceOf(hour, minute),
-      notificationDetails: _details,
+      notificationDetails: _detailsFor(soundUri, soundName),
       // Inexact scheduling avoids requiring SCHEDULE_EXACT_ALARM permission.
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.time,
@@ -121,13 +147,18 @@ class ReminderService {
   }
 
   /// Show a notification immediately (used by the settings test action).
-  Future<void> showNow({required String title, required String body}) async {
+  Future<void> showNow({
+    required String title,
+    required String body,
+    String? soundUri,
+    String? soundName,
+  }) async {
     await init();
     await _plugin.show(
       id: _dailyReminderId + 1,
       title: title,
       body: body,
-      notificationDetails: _details,
+      notificationDetails: _detailsFor(soundUri, soundName),
     );
   }
 

@@ -738,7 +738,8 @@ class AppRepository extends ChangeNotifier {
     final reminderChanged =
         s.dailyReminder != settings.dailyReminder ||
         s.reminderHour != settings.reminderHour ||
-        s.reminderMinute != settings.reminderMinute;
+        s.reminderMinute != settings.reminderMinute ||
+        s.notificationSoundUri != settings.notificationSoundUri;
     final wasEnabled = settings.dailyReminder;
     settings = s;
     _syncGlobals();
@@ -761,6 +762,8 @@ class AppRepository extends ChangeNotifier {
       await reminder.scheduleDaily(
         hour: settings.reminderHour,
         minute: settings.reminderMinute,
+        soundUri: settings.notificationSoundUri,
+        soundName: settings.notificationSoundName,
       );
     } catch (_) {
       // The app must keep working if notifications are unavailable.

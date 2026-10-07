@@ -8,6 +8,8 @@ import '../core/format_utils.dart';
 import '../core/jalali_utils.dart';
 import '../core/money.dart';
 import '../core/notifications/notify.dart';
+import '../core/notifications/notification_sound_picker.dart';
+import '../core/platform_info.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 import 'forms/plan_edit_page.dart';
@@ -16,6 +18,78 @@ import 'sms_rules_page.dart';
 import 'widgets/widgets.dart';
 
 import '../core/localization.dart';
+
+enum _NotificationSoundAction { systemDefault, phoneSound, audioFile }
+
+Future<void> _selectNotificationSound(
+  BuildContext context,
+  AppRepository repo,
+  AppSettings settings,
+  _NotificationSoundAction action,
+) async {
+  try {
+    if (action == _NotificationSoundAction.systemDefault) {
+      await repo.updateSettings(
+        settings.copyWith(clearNotificationSound: true),
+      );
+    } else {
+      final choice = action == _NotificationSoundAction.phoneSound
+          ? await NotificationSoundPicker.pickSystemSound(
+              currentUri: settings.notificationSoundUri,
+            )
+          : await NotificationSoundPicker.pickAudioFile();
+      if (choice == null) return;
+      if (choice.uri == null || choice.uri!.isEmpty) {
+        await repo.updateSettings(
+          settings.copyWith(clearNotificationSound: true),
+        );
+      } else {
+        await repo.updateSettings(
+          settings.copyWith(
+            notificationSoundUri: choice.uri,
+            notificationSoundName: choice.name ?? 'Notification sound',
+          ),
+        );
+      }
+    }
+    if (context.mounted) showSnack(context, 'Notification sound updated.');
+  } catch (error) {
+    if (!context.mounted) return;
+    final message = error is FormatException
+        ? '${error.message}'.tr
+        : 'Could not set notification sound'.tr;
+    showSnack(context, message, error: true);
+  }
+}
+
+Future<void> _testNotificationSound(
+  BuildContext context,
+  AppSettings settings,
+) async {
+  try {
+    final permitted = await reminder.requestPermission();
+    if (!permitted) {
+      if (context.mounted) {
+        showSnack(
+          context,
+          'Notification permission denied. Enable it in Android settings.',
+          error: true,
+        );
+      }
+      return;
+    }
+    await reminder.showNow(
+      title: 'Poolland reminder test'.tr,
+      body: 'If you can see this message, notifications are working ✓',
+      soundUri: settings.notificationSoundUri,
+      soundName: settings.notificationSoundName,
+    );
+  } catch (_) {
+    if (context.mounted) {
+      showSnack(context, 'Could not send notification', error: true);
+    }
+  }
+}
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -405,6 +479,56 @@ class SettingsPage extends StatelessWidget {
             CardBox(
               child: Column(
                 children: [
+                  if (isAndroidPlatform) ...[
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.music_note_outlined, size: 20),
+                      title: Text(
+                        'Notification sound'.tr,
+                        style: const TextStyle(fontSize: 13.5),
+                      ),
+                      subtitle: Text(
+                        s.notificationSoundName ?? 'System default'.tr,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11.5),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            tooltip: 'Test notification sound'.tr,
+                            onPressed: () => _testNotificationSound(context, s),
+                            icon: const Icon(Icons.play_arrow_rounded),
+                          ),
+                          PopupMenuButton<_NotificationSoundAction>(
+                            tooltip: 'Choose notification sound'.tr,
+                            onSelected: (action) => _selectNotificationSound(
+                              context,
+                              repo,
+                              s,
+                              action,
+                            ),
+                            itemBuilder: (context) => [
+                              PopupMenuItem(
+                                value: _NotificationSoundAction.systemDefault,
+                                child: Text('System default'.tr),
+                              ),
+                              PopupMenuItem(
+                                value: _NotificationSoundAction.phoneSound,
+                                child: Text('Choose a phone sound'.tr),
+                              ),
+                              PopupMenuItem(
+                                value: _NotificationSoundAction.audioFile,
+                                child: Text('Choose an audio file'.tr),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Divider(color: Theme.of(context).dividerColor),
+                  ],
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: s.dailyReminder,
@@ -481,6 +605,8 @@ class SettingsPage extends StatelessWidget {
                           await reminder.showNow(
                             title: 'Poolland reminder test'.tr,
                             body: 'If you can see this message, notifications are working ✓',
+                            soundUri: s.notificationSoundUri,
+                            soundName: s.notificationSoundName,
                           );
                         } catch (_) {
                           if (context.mounted) {

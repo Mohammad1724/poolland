@@ -301,6 +301,25 @@ void main() {
     expect(repo.settings.languageCode, 'en');
   });
 
+  test('Device notification sound is saved locally but omitted from backups', () async {
+    const soundUri = 'content://media/external/audio/media/123';
+    await repo.updateSettings(
+      repo.settings.copyWith(
+        notificationSoundUri: soundUri,
+        notificationSoundName: 'Custom tone',
+      ),
+    );
+
+    expect(repo.settings.notificationSoundUri, soundUri);
+    final backup = repo.exportData();
+    final backupSettings = Map<String, dynamic>.from(backup['settings'] as Map);
+    expect(backupSettings.containsKey('notificationSoundUri'), isFalse);
+    expect(backupSettings.containsKey('notificationSoundName'), isFalse);
+
+    await repo.reload();
+    expect(repo.settings.notificationSoundUri, soundUri);
+  });
+
   test('Invalid backup is rejected without erasing current data', () async {
     final customer = await repo.addCustomer(name: 'Keep me');
     await expectLater(
