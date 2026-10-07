@@ -138,8 +138,8 @@ const List<BankRule> builtinBankRules = <BankRule>[
   BankRule(
     id: 'sina',
     bankName: 'Sina Bank / Blu Bank',
-    senderHints: ['SINA', 'BLU', 'سینا', 'بلو'],
-    bodyHints: ['بانک سینا', 'بلوبانک'],
+    senderHints: ['SINA', 'BLU', 'BLUBANK', 'BLU BANK', 'سینا', 'بلو'],
+    bodyHints: ['بانک سینا', 'بلوبانک', 'بلو بانک', 'بلو'],
   ),
   BankRule(
     id: 'keshavarzi',

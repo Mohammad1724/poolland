@@ -46,6 +46,41 @@ void main() {
       expect(r.bankName, 'Saderat Bank');
     });
 
+    test('Parses Blu Bank withdrawals with the BLUBANK sender ID', () {
+      final r = p(
+        'برداشت پول\n'
+        'محمدرضا عزیز، 700,000ریال از حساب شما پرید.\n'
+        'موجودی: 10,229,166 ریال\n'
+        '۶:۴۸\n'
+        '۱۴۰۵.۰۷.۱۵',
+        address: 'BLUBANK',
+      );
+
+      expect(r.bankName, 'Sina Bank / Blu Bank');
+      expect(r.direction, SmsDirection.withdraw);
+      expect(r.amount, 70000);
+      expect(r.balance, closeTo(1022916.6, 0.1));
+      expect(r.isTransaction, isTrue);
+    });
+
+    test('Recognizes Blu Bank when the message body starts with بلو', () {
+      final r = p(
+        'بلو\n'
+        'واریز پول\n'
+        'محمدرضا عزیز، 1,800,000ریال به حساب شما نشست.\n'
+        'موجودی: 10,940,166 ریال\n'
+        '۱۸:۵۹\n'
+        '۱۴۰۵.۰۷.۱۳',
+        address: 'UNKNOWN',
+      );
+
+      expect(r.bankName, 'Sina Bank / Blu Bank');
+      expect(r.direction, SmsDirection.deposit);
+      expect(r.amount, 180000);
+      expect(r.balance, closeTo(1094016.6, 0.1));
+      expect(r.isTransaction, isTrue);
+    });
+
     test('Identify a bank from the body when the sender is unknown', () {
       final r = p('بانک سامان\nواریز مبلغ 50,000 ریال', address: '982000');
       expect(r.bankName, 'Saman Bank');
