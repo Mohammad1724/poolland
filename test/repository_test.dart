@@ -529,6 +529,59 @@ void main() {
     expect(repo.hasAppLock, isFalse);
   });
 
+  test('Biometric unlock is tied to the PIN and survives a restart', () async {
+    // Without a PIN there is nothing for a fingerprint to skip past.
+    expect(repo.biometricUnlock, isFalse);
+    await repo.setBiometricUnlock(true);
+    expect(
+      repo.biometricUnlock,
+      isFalse,
+      reason: 'biometrics are a shortcut past the PIN, not a lock of their own',
+    );
+
+    await repo.setPin('1379');
+    await repo.setBiometricUnlock(true);
+    expect(repo.biometricUnlock, isTrue);
+
+    await repo.reload();
+    expect(repo.biometricUnlock, isTrue, reason: 'the setting is on disk');
+
+    // Removing the lock must not leave biometrics armed, otherwise turning
+    // the PIN back on would silently re-enable fingerprint unlock too.
+    await repo.clearPin();
+    expect(repo.biometricUnlock, isFalse);
+    expect(repo.settings.biometricUnlock, isFalse);
+
+    await repo.setPin('1379');
+    expect(repo.biometricUnlock, isFalse);
+  });
+
+  test('A backup file never carries the biometric setting', () async {
+    await repo.setPin('2468');
+    await repo.setBiometricUnlock(true);
+
+    final exported = repo.exportData()['settings'] as Map<String, dynamic>;
+    expect(exported.containsKey('biometricUnlock'), isFalse);
+    expect(exported.containsKey('pinHash'), isFalse);
+  });
+
+  test('Restoring a backup leaves biometric unlock alone', () async {
+    await repo.setPin('2468');
+    await repo.setBiometricUnlock(true);
+    final backup = repo.exportData();
+
+    await repo.importData(backup);
+    expect(
+      repo.biometricUnlock,
+      isTrue,
+      reason: 'a backup must not switch off this phone\'s fingerprint unlock',
+    );
+
+    await repo.setBiometricUnlock(false);
+    await repo.importData(backup);
+    expect(repo.biometricUnlock, isFalse, reason: 'and must not switch it on');
+  });
+
   test('Custom SMS rules are saved and restored', () async {
     await repo.addSmsRule(
       const BankRule(id: 'r1', bankName: 'My Bank', senderHints: ['MYBANK']),

@@ -334,7 +334,7 @@ class LocalStore {
     'exportedAt': DateTime.now().toIso8601String(),
     'settings': loadSettings().toMap(
       includeDeviceNotificationSound: false,
-      includePin: false,
+      includeAppLock: false,
     ),
     'customers': loadCustomers().map((e) => e.toMap()).toList(),
     'subscriptions': loadSubscriptions().map((e) => e.toMap()).toList(),
@@ -396,7 +396,9 @@ class LocalStore {
     // The app lock stays with the phone, like the SMS review status below.
     // Otherwise an old backup would quietly switch the lock off, and a
     // backup from a phone whose PIN was forgotten would lock the user out.
-    final localPinHash = loadSettings().pinHash;
+    final localSettings = loadSettings();
+    final localPinHash = localSettings.pinHash;
+    final localBiometricUnlock = localSettings.biometricUnlock;
 
     final settingsRaw = data['settings'];
     if (settingsRaw != null && settingsRaw is! Map) {
@@ -439,7 +441,11 @@ class LocalStore {
     await meta.put(
       'settings',
       restoredSettings
-          .copyWith(pinHash: localPinHash, clearPin: localPinHash == null)
+          .copyWith(
+            pinHash: localPinHash,
+            clearPin: localPinHash == null,
+            biometricUnlock: localBiometricUnlock,
+          )
           .toMap(),
     );
     for (final value in restoredCustomers) {

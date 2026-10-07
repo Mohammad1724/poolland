@@ -820,9 +820,22 @@ class AppRepository extends ChangeNotifier {
     await updateSettings(settings.copyWith(pinHash: AppLock.hash(pin)));
   }
 
-  /// Turn the lock off.
+  /// Turn the lock off. This also drops biometric unlock, which only ever
+  /// existed as a shortcut past the PIN.
   Future<void> clearPin() =>
       updateSettings(settings.copyWith(clearPin: true));
+
+  /// Is fingerprint/face unlock switched on?
+  ///
+  /// Always false without a PIN: biometrics are a shortcut past the PIN, not
+  /// a lock of their own, so there would be nothing to unlock.
+  bool get biometricUnlock => hasAppLock && settings.biometricUnlock;
+
+  /// Turning it on without a PIN is ignored rather than stored, so the flag
+  /// on disk can never disagree with [biometricUnlock].
+  Future<void> setBiometricUnlock(bool enabled) => updateSettings(
+    settings.copyWith(biometricUnlock: enabled && hasAppLock),
+  );
 
   // ---------------- Bank SMS ----------------
   /// Whether SMS is supported on this device (Android only).

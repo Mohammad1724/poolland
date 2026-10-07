@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_lock.dart';
+import '../../core/biometrics.dart';
 import '../../core/localization.dart';
 import '../../data/repository.dart';
 import 'pin_pad.dart';
@@ -108,6 +109,42 @@ class LockScreen extends StatefulWidget {
 class _LockScreenState extends State<LockScreen> {
   String _entry = '';
   bool _wrong = false;
+  bool _biometricsAvailable = false;
+  bool _promptOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _offerBiometrics();
+  }
+
+  /// Show the fingerprint sheet straight away when it is switched on, so the
+  /// common case is one touch and no typing.
+  Future<void> _offerBiometrics() async {
+    if (!context.read<AppRepository>().biometricUnlock) return;
+    if (!await Biometrics.isAvailable()) return;
+    if (!mounted) return;
+    setState(() => _biometricsAvailable = true);
+    await _runBiometricPrompt();
+  }
+
+  Future<void> _runBiometricPrompt() async {
+    if (_promptOpen) return;
+    setState(() => _promptOpen = true);
+    final outcome = await Biometrics.prompt();
+    if (!mounted) return;
+    setState(() => _promptOpen = false);
+
+    if (outcome == BiometricOutcome.success) {
+      widget.onUnlocked();
+    } else if (outcome == BiometricOutcome.failed) {
+      // Hide the shortcut instead of nagging: the PIN still works, and a
+      // sensor that just refused is unlikely to do better on a retry.
+      setState(() => _biometricsAvailable = false);
+    }
+    // BiometricOutcome.canceled: they would rather type the PIN, so the
+    // keypad is left exactly as it was.
+  }
 
   void _append(String digit) {
     if (_entry.length >= AppLock.maxPinLength) return;
@@ -188,7 +225,18 @@ class _LockScreenState extends State<LockScreen> {
                       : null,
                 ),
                 const SizedBox(height: 6),
-                PinPad(onDigit: _append, onBackspace: _backspace),
+                PinPad(
+                  onDigit: _append,
+                  onBackspace: _backspace,
+                  enabled: !_promptOpen,
+                  leading: _biometricsAvailable
+                      ? IconButton(
+                          onPressed: _promptOpen ? null : _runBiometricPrompt,
+                          tooltip: 'Use fingerprint'.tr,
+                          icon: const Icon(Icons.fingerprint_rounded, size: 28),
+                        )
+                      : null,
+                ),
                 const SizedBox(height: 18),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 300),

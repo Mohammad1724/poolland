@@ -14,7 +14,7 @@ import android.provider.MediaStore
 import android.provider.Telephony
 import java.io.File
 import java.util.Locale
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -29,7 +29,14 @@ object SmsBus {
     var channel: MethodChannel? = null
 }
 
-class MainActivity : FlutterActivity() {
+/**
+ * Extends FlutterFragmentActivity rather than FlutterActivity because
+ * androidx.biometric's BiometricPrompt, which local_auth uses, can only be
+ * shown from a FragmentActivity. On a plain FlutterActivity every
+ * authenticate() call fails with "The current Activity must be a
+ * FragmentActivity".
+ */
+class MainActivity : FlutterFragmentActivity() {
 
     companion object {
         private const val PERMISSION_REQUEST_SMS = 1017

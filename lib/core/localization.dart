@@ -742,6 +742,16 @@ class AppLocalization {
     'App lock is on': 'قفل برنامه روشن شد',
     'App lock turned off': 'قفل برنامه خاموش شد',
     'PIN changed': 'رمز عددی تغییر کرد',
+
+    // ---- Biometric unlock ----
+    'Unlock with fingerprint': 'باز کردن با اثر انگشت',
+    'The PIN still works if the sensor fails':
+        'اگر حسگر کار نکرد، رمز عددی همچنان کار می‌کند',
+    'Use fingerprint': 'استفاده از اثر انگشت',
+    'Unlock Poolland': 'باز کردن پول‌لند',
+    'Unlock Poolland with your fingerprint':
+        'پول‌لند را با اثر انگشت خود باز کنید',
+    'Use PIN': 'رمز عددی',
   };
 
   static String text(String source, {String? languageCode}) =>

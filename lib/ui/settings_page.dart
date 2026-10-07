@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../core/app_info.dart';
 import '../core/backup.dart';
+import '../core/biometrics.dart';
 import '../core/format_utils.dart';
 import '../core/jalali_utils.dart';
 import '../core/money.dart';
@@ -327,6 +328,7 @@ class SettingsPage extends StatelessWidget {
                 ),
                 if (repo.hasAppLock) ...[
                   Divider(color: Theme.of(context).dividerColor),
+                  const _BiometricUnlockTile(),
                   _actionTile(
                     context,
                     icon: Icons.password_rounded,
@@ -1302,6 +1304,62 @@ class _CategoriesPageState extends State<CategoriesPage> {
           icon: const Icon(Icons.add_rounded, size: 18),
           label: Text('Add category'.tr),
         ),
+      ],
+    );
+  }
+}
+
+/// Fingerprint switch, shown only when the phone can actually do it.
+///
+/// Stateful so the availability check runs once per visit instead of on every
+/// rebuild: a plain FutureBuilder would restart the check each time the repo
+/// notifies, and the switch would blink out of existence as it was toggled.
+class _BiometricUnlockTile extends StatefulWidget {
+  const _BiometricUnlockTile();
+
+  @override
+  State<_BiometricUnlockTile> createState() => _BiometricUnlockTileState();
+}
+
+class _BiometricUnlockTileState extends State<_BiometricUnlockTile> {
+  bool _available = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    final available = await Biometrics.isAvailable();
+    if (!mounted) return;
+    setState(() => _available = available);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // A phone with no sensor, or with no fingerprint enrolled in Android
+    // itself, gets no switch at all rather than one that cannot work.
+    if (!_available) return const SizedBox.shrink();
+
+    final repo = context.watch<AppRepository>();
+    return Column(
+      children: [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: repo.biometricUnlock,
+          onChanged: repo.setBiometricUnlock,
+          secondary: const Icon(Icons.fingerprint_rounded, size: 20),
+          title: Text(
+            'Unlock with fingerprint'.tr,
+            style: const TextStyle(fontSize: 13.5),
+          ),
+          subtitle: Text(
+            'The PIN still works if the sensor fails'.tr,
+            style: const TextStyle(fontSize: 11.5),
+          ),
+        ),
+        Divider(color: Theme.of(context).dividerColor),
       ],
     );
   }
