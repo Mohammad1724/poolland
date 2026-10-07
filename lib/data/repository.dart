@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart' show ChangeNotifier;
 
+import '../core/app_lock.dart';
 import '../core/jalali_utils.dart';
 import '../core/localization.dart';
 import '../core/money.dart';
@@ -801,6 +802,27 @@ class AppRepository extends ChangeNotifier {
     final list = settings.currencies.where((c) => c.code != code).toList();
     await updateSettings(settings.copyWith(currencies: list));
   }
+
+  // ---------------- App lock ----------------
+  /// Is the PIN lock turned on?
+  bool get hasAppLock => (settings.pinHash ?? '').isNotEmpty;
+
+  /// Check a PIN against the stored hash. Always false when there is no lock,
+  /// so callers cannot accidentally "unlock" an unprotected app with junk.
+  bool verifyPin(String pin) =>
+      hasAppLock && AppLock.verify(pin, settings.pinHash);
+
+  /// Turn the lock on, or change an existing PIN.
+  Future<void> setPin(String pin) async {
+    if (!AppLock.isValidPin(pin)) {
+      throw ArgumentError.value(pin, 'pin', 'A PIN must be 4-8 digits');
+    }
+    await updateSettings(settings.copyWith(pinHash: AppLock.hash(pin)));
+  }
+
+  /// Turn the lock off.
+  Future<void> clearPin() =>
+      updateSettings(settings.copyWith(clearPin: true));
 
   // ---------------- Bank SMS ----------------
   /// Whether SMS is supported on this device (Android only).

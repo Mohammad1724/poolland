@@ -14,6 +14,7 @@ import '../core/platform_info.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 import 'forms/plan_edit_page.dart';
+import 'lock/pin_setup_page.dart';
 import 'sms_page.dart';
 import 'sms_rules_page.dart';
 import 'widgets/widgets.dart';
@@ -297,6 +298,47 @@ class SettingsPage extends StatelessWidget {
                     ],
                   ),
                 ),
+              ],
+            ),
+          ),
+
+          // ---------- Security ----------
+          const SectionTitle('Security', icon: Icons.lock_outline_rounded),
+          CardBox(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: repo.hasAppLock,
+                  onChanged: (wantLock) =>
+                      _toggleAppLock(context, wantLock: wantLock),
+                  secondary: const Icon(Icons.pin_outlined, size: 20),
+                  title: Text(
+                    'App lock (PIN)'.tr,
+                    style: const TextStyle(fontSize: 13.5),
+                  ),
+                  subtitle: Text(
+                    (repo.hasAppLock
+                            ? 'Ask for a PIN when the app opens'
+                            : 'Your bank SMS and customer debts are readable by anyone holding the phone')
+                        .tr,
+                    style: const TextStyle(fontSize: 11.5),
+                  ),
+                ),
+                if (repo.hasAppLock) ...[
+                  Divider(color: Theme.of(context).dividerColor),
+                  _actionTile(
+                    context,
+                    icon: Icons.password_rounded,
+                    title: 'Change PIN'.tr,
+                    subtitle: 'Enter the current PIN, then pick a new one',
+                    onTap: () => _runPinSetup(
+                      context,
+                      PinSetupMode.change,
+                      'PIN changed',
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -675,6 +717,31 @@ class SettingsPage extends StatelessWidget {
     trailing: const Icon(Icons.chevron_right_rounded, size: 18),
     onTap: () =>
         Navigator.push(context, MaterialPageRoute(builder: (_) => page)),
+  );
+
+  /// Push the PIN flow and confirm the outcome once it comes back.
+  Future<void> _runPinSetup(
+    BuildContext context,
+    PinSetupMode mode,
+    String successMessage,
+  ) async {
+    final applied = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => PinSetupPage(mode: mode)),
+    );
+    if (applied != true || !context.mounted) return;
+    showSnack(context, successMessage);
+  }
+
+  /// Turning the switch on or off both require going through the PIN flow:
+  /// on needs a PIN to set, off needs the current PIN to prove it is you.
+  Future<void> _toggleAppLock(
+    BuildContext context, {
+    required bool wantLock,
+  }) => _runPinSetup(
+    context,
+    wantLock ? PinSetupMode.create : PinSetupMode.remove,
+    wantLock ? 'App lock is on' : 'App lock turned off',
   );
 
   Widget _actionTile(

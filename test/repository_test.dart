@@ -471,6 +471,31 @@ void main() {
     );
   });
 
+  test('A backup file never carries the app-lock PIN', () async {
+    await repo.setPin('2468');
+
+    final backup = repo.exportData();
+    final exported = backup['settings'] as Map<String, dynamic>;
+
+    expect(exported.containsKey('pinHash'), isFalse);
+    expect(backup.toString(), isNot(contains('2468')));
+  });
+
+  test('Restoring a backup leaves this device\'s lock alone', () async {
+    await repo.setPin('2468');
+    final backup = repo.exportData();
+
+    // Restoring data taken from another phone must not unlock this one...
+    await repo.importData(backup);
+    expect(repo.hasAppLock, isTrue);
+    expect(repo.verifyPin('2468'), isTrue);
+
+    // ...and dropping the lock must stay dropped after a restore.
+    await repo.clearPin();
+    await repo.importData(backup);
+    expect(repo.hasAppLock, isFalse);
+  });
+
   test('Custom SMS rules are saved and restored', () async {
     await repo.addSmsRule(
       const BankRule(id: 'r1', bankName: 'My Bank', senderHints: ['MYBANK']),

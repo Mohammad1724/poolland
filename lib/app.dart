@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'core/localization.dart';
 import 'data/repository.dart';
 import 'ui/home_shell.dart';
+import 'ui/lock/lock_screen.dart';
 import 'ui/onboarding.dart';
 import 'ui/theme.dart';
 
@@ -71,6 +72,10 @@ class _VpnLedgerAppState extends State<VpnLedgerApp> {
                 home: settings.setupDone
                     ? const HomeShell()
                     : const OnboardingPage(),
+                // The lock has to sit above the Navigator, not inside `home`:
+                // anything the user had pushed (a customer, an edit form)
+                // would otherwise stay on top of the lock screen.
+                lockable: true,
               );
             },
           ),
@@ -83,6 +88,7 @@ class _VpnLedgerAppState extends State<VpnLedgerApp> {
     required Widget home,
     ThemeMode themeMode = ThemeMode.system,
     Locale locale = const Locale('fa'),
+    bool lockable = false,
   }) {
     AppLocalization.languageCode = locale.languageCode;
     return MaterialApp(
@@ -98,12 +104,15 @@ class _VpnLedgerAppState extends State<VpnLedgerApp> {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: themeMode,
-      builder: (context, child) => Directionality(
-        textDirection: locale.languageCode == 'fa'
-            ? TextDirection.rtl
-            : TextDirection.ltr,
-        child: child ?? const SizedBox.shrink(),
-      ),
+      builder: (context, child) {
+        final content = child ?? const SizedBox.shrink();
+        return Directionality(
+          textDirection: locale.languageCode == 'fa'
+              ? TextDirection.rtl
+              : TextDirection.ltr,
+          child: lockable ? AppLockGate(child: content) : content,
+        );
+      },
       home: home,
     );
   }

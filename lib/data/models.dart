@@ -203,14 +203,20 @@ class AppSettings {
         : (notificationSoundName ?? this.notificationSoundName),
   );
 
-  Map<String, dynamic> toMap({bool includeDeviceNotificationSound = true}) => {
+  /// [includePin] and [includeDeviceNotificationSound] are turned off when
+  /// writing a backup file. Both describe this phone rather than the ledger,
+  /// and a backup is routinely shared through a messaging app.
+  Map<String, dynamic> toMap({
+    bool includeDeviceNotificationSound = true,
+    bool includePin = true,
+  }) => {
     'businessName': businessName,
     'baseCurrency': baseCurrency,
     'currencies': currencies.map((e) => e.toMap()).toList(),
     'persianDigits': persianDigits,
     'languageCode': languageCode,
     'reminderDays': reminderDays,
-    'pinHash': pinHash,
+    if (includePin) 'pinHash': pinHash,
     'themeMode': themeMode,
     'openingCash': openingCash,
     'setupDone': setupDone,

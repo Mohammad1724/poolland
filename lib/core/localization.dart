@@ -715,6 +715,33 @@ class AppLocalization {
     'Date range': 'بازهٔ زمانی',
     'From': 'از',
     'To': 'تا',
+
+    // ---- App lock ----
+    'Security': 'امنیت',
+    'App lock (PIN)': 'قفل برنامه (رمز عددی)',
+    'Ask for a PIN when the app opens': 'هنگام باز شدن برنامه، رمز عددی پرسیده می‌شود',
+    'Your bank SMS and customer debts are readable by anyone holding the phone':
+        'پیامک‌های بانکی و بدهی مشتریان برای هر کسی که گوشی دستش باشد قابل دیدن است',
+    'Change PIN': 'تغییر رمز عددی',
+    'Enter the current PIN, then pick a new one':
+        'ابتدا رمز فعلی را وارد کنید، سپس رمز تازه را انتخاب کنید',
+    'Set a PIN': 'تعیین رمز عددی',
+    'Turn off app lock': 'خاموش کردن قفل برنامه',
+    'Poolland is locked': 'پول‌لند قفل است',
+    'Enter your PIN to continue': 'برای ادامه رمز عددی را وارد کنید',
+    'Enter your current PIN': 'رمز عددی فعلی را وارد کنید',
+    'Choose a new PIN (4-8 digits)': 'رمز عددی تازه را انتخاب کنید (۴ تا ۸ رقم)',
+    'Enter the new PIN again': 'رمز عددی تازه را دوباره وارد کنید',
+    'If you forget this PIN there is no way to recover it. Keep a backup of your data.':
+        'اگر این رمز را فراموش کنید هیچ راهی برای بازیابی آن نیست. از داده‌هایتان پشتیبان بگیرید.',
+    'Unlock': 'باز کردن قفل',
+    'Wrong PIN. Try again.': 'رمز عددی نادرست است. دوباره تلاش کنید.',
+    'The PINs did not match. Start again.': 'دو رمز یکسان نبودند. از ابتدا وارد کنید.',
+    'A PIN must be 4-8 digits': 'رمز عددی باید ۴ تا ۸ رقم باشد',
+    'Could not save the PIN': 'ذخیرهٔ رمز عددی ناموفق بود',
+    'App lock is on': 'قفل برنامه روشن شد',
+    'App lock turned off': 'قفل برنامه خاموش شد',
+    'PIN changed': 'رمز عددی تغییر کرد',
   };
 
   static String text(String source, {String? languageCode}) =>
