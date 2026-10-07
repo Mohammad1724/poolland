@@ -240,6 +240,7 @@ class _PlanEditPageState extends State<PlanEditPage> {
                       controller: _price,
                       label: 'Price'.tr,
                       currency: _currency,
+                      textInputAction: TextInputAction.next,
                       validator: (_) => null,
                     ),
                   ),

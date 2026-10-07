@@ -23,7 +23,7 @@ class MonthlyBarChart extends StatelessWidget {
         .fold<double>(0, (a, b) => a > b ? a : b);
     final maxY = maxValue <= 0 ? 1000.0 : maxValue * 1.25;
 
-    return BarChart(
+    final chart = BarChart(
       BarChartData(
         maxY: maxY,
         alignment: BarChartAlignment.spaceAround,
@@ -124,6 +124,9 @@ class MonthlyBarChart extends StatelessWidget {
         ],
       ),
     );
+    // Charts paint into their own layer: scrolling the surrounding page no
+    // longer forces a full chart repaint.
+    return RepaintBoundary(child: chart);
   }
 
   String _short(double v) {
@@ -160,7 +163,7 @@ class CategoryPieChart extends StatelessWidget {
     final total = entries.fold<double>(0, (a, b) => a + b.value);
     final onSurface = Theme.of(context).colorScheme.onSurface;
 
-    return Row(
+    final chart = Row(
       children: [
         SizedBox(
           height: size,
@@ -238,5 +241,7 @@ class CategoryPieChart extends StatelessWidget {
         ),
       ],
     );
+    // Painted on its own layer so page scrolling does not redraw the pie.
+    return RepaintBoundary(child: chart);
   }
 }

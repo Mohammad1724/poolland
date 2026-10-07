@@ -179,6 +179,10 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                       controller: _amount,
                       label: 'Amount'.tr,
                       currency: _currency,
+                      // The amount is the only thing this sheet really needs,
+                      // so start there instead of asking for an extra tap.
+                      autofocus: true,
+                      textInputAction: TextInputAction.next,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -202,6 +206,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                 controller: _note,
                 label: 'Description (optional)'.tr,
                 icon: Icons.notes_rounded,
+                textInputAction: TextInputAction.done,
               ),
               const SizedBox(height: 16),
               FilledButton.icon(

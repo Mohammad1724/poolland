@@ -356,6 +356,7 @@ class AmountField extends StatelessWidget {
     this.validator,
     this.onChanged,
     this.livePreview = true,
+    this.textInputAction = TextInputAction.done,
   });
 
   final TextEditingController controller;
@@ -364,6 +365,10 @@ class AmountField extends StatelessWidget {
   final bool autofocus;
   final String? Function(String?)? validator;
   final VoidCallback? onChanged;
+
+  /// Keyboard action button. Pass [TextInputAction.next] when another field
+  /// follows, so the user can move on without reaching for the screen.
+  final TextInputAction textInputAction;
 
   /// Shows a live, grouped preview of the entered amount below the field
   /// (e.g. typing `1500000` renders `= 1,500,000 Toman` while typing),
@@ -376,6 +381,7 @@ class AmountField extends StatelessWidget {
     final field = TextFormField(
       controller: controller,
       autofocus: autofocus,
+      textInputAction: textInputAction,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       textDirection: TextDirection.ltr,
       inputFormatters: [
@@ -401,22 +407,17 @@ class AmountField extends StatelessWidget {
       },
       onTapOutside: (_) => FocusScope.of(context).unfocus(),
       onEditingComplete: () {
-        final v = parseAmount(controller.text);
-        final s = groupedNumber(v, decimals: decimals);
-        controller.value = TextEditingValue(
-          text: s,
-          selection: TextSelection.collapsed(offset: s.length),
-        );
-        FocusScope.of(context).unfocus();
+        _groupAmount(controller, decimals);
+        // Supplying onEditingComplete turns off Flutter's own focus handling,
+        // so advancing to the next field is done by hand here: move from the
+        // node that currently has focus, exactly like TextField would.
+        if (textInputAction == TextInputAction.next) {
+          FocusManager.instance.primaryFocus?.nextFocus();
+        } else {
+          FocusScope.of(context).unfocus();
+        }
       },
-      onFieldSubmitted: (_) {
-        final v = parseAmount(controller.text);
-        final s = groupedNumber(v, decimals: decimals);
-        controller.value = TextEditingValue(
-          text: s,
-          selection: TextSelection.collapsed(offset: s.length),
-        );
-      },
+      onFieldSubmitted: (_) => _groupAmount(controller, decimals),
     );
 
     if (!livePreview) return field;
@@ -456,6 +457,15 @@ class AmountField extends StatelessWidget {
       },
     );
   }
+}
+
+/// Rewrite the field with grouped digits, keeping the caret at the end.
+void _groupAmount(TextEditingController controller, int decimals) {
+  final s = groupedNumber(parseAmount(controller.text), decimals: decimals);
+  controller.value = TextEditingValue(
+    text: s,
+    selection: TextSelection.collapsed(offset: s.length),
+  );
 }
 
 /// ---------------- Jalali date field ----------------
@@ -751,6 +761,7 @@ class AppTextField extends StatelessWidget {
     this.maxLines = 1,
     this.keyboardType,
     this.validator,
+    this.textInputAction,
   });
 
   final TextEditingController controller;
@@ -761,12 +772,19 @@ class AppTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final String? Function(String?)? validator;
 
+  /// Keyboard action button; single-line fields default to "next" so tabbing
+  /// through a form never requires tapping the screen. Pass
+  /// [TextInputAction.done] on the last field of a form.
+  final TextInputAction? textInputAction;
+
   @override
   Widget build(BuildContext context) {
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      textInputAction:
+          textInputAction ?? (maxLines == 1 ? TextInputAction.next : null),
       decoration: InputDecoration(
         labelText: label.tr,
         hintText: hint?.tr,

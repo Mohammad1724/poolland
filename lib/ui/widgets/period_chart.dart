@@ -29,7 +29,7 @@ class PeriodBarChart extends StatelessWidget {
         .fold<double>(0, (a, b) => a > b ? a : b);
     final maxY = maxValue <= 0 ? 1000.0 : maxValue * 1.25;
 
-    return SizedBox(
+    final chart = SizedBox(
       height: height,
       child: BarChart(
         BarChartData(
@@ -141,6 +141,9 @@ class PeriodBarChart extends StatelessWidget {
         ),
       ),
     );
+    // Own layer: switching the period or scrolling the page around it does not
+    // repaint neighbouring content together with the chart.
+    return RepaintBoundary(child: chart);
   }
 
   String _short(double v) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/debounce.dart';
 import '../core/format_utils.dart';
 import '../core/jalali_utils.dart';
 import '../core/localization.dart';
@@ -22,8 +23,15 @@ class CustomersPage extends StatefulWidget {
 enum _Filter { all, debtors, creditors }
 
 class _CustomersPageState extends State<CustomersPage> {
+  final _searchDebouncer = Debouncer();
   String _q = '';
   _Filter _filter = _Filter.all;
+
+  @override
+  void dispose() {
+    _searchDebouncer.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -62,17 +70,25 @@ class _CustomersPageState extends State<CustomersPage> {
                   hintText: 'Search name or phone...',
                   prefixIcon: Icon(Icons.search_rounded, size: 20),
                 ),
-                onChanged: (v) => setState(() => _q = v.trim()),
+                // Filtering waits for a short pause in typing; the field itself
+                // still echoes every keystroke, so nothing feels laggy.
+                onChanged: (v) =>
+                    _searchDebouncer.run(() => setState(() => _q = v.trim())),
               ),
               const SizedBox(height: 10),
-              Row(
-                children: [
-                  _chip('All', _Filter.all, matchingCustomers.length),
-                  const SizedBox(width: 8),
-                  _chip('Debtors', _Filter.debtors, null),
-                  const SizedBox(width: 8),
-                  _chip('Creditors', _Filter.creditors, null),
-                ],
+              // Scrollable so the three filters never overflow on narrow
+              // screens (long Persian labels and large font scales).
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _chip('All', _Filter.all, matchingCustomers.length),
+                    const SizedBox(width: 8),
+                    _chip('Debtors', _Filter.debtors, null),
+                    const SizedBox(width: 8),
+                    _chip('Creditors', _Filter.creditors, null),
+                  ],
+                ),
               ),
             ],
           ),

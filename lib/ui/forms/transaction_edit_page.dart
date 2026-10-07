@@ -19,6 +19,7 @@ class TransactionEditPage extends StatefulWidget {
     this.initialScope = TxnScope.business,
     this.customer,
     this.categoryId,
+    this.autofocusAmount = true,
   });
 
   final Txn? existing;
@@ -26,6 +27,11 @@ class TransactionEditPage extends StatefulWidget {
   final TxnScope initialScope;
   final Customer? customer;
   final String? categoryId;
+
+  /// Opens the keyboard on the amount field right away, so a new entry can be
+  /// typed without a tap. Ignored while editing (and turned off by flows such
+  /// as SMS review, where the details are being checked first).
+  final bool autofocusAmount;
 
   @override
   State<TransactionEditPage> createState() => _TransactionEditPageState();
@@ -277,6 +283,8 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                       controller: _amount,
                       label: 'Amount'.tr,
                       currency: _currency,
+                      autofocus: widget.autofocusAmount && !isEdit,
+                      textInputAction: TextInputAction.next,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -404,6 +412,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                             ? 'Cash received now'
                             : 'Cash paid now',
                         currency: _settleCurrency,
+                        textInputAction: TextInputAction.next,
                         validator: (_) => null,
                       ),
                     ),

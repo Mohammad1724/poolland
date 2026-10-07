@@ -27,6 +27,13 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
+  /// Tab indexes that have been opened at least once.
+  ///
+  /// Building all five pages up front made the first frame do the work of
+  /// five screens (lists, charts, and summaries). Only the tabs the user has
+  /// actually opened are mounted now.
+  final Set<int> _visited = {0};
+
   // Personal bookkeeping is the first destination because it is the most
   // frequent task; business tools remain one tap away.
   static const _titles = [
@@ -68,7 +75,12 @@ class _HomeShellState extends State<HomeShell> {
 
   void _goTo(int i) {
     Haptics.selection();
-    setState(() => _index = i);
+    setState(() {
+      _index = i;
+      // Tabs are built the first time they are opened; from then on they stay
+      // mounted, so their scroll position and filters survive switching.
+      _visited.add(i);
+    });
   }
 
   Future<void> _personalAdd() async {
@@ -336,20 +348,26 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
-    final repo = context.watch<AppRepository>();
+    // Only readiness is needed here; watching the whole repository would
+    // rebuild the shell (and therefore every open tab) on each data change.
+    final isReady = context.select<AppRepository, bool>((r) => r.isReady);
     final width = MediaQuery.of(context).size.width;
     final isWide = width >= 840;
     final isExtended = width >= 1120;
-    final content = !repo.isReady
+    final pages = <Widget>[
+      PersonalPage(onNavigate: _goTo),
+      DashboardPage(onNavigate: _goTo),
+      const CustomersPage(),
+      const SubscriptionsPage(),
+      const TransactionsPage(),
+    ];
+    final content = !isReady
         ? const Center(child: CircularProgressIndicator())
         : IndexedStack(
             index: _index,
             children: [
-              PersonalPage(onNavigate: _goTo),
-              DashboardPage(onNavigate: _goTo),
-              const CustomersPage(),
-              const SubscriptionsPage(),
-              const TransactionsPage(),
+              for (var i = 0; i < pages.length; i++)
+                if (_visited.contains(i)) pages[i] else const SizedBox.shrink(),
             ],
           );
 
@@ -433,7 +451,7 @@ class _HomeShellState extends State<HomeShell> {
                 ],
               )
             : content,
-        floatingActionButton: !repo.isReady
+        floatingActionButton: !isReady
             ? null
             : _index == 2
             ? FloatingActionButton.extended(

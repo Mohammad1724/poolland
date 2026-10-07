@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/debounce.dart';
 import '../core/jalali_utils.dart';
 import '../core/money.dart';
 import '../data/ledger.dart';
@@ -19,9 +20,16 @@ class TransactionsPage extends StatefulWidget {
 }
 
 class _TransactionsPageState extends State<TransactionsPage> {
+  final _searchDebouncer = Debouncer();
   int _monthOffset = 0; // 0 = current month
   TxnKind? _kind;
   String _q = '';
+
+  @override
+  void dispose() {
+    _searchDebouncer.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +69,9 @@ class _TransactionsPageState extends State<TransactionsPage> {
       final key = J.d(t.date);
       groups.putIfAbsent(key, () => []).add(t);
     }
+    // Materialized once so the list below can lazily build only the days that
+    // are actually on screen.
+    final groupList = groups.entries.toList(growable: false);
 
     return Column(
       children: [
@@ -117,7 +128,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
                   prefixIcon: Icon(Icons.search_rounded, size: 20),
                   isDense: true,
                 ),
-                onChanged: (v) => setState(() => _q = v.trim()),
+                onChanged: (v) =>
+                    _searchDebouncer.run(() => setState(() => _q = v.trim())),
               ),
               const SizedBox(height: 10),
               SingleChildScrollView(
@@ -179,78 +191,85 @@ class _TransactionsPageState extends State<TransactionsPage> {
                   title: 'No transactions this month',
                   text: 'Tap + to record a sale, receipt, or expense.',
                 )
-              : ListView(
+              : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
-                  children: [
-                    for (final entry in groups.entries) ...[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
-                        child: Row(
-                          children: [
-                            Text(
-                              entry.key,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: onSurface.withValues(alpha: 0.6),
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              Money.text(
-                                entry.value.fold<double>(
-                                  0,
-                                  (a, t) =>
-                                      a +
-                                      (t.kind == TxnKind.expense ||
-                                              t.kind == TxnKind.refund ||
-                                              t.kind == TxnKind.payablePayment
-                                          ? -Ledger.base(t)
-                                          : Ledger.base(t)),
+                  itemCount: groupList.length,
+                  itemBuilder: (context, groupIndex) {
+                    final entry = groupList[groupIndex];
+                    final dayTotal = entry.value.fold<double>(
+                      0,
+                      (a, t) =>
+                          a +
+                          (t.kind == TxnKind.expense ||
+                                  t.kind == TxnKind.refund ||
+                                  t.kind == TxnKind.payablePayment
+                              ? -Ledger.base(t)
+                              : Ledger.base(t)),
+                    );
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
+                          child: Row(
+                            children: [
+                              Text(
+                                entry.key,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: onSurface.withValues(alpha: 0.6),
                                 ),
-                                compact: true,
                               ),
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                                color: onSurface.withValues(alpha: 0.6),
+                              const Spacer(),
+                              Text(
+                                Money.text(dayTotal, compact: true),
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: onSurface.withValues(alpha: 0.6),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      Card(
-                        child: Column(
-                          children: [
-                            for (var i = 0; i < entry.value.length; i++) ...[
-                              TxnTile(
-                                txn: entry.value[i],
-                                categoryName: repo.categoryName(
-                                  entry.value[i].categoryId,
-                                ),
-                                customerName: repo.customerName(
-                                  entry.value[i].customerId,
-                                ),
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => TransactionEditPage(
-                                      existing: entry.value[i],
+                        Card(
+                          child: Column(
+                            children: [
+                              for (
+                                var i = 0;
+                                i < entry.value.length;
+                                i++
+                              ) ...[
+                                TxnTile(
+                                  txn: entry.value[i],
+                                  categoryName: repo.categoryName(
+                                    entry.value[i].categoryId,
+                                  ),
+                                  customerName: repo.customerName(
+                                    entry.value[i].customerId,
+                                  ),
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => TransactionEditPage(
+                                        existing: entry.value[i],
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              if (i != entry.value.length - 1)
-                                Divider(
-                                  height: 1,
-                                  color: Theme.of(context).dividerColor,
-                                ),
+                                if (i != entry.value.length - 1)
+                                  Divider(
+                                    height: 1,
+                                    color: Theme.of(context).dividerColor,
+                                  ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ],
+                      ],
+                    );
+                  },
                 ),
         ),
       ],

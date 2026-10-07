@@ -178,6 +178,7 @@ class _ContactEditPageState extends State<ContactEditPage> {
                     child: AmountField(
                       controller: _opening,
                       label: 'Opening balance'.tr,
+                      textInputAction: TextInputAction.next,
                       validator: (_) => null,
                     ),
                   ),

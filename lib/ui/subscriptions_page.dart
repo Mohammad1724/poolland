@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/debounce.dart';
 import '../core/format_utils.dart';
 import '../core/jalali_utils.dart';
 import '../data/ledger.dart';
@@ -22,8 +23,15 @@ class SubscriptionsPage extends StatefulWidget {
 enum _SubFilter { all, active, soon, expired }
 
 class _SubscriptionsPageState extends State<SubscriptionsPage> {
+  final _searchDebouncer = Debouncer();
   _SubFilter _filter = _SubFilter.all;
   String _q = '';
+
+  @override
+  void dispose() {
+    _searchDebouncer.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +86,8 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                   hintText: 'Search customers or plans...',
                   prefixIcon: Icon(Icons.search_rounded, size: 20),
                 ),
-                onChanged: (v) => setState(() => _q = v.trim()),
+                onChanged: (v) =>
+                    _searchDebouncer.run(() => setState(() => _q = v.trim())),
               ),
               const SizedBox(height: 10),
               SingleChildScrollView(
