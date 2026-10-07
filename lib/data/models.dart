@@ -581,7 +581,7 @@ enum TxnKind {
   income, // Sale or income.
   expense, // Expense.
   receive, // Payment received from a customer (settlement).
-  refund, // Customer refund; reduces revenue and receivable.
+  refund, // Cash refunded to a customer; reduces revenue and cash, not the balance.
   payablePayment, // Cash paid to settle a supplier/contact payable.
 }
 
@@ -611,9 +611,6 @@ extension TxnKindX on TxnKind {
   };
 
   bool get isProfitKind => this == TxnKind.income || this == TxnKind.expense;
-
-  /// Does this transaction affect the contact’s balance?
-  bool get affectsBalance => this != TxnKind.income && this != TxnKind.expense;
 
   /// Cash direction: +1 inflow, −1 outflow, 0 no effect.
   int get cashDirection => switch (this) {
