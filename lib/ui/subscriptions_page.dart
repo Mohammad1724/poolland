@@ -28,6 +28,7 @@ enum _SubFilter { all, active, soon, expired }
 
 class _SubscriptionsPageState extends State<SubscriptionsPage> {
   final _searchDebouncer = Debouncer();
+  final _searchController = TextEditingController();
   _SubFilter _filter = _SubFilter.all;
   String _q = '';
   bool _filtersOpen = false;
@@ -35,7 +36,29 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
   @override
   void dispose() {
     _searchDebouncer.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    final query = value.trim();
+    _searchDebouncer.cancel();
+    if (query.isEmpty) {
+      if (_q.isNotEmpty) setState(() => _q = '');
+      return;
+    }
+    _searchDebouncer.run(() {
+      if (mounted) setState(() => _q = query);
+    });
+  }
+
+  void _clearSearchAndFilters() {
+    _searchDebouncer.cancel();
+    _searchController.clear();
+    setState(() {
+      _q = '';
+      _filter = _SubFilter.all;
+    });
   }
 
   String get _filterLabel => switch (_filter) {
@@ -51,13 +74,14 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final reminder = repo.settings.reminderDays;
 
+    final query = _q.trim().toLowerCase();
     var list = [...repo.subscriptions];
-    if (_q.isNotEmpty) {
+    if (query.isNotEmpty) {
       list = list
           .where(
             (s) =>
-                repo.customerName(s.customerId).contains(_q) ||
-                s.planName.contains(_q),
+                repo.customerName(s.customerId).toLowerCase().contains(query) ||
+                s.planName.toLowerCase().contains(query),
           )
           .toList();
     }
@@ -70,6 +94,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
         _SubFilter.expired => st == SubStatus.expired,
       };
     }).toList()..sort((a, b) => a.endDate.compareTo(b.endDate));
+    final isFirstRun = _q.isEmpty && _filter == _SubFilter.all;
 
     int count(_SubFilter f) {
       if (f == _SubFilter.all) return repo.subscriptions.length;
@@ -96,14 +121,10 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
               Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      decoration: const InputDecoration(
-                        hintText: 'Search customers or plans...',
-                        prefixIcon: Icon(Icons.search_rounded, size: 20),
-                      ),
-                      onChanged: (v) => _searchDebouncer.run(
-                        () => setState(() => _q = v.trim()),
-                      ),
+                    child: SearchField(
+                      controller: _searchController,
+                      hint: 'Search customers or plans...',
+                      onChanged: _onSearchChanged,
                     ),
                   ),
                   const SizedBox(width: Insets.sm),
@@ -127,7 +148,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                 ),
               ],
               AnimatedSize(
-                duration: Motion.expand,
+                duration: Motion.adaptive(context, Motion.expand),
                 curve: Curves.easeOut,
                 alignment: Alignment.topCenter,
                 child: _filtersOpen
@@ -169,15 +190,23 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
           child: list.isEmpty
               ? EmptyState(
                   icon: Icons.vpn_key_outlined,
-                  title: 'No subscriptions found'.tr,
-                  text: 'Record a sale to automatically create a customer subscription and expiry date.',
-                  actionLabel: 'Sell a subscription',
-                  onAction: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const SellSubscriptionPage(),
-                    ),
-                  ),
+                  title: isFirstRun
+                      ? 'No subscriptions found'
+                      : 'No items found',
+                  text: isFirstRun
+                      ? 'Record a sale to automatically create a customer subscription and expiry date.'
+                      : 'Try a different search or filter.',
+                  actionLabel: isFirstRun
+                      ? 'Sell a subscription'
+                      : 'Clear search and filters',
+                  onAction: isFirstRun
+                      ? () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SellSubscriptionPage(),
+                          ),
+                        )
+                      : _clearSearchAndFilters,
                 )
               : ListView.separated(
                   controller: widget.controller,

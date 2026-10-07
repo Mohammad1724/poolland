@@ -26,6 +26,7 @@ class TransactionsPage extends StatefulWidget {
 
 class _TransactionsPageState extends State<TransactionsPage> {
   final _searchDebouncer = Debouncer();
+  final _searchController = TextEditingController();
   int _monthOffset = 0; // 0 = current month
   TxnKind? _kind;
   String _q = '';
@@ -34,7 +35,30 @@ class _TransactionsPageState extends State<TransactionsPage> {
   @override
   void dispose() {
     _searchDebouncer.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    final query = value.trim().toLowerCase();
+    _searchDebouncer.cancel();
+    if (query.isEmpty) {
+      if (_q.isNotEmpty) setState(() => _q = '');
+      return;
+    }
+    _searchDebouncer.run(() {
+      if (mounted) setState(() => _q = query);
+    });
+  }
+
+  void _clearSearchAndFilters() {
+    _searchDebouncer.cancel();
+    _searchController.clear();
+    context.read<AppRepository>().setScopeFilter(null);
+    setState(() {
+      _q = '';
+      _kind = null;
+    });
   }
 
   /// Number of filters currently narrowing the list (scope + type).
@@ -83,9 +107,9 @@ class _TransactionsPageState extends State<TransactionsPage> {
       list = list
           .where(
             (t) =>
-                t.note.contains(_q) ||
-                repo.customerName(t.customerId).contains(_q) ||
-                repo.categoryName(t.categoryId).contains(_q),
+                t.note.toLowerCase().contains(_q) ||
+                repo.customerName(t.customerId).toLowerCase().contains(_q) ||
+                repo.categoryName(t.categoryId).toLowerCase().contains(_q),
           )
           .toList();
     }
@@ -99,6 +123,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
     // Materialized once so the list below can lazily build only the days that
     // are actually on screen.
     final groupList = groups.entries.toList(growable: false);
+    final hasActiveFilters = _q.isNotEmpty || _activeFilterCount > 0;
 
     return Column(
       children: [
@@ -154,16 +179,10 @@ class _TransactionsPageState extends State<TransactionsPage> {
               Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      decoration: const InputDecoration(
-                        hintText:
-                            'Search descriptions, customers, and categories...',
-                        prefixIcon: Icon(Icons.search_rounded, size: 20),
-                        isDense: true,
-                      ),
-                      onChanged: (v) => _searchDebouncer.run(
-                        () => setState(() => _q = v.trim()),
-                      ),
+                    child: SearchField(
+                      controller: _searchController,
+                      hint: 'Search descriptions, customers, and categories...',
+                      onChanged: _onSearchChanged,
                     ),
                   ),
                   const SizedBox(width: Insets.sm),
@@ -202,7 +221,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                 ),
               ],
               AnimatedSize(
-                duration: Motion.expand,
+                duration: Motion.adaptive(context, Motion.expand),
                 curve: Curves.easeOut,
                 alignment: Alignment.topCenter,
                 child: _filtersOpen
@@ -285,10 +304,18 @@ class _TransactionsPageState extends State<TransactionsPage> {
         const SizedBox(height: 8),
         Expanded(
           child: list.isEmpty
-              ? const EmptyState(
+              ? EmptyState(
                   icon: Icons.receipt_long_outlined,
-                  title: 'No transactions this month',
-                  text: 'Tap + to record a sale, receipt, or expense.',
+                  title: hasActiveFilters
+                      ? 'No items found'
+                      : 'No transactions this month',
+                  text: hasActiveFilters
+                      ? 'Try a different search or filter.'
+                      : 'Tap + to record a sale, receipt, or expense.',
+                  actionLabel: hasActiveFilters
+                      ? 'Clear search and filters'
+                      : null,
+                  onAction: hasActiveFilters ? _clearSearchAndFilters : null,
                 )
               : ListView.builder(
                   controller: widget.controller,

@@ -45,6 +45,14 @@ class AppLocalization {
     'Delete': 'حذف',
     'Close': 'بستن',
     'Search': 'جست‌وجو',
+    'Search name or phone...': 'جست‌وجوی نام یا شمارهٔ تلفن…',
+    'Search customers or plans...': 'جست‌وجوی مشتری یا طرح…',
+    'Search descriptions, customers, and categories...':
+        'جست‌وجوی شرح، مشتری و دسته‌بندی…',
+    'Clear search': 'پاک‌کردن جست‌وجو',
+    'Clear search and filters': 'پاک‌کردن جست‌وجو و فیلترها',
+    'Try a different search or filter.':
+        'عبارت جست‌وجو یا فیلتر دیگری را امتحان کنید.',
     'Done': 'انجام شد',
     'Confirm': 'تأیید',
     'Continue': 'ادامه',
@@ -155,11 +163,25 @@ class AppLocalization {
     'Archived': 'بایگانی‌شده',
     'Expiring soon': 'در آستانهٔ انقضا',
     'Expired': 'منقضی‌شده',
+    'No customers yet': 'هنوز مشتری‌ای ثبت نشده است',
+    'No active customers': 'مشتری فعالی وجود ندارد',
+    'All saved customers are archived.': 'همهٔ مشتریان ذخیره‌شده بایگانی شده‌اند.',
+    'Add customer': 'افزودن مشتری',
+    'Add each customer once to keep their sales, balances, and renewals together.':
+        'هر مشتری را یک‌بار ثبت کنید تا فروش‌ها، مانده‌حساب و تمدیدهایش '
+        'یک‌جا بماند',
     'No subscriptions found': 'اشتراکی پیدا نشد',
+    'Record a sale to automatically create a customer subscription and expiry date.':
+        'با ثبت فروش، اشتراک مشتری و تاریخ انقضای آن به‌طور خودکار '
+        'ساخته می‌شود.',
     'No subscriptions recorded yet.': 'هنوز اشتراکی ثبت نشده است.',
     'No transactions yet': 'هنوز تراکنشی ثبت نشده است',
     'No transactions recorded.': 'تراکنشی ثبت نشده است.',
     'No transactions this month': 'این ماه تراکنشی ثبت نشده است',
+    'No transactions in this view': 'در این نما تراکنشی نیست',
+    'Change the account filter or show all transactions.':
+        'فیلتر حساب را تغییر دهید یا همهٔ تراکنش‌ها را ببینید.',
+    'Show all transactions': 'نمایش همهٔ تراکنش‌ها',
     'Nothing recorded yet. Start with the buttons above.':
         'هنوز چیزی ثبت نشده است. از دکمه‌های بالا شروع کنید.',
     'Get started': 'شروع کنید',
@@ -704,6 +726,8 @@ class AppLocalization {
     'Business transactions': 'تراکنش‌های کسب‌وکار',
     'Filter': 'فیلتر',
     'Filters': 'فیلترها',
+    'Active filters: {count}': '{count} فیلتر فعال',
+    'Clear filter: {filter}': 'پاک‌کردن فیلتر «{filter}»',
     'Scope': 'بخش',
     'Reset': 'بازنشانی',
     'Show details': 'نمایش جزئیات',

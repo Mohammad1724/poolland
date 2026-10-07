@@ -43,6 +43,7 @@ class DashboardPage extends StatelessWidget {
                 : repo.transactions.where((t) => t.scope == repo.scopeFilter))
             .take(5)
             .toList();
+    final hasNoTransactions = repo.transactions.isEmpty;
     final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return ListView(
@@ -86,24 +87,20 @@ class DashboardPage extends StatelessWidget {
         const SizedBox(height: 14),
 
         // Scope filter (all / business / personal)
-        Row(
+        Wrap(
+          spacing: Insets.sm,
+          runSpacing: Insets.sm,
           children: [
             for (final opt in <TxnScope?>[
               null,
               TxnScope.business,
               TxnScope.personal,
             ])
-              Padding(
-                padding: const EdgeInsetsDirectional.only(start: 6),
-                child: ChoiceChip(
-                  selected: repo.scopeFilter == opt,
-                  showCheckmark: false,
-                  onSelected: (_) => repo.setScopeFilter(opt),
-                  label: Text(
-                    opt == null ? 'All'.tr : opt.label,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
+              ChoiceChip(
+                selected: repo.scopeFilter == opt,
+                showCheckmark: false,
+                onSelected: (_) => repo.setScopeFilter(opt),
+                label: Text(opt == null ? 'All'.tr : opt.label),
               ),
           ],
         ),
@@ -553,10 +550,21 @@ class DashboardPage extends StatelessWidget {
           onAction: () => onNavigate(4),
         ),
         if (recent.isEmpty)
-          const EmptyState(
+          EmptyState(
             icon: Icons.receipt_long_outlined,
-            title: 'No transactions yet',
-            text: 'Tap + to record your first sale or expense.',
+            title: hasNoTransactions
+                ? 'No transactions yet'
+                : 'No transactions in this view',
+            text: hasNoTransactions
+                ? 'Tap + to record your first sale or expense.'
+                : 'Change the account filter or show all transactions.',
+            actionLabel: hasNoTransactions ? null : 'Show all transactions',
+            onAction: hasNoTransactions
+                ? null
+                : () {
+                    repo.setScopeFilter(null);
+                    onNavigate(4);
+                  },
           )
         else
           Card(

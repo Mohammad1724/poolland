@@ -30,6 +30,13 @@ void main() {
         ),
         greaterThanOrEqualTo(4.5),
       );
+      expect(
+        _contrast(
+          theme.inputDecorationTheme.hintStyle!.color!,
+          theme.inputDecorationTheme.fillColor!,
+        ),
+        greaterThanOrEqualTo(4.5),
+      );
     }
   });
 }

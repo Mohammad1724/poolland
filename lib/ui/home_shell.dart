@@ -129,11 +129,12 @@ class _HomeShellState extends State<HomeShell> {
       _fabVisible.value = true;
       return;
     }
-    controller.animateTo(
-      0,
-      duration: Motion.quick,
-      curve: Curves.easeOut,
-    );
+    final duration = Motion.adaptive(context, Motion.quick);
+    if (duration == Duration.zero) {
+      controller.jumpTo(0);
+    } else {
+      controller.animateTo(0, duration: duration, curve: Curves.easeOut);
+    }
     _fabVisible.value = true;
   }
 
@@ -141,6 +142,12 @@ class _HomeShellState extends State<HomeShell> {
   /// scrolling up. Scroll notifications bubble up from whichever list is
   /// currently visible, so no page has to know about this.
   bool _handleScroll(ScrollNotification notification) {
+    // Hiding a persistent action while a screen reader or switch-access user
+    // explores the list makes that action difficult to discover and reach.
+    if (MediaQuery.maybeOf(context)?.accessibleNavigation ?? false) {
+      if (!_fabVisible.value) _fabVisible.value = true;
+      return false;
+    }
     if (notification is ScrollUpdateNotification) {
       final delta = notification.scrollDelta ?? 0;
       if (delta > 4 && _fabVisible.value) {
@@ -593,12 +600,19 @@ class _HomeShellState extends State<HomeShell> {
             // stops covering the last rows of long pages.
             : ValueListenableBuilder<bool>(
                 valueListenable: _fabVisible,
-                builder: (context, visible, _) => AnimatedSlide(
-                  offset: visible ? Offset.zero : const Offset(0, 2.5),
-                  duration: Motion.quick,
-                  curve: Curves.easeOut,
-                  child: _buildFab(),
-                ),
+                builder: (context, visible, _) {
+                  final accessibleNavigation =
+                      MediaQuery.maybeOf(context)?.accessibleNavigation ??
+                      false;
+                  return AnimatedSlide(
+                    offset: visible || accessibleNavigation
+                        ? Offset.zero
+                        : const Offset(0, 2.5),
+                    duration: Motion.adaptive(context, Motion.quick),
+                    curve: Curves.easeOut,
+                    child: _buildFab(),
+                  );
+                },
               ),
         bottomNavigationBar: isWide
             ? null

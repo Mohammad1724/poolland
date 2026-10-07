@@ -31,6 +31,7 @@ enum _Filter { all, debtors, creditors }
 
 class _CustomersPageState extends State<CustomersPage> {
   final _searchDebouncer = Debouncer();
+  final _searchController = TextEditingController();
   String _q = '';
   _Filter _filter = _Filter.all;
   bool _filtersOpen = false;
@@ -38,7 +39,29 @@ class _CustomersPageState extends State<CustomersPage> {
   @override
   void dispose() {
     _searchDebouncer.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    final query = value.trim();
+    _searchDebouncer.cancel();
+    if (query.isEmpty) {
+      if (_q.isNotEmpty) setState(() => _q = '');
+      return;
+    }
+    _searchDebouncer.run(() {
+      if (mounted) setState(() => _q = query);
+    });
+  }
+
+  void _clearSearchAndFilters() {
+    _searchDebouncer.cancel();
+    _searchController.clear();
+    setState(() {
+      _q = '';
+      _filter = _Filter.all;
+    });
   }
 
   String get _filterLabel => switch (_filter) {
@@ -53,15 +76,20 @@ class _CustomersPageState extends State<CustomersPage> {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final balances = repo.balancesMap();
 
-    final query = _q.trim().toLowerCase();
+    final query = Fmt.normalizeDigits(_q.trim().toLowerCase());
     final queryDigits = query.replaceAll(RegExp(r'[^0-9]'), '');
+    final isPhoneQuery = RegExp(r'^[0-9\s()+./-]+$').hasMatch(query);
     final matchingCustomers = repo.activeCustomers.where((c) {
       if (query.isEmpty) return true;
       final matchesName = c.name.toLowerCase().contains(query);
-      final normalizedPhone = c.phone.replaceAll(RegExp(r'[^0-9]'), '');
+      final normalizedPhone = Fmt.normalizeDigits(
+        c.phone,
+      ).replaceAll(RegExp(r'[^0-9]'), '');
       final matchesPhone =
-          c.phone.toLowerCase().contains(query) ||
-          (queryDigits.isNotEmpty && normalizedPhone.contains(queryDigits));
+          Fmt.normalizeDigits(c.phone.toLowerCase()).contains(query) ||
+          (isPhoneQuery &&
+              queryDigits.isNotEmpty &&
+              normalizedPhone.contains(queryDigits));
       return matchesName || matchesPhone;
     }).toList();
     var list = matchingCustomers;
@@ -72,6 +100,16 @@ class _CustomersPageState extends State<CustomersPage> {
       list = list.where((c) => (balances[c.id] ?? 0) < -0.5).toList()
         ..sort((a, b) => (balances[a.id] ?? 0).compareTo(balances[b.id] ?? 0));
     }
+    final isInitialEmpty = _q.isEmpty && _filter == _Filter.all;
+    final noSavedCustomers = repo.customers.isEmpty;
+    final emptyTitle = isInitialEmpty
+        ? (noSavedCustomers ? 'No customers yet' : 'No active customers')
+        : 'No items found';
+    final emptyText = isInitialEmpty
+        ? (noSavedCustomers
+              ? 'Add each customer once to keep their sales, balances, and renewals together.'
+              : 'All saved customers are archived.')
+        : 'Try a different search or filter.';
 
     return Column(
       children: [
@@ -82,17 +120,10 @@ class _CustomersPageState extends State<CustomersPage> {
               Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      decoration: const InputDecoration(
-                        hintText: 'Search name or phone...',
-                        prefixIcon: Icon(Icons.search_rounded, size: 20),
-                      ),
-                      // Filtering waits for a short pause in typing; the field
-                      // itself still echoes every keystroke, so nothing feels
-                      // laggy.
-                      onChanged: (v) => _searchDebouncer.run(
-                        () => setState(() => _q = v.trim()),
-                      ),
+                    child: SearchField(
+                      controller: _searchController,
+                      hint: 'Search name or phone...',
+                      onChanged: _onSearchChanged,
                     ),
                   ),
                   const SizedBox(width: Insets.sm),
@@ -116,7 +147,7 @@ class _CustomersPageState extends State<CustomersPage> {
                 ),
               ],
               AnimatedSize(
-                duration: Motion.expand,
+                duration: Motion.adaptive(context, Motion.expand),
                 curve: Curves.easeOut,
                 alignment: Alignment.topCenter,
                 child: _filtersOpen
@@ -145,19 +176,19 @@ class _CustomersPageState extends State<CustomersPage> {
           child: list.isEmpty
               ? EmptyState(
                   icon: Icons.people_outline_rounded,
-                  title: _q.isEmpty ? 'No customers yet' : 'No items found',
-                  text: _q.isEmpty
-                      ? 'Add each customer once to keep their sales, balances, and renewals together.'
-                      : 'Try a different search.',
-                  actionLabel: _q.isEmpty ? 'Add customer' : null,
-                  onAction: _q.isEmpty
+                  title: emptyTitle,
+                  text: emptyText,
+                  actionLabel: isInitialEmpty
+                      ? 'Add customer'
+                      : 'Clear search and filters',
+                  onAction: isInitialEmpty
                       ? () => Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => const ContactEditPage(),
                           ),
                         )
-                      : null,
+                      : _clearSearchAndFilters,
                 )
               : ListView.separated(
                   controller: widget.controller,

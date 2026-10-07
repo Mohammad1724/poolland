@@ -34,11 +34,12 @@ class AppTheme {
       useMaterial3: true,
       fontFamily: 'Vazirmatn',
       visualDensity: VisualDensity.standard,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
       colorScheme: scheme,
       textTheme: const TextTheme(
-        bodyMedium: TextStyle(fontSize: 14, height: 1.45),
-        bodySmall: TextStyle(fontSize: 12.5, height: 1.45),
-        titleMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        bodyMedium: TextStyle(fontSize: 14.5, height: 1.5),
+        bodySmall: TextStyle(fontSize: 13, height: 1.5),
+        titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
       ),
       scaffoldBackgroundColor: bg,
       cardColor: card,
@@ -74,11 +75,18 @@ class AppTheme {
         labelTextStyle: WidgetStateProperty.all(
           const TextStyle(
             fontFamily: 'Vazirmatn',
-            fontSize: 11.5,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
         ),
-        height: 72,
+        height: 80,
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.all(12),
+          tapTargetSize: MaterialTapTargetSize.padded,
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -103,11 +111,11 @@ class AppTheme {
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: seed, width: 1.8),
         ),
-        labelStyle: const TextStyle(fontFamily: 'Vazirmatn', fontSize: 13),
+        labelStyle: const TextStyle(fontFamily: 'Vazirmatn', fontSize: 14),
         hintStyle: TextStyle(
           fontFamily: 'Vazirmatn',
-          fontSize: 13,
-          color: scheme.onSurface.withValues(alpha: 0.45),
+          fontSize: 14,
+          color: scheme.onSurfaceVariant,
         ),
       ),
       chipTheme: ChipThemeData(
@@ -116,12 +124,12 @@ class AppTheme {
         secondarySelectedColor: scheme.primaryContainer,
         labelStyle: TextStyle(
           fontFamily: 'Vazirmatn',
-          fontSize: 12,
+          fontSize: 13,
           color: scheme.onSurface,
         ),
         secondaryLabelStyle: TextStyle(
           fontFamily: 'Vazirmatn',
-          fontSize: 12,
+          fontSize: 13,
           color: scheme.onPrimaryContainer,
         ),
         checkmarkColor: scheme.onPrimaryContainer,
@@ -143,7 +151,7 @@ class AppTheme {
             : const Color(0xFF1F2937),
         contentTextStyle: const TextStyle(
           fontFamily: 'Vazirmatn',
-          fontSize: 13,
+          fontSize: 14,
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -194,7 +202,7 @@ class AppTheme {
         ),
         subtitleTextStyle: TextStyle(
           fontFamily: 'Vazirmatn',
-          fontSize: 12,
+          fontSize: 13,
           color: scheme.onSurfaceVariant,
         ),
       ),
@@ -208,7 +216,7 @@ class AppTheme {
         ),
         contentTextStyle: TextStyle(
           fontFamily: 'Vazirmatn',
-          fontSize: 13,
+          fontSize: 14,
           color: scheme.onSurface,
         ),
       ),
@@ -230,7 +238,7 @@ class AppTheme {
           textStyle: WidgetStateProperty.all(
             const TextStyle(
               fontFamily: 'Vazirmatn',
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
           ),

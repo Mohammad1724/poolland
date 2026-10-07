@@ -36,6 +36,13 @@ void main() {
     });
   });
 
+  group('Fmt.normalizeDigits', () {
+    test('converts Persian and Arabic-Indic phone digits to Latin', () {
+      expect(Fmt.normalizeDigits('۰۹۱۲٣٤٥'), '0912345');
+      expect(Fmt.normalizeDigits('text 123'), 'text 123');
+    });
+  });
+
   group('Fmt.money', () {
     test('appends the currency symbol', () {
       expect(Fmt.money(1500000), '1,500,000 Toman');

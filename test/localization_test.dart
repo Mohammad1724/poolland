@@ -26,6 +26,20 @@ void main() {
     expect(Fmt.weekDayName(1), 'شنبه');
   });
 
+  test('search and empty-state actions are translated', () {
+    AppLocalization.languageCode = 'fa';
+    expect('Search name or phone...'.tr, 'جست‌وجوی نام یا شمارهٔ تلفن…');
+    expect('Clear search'.tr, 'پاک‌کردن جست‌وجو');
+    expect(
+      'Clear search and filters'.tr,
+      'پاک‌کردن جست‌وجو و فیلترها',
+    );
+    expect(
+      'Clear filter: {filter}'.trArgs({'filter': 'بدهکاران'}),
+      'پاک‌کردن فیلتر «بدهکاران»',
+    );
+  });
+
   test('English can be selected and is restored from settings', () {
     AppLocalization.languageCode = 'en';
     expect('Dashboard'.tr, 'Dashboard');

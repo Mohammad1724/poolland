@@ -2,22 +2,21 @@ import 'package:flutter/widgets.dart';
 
 /// Shared layout and typography tokens.
 ///
-/// The UI grew page by page, so paddings (6/8/10/12/14) and font sizes
-/// (11/11.5/12/12.5/13/13.5) drifted apart. New and edited screens use these
-/// tokens instead of hard-coded numbers, which keeps spacing and text
-/// hierarchy consistent without changing the look from one release to the
-/// next. The values are the ones the app already uses most often.
+/// Shared tokens keep spacing, type, and tap targets predictable across the
+/// app. The scale uses a four-point spacing rhythm and readable defaults; dense
+/// data can still opt into a smaller label when it is genuinely secondary.
 class Insets {
   Insets._();
 
   static const double xxs = 2;
   static const double xs = 4;
-  static const double sm = 6;
-  static const double md = 10;
+  static const double sm = 8;
+  static const double md = 12;
   static const double lg = 16;
+  static const double xl = 24;
 
   /// Horizontal page padding used by every scrollable list.
-  static const EdgeInsets page = EdgeInsets.fromLTRB(16, 6, 16, 100);
+  static const EdgeInsets page = EdgeInsets.fromLTRB(16, 8, 16, 100);
 
   /// Bottom padding for scrollable pages so the floating action button never
   /// covers the last row.
@@ -29,25 +28,25 @@ class FontSizes {
   FontSizes._();
 
   /// Smallest labels: helper text under a field, dense badges.
-  static const double micro = 11;
+  static const double micro = 12;
 
   /// Secondary text: subtitles, list metadata.
-  static const double caption = 11.5;
+  static const double caption = 12;
 
   /// Small body text.
-  static const double small = 12;
+  static const double small = 13;
 
   /// Default body text.
-  static const double body = 13.5;
+  static const double body = 14;
 
   /// Section titles and card headers.
-  static const double title = 14;
+  static const double title = 15;
 
   /// Prominent values inside cards.
-  static const double value = 15;
+  static const double value = 16;
 
   /// Screen and hero titles.
-  static const double headline = 17;
+  static const double headline = 19;
 }
 
 /// Corner radii for cards, sheets, and fields.
@@ -85,4 +84,11 @@ class Motion {
 
   /// Small state changes such as a floating action button sliding away.
   static const Duration quick = Duration(milliseconds: 200);
+
+  /// Respect the operating system's reduced-motion preference.
+  static Duration adaptive(BuildContext context, Duration duration) {
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    return reduceMotion ? Duration.zero : duration;
+  }
 }
