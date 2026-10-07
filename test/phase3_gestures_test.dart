@@ -117,6 +117,14 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Which way the payment sheet opened: true is money coming in, false is
+  /// money going out. Both labels are always on screen, so the selection is
+  /// what says whether the swipe picked the right one.
+  bool sheetIsReceive(WidgetTester tester) => tester
+      .widget<SegmentedButton<bool>>(find.byType(SegmentedButton<bool>))
+      .selected
+      .single;
+
   /// Closes the modal sheet that a swipe opened, the way backing out of it
   /// does. Popping the route is used instead of tapping above the sheet so the
   /// test does not depend on where the sheet happens to end on screen.
@@ -139,6 +147,7 @@ void main() {
       await tester.drag(find.byType(Dismissible).first, const Offset(260, 0));
       await tester.pumpAndSettle();
       expect(find.text('Receive from customer'), findsOneWidget);
+      expect(sheetIsReceive(tester), isTrue);
 
       await closeSheet(tester);
       expect(
@@ -151,6 +160,7 @@ void main() {
       await tester.drag(find.byType(Dismissible).first, const Offset(-260, 0));
       await tester.pumpAndSettle();
       expect(find.text('Pay customer'), findsOneWidget);
+      expect(sheetIsReceive(tester), isFalse);
 
       await closeSheet(tester);
 

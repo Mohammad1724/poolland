@@ -185,7 +185,10 @@ class _CustomersPageState extends State<CustomersPage> {
                       // A shortcut, not a full dismiss: a short swipe is
                       // enough, because the row is not going anywhere.
                       dismissThresholds: const {
-                        DismissDirection.horizontal: 0.25,
+                        // The keys are the resolved directions, not
+                        // [DismissDirection.horizontal].
+                        DismissDirection.startToEnd: 0.25,
+                        DismissDirection.endToStart: 0.25,
                       },
                       background: SwipeHint(
                         icon: Icons.south_west_rounded,

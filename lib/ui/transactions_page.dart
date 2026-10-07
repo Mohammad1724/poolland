@@ -355,7 +355,10 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                   ),
                                   direction: DismissDirection.horizontal,
                                   dismissThresholds: const {
-                                    DismissDirection.horizontal: 0.25,
+                                    // Resolved directions, not
+                                    // [DismissDirection.horizontal].
+                                    DismissDirection.startToEnd: 0.25,
+                                    DismissDirection.endToStart: 0.25,
                                   },
                                   background: SwipeHint(
                                     icon: Icons.edit_rounded,
