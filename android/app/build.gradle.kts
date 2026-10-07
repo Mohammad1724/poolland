@@ -53,6 +53,16 @@ if (keystorePath != null && resolvedKeystore == null) {
     )
 }
 
+// Warn once here at configuration time rather than inside the buildTypes
+// block, where `logger` would have to resolve through the AGP DSL receiver.
+if (!hasReleaseSigning) {
+    logger.warn(
+        "poolland: no release keystore found, signing with the debug key. " +
+            "This APK cannot be upgraded in place by users or published. " +
+            "See android/key.properties.example."
+    )
+}
+
 android {
     namespace = "com.poolland.app"
     compileSdk = 36
@@ -92,16 +102,9 @@ android {
 
     buildTypes {
         release {
-            signingConfig = if (hasReleaseSigning) {
-                signingConfigs.getByName("release")
-            } else {
-                logger.warn(
-                    "poolland: no release keystore found, signing with the debug key. " +
-                        "This APK cannot be upgraded in place by users or published. " +
-                        "See android/key.properties.example."
-                )
-                signingConfigs.getByName("debug")
-            }
+            signingConfig = signingConfigs.getByName(
+                if (hasReleaseSigning) "release" else "debug"
+            )
         }
     }
 }
