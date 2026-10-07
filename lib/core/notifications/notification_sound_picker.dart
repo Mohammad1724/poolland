@@ -45,26 +45,32 @@ class NotificationSoundPicker {
   /// Selects an audio file and copies it into Android's notification media
   /// collection so the notification service can keep reading it later.
   static Future<NotificationSoundChoice?> pickAudioFile() async {
-    final selection = await FilePicker.pickFiles(
-      type: FileType.audio,
-      allowMultiple: false,
-      withData: true,
-    );
-    if (selection == null || selection.files.isEmpty) return null;
+    final file = await FilePicker.pickFile(type: FileType.audio);
+    if (file == null) return null;
 
-    final file = selection.files.single;
     final extension = (file.extension ?? '').toLowerCase();
     if (!_supportedExtensions.contains(extension)) {
       throw const FormatException('Unsupported notification sound format.');
     }
-    if (file.size <= 0 || file.size > _maxFileBytes) {
+
+    // `lengthSync()` is free when the platform picker already reported a size;
+    // otherwise fall back to `length()`, and finally to the bytes themselves.
+    final reportedSize = file.lengthSync() ?? await file.length();
+    if (reportedSize != null &&
+        (reportedSize <= 0 || reportedSize > _maxFileBytes)) {
       throw const FormatException(
         'Notification sound files must be 10 MB or smaller.',
       );
     }
-    final bytes = file.bytes;
-    if (bytes == null || bytes.isEmpty) {
+
+    final bytes = await file.readAsBytes();
+    if (bytes.isEmpty) {
       throw const FormatException('Could not read the selected audio file.');
+    }
+    if (bytes.length > _maxFileBytes) {
+      throw const FormatException(
+        'Notification sound files must be 10 MB or smaller.',
+      );
     }
 
     final imported = await _channel.invokeMapMethod<String, dynamic>(

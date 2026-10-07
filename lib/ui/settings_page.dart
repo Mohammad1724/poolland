@@ -56,7 +56,7 @@ Future<void> _selectNotificationSound(
   } catch (error) {
     if (!context.mounted) return;
     final message = error is FormatException
-        ? '${error.message}'.tr
+        ? error.message.tr
         : 'Could not set notification sound'.tr;
     showSnack(context, message, error: true);
   }
