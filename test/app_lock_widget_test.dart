@@ -19,11 +19,6 @@ void main() {
   late AppRepository repo;
 
   setUp(() async {
-    // A tall surface so the keypad plus the buttons below it are never
-    // scrolled out of reach of tester.tap.
-    await TestWidgetsFlutterBinding.ensureInitialized().setSurfaceSize(
-      const Size(600, 1200),
-    );
     AppLocalization.languageCode = 'en';
     tmp = await Directory.systemTemp.createTemp('poolland_lock');
     store = await LocalStore.openAt(tmp.path);
@@ -32,7 +27,6 @@ void main() {
   });
 
   tearDown(() async {
-    await TestWidgetsFlutterBinding.ensureInitialized().setSurfaceSize(null);
     AppLocalization.languageCode = 'fa';
     await store.close();
     await tmp.delete(recursive: true);
@@ -71,10 +65,19 @@ void main() {
       )
       .visible;
 
+  /// Pump on a tall surface so the keypad and the button below it are never
+  /// scrolled out of reach of tester.tap.
+  Future<void> pumpApp(WidgetTester tester, Widget child) async {
+    tester.view.physicalSize = const Size(600, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(wrap(child));
+  }
+
   /// Put [child] on a pushed route, the way Settings opens it, so the page
   /// can pop itself without tearing down the only route in the test.
   Future<void> pumpPushed(WidgetTester tester, Widget child) async {
-    await tester.pumpWidget(wrap(_RouteHost(child: child)));
+    await pumpApp(tester, _RouteHost(child: child));
     await tester.pumpAndSettle();
   }
 
@@ -88,9 +91,7 @@ void main() {
 
   group('AppLockGate', () {
     testWidgets('Shows the app directly when no PIN is set', (tester) async {
-      await tester.pumpWidget(
-        wrap(const AppLockGate(child: Text('secret dashboard'))),
-      );
+      await pumpApp(tester, const AppLockGate(child: Text('secret dashboard')));
 
       expect(find.text('secret dashboard'), findsOneWidget);
       expect(find.byType(LockScreen), findsNothing);
@@ -101,9 +102,7 @@ void main() {
     ) async {
       await repo.setPin('2468');
 
-      await tester.pumpWidget(
-        wrap(const AppLockGate(child: Text('secret dashboard'))),
-      );
+      await pumpApp(tester, const AppLockGate(child: Text('secret dashboard')));
 
       expect(find.byType(LockScreen), findsOneWidget);
       expect(appContentVisible(tester), isFalse);
@@ -113,9 +112,7 @@ void main() {
       tester,
     ) async {
       await repo.setPin('2468');
-      await tester.pumpWidget(
-        wrap(const AppLockGate(child: Text('secret dashboard'))),
-      );
+      await pumpApp(tester, const AppLockGate(child: Text('secret dashboard')));
 
       await typePin(tester, '1111');
       await tester.tap(find.text('Unlock'));
@@ -128,9 +125,7 @@ void main() {
 
     testWidgets('The right PIN reveals the app', (tester) async {
       await repo.setPin('2468');
-      await tester.pumpWidget(
-        wrap(const AppLockGate(child: Text('secret dashboard'))),
-      );
+      await pumpApp(tester, const AppLockGate(child: Text('secret dashboard')));
 
       await typePin(tester, '2468');
       await tester.tap(find.text('Unlock'));
@@ -143,9 +138,7 @@ void main() {
     testWidgets('Turning the lock on mid-session does not lock you out', (
       tester,
     ) async {
-      await tester.pumpWidget(
-        wrap(const AppLockGate(child: Text('secret dashboard'))),
-      );
+      await pumpApp(tester, const AppLockGate(child: Text('secret dashboard')));
       expect(appContentVisible(tester), isTrue);
 
       // Exactly what the Settings switch does.
