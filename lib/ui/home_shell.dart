@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/haptics.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 import 'customers_page.dart';
@@ -65,7 +66,10 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
-  void _goTo(int i) => setState(() => _index = i);
+  void _goTo(int i) {
+    Haptics.selection();
+    setState(() => _index = i);
+  }
 
   Future<void> _personalAdd() async {
     final choice = await showModalBottomSheet<String>(
@@ -467,8 +471,10 @@ class _HomeShellState extends State<HomeShell> {
             : NavigationBar(
                 selectedIndex: _index,
                 onDestinationSelected: _goTo,
+                // Labels stay visible at all times: with five look-alike
+                // icons, the text is what users actually scan for.
                 labelBehavior:
-                    NavigationDestinationLabelBehavior.onlyShowSelected,
+                    NavigationDestinationLabelBehavior.alwaysShow,
                 destinations: [
                   NavigationDestination(
                     icon: const Icon(Icons.person_outline_rounded),

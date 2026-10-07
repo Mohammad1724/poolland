@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/format_utils.dart';
+import '../../core/haptics.dart';
 import '../../core/jalali_utils.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
@@ -143,7 +144,13 @@ class FormPageContent extends StatelessWidget {
 
 /// A persistent save action for long mobile forms. Keeping the primary action
 /// visible avoids scrolling back to the end of a form after editing fields.
-class FormActionBar extends StatelessWidget {
+///
+/// The bar also owns the saving feedback: while [onPressed] is running the
+/// button shows a spinner and its label switches to “Saving…”. Taps during
+/// that window are ignored, so a nervous double-tap cannot record the same
+/// entry twice. If the callback throws, a red snackbar reports the failure
+/// instead of silently swallowing it.
+class FormActionBar extends StatefulWidget {
   const FormActionBar({
     super.key,
     required this.label,
@@ -152,8 +159,38 @@ class FormActionBar extends StatelessWidget {
   });
 
   final String label;
-  final VoidCallback? onPressed;
+  final Future<void> Function()? onPressed;
   final IconData icon;
+
+  @override
+  State<FormActionBar> createState() => _FormActionBarState();
+}
+
+class _FormActionBarState extends State<FormActionBar> {
+  bool _busy = false;
+
+  Future<void> _handleTap() async {
+    final action = widget.onPressed;
+    // Ignore taps while a save is already in flight (double-tap guard).
+    if (_busy || action == null) return;
+    Haptics.confirm();
+    // Resolved before the await so nothing below reads the BuildContext.
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      await action();
+    } catch (_) {
+      showMessengerSnack(
+        messenger,
+        'Saving failed. Please try again.',
+        error: true,
+      );
+    } finally {
+      // The page usually pops itself after a successful save, so this state
+      // may already be disposed by the time the future completes.
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -170,9 +207,15 @@ class FormActionBar extends StatelessWidget {
           child: SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: onPressed,
-              icon: Icon(icon),
-              label: Text(label.tr),
+              onPressed: widget.onPressed == null ? null : _handleTap,
+              icon: _busy
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(widget.icon),
+              label: Text((_busy ? 'Saving…' : widget.label).tr),
             ),
           ),
         ),
@@ -312,6 +355,7 @@ class AmountField extends StatelessWidget {
     this.autofocus = false,
     this.validator,
     this.onChanged,
+    this.livePreview = true,
   });
 
   final TextEditingController controller;
@@ -321,10 +365,15 @@ class AmountField extends StatelessWidget {
   final String? Function(String?)? validator;
   final VoidCallback? onChanged;
 
+  /// Shows a live, grouped preview of the entered amount below the field
+  /// (e.g. typing `1500000` renders `= 1,500,000 Toman` while typing),
+  /// so users always see the value that will actually be saved.
+  final bool livePreview;
+
   @override
   Widget build(BuildContext context) {
     final decimals = Money.decimals(currency);
-    return TextFormField(
+    final field = TextFormField(
       controller: controller,
       autofocus: autofocus,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -366,6 +415,43 @@ class AmountField extends StatelessWidget {
         controller.value = TextEditingValue(
           text: s,
           selection: TextSelection.collapsed(offset: s.length),
+        );
+      },
+    );
+
+    if (!livePreview) return field;
+
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) {
+        final parsed = parseAmount(value.text);
+        final preview = value.text.trim().isNotEmpty && parsed > 0
+            ? Money.text(parsed, currency: currency)
+            : null;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            field,
+            AnimatedSize(
+              duration: const Duration(milliseconds: 160),
+              alignment: Alignment.topCenter,
+              child: preview == null
+                  ? const SizedBox(width: double.infinity)
+                  : Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        '= $preview',
+                        textDirection: TextDirection.ltr,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.primary
+                              .withValues(alpha: 0.9),
+                        ),
+                      ),
+                    ),
+            ),
+          ],
         );
       },
     );
@@ -725,7 +811,24 @@ Future<bool> confirmDialog(
 }
 
 void showSnack(BuildContext context, String message, {bool error = false}) {
-  ScaffoldMessenger.of(context)
+  showMessengerSnack(
+    ScaffoldMessenger.of(context),
+    message,
+    error: error,
+  );
+}
+
+/// Same as [showSnack], but for callers that already hold the messenger.
+///
+/// Saving flows resolve the messenger *before* their `await` and then use this
+/// function afterwards, so no `BuildContext` is read once the async work has
+/// started (see `use_build_context_synchronously`).
+void showMessengerSnack(
+  ScaffoldMessengerState messenger,
+  String message, {
+  bool error = false,
+}) {
+  messenger
     ..hideCurrentSnackBar()
     ..showSnackBar(
       SnackBar(

@@ -317,6 +317,7 @@ class AppLocalization {
     'Sample SMS text (optional)': 'متن نمونهٔ پیامک (اختیاری)',
     'Test sample': 'آزمایش نمونه',
     'Saving…': 'در حال ذخیره…',
+    'Saving failed. Please try again.': 'ذخیره ناموفق بود. لطفاً دوباره تلاش کنید.',
     'Save rule': 'ذخیرهٔ قاعده',
     'Matched {bank}: {direction} {amount}.':
         '{bank}: {direction}، مبلغ {amount}.',
