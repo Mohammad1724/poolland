@@ -116,21 +116,30 @@ class QuickChip extends StatelessWidget {
           children: [
             Icon(materialIcon(q.iconCodePoint), size: 17, color: color),
             const SizedBox(width: 7),
-            Text(
-              q.label.tr,
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                color: color,
+            Flexible(
+              child: Text(
+                q.label.tr,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
               ),
             ),
             if (q.hasFixedAmount) ...[
               const SizedBox(width: 6),
-              Text(
-                Money.text(q.amount, compact: true),
-                style: TextStyle(
-                  fontSize: 11,
-                  color: color.withValues(alpha: 0.75),
+              Flexible(
+                child: Text(
+                  Money.text(q.amount, compact: true),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: color.withValues(alpha: 0.75),
+                  ),
                 ),
               ),
             ],

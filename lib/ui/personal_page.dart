@@ -142,15 +142,20 @@ class PersonalPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  MoneyText(
-                    month.profit,
-                    compact: MediaQuery.sizeOf(context).width < 360,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: month.profit >= 0
-                          ? const Color(0xFF16A34A)
-                          : const Color(0xFFE11D48),
+                  Flexible(
+                    child: MoneyText(
+                      month.profit,
+                      compact: compactLayout,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: month.profit >= 0
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFFE11D48),
+                      ),
                     ),
                   ),
                 ],
@@ -583,72 +588,114 @@ class _RecurringTile extends StatelessWidget {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final isIncome = rule.kind == TxnKind.income;
     final color = isIncome ? const Color(0xFF16A34A) : const Color(0xFFE11D48);
+    final compact = MediaQuery.sizeOf(context).width < 360;
     final next = rule.nextDue(DateTime.now());
+    final detail = next == null
+        ? '{period} • {amount}'.trArgs({
+            'period': rule.period.label,
+            'amount': Money.text(rule.amount),
+          })
+        : '{period} • {amount} • Next: {date}'.trArgs({
+            'period': rule.period.label,
+            'amount': Money.text(rule.amount),
+            'date': J.d(next),
+          });
+    final leading = Container(
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Icon(Icons.autorenew_rounded, size: 17, color: color),
+    );
+    final inactiveTag = rule.enabled
+        ? null
+        : TagChip(
+            'Inactive',
+            color: onSurface.withValues(alpha: 0.5),
+            dense: true,
+          );
+    final deleteAction = InkWell(
+      onTap: onDelete,
+      borderRadius: BorderRadius.circular(8),
+      child: Icon(
+        Icons.delete_outline_rounded,
+        size: 17,
+        color: onSurface.withValues(alpha: 0.4),
+      ),
+    );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: CardBox(
         onTap: onEdit,
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(9),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: Icon(Icons.autorenew_rounded, size: 17, color: color),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        child: compact
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    rule.title,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  Row(
+                    children: [
+                      leading,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          rule.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      if (inactiveTag != null) inactiveTag,
+                      const SizedBox(width: 6),
+                      deleteAction,
+                    ],
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 6),
                   Text(
-                    next == null
-                        ? '{period} • {amount}'.trArgs({
-                            'period': rule.period.label,
-                            'amount': Money.text(rule.amount),
-                          })
-                        : '{period} • {amount} • Next: {date}'.trArgs({
-                            'period': rule.period.label,
-                            'amount': Money.text(rule.amount),
-                            'date': J.d(next),
-                          }),
+                    detail,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 11.5,
                       color: onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                 ],
+              )
+            : Row(
+                children: [
+                  leading,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          rule.title,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          detail,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (inactiveTag != null) inactiveTag,
+                  const SizedBox(width: 6),
+                  deleteAction,
+                ],
               ),
-            ),
-            if (!rule.enabled)
-              TagChip(
-                'Inactive',
-                color: onSurface.withValues(alpha: 0.5),
-                dense: true,
-              ),
-            const SizedBox(width: 6),
-            InkWell(
-              onTap: onDelete,
-              borderRadius: BorderRadius.circular(8),
-              child: Icon(
-                Icons.delete_outline_rounded,
-                size: 17,
-                color: onSurface.withValues(alpha: 0.4),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
