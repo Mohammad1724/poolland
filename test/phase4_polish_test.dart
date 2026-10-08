@@ -83,10 +83,39 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   }
 
+  void expectNoFrameworkExceptions(WidgetTester tester, String scenario) {
+    final errors = <Object>[];
+    Object? error;
+    while ((error = tester.takeException()) != null) {
+      errors.add(error!);
+    }
+
+    if (errors.isNotEmpty) {
+      final details = errors.join('\n---\n');
+      final summaryPath = Platform.environment['GITHUB_STEP_SUMMARY'];
+      if (summaryPath != null) {
+        File(summaryPath).writeAsStringSync(
+          '\n### $scenario layout diagnostics\n\n```text\n$details\n```\n',
+          mode: FileMode.append,
+        );
+      }
+      final commandDetails = details
+          .replaceAll('%', '%25')
+          .replaceAll('\r', '%0D')
+          .replaceAll('\n', '%0A');
+      stdout.writeln(
+        '::error title=$scenario layout diagnostics::$commandDetails',
+      );
+    }
+
+    expect(errors, isEmpty, reason: '$scenario framework errors: $errors');
+  }
+
   Future<void> expectCompactLayout(
     WidgetTester tester,
-    Widget page,
-  ) async {
+    Widget page, {
+    required String scenario,
+  }) async {
     tester.view.physicalSize = const Size(320, 700);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -101,7 +130,7 @@ void main() {
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 700));
-    expect(tester.takeException(), isNull);
+    expectNoFrameworkExceptions(tester, scenario);
   }
 
   group('shared search field', () {
@@ -210,7 +239,11 @@ void main() {
     testWidgets('personal ledger fits a narrow screen and larger text', (
       tester,
     ) async {
-      await expectCompactLayout(tester, const PersonalPage());
+      await expectCompactLayout(
+        tester,
+        const PersonalPage(),
+        scenario: 'PersonalPage',
+      );
     });
 
     testWidgets('dashboard fits a narrow screen and larger text', (
@@ -219,25 +252,38 @@ void main() {
       await expectCompactLayout(
         tester,
         DashboardPage(onNavigate: (_) {}),
+        scenario: 'DashboardPage',
       );
     });
 
     testWidgets('customer list fits a narrow screen and larger text', (
       tester,
     ) async {
-      await expectCompactLayout(tester, const CustomersPage());
+      await expectCompactLayout(
+        tester,
+        const CustomersPage(),
+        scenario: 'CustomersPage',
+      );
     });
 
     testWidgets('subscription list fits a narrow screen and larger text', (
       tester,
     ) async {
-      await expectCompactLayout(tester, const SubscriptionsPage());
+      await expectCompactLayout(
+        tester,
+        const SubscriptionsPage(),
+        scenario: 'SubscriptionsPage',
+      );
     });
 
     testWidgets('transaction list fits a narrow screen and larger text', (
       tester,
     ) async {
-      await expectCompactLayout(tester, const TransactionsPage());
+      await expectCompactLayout(
+        tester,
+        const TransactionsPage(),
+        scenario: 'TransactionsPage',
+      );
     });
 
     testWidgets('main navigation fits a narrow Persian phone screen', (
@@ -257,7 +303,7 @@ void main() {
       );
       await settleShell(tester);
       expect(find.byType(NavigationBar), findsOneWidget);
-      expect(tester.takeException(), isNull);
+      expectNoFrameworkExceptions(tester, 'HomeShell navigation');
     });
 
     testWidgets('main navigation switches to a rail on tablet widths', (
