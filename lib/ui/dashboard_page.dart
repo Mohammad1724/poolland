@@ -50,10 +50,18 @@ class DashboardPage extends StatelessWidget {
       controller: controller,
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 100),
       children: [
-        // Welcome message
-        Row(
+        // Welcome message. On narrow phones the subscription badge moves to a
+        // second line instead of squeezing the date and overflowing the row.
+        Wrap(
+          spacing: Insets.sm,
+          runSpacing: Insets.sm,
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Expanded(
+            SizedBox(
+              width: MediaQuery.sizeOf(context).width < 360
+                  ? double.infinity
+                  : null,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -190,16 +198,21 @@ class DashboardPage extends StatelessWidget {
                         : const Color(0xFFE11D48),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    'Profit this month'.tr,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: onSurface.withValues(alpha: 0.7),
+                  Expanded(
+                    child: Text(
+                      'Profit this month'.tr,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: onSurface.withValues(alpha: 0.7),
+                      ),
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   MoneyText(
                     monthSummary.profit,
+                    compact: MediaQuery.sizeOf(context).width < 360,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -601,11 +614,15 @@ class DashboardPage extends StatelessWidget {
           children: [
             Icon(icon, size: 14, color: color),
             const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11.5,
-                color: onSurface.withValues(alpha: 0.65),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: onSurface.withValues(alpha: 0.65),
+                ),
               ),
             ),
           ],
@@ -613,7 +630,7 @@ class DashboardPage extends StatelessWidget {
         const SizedBox(height: 6),
         MoneyText(
           value,
-          compact: false,
+          compact: MediaQuery.sizeOf(context).width < 360,
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,

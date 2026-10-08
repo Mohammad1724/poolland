@@ -619,10 +619,12 @@ class _HomeShellState extends State<HomeShell> {
             : NavigationBar(
                 selectedIndex: _index,
                 onDestinationSelected: _goTo,
-                // Labels stay visible at all times: with five look-alike
-                // icons, the text is what users actually scan for.
-                labelBehavior:
-                    NavigationDestinationLabelBehavior.alwaysShow,
+                // Keep labels visible normally. At very narrow widths the
+                // selected destination keeps its label while the others make
+                // room; their semantic labels remain available to assistive tech.
+                labelBehavior: width < 360
+                    ? NavigationDestinationLabelBehavior.onlyShowSelected
+                    : NavigationDestinationLabelBehavior.alwaysShow,
                 destinations: [
                   NavigationDestination(
                     icon: const Icon(Icons.person_outline_rounded),

@@ -301,17 +301,21 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                                 color: onSurface.withValues(alpha: 0.5),
                               ),
                               const SizedBox(width: 5),
-                              Text(
-                                '{from} to {to}'.trArgs({
-                                  'from': J.d(s.startDate),
-                                  'to': J.d(s.endDate),
-                                }),
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  color: onSurface.withValues(alpha: 0.6),
+                              Expanded(
+                                child: Text(
+                                  '{from} to {to}'.trArgs({
+                                    'from': J.d(s.startDate),
+                                    'to': J.d(s.endDate),
+                                  }),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: onSurface.withValues(alpha: 0.6),
+                                  ),
                                 ),
                               ),
-                              const Spacer(),
+                              const SizedBox(width: 8),
                               TextButton.icon(
                                 onPressed: () => Navigator.push(
                                   context,

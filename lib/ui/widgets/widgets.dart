@@ -74,7 +74,7 @@ class CardBox extends StatelessWidget {
     return Card(
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(Radii.card),
         child: Padding(padding: padding, child: child),
       ),
     );
@@ -986,6 +986,7 @@ class TxnTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
+    final compactAmounts = MediaQuery.sizeOf(context).width < 360;
     final title = txn.note.isNotEmpty ? txn.note : categoryName.tr;
     final sub = <String>[
       J.d(txn.date),
@@ -1013,44 +1014,58 @@ class TxnTile extends StatelessWidget {
           color: onSurfaceVariant,
         ),
       ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            Money.text(
-              txn.amount *
-                  switch (txn.kind) {
-                    TxnKind.income || TxnKind.receive => 1,
-                    TxnKind.expense ||
-                    TxnKind.refund ||
-                    TxnKind.payablePayment => -1,
-                  },
-              currency: txn.currency,
-              signed: false,
-            ),
-            textDirection: TextDirection.ltr,
-            textAlign: TextAlign.end,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: _color,
-            ),
-          ),
-          if (txn.currency != 'IRT' || txn.rateToBase != 1)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                Money.text(txn.amount * txn.rateToBase, withSymbol: false),
-                textDirection: TextDirection.ltr,
-                textAlign: TextAlign.end,
-                style: TextStyle(
-                  fontSize: FontSizes.micro,
-                  color: onSurfaceVariant,
-                ),
+      trailing: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: compactAmounts ? 104 : 160),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              Money.text(
+                txn.amount *
+                    switch (txn.kind) {
+                      TxnKind.income || TxnKind.receive => 1,
+                      TxnKind.expense ||
+                      TxnKind.refund ||
+                      TxnKind.payablePayment => -1,
+                    },
+                currency: txn.currency,
+                signed: false,
+                compact: compactAmounts,
+              ),
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              textDirection: TextDirection.ltr,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: _color,
               ),
             ),
-        ],
+            if (txn.currency != 'IRT' || txn.rateToBase != 1)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  Money.text(
+                    txn.amount * txn.rateToBase,
+                    withSymbol: false,
+                    compact: compactAmounts,
+                  ),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  textDirection: TextDirection.ltr,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    fontSize: FontSizes.micro,
+                    color: onSurfaceVariant,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

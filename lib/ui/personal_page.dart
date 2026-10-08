@@ -55,13 +55,17 @@ class PersonalPage extends StatelessWidget {
                 children: [
                   const Icon(Icons.person_outline_rounded, size: 17),
                   const SizedBox(width: 6),
-                  Text(
-                    'Personal summary — {month}'.trArgs({
-                      'month': J.mLabel(DateTime.now()),
-                    }),
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
+                  Expanded(
+                    child: Text(
+                      'Personal summary — {month}'.trArgs({
+                        'month': J.mLabel(DateTime.now()),
+                      }),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ],
@@ -101,16 +105,21 @@ class PersonalPage extends StatelessWidget {
                 children: [
                   const Icon(Icons.account_balance_wallet_rounded, size: 18),
                   const SizedBox(width: 8),
-                  Text(
-                    'Monthly net'.tr,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: onSurface.withValues(alpha: 0.7),
+                  Expanded(
+                    child: Text(
+                      'Monthly net'.tr,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: onSurface.withValues(alpha: 0.7),
+                      ),
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   MoneyText(
                     month.profit,
+                    compact: MediaQuery.sizeOf(context).width < 360,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -318,12 +327,16 @@ class PersonalPage extends StatelessWidget {
         children: [
           Icon(icon, size: 15, color: color),
           const SizedBox(width: 5),
-          Text(
-            label.tr,
-            style: TextStyle(
-              fontSize: 11.5,
-              color: Theme.of(context).colorScheme.onSurface
-                  .withValues(alpha: 0.6),
+          Expanded(
+            child: Text(
+              label.tr,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                color: Theme.of(context).colorScheme.onSurface
+                    .withValues(alpha: 0.6),
+              ),
             ),
           ),
         ],
@@ -331,6 +344,7 @@ class PersonalPage extends StatelessWidget {
       const SizedBox(height: 5),
       MoneyText(
         value,
+        compact: MediaQuery.sizeOf(context).width < 360,
         style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
       ),
     ],
