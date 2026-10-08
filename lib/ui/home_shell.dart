@@ -161,7 +161,18 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   Widget _buildFab() {
+    final compact = MediaQuery.sizeOf(context).width < 360;
     if (_index == 2) {
+      if (compact) {
+        return FloatingActionButton(
+          tooltip: 'New customer'.tr,
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ContactEditPage()),
+          ),
+          child: const Icon(Icons.person_add_alt_1_rounded),
+        );
+      }
       return FloatingActionButton.extended(
         onPressed: () => Navigator.push(
           context,
@@ -172,6 +183,13 @@ class _HomeShellState extends State<HomeShell> {
       );
     }
     if (_index == 0) {
+      if (compact) {
+        return FloatingActionButton(
+          tooltip: 'Add personal entry'.tr,
+          onPressed: _personalAdd,
+          child: const Icon(Icons.add_rounded),
+        );
+      }
       return FloatingActionButton.extended(
         onPressed: _personalAdd,
         icon: const Icon(Icons.add_rounded),
@@ -179,6 +197,16 @@ class _HomeShellState extends State<HomeShell> {
       );
     }
     if (_index == 3) {
+      if (compact) {
+        return FloatingActionButton(
+          tooltip: 'Sell a subscription'.tr,
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SellSubscriptionPage()),
+          ),
+          child: const Icon(Icons.vpn_key_rounded),
+        );
+      }
       return FloatingActionButton.extended(
         onPressed: () => Navigator.push(
           context,

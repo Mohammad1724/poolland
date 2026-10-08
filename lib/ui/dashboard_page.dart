@@ -45,6 +45,23 @@ class DashboardPage extends StatelessWidget {
             .toList();
     final hasNoTransactions = repo.transactions.isEmpty;
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    final compactLayout = MediaQuery.sizeOf(context).width < 360;
+
+    Widget responsivePair(Widget first, Widget second) => LayoutBuilder(
+      builder: (context, constraints) {
+        final cardWidth = compactLayout
+            ? constraints.maxWidth
+            : (constraints.maxWidth - 10) / 2;
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            SizedBox(width: cardWidth, child: first),
+            SizedBox(width: cardWidth, child: second),
+          ],
+        );
+      },
+    );
 
     return ListView(
       controller: controller,
@@ -158,33 +175,57 @@ class DashboardPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _miniStat(
+              if (compactLayout)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _miniStat(
                       context,
                       'Income received',
                       monthSummary.income,
                       const Color(0xFF16A34A),
                       Icons.trending_up_rounded,
                     ),
-                  ),
-                  Container(
-                    width: 1,
-                    height: 42,
-                    color: Theme.of(context).dividerColor,
-                  ),
-                  Expanded(
-                    child: _miniStat(
+                    const SizedBox(height: 10),
+                    Divider(color: Theme.of(context).dividerColor),
+                    const SizedBox(height: 10),
+                    _miniStat(
                       context,
                       'Expense',
                       monthSummary.expense,
                       const Color(0xFFE11D48),
                       Icons.trending_down_rounded,
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                )
+              else
+                Row(
+                  children: [
+                    Expanded(
+                      child: _miniStat(
+                        context,
+                        'Income received',
+                        monthSummary.income,
+                        const Color(0xFF16A34A),
+                        Icons.trending_up_rounded,
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 42,
+                      color: Theme.of(context).dividerColor,
+                    ),
+                    Expanded(
+                      child: _miniStat(
+                        context,
+                        'Expense',
+                        monthSummary.expense,
+                        const Color(0xFFE11D48),
+                        Icons.trending_down_rounded,
+                      ),
+                    ),
+                  ],
+                ),
               const SizedBox(height: 12),
               Divider(color: Theme.of(context).dividerColor),
               const SizedBox(height: 10),
@@ -230,158 +271,142 @@ class DashboardPage extends StatelessWidget {
 
         // Business receivables and payables are not meaningful in the personal-only view.
         if (repo.scopeFilter != TxnScope.personal)
-          Row(
-            children: [
-              Expanded(
-                child: CardBox(
-                  onTap: () => onNavigate(2),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Business receivables'.tr,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: onSurface.withValues(alpha: 0.65),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      MoneyText(
-                        totals.receivable,
-                        compact: MediaQuery.sizeOf(context).width < 360,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF0F766E),
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '{count} debtors'.trArgs({
-                          'count': totals.debtorsCount,
-                        }),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: onSurface.withValues(alpha: 0.55),
-                        ),
-                      ),
-                    ],
+          responsivePair(
+            CardBox(
+              onTap: () => onNavigate(2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Business receivables'.tr,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: onSurface.withValues(alpha: 0.65),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: CardBox(
-                  onTap: () => onNavigate(2),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Business payables'.tr,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: onSurface.withValues(alpha: 0.65),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      MoneyText(
-                        totals.payable,
-                        compact: MediaQuery.sizeOf(context).width < 360,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF2563EB),
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '{count} creditors'.trArgs({
-                          'count': totals.creditorsCount,
-                        }),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: onSurface.withValues(alpha: 0.55),
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 6),
+                  MoneyText(
+                    totals.receivable,
+                    compact: compactLayout,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F766E),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '{count} debtors'.trArgs({'count': totals.debtorsCount}),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: onSurface.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
+            CardBox(
+              onTap: () => onNavigate(2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Business payables'.tr,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: onSurface.withValues(alpha: 0.65),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  MoneyText(
+                    totals.payable,
+                    compact: compactLayout,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF2563EB),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '{count} creditors'.trArgs({
+                      'count': totals.creditorsCount,
+                    }),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: onSurface.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         const SizedBox(height: 10),
         if (repo.scopeFilter != TxnScope.personal)
-          Row(
-            children: [
-              Expanded(
-                child: CardBox(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Business cash balance'.tr,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: onSurface.withValues(alpha: 0.65),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      MoneyText(
-                        repo.cashBalance,
-                        compact: MediaQuery.sizeOf(context).width < 360,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF7C3AED),
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Cash + bank'.tr,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: onSurface.withValues(alpha: 0.55),
-                        ),
-                      ),
-                    ],
+          responsivePair(
+            CardBox(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Business cash balance'.tr,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: onSurface.withValues(alpha: 0.65),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: CardBox(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Received this month'.tr,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: onSurface.withValues(alpha: 0.65),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      MoneyText(
-                        monthSummary.cashIn,
-                        compact: MediaQuery.sizeOf(context).width < 360,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Cash + collections'.tr,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: onSurface.withValues(alpha: 0.55),
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 6),
+                  MoneyText(
+                    repo.cashBalance,
+                    compact: compactLayout,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF7C3AED),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Cash + bank'.tr,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: onSurface.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
+            CardBox(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Received this month'.tr,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: onSurface.withValues(alpha: 0.65),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  MoneyText(
+                    monthSummary.cashIn,
+                    compact: compactLayout,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Cash + collections'.tr,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: onSurface.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
 
         // Bank SMS (Android only)

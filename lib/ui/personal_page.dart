@@ -30,6 +30,7 @@ class PersonalPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    final compactLayout = MediaQuery.sizeOf(context).width < 360;
     final range = AppRepository.monthOf(DateTime.now());
     final month = repo.summary(
       from: range.start,
@@ -71,33 +72,57 @@ class PersonalPage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _miniStat(
+              if (compactLayout)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _miniStat(
                       context,
                       'Income',
                       month.income,
                       const Color(0xFF16A34A),
                       Icons.trending_up_rounded,
                     ),
-                  ),
-                  Container(
-                    width: 1,
-                    height: 42,
-                    color: Theme.of(context).dividerColor,
-                  ),
-                  Expanded(
-                    child: _miniStat(
+                    const SizedBox(height: 10),
+                    Divider(color: Theme.of(context).dividerColor),
+                    const SizedBox(height: 10),
+                    _miniStat(
                       context,
                       'Expense',
                       month.expense,
                       const Color(0xFFE11D48),
                       Icons.trending_down_rounded,
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                )
+              else
+                Row(
+                  children: [
+                    Expanded(
+                      child: _miniStat(
+                        context,
+                        'Income',
+                        month.income,
+                        const Color(0xFF16A34A),
+                        Icons.trending_up_rounded,
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 42,
+                      color: Theme.of(context).dividerColor,
+                    ),
+                    Expanded(
+                      child: _miniStat(
+                        context,
+                        'Expense',
+                        month.expense,
+                        const Color(0xFFE11D48),
+                        Icons.trending_down_rounded,
+                      ),
+                    ),
+                  ],
+                ),
               const SizedBox(height: 12),
               Divider(color: Theme.of(context).dividerColor),
               const SizedBox(height: 10),
