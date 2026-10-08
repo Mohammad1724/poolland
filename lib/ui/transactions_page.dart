@@ -347,6 +347,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
                             children: [
                               Text(
                                 entry.key,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
@@ -354,12 +356,24 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                 ),
                               ),
                               const Spacer(),
-                              Text(
-                                Money.text(dayTotal, compact: true),
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: onSurface.withValues(alpha: 0.6),
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: MediaQuery.sizeOf(context).width < 360
+                                      ? 120
+                                      : 180,
+                                ),
+                                child: Text(
+                                  Money.text(dayTotal, compact: true),
+                                  maxLines: 1,
+                                  softWrap: false,
+                                  overflow: TextOverflow.ellipsis,
+                                  textDirection: TextDirection.ltr,
+                                  textAlign: TextAlign.end,
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: onSurface.withValues(alpha: 0.6),
+                                  ),
                                 ),
                               ),
                             ],

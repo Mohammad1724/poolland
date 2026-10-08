@@ -472,6 +472,50 @@ class DashboardPage extends StatelessWidget {
               reminderDays: repo.settings.reminderDays,
             );
             final days = Ledger.daysLeft(s);
+            final compact = MediaQuery.sizeOf(context).width < 360;
+            final info = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  customer?.name ?? 'No customer'.tr,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${s.planName.tr} • ${J.d(s.endDate)}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            );
+            final expiryTag = TagChip(
+              Fmt.expiryLabel(days),
+              color: status.color,
+              dense: true,
+              maxWidth: compact ? 140 : null,
+            );
+            final renewButton = IconButton(
+              tooltip: 'Renew'.tr,
+              style: IconButton.styleFrom(
+                minimumSize: const Size(Taps.icon, Taps.icon),
+              ),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SellSubscriptionPage(renewFrom: s),
+                ),
+              ),
+              icon: const Icon(Icons.autorenew_rounded, size: 19),
+            );
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: CardBox(
@@ -488,53 +532,29 @@ class DashboardPage extends StatelessWidget {
                               CustomerDetailPage(customer: customer),
                         ),
                       ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                child: compact
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text(
-                            customer?.name ?? 'No customer'.tr,
-                            style: const TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            '${s.planName.tr} • ${J.d(s.endDate)}',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: onSurface.withValues(alpha: 0.6),
-                            ),
+                          info,
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              expiryTag,
+                              const Spacer(),
+                              renewButton,
+                            ],
                           ),
                         ],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(child: info),
+                          expiryTag,
+                          const SizedBox(width: 6),
+                          renewButton,
+                        ],
                       ),
-                    ),
-                    TagChip(
-                      Fmt.expiryLabel(days),
-                      color: status.color,
-                      dense: true,
-                    ),
-                    const SizedBox(width: 6),
-                    IconButton(
-                      tooltip: 'Renew'.tr,
-                      // Small glyph, full-size target: the icon stays light
-                      // while the button is still easy to hit.
-                      style: IconButton.styleFrom(
-                        minimumSize: const Size(Taps.icon, Taps.icon),
-                      ),
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => SellSubscriptionPage(renewFrom: s),
-                        ),
-                      ),
-                      icon: const Icon(Icons.autorenew_rounded, size: 19),
-                    ),
-                  ],
-                ),
               ),
             );
           }),

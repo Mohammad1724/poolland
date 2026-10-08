@@ -392,6 +392,7 @@ class SearchField extends StatelessWidget {
         autocorrect: false,
         decoration: InputDecoration(
           hintText: hint.tr,
+          hintMaxLines: 1,
           prefixIcon: const Icon(Icons.search_rounded, size: 20),
           suffixIcon: value.text.isEmpty
               ? null
