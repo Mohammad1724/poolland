@@ -86,6 +86,14 @@ void main() {
   void expectNoLayoutError(WidgetTester tester) {
     final error = tester.takeException();
     if (error != null) {
+      final summaryPath = Platform.environment['GITHUB_STEP_SUMMARY'];
+      if (summaryPath != null) {
+        File(summaryPath).writeAsStringSync(
+          '### Responsive layout diagnostic\n\n```text\n$error\n```\n',
+          mode: FileMode.append,
+          flush: true,
+        );
+      }
       final detail = error
           .toString()
           .replaceAll('%', '%25')
