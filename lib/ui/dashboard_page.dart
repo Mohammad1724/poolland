@@ -106,7 +106,6 @@ class DashboardPage extends StatelessWidget {
               }),
               color: const Color(0xFF16A34A),
               icon: Icons.check_circle_rounded,
-              maxWidth: compactLayout ? 220 : null,
             ),
           ],
         ),
@@ -252,20 +251,15 @@ class DashboardPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Flexible(
-                    child: MoneyText(
-                      monthSummary.profit,
-                      compact: compactLayout,
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: monthSummary.profit >= 0
-                            ? const Color(0xFF16A34A)
-                            : const Color(0xFFE11D48),
-                      ),
+                  MoneyText(
+                    monthSummary.profit,
+                    compact: MediaQuery.sizeOf(context).width < 360,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: monthSummary.profit >= 0
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFFE11D48),
                     ),
                   ),
                 ],
