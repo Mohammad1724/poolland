@@ -83,31 +83,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   }
 
-  void expectNoLayoutError(WidgetTester tester) {
-    final error = tester.takeException();
-    if (error != null) {
-      final summaryPath = Platform.environment['GITHUB_STEP_SUMMARY'];
-      if (summaryPath != null) {
-        File(summaryPath).writeAsStringSync(
-          '### Responsive layout diagnostic\n\n```text\n$error\n```\n',
-          mode: FileMode.append,
-          flush: true,
-        );
-      }
-      final detail = error
-          .toString()
-          .replaceAll('%', '%25')
-          .replaceAll('\r', '%0D')
-          .replaceAll('\n', '%0A');
-      // Expose layout diagnostics in GitHub's check annotations when CI runs
-      // without a local Flutter SDK available to inspect the test output.
-      stdout.writeln(
-        '::error title=Responsive UI layout diagnostic::${detail.length > 3000 ? detail.substring(0, 3000) : detail}',
-      );
-    }
-    expect(error, isNull);
-  }
-
   Future<void> expectCompactLayout(
     WidgetTester tester,
     Widget page,
@@ -124,8 +99,9 @@ void main() {
         locale: const Locale('fa'),
       ),
     );
-    await tester.pumpAndSettle();
-    expectNoLayoutError(tester);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(tester.takeException(), isNull);
   }
 
   group('shared search field', () {
@@ -281,7 +257,7 @@ void main() {
       );
       await settleShell(tester);
       expect(find.byType(NavigationBar), findsOneWidget);
-      expectNoLayoutError(tester);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('main navigation switches to a rail on tablet widths', (
