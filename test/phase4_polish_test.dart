@@ -83,10 +83,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   }
 
-  Future<void> expectNoFrameworkExceptions(
-    WidgetTester tester,
-    String scenario,
-  ) async {
+  void expectNoFrameworkExceptions(WidgetTester tester, String scenario) {
     final errors = <Object>[];
     Object? error;
     while ((error = tester.takeException()) != null) {
@@ -106,15 +103,9 @@ void main() {
           .replaceAll('%', '%25')
           .replaceAll('\r', '%0D')
           .replaceAll('\n', '%0A');
-      final annotation = await Process.start(
-        'printf',
-        [
-          '%s\\n',
-          '::error title=$scenario layout diagnostics::$commandDetails',
-        ],
-        mode: ProcessStartMode.inheritStdio,
+      stdout.writeln(
+        '::error title=$scenario layout diagnostics::$commandDetails',
       );
-      await annotation.exitCode;
     }
 
     expect(errors, isEmpty, reason: '$scenario framework errors: $errors');
@@ -139,7 +130,7 @@ void main() {
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 700));
-    await expectNoFrameworkExceptions(tester, scenario);
+    expectNoFrameworkExceptions(tester, scenario);
   }
 
   group('shared search field', () {
@@ -312,7 +303,7 @@ void main() {
       );
       await settleShell(tester);
       expect(find.byType(NavigationBar), findsOneWidget);
-      await expectNoFrameworkExceptions(tester, 'HomeShell navigation');
+      expectNoFrameworkExceptions(tester, 'HomeShell navigation');
     });
 
     testWidgets('main navigation switches to a rail on tablet widths', (
