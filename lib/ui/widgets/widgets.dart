@@ -1157,6 +1157,8 @@ class _CollapsibleCardState extends State<CollapsibleCard> {
                     Expanded(
                       child: Text(
                         widget.title.tr,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: FontSizes.body,
                           fontWeight: FontWeight.w700,
@@ -1165,7 +1167,17 @@ class _CollapsibleCardState extends State<CollapsibleCard> {
                       ),
                     ),
                     if (widget.summary != null) ...[
-                      widget.summary!,
+                      Flexible(
+                        fit: FlexFit.loose,
+                        child: Align(
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: widget.summary!,
+                          ),
+                        ),
+                      ),
                       const SizedBox(width: Insets.xs),
                     ],
                     AnimatedRotation(
