@@ -142,15 +142,20 @@ class PersonalPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  MoneyText(
-                    month.profit,
-                    compact: MediaQuery.sizeOf(context).width < 360,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: month.profit >= 0
-                          ? const Color(0xFF16A34A)
-                          : const Color(0xFFE11D48),
+                  Flexible(
+                    child: MoneyText(
+                      month.profit,
+                      compact: compactLayout,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: month.profit >= 0
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFFE11D48),
+                      ),
                     ),
                   ),
                 ],
