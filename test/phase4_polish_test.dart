@@ -7,7 +7,9 @@ import 'package:poolland/core/localization.dart';
 import 'package:poolland/data/repository.dart';
 import 'package:poolland/data/store.dart';
 import 'package:poolland/ui/customers_page.dart';
+import 'package:poolland/ui/dashboard_page.dart';
 import 'package:poolland/ui/home_shell.dart';
+import 'package:poolland/ui/personal_page.dart';
 import 'package:poolland/ui/subscriptions_page.dart';
 import 'package:poolland/ui/theme.dart';
 import 'package:poolland/ui/transactions_page.dart';
@@ -40,11 +42,14 @@ void main() {
     Widget home, {
     bool accessibleNavigation = false,
     bool disableAnimations = false,
+    TextScaler? textScaler,
+    Locale locale = const Locale('en'),
   }) {
+    AppLocalization.languageCode = locale.languageCode;
     return ChangeNotifierProvider<AppRepository>.value(
       value: repo,
       child: MaterialApp(
-        locale: const Locale('en'),
+        locale: locale,
         supportedLocales: const [Locale('en'), Locale('fa')],
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
@@ -56,9 +61,12 @@ void main() {
           data: MediaQuery.of(context).copyWith(
             accessibleNavigation: accessibleNavigation,
             disableAnimations: disableAnimations,
+            textScaler: textScaler,
           ),
           child: Directionality(
-            textDirection: TextDirection.ltr,
+            textDirection: locale.languageCode == 'fa'
+                ? TextDirection.rtl
+                : TextDirection.ltr,
             child: child ?? const SizedBox.shrink(),
           ),
         ),
@@ -73,6 +81,26 @@ void main() {
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
+  }
+
+  Future<void> expectCompactLayout(
+    WidgetTester tester,
+    Widget page,
+  ) async {
+    tester.view.physicalSize = const Size(320, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      app(
+        Scaffold(body: page),
+        textScaler: TextScaler.linear(1.25),
+        locale: const Locale('fa'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
   }
 
   group('shared search field', () {
@@ -173,6 +201,82 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('No items found'), findsNothing);
       expect(find.byTooltip('Clear search'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('compact mobile layouts', () {
+    testWidgets('personal ledger fits a narrow screen and larger text', (
+      tester,
+    ) async {
+      await expectCompactLayout(tester, const PersonalPage());
+    });
+
+    testWidgets('dashboard fits a narrow screen and larger text', (
+      tester,
+    ) async {
+      await expectCompactLayout(
+        tester,
+        DashboardPage(onNavigate: (_) {}),
+      );
+    });
+
+    testWidgets('customer list fits a narrow screen and larger text', (
+      tester,
+    ) async {
+      await expectCompactLayout(tester, const CustomersPage());
+    });
+
+    testWidgets('subscription list fits a narrow screen and larger text', (
+      tester,
+    ) async {
+      await expectCompactLayout(tester, const SubscriptionsPage());
+    });
+
+    testWidgets('transaction list fits a narrow screen and larger text', (
+      tester,
+    ) async {
+      await expectCompactLayout(tester, const TransactionsPage());
+    });
+
+    testWidgets('main navigation fits a narrow Persian phone screen', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        app(
+          const HomeShell(),
+          locale: const Locale('fa'),
+          textScaler: TextScaler.linear(1.2),
+        ),
+      );
+      await settleShell(tester);
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('main navigation switches to a rail on tablet widths', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(900, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        app(
+          const HomeShell(),
+          locale: const Locale('fa'),
+          textScaler: TextScaler.linear(1.2),
+        ),
+      );
+      await settleShell(tester);
+      expect(find.byType(NavigationRail), findsOneWidget);
+      expect(find.byType(NavigationBar), findsNothing);
       expect(tester.takeException(), isNull);
     });
   });
