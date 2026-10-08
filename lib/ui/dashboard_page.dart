@@ -248,6 +248,7 @@ class DashboardPage extends StatelessWidget {
                       const SizedBox(height: 6),
                       MoneyText(
                         totals.receivable,
+                        compact: MediaQuery.sizeOf(context).width < 360,
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -285,6 +286,7 @@ class DashboardPage extends StatelessWidget {
                       const SizedBox(height: 6),
                       MoneyText(
                         totals.payable,
+                        compact: MediaQuery.sizeOf(context).width < 360,
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -326,6 +328,7 @@ class DashboardPage extends StatelessWidget {
                       const SizedBox(height: 6),
                       MoneyText(
                         repo.cashBalance,
+                        compact: MediaQuery.sizeOf(context).width < 360,
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -360,6 +363,7 @@ class DashboardPage extends StatelessWidget {
                       const SizedBox(height: 6),
                       MoneyText(
                         monthSummary.cashIn,
+                        compact: MediaQuery.sizeOf(context).width < 360,
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,

@@ -23,6 +23,9 @@ class MoneyText extends StatelessWidget {
     this.compact = false,
     this.positiveColor,
     this.negativeColor,
+    this.maxLines,
+    this.overflow,
+    this.softWrap = true,
   });
 
   final double amount;
@@ -33,6 +36,9 @@ class MoneyText extends StatelessWidget {
   final bool compact;
   final Color? positiveColor;
   final Color? negativeColor;
+  final int? maxLines;
+  final TextOverflow? overflow;
+  final bool softWrap;
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +57,9 @@ class MoneyText extends StatelessWidget {
         compact: compact,
       ),
       textDirection: TextDirection.ltr,
+      maxLines: maxLines,
+      overflow: overflow,
+      softWrap: softWrap,
       style: style?.copyWith(color: color) ?? TextStyle(color: color),
     );
   }
@@ -233,16 +242,29 @@ class TagChip extends StatelessWidget {
     required this.color,
     this.icon,
     this.dense = false,
+    this.maxWidth,
   });
 
   final String text;
   final Color color;
   final IconData? icon;
   final bool dense;
+  final double? maxWidth;
 
   @override
   Widget build(BuildContext context) {
+    final label = Text(
+      text.tr,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: dense ? 11.5 : 12.5,
+        fontWeight: FontWeight.w700,
+        color: color,
+      ),
+    );
     return Container(
+      constraints: maxWidth == null ? null : BoxConstraints(maxWidth: maxWidth!),
       padding: EdgeInsets.symmetric(
         horizontal: dense ? 8 : 10,
         vertical: dense ? 3 : 5,
@@ -259,14 +281,7 @@ class TagChip extends StatelessWidget {
             Icon(icon, size: dense ? 13 : 15, color: color),
             const SizedBox(width: 4),
           ],
-          Text(
-            text.tr,
-            style: TextStyle(
-              fontSize: dense ? 11.5 : 12.5,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
+          if (maxWidth == null) label else Flexible(child: label),
         ],
       ),
     );

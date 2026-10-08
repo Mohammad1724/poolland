@@ -219,6 +219,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                     final status = Ledger.subStatus(s, reminderDays: reminder);
                     final days = Ledger.daysLeft(s);
                     final progress = _progress(s);
+                    final compact = MediaQuery.sizeOf(context).width < 360;
                     return CardBox(
                       onTap: c == null
                           ? null
@@ -238,6 +239,8 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                                   children: [
                                     Text(
                                       c?.name ?? 'No customer'.tr,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w700,
@@ -246,6 +249,8 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                                     const SizedBox(height: 3),
                                     Text(
                                       s.planName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: onSurface.withValues(
@@ -256,26 +261,36 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                                   ],
                                 ),
                               ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  MoneyText(
-                                    s.amount,
-                                    currency: s.currency,
-                                    style: const TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
+                              ConstrainedBox(
+                                constraints: compact
+                                    ? const BoxConstraints(maxWidth: 132)
+                                    : const BoxConstraints(),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    MoneyText(
+                                      s.amount,
+                                      currency: s.currency,
+                                      compact: compact,
+                                      maxLines: 1,
+                                      softWrap: false,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  TagChip(
-                                    status == SubStatus.expired
-                                        ? '${'Expired'.tr} ${Fmt.expiryLabel(days)}'
-                                        : Fmt.expiryLabel(days),
-                                    color: status.color,
-                                    dense: true,
-                                  ),
-                                ],
+                                    const SizedBox(height: 4),
+                                    TagChip(
+                                      status == SubStatus.expired
+                                          ? '${'Expired'.tr} ${Fmt.expiryLabel(days)}'
+                                          : Fmt.expiryLabel(days),
+                                      color: status.color,
+                                      dense: true,
+                                      maxWidth: compact ? 132 : null,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),

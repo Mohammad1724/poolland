@@ -143,6 +143,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
                     children: [
                       Text(
                         J.mLabel(monthStart),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -151,6 +153,9 @@ class _TransactionsPageState extends State<TransactionsPage> {
                       const SizedBox(height: 2),
                       Text(
                         'Income ${Money.text(summary.income, compact: true)} • Expense ${Money.text(summary.expense, compact: true)}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 11,
                           color: onSurface.withValues(alpha: 0.6),

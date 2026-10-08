@@ -409,6 +409,20 @@ class _BudgetTile extends StatelessWidget {
         ? const Color(0xFFD97706)
         : const Color(0xFF16A34A);
     final pct = usage.ratio > 1 ? 1.0 : usage.ratio;
+    final compact = MediaQuery.sizeOf(context).width < 360;
+
+    Widget deleteAction() => InkWell(
+      onTap: onDelete,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Icon(
+          Icons.delete_outline_rounded,
+          size: 17,
+          color: onSurface.withValues(alpha: 0.4),
+        ),
+      ),
+    );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -417,45 +431,74 @@ class _BudgetTile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    usage.categoryName,
-                    style: const TextStyle(
-                      fontSize: 13,
+            if (compact)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          usage.categoryName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      deleteAction(),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${Money.text(usage.spent, compact: true)} / ${Money.text(usage.budget.limit, compact: true)}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: TextStyle(
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w700,
+                      color: color,
                     ),
                   ),
-                ),
-                MoneyText(
-                  usage.spent,
-                  compact: true,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: color,
+                ],
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      usage.categoryName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
-                ),
-                Text(
-                  ' / ${Money.text(usage.budget.limit, compact: true)}',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: onSurface.withValues(alpha: 0.55),
+                  MoneyText(
+                    usage.spent,
+                    compact: true,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: color,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                InkWell(
-                  onTap: onDelete,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Icon(
-                    Icons.delete_outline_rounded,
-                    size: 17,
-                    color: onSurface.withValues(alpha: 0.4),
+                  Text(
+                    ' / ${Money.text(usage.budget.limit, compact: true)}',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: onSurface.withValues(alpha: 0.55),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 4),
+                  deleteAction(),
+                ],
+              ),
             const SizedBox(height: 8),
             // A simple, non-animated progress bar uses less battery.
             Container(
