@@ -23,6 +23,9 @@ class MoneyText extends StatelessWidget {
     this.compact = false,
     this.positiveColor,
     this.negativeColor,
+    this.maxLines,
+    this.overflow,
+    this.softWrap = true,
   });
 
   final double amount;
@@ -33,6 +36,9 @@ class MoneyText extends StatelessWidget {
   final bool compact;
   final Color? positiveColor;
   final Color? negativeColor;
+  final int? maxLines;
+  final TextOverflow? overflow;
+  final bool softWrap;
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +57,9 @@ class MoneyText extends StatelessWidget {
         compact: compact,
       ),
       textDirection: TextDirection.ltr,
+      maxLines: maxLines,
+      overflow: overflow,
+      softWrap: softWrap,
       style: style?.copyWith(color: color) ?? TextStyle(color: color),
     );
   }
@@ -74,7 +83,7 @@ class CardBox extends StatelessWidget {
     return Card(
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(Radii.card),
         child: Padding(padding: padding, child: child),
       ),
     );
@@ -110,9 +119,9 @@ class SectionTitle extends StatelessWidget {
             child: Text(
               title.tr,
               style: TextStyle(
-                fontSize: 13.5,
+                fontSize: FontSizes.title,
                 fontWeight: FontWeight.w700,
-                color: onSurface.withValues(alpha: 0.85),
+                color: onSurface.withValues(alpha: 0.9),
               ),
             ),
           ),
@@ -233,19 +242,32 @@ class TagChip extends StatelessWidget {
     required this.color,
     this.icon,
     this.dense = false,
+    this.maxWidth,
   });
 
   final String text;
   final Color color;
   final IconData? icon;
   final bool dense;
+  final double? maxWidth;
 
   @override
   Widget build(BuildContext context) {
+    final label = Text(
+      text.tr,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: dense ? 11.5 : 12.5,
+        fontWeight: FontWeight.w700,
+        color: color,
+      ),
+    );
     return Container(
+      constraints: maxWidth == null ? null : BoxConstraints(maxWidth: maxWidth!),
       padding: EdgeInsets.symmetric(
-        horizontal: dense ? 7 : 9,
-        vertical: dense ? 2 : 4,
+        horizontal: dense ? 8 : 10,
+        vertical: dense ? 3 : 5,
       ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
@@ -256,17 +278,10 @@ class TagChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: dense ? 11 : 13, color: color),
+            Icon(icon, size: dense ? 13 : 15, color: color),
             const SizedBox(width: 4),
           ],
-          Text(
-            text.tr,
-            style: TextStyle(
-              fontSize: dense ? 10.5 : 11.5,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
+          if (maxWidth == null) label else Flexible(child: label),
         ],
       ),
     );
@@ -294,53 +309,104 @@ class EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(26),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary
-                    .withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                icon,
-                size: 28,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title.tr,
-              style: const TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            if (text != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                text!.tr,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.6,
-                  color: onSurface.withValues(alpha: 0.6),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary
+                      .withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  size: 34,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
-            ],
-            if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 14),
-              FilledButton.tonal(
-                onPressed: onAction,
-                child: Text(actionLabel!.tr),
+              Text(
+                title.tr,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
+              if (text != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  text!.tr,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.6,
+                    color: onSurface.withValues(alpha: 0.72),
+                  ),
+                ),
+              ],
+              if (actionLabel != null && onAction != null) ...[
+                const SizedBox(height: 16),
+                FilledButton.tonal(
+                  onPressed: onAction,
+                  child: Text(actionLabel!.tr),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+/// Search input shared by the list pages.
+///
+/// Keeps search affordances consistent and gives users an explicit, labeled
+/// clear action. The controller is owned by the page so its query survives
+/// tab changes alongside the filters.
+class SearchField extends StatelessWidget {
+  const SearchField({
+    super.key,
+    required this.controller,
+    required this.hint,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final String hint;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) => TextField(
+        controller: controller,
+        textInputAction: TextInputAction.search,
+        autocorrect: false,
+        decoration: InputDecoration(
+          hintText: hint.tr,
+          hintMaxLines: 1,
+          prefixIcon: const Icon(Icons.search_rounded, size: 20),
+          suffixIcon: value.text.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear search'.tr,
+                  onPressed: () {
+                    controller.clear();
+                    onChanged('');
+                  },
+                  icon: const Icon(Icons.close_rounded),
+                ),
+        ),
+        onChanged: onChanged,
+        onTapOutside: (_) => FocusScope.of(context).unfocus(),
       ),
     );
   }
@@ -445,7 +511,7 @@ class AmountField extends StatelessWidget {
                         '= $preview',
                         textDirection: TextDirection.ltr,
                         style: TextStyle(
-                          fontSize: 11.5,
+                          fontSize: 12.5,
                           fontWeight: FontWeight.w600,
                           color: Theme.of(context).colorScheme.primary
                               .withValues(alpha: 0.9),
@@ -502,7 +568,7 @@ class JalaliDateField extends StatelessWidget {
         ),
         child: Text(
           J.dFull(value),
-          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+          style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -549,7 +615,7 @@ class SelectField<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasValue = value != null;
-    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final scheme = Theme.of(context).colorScheme;
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: () async {
@@ -587,9 +653,9 @@ class SelectField<T> extends StatelessWidget {
         child: Text(
           hasValue ? labelOf(value as T).tr : placeholder.tr,
           style: TextStyle(
-            fontSize: 13.5,
+            fontSize: 14.5,
             fontWeight: hasValue ? FontWeight.w600 : FontWeight.w400,
-            color: hasValue ? onSurface : onSurface.withValues(alpha: 0.45),
+            color: hasValue ? scheme.onSurface : scheme.onSurfaceVariant,
           ),
         ),
       ),
@@ -935,7 +1001,8 @@ class TxnTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
+    final compactAmounts = MediaQuery.sizeOf(context).width < 360;
     final title = txn.note.isNotEmpty ? txn.note : categoryName.tr;
     final sub = <String>[
       J.d(txn.date),
@@ -959,48 +1026,62 @@ class TxnTile extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          fontSize: 11.5,
-          color: onSurface.withValues(alpha: 0.55),
+          fontSize: FontSizes.caption,
+          color: onSurfaceVariant,
         ),
       ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            Money.text(
-              txn.amount *
-                  switch (txn.kind) {
-                    TxnKind.income || TxnKind.receive => 1,
-                    TxnKind.expense ||
-                    TxnKind.refund ||
-                    TxnKind.payablePayment => -1,
-                  },
-              currency: txn.currency,
-              signed: false,
-            ),
-            textDirection: TextDirection.ltr,
-            textAlign: TextAlign.end,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: _color,
-            ),
-          ),
-          if (txn.currency != 'IRT' || txn.rateToBase != 1)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                Money.text(txn.amount * txn.rateToBase, withSymbol: false),
-                textDirection: TextDirection.ltr,
-                textAlign: TextAlign.end,
-                style: TextStyle(
-                  fontSize: 10.5,
-                  color: onSurface.withValues(alpha: 0.55),
-                ),
+      trailing: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: compactAmounts ? 104 : 160),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              Money.text(
+                txn.amount *
+                    switch (txn.kind) {
+                      TxnKind.income || TxnKind.receive => 1,
+                      TxnKind.expense ||
+                      TxnKind.refund ||
+                      TxnKind.payablePayment => -1,
+                    },
+                currency: txn.currency,
+                signed: false,
+                compact: compactAmounts,
+              ),
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              textDirection: TextDirection.ltr,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: _color,
               ),
             ),
-        ],
+            if (txn.currency != 'IRT' || txn.rateToBase != 1)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  Money.text(
+                    txn.amount * txn.rateToBase,
+                    withSymbol: false,
+                    compact: compactAmounts,
+                  ),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  textDirection: TextDirection.ltr,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    fontSize: FontSizes.micro,
+                    color: onSurfaceVariant,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -1076,6 +1157,8 @@ class _CollapsibleCardState extends State<CollapsibleCard> {
                     Expanded(
                       child: Text(
                         widget.title.tr,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: FontSizes.body,
                           fontWeight: FontWeight.w700,
@@ -1084,12 +1167,22 @@ class _CollapsibleCardState extends State<CollapsibleCard> {
                       ),
                     ),
                     if (widget.summary != null) ...[
-                      widget.summary!,
+                      Flexible(
+                        fit: FlexFit.loose,
+                        child: Align(
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: widget.summary!,
+                          ),
+                        ),
+                      ),
                       const SizedBox(width: Insets.xs),
                     ],
                     AnimatedRotation(
                       turns: _expanded ? 0.5 : 0,
-                      duration: Motion.expand,
+                      duration: Motion.adaptive(context, Motion.expand),
                       child: Icon(
                         Icons.expand_more_rounded,
                         size: 20,
@@ -1102,7 +1195,7 @@ class _CollapsibleCardState extends State<CollapsibleCard> {
             ),
           ),
           AnimatedSize(
-            duration: Motion.expand,
+            duration: Motion.adaptive(context, Motion.expand),
             curve: Curves.easeOut,
             alignment: Alignment.topCenter,
             child: _expanded
@@ -1135,62 +1228,76 @@ class FilterToggleButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final highlighted = expanded || activeCount > 0;
-    return Tooltip(
-      message: 'Filters'.tr,
-      child: Material(
-        color: highlighted
-            ? scheme.primary.withValues(alpha: 0.12)
-            : Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(Radii.field),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(Radii.field),
-          onTap: () {
-            Haptics.tap();
-            onPressed();
-          },
-          child: Container(
-            width: 52,
-            height: 56,
-            decoration: BoxDecoration(
+    return Semantics(
+      button: true,
+      label: 'Filters'.tr,
+      value: activeCount == 0
+          ? null
+          : 'Active filters: {count}'.trArgs({'count': activeCount}),
+      expanded: expanded,
+      onTap: () {
+        Haptics.tap();
+        onPressed();
+      },
+      child: ExcludeSemantics(
+        child: Tooltip(
+          message: 'Filters'.tr,
+          child: Material(
+            color: highlighted
+                ? scheme.primary.withValues(alpha: 0.12)
+                : Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(Radii.field),
+            child: InkWell(
               borderRadius: BorderRadius.circular(Radii.field),
-              border: Border.all(
-                color: highlighted
-                    ? scheme.primary.withValues(alpha: 0.5)
-                    : Theme.of(context).dividerColor,
-              ),
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Icon(
-                  Icons.tune_rounded,
-                  size: 20,
-                  color: highlighted ? scheme.primary : null,
+              onTap: () {
+                Haptics.tap();
+                onPressed();
+              },
+              child: Container(
+                width: 52,
+                height: 56,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(Radii.field),
+                  border: Border.all(
+                    color: highlighted
+                        ? scheme.primary.withValues(alpha: 0.5)
+                        : Theme.of(context).dividerColor,
+                  ),
                 ),
-                if (activeCount > 0)
-                  PositionedDirectional(
-                    top: 8,
-                    end: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color: scheme.primary,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '$activeCount',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: scheme.onPrimary,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(
+                      Icons.tune_rounded,
+                      size: 20,
+                      color: highlighted ? scheme.primary : null,
+                    ),
+                    if (activeCount > 0)
+                      PositionedDirectional(
+                        top: 8,
+                        end: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: scheme.primary,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '$activeCount',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: scheme.onPrimary,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-              ],
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -1215,32 +1322,49 @@ class FilterPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.primary.withValues(alpha: 0.1),
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: onClear,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 13, color: scheme.primary),
-                const SizedBox(width: Insets.xs),
-              ],
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: FontSizes.caption,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.primary,
+    return Semantics(
+      button: true,
+      label: 'Clear filter: {filter}'.trArgs({'filter': label}),
+      onTap: onClear,
+      child: ExcludeSemantics(
+        child: Material(
+          color: scheme.primary.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: onClear,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: Taps.minHeight),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (icon != null) ...[
+                      Icon(icon, size: 16, color: scheme.primary),
+                      const SizedBox(width: Insets.xs),
+                    ],
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: FontSizes.caption,
+                        fontWeight: FontWeight.w700,
+                        color: scheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: Insets.xs),
+                    Icon(
+                      Icons.close_rounded,
+                      size: 16,
+                      color: scheme.primary,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: Insets.xs),
-              Icon(Icons.close_rounded, size: 13, color: scheme.primary),
-            ],
+            ),
           ),
         ),
       ),

@@ -28,6 +28,7 @@ enum _SubFilter { all, active, soon, expired }
 
 class _SubscriptionsPageState extends State<SubscriptionsPage> {
   final _searchDebouncer = Debouncer();
+  final _searchController = TextEditingController();
   _SubFilter _filter = _SubFilter.all;
   String _q = '';
   bool _filtersOpen = false;
@@ -35,7 +36,29 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
   @override
   void dispose() {
     _searchDebouncer.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    final query = value.trim();
+    _searchDebouncer.cancel();
+    if (query.isEmpty) {
+      if (_q.isNotEmpty) setState(() => _q = '');
+      return;
+    }
+    _searchDebouncer.run(() {
+      if (mounted) setState(() => _q = query);
+    });
+  }
+
+  void _clearSearchAndFilters() {
+    _searchDebouncer.cancel();
+    _searchController.clear();
+    setState(() {
+      _q = '';
+      _filter = _SubFilter.all;
+    });
   }
 
   String get _filterLabel => switch (_filter) {
@@ -51,13 +74,14 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final reminder = repo.settings.reminderDays;
 
+    final query = _q.trim().toLowerCase();
     var list = [...repo.subscriptions];
-    if (_q.isNotEmpty) {
+    if (query.isNotEmpty) {
       list = list
           .where(
             (s) =>
-                repo.customerName(s.customerId).contains(_q) ||
-                s.planName.contains(_q),
+                repo.customerName(s.customerId).toLowerCase().contains(query) ||
+                s.planName.toLowerCase().contains(query),
           )
           .toList();
     }
@@ -70,6 +94,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
         _SubFilter.expired => st == SubStatus.expired,
       };
     }).toList()..sort((a, b) => a.endDate.compareTo(b.endDate));
+    final isFirstRun = _q.isEmpty && _filter == _SubFilter.all;
 
     int count(_SubFilter f) {
       if (f == _SubFilter.all) return repo.subscriptions.length;
@@ -96,14 +121,10 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
               Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      decoration: const InputDecoration(
-                        hintText: 'Search customers or plans...',
-                        prefixIcon: Icon(Icons.search_rounded, size: 20),
-                      ),
-                      onChanged: (v) => _searchDebouncer.run(
-                        () => setState(() => _q = v.trim()),
-                      ),
+                    child: SearchField(
+                      controller: _searchController,
+                      hint: 'Search customers or plans...',
+                      onChanged: _onSearchChanged,
                     ),
                   ),
                   const SizedBox(width: Insets.sm),
@@ -127,7 +148,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                 ),
               ],
               AnimatedSize(
-                duration: Motion.expand,
+                duration: Motion.adaptive(context, Motion.expand),
                 curve: Curves.easeOut,
                 alignment: Alignment.topCenter,
                 child: _filtersOpen
@@ -169,15 +190,23 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
           child: list.isEmpty
               ? EmptyState(
                   icon: Icons.vpn_key_outlined,
-                  title: 'No subscriptions found'.tr,
-                  text: 'Record a sale to automatically create a customer subscription and expiry date.',
-                  actionLabel: 'Sell a subscription',
-                  onAction: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const SellSubscriptionPage(),
-                    ),
-                  ),
+                  title: isFirstRun
+                      ? 'No subscriptions found'
+                      : 'No items found',
+                  text: isFirstRun
+                      ? 'Record a sale to automatically create a customer subscription and expiry date.'
+                      : 'Try a different search or filter.',
+                  actionLabel: isFirstRun
+                      ? 'Sell a subscription'
+                      : 'Clear search and filters',
+                  onAction: isFirstRun
+                      ? () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SellSubscriptionPage(),
+                          ),
+                        )
+                      : _clearSearchAndFilters,
                 )
               : ListView.separated(
                   controller: widget.controller,
@@ -190,6 +219,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                     final status = Ledger.subStatus(s, reminderDays: reminder);
                     final days = Ledger.daysLeft(s);
                     final progress = _progress(s);
+                    final compact = MediaQuery.sizeOf(context).width < 360;
                     return CardBox(
                       onTap: c == null
                           ? null
@@ -209,6 +239,8 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                                   children: [
                                     Text(
                                       c?.name ?? 'No customer'.tr,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w700,
@@ -217,6 +249,8 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                                     const SizedBox(height: 3),
                                     Text(
                                       s.planName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: onSurface.withValues(
@@ -227,26 +261,36 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                                   ],
                                 ),
                               ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  MoneyText(
-                                    s.amount,
-                                    currency: s.currency,
-                                    style: const TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
+                              ConstrainedBox(
+                                constraints: compact
+                                    ? const BoxConstraints(maxWidth: 132)
+                                    : const BoxConstraints(),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    MoneyText(
+                                      s.amount,
+                                      currency: s.currency,
+                                      compact: compact,
+                                      maxLines: 1,
+                                      softWrap: false,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  TagChip(
-                                    status == SubStatus.expired
-                                        ? '${'Expired'.tr} ${Fmt.expiryLabel(days)}'
-                                        : Fmt.expiryLabel(days),
-                                    color: status.color,
-                                    dense: true,
-                                  ),
-                                ],
+                                    const SizedBox(height: 4),
+                                    TagChip(
+                                      status == SubStatus.expired
+                                          ? '${'Expired'.tr} ${Fmt.expiryLabel(days)}'
+                                          : Fmt.expiryLabel(days),
+                                      color: status.color,
+                                      dense: true,
+                                      maxWidth: compact ? 132 : null,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
@@ -272,17 +316,21 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                                 color: onSurface.withValues(alpha: 0.5),
                               ),
                               const SizedBox(width: 5),
-                              Text(
-                                '{from} to {to}'.trArgs({
-                                  'from': J.d(s.startDate),
-                                  'to': J.d(s.endDate),
-                                }),
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  color: onSurface.withValues(alpha: 0.6),
+                              Expanded(
+                                child: Text(
+                                  '{from} to {to}'.trArgs({
+                                    'from': J.d(s.startDate),
+                                    'to': J.d(s.endDate),
+                                  }),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: onSurface.withValues(alpha: 0.6),
+                                  ),
                                 ),
                               ),
-                              const Spacer(),
+                              const SizedBox(width: 8),
                               TextButton.icon(
                                 onPressed: () => Navigator.push(
                                   context,

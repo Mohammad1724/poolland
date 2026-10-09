@@ -37,6 +37,25 @@ class Fmt {
     return sb.toString();
   }
 
+  /// Normalize Persian and Arabic-Indic numerals to Latin digits.
+  ///
+  /// This is useful for matching phone numbers or IDs that may have been
+  /// copied from a Persian-language source while the stored value uses Latin
+  /// digits.
+  static String normalizeDigits(String input) {
+    return String.fromCharCodes(
+      input.runes.map((rune) {
+        if (rune >= 0x06F0 && rune <= 0x06F9) {
+          return rune - 0x06F0 + 0x30;
+        }
+        if (rune >= 0x0660 && rune <= 0x0669) {
+          return rune - 0x0660 + 0x30;
+        }
+        return rune;
+      }),
+    );
+  }
+
   /// Use Persian digits and separators when requested.
   static String _localize(String s, bool persian) {
     if (!persian) return s;

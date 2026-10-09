@@ -43,16 +43,42 @@ class DashboardPage extends StatelessWidget {
                 : repo.transactions.where((t) => t.scope == repo.scopeFilter))
             .take(5)
             .toList();
+    final hasNoTransactions = repo.transactions.isEmpty;
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    final compactLayout = MediaQuery.sizeOf(context).width < 360;
+
+    Widget responsivePair(Widget first, Widget second) => LayoutBuilder(
+      builder: (context, constraints) {
+        final cardWidth = compactLayout
+            ? constraints.maxWidth
+            : (constraints.maxWidth - 10) / 2;
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            SizedBox(width: cardWidth, child: first),
+            SizedBox(width: cardWidth, child: second),
+          ],
+        );
+      },
+    );
 
     return ListView(
       controller: controller,
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 100),
       children: [
-        // Welcome message
-        Row(
+        // Welcome message. On narrow phones the subscription badge moves to a
+        // second line instead of squeezing the date and overflowing the row.
+        Wrap(
+          spacing: Insets.sm,
+          runSpacing: Insets.sm,
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Expanded(
+            SizedBox(
+              width: MediaQuery.sizeOf(context).width < 360
+                  ? double.infinity
+                  : null,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -86,24 +112,20 @@ class DashboardPage extends StatelessWidget {
         const SizedBox(height: 14),
 
         // Scope filter (all / business / personal)
-        Row(
+        Wrap(
+          spacing: Insets.sm,
+          runSpacing: Insets.sm,
           children: [
             for (final opt in <TxnScope?>[
               null,
               TxnScope.business,
               TxnScope.personal,
             ])
-              Padding(
-                padding: const EdgeInsetsDirectional.only(start: 6),
-                child: ChoiceChip(
-                  selected: repo.scopeFilter == opt,
-                  showCheckmark: false,
-                  onSelected: (_) => repo.setScopeFilter(opt),
-                  label: Text(
-                    opt == null ? 'All'.tr : opt.label,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
+              ChoiceChip(
+                selected: repo.scopeFilter == opt,
+                showCheckmark: false,
+                onSelected: (_) => repo.setScopeFilter(opt),
+                label: Text(opt == null ? 'All'.tr : opt.label),
               ),
           ],
         ),
@@ -153,33 +175,57 @@ class DashboardPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _miniStat(
+              if (compactLayout)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _miniStat(
                       context,
                       'Income received',
                       monthSummary.income,
                       const Color(0xFF16A34A),
                       Icons.trending_up_rounded,
                     ),
-                  ),
-                  Container(
-                    width: 1,
-                    height: 42,
-                    color: Theme.of(context).dividerColor,
-                  ),
-                  Expanded(
-                    child: _miniStat(
+                    const SizedBox(height: 10),
+                    Divider(color: Theme.of(context).dividerColor),
+                    const SizedBox(height: 10),
+                    _miniStat(
                       context,
                       'Expense',
                       monthSummary.expense,
                       const Color(0xFFE11D48),
                       Icons.trending_down_rounded,
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                )
+              else
+                Row(
+                  children: [
+                    Expanded(
+                      child: _miniStat(
+                        context,
+                        'Income received',
+                        monthSummary.income,
+                        const Color(0xFF16A34A),
+                        Icons.trending_up_rounded,
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 42,
+                      color: Theme.of(context).dividerColor,
+                    ),
+                    Expanded(
+                      child: _miniStat(
+                        context,
+                        'Expense',
+                        monthSummary.expense,
+                        const Color(0xFFE11D48),
+                        Icons.trending_down_rounded,
+                      ),
+                    ),
+                  ],
+                ),
               const SizedBox(height: 12),
               Divider(color: Theme.of(context).dividerColor),
               const SizedBox(height: 10),
@@ -193,22 +239,32 @@ class DashboardPage extends StatelessWidget {
                         : const Color(0xFFE11D48),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    'Profit this month'.tr,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: onSurface.withValues(alpha: 0.7),
+                  Expanded(
+                    child: Text(
+                      'Profit this month'.tr,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: onSurface.withValues(alpha: 0.7),
+                      ),
                     ),
                   ),
-                  const Spacer(),
-                  MoneyText(
-                    monthSummary.profit,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: monthSummary.profit >= 0
-                          ? const Color(0xFF16A34A)
-                          : const Color(0xFFE11D48),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: MoneyText(
+                      monthSummary.profit,
+                      compact: compactLayout,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: monthSummary.profit >= 0
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFFE11D48),
+                      ),
                     ),
                   ),
                 ],
@@ -220,154 +276,142 @@ class DashboardPage extends StatelessWidget {
 
         // Business receivables and payables are not meaningful in the personal-only view.
         if (repo.scopeFilter != TxnScope.personal)
-          Row(
-            children: [
-              Expanded(
-                child: CardBox(
-                  onTap: () => onNavigate(2),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Business receivables'.tr,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: onSurface.withValues(alpha: 0.65),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      MoneyText(
-                        totals.receivable,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF0F766E),
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '{count} debtors'.trArgs({
-                          'count': totals.debtorsCount,
-                        }),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: onSurface.withValues(alpha: 0.55),
-                        ),
-                      ),
-                    ],
+          responsivePair(
+            CardBox(
+              onTap: () => onNavigate(2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Business receivables'.tr,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: onSurface.withValues(alpha: 0.65),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: CardBox(
-                  onTap: () => onNavigate(2),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Business payables'.tr,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: onSurface.withValues(alpha: 0.65),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      MoneyText(
-                        totals.payable,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF2563EB),
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '{count} creditors'.trArgs({
-                          'count': totals.creditorsCount,
-                        }),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: onSurface.withValues(alpha: 0.55),
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 6),
+                  MoneyText(
+                    totals.receivable,
+                    compact: compactLayout,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F766E),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '{count} debtors'.trArgs({'count': totals.debtorsCount}),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: onSurface.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
+            CardBox(
+              onTap: () => onNavigate(2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Business payables'.tr,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: onSurface.withValues(alpha: 0.65),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  MoneyText(
+                    totals.payable,
+                    compact: compactLayout,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF2563EB),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '{count} creditors'.trArgs({
+                      'count': totals.creditorsCount,
+                    }),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: onSurface.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         const SizedBox(height: 10),
         if (repo.scopeFilter != TxnScope.personal)
-          Row(
-            children: [
-              Expanded(
-                child: CardBox(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Business cash balance'.tr,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: onSurface.withValues(alpha: 0.65),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      MoneyText(
-                        repo.cashBalance,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF7C3AED),
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Cash + bank'.tr,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: onSurface.withValues(alpha: 0.55),
-                        ),
-                      ),
-                    ],
+          responsivePair(
+            CardBox(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Business cash balance'.tr,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: onSurface.withValues(alpha: 0.65),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: CardBox(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Received this month'.tr,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: onSurface.withValues(alpha: 0.65),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      MoneyText(
-                        monthSummary.cashIn,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Cash + collections'.tr,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: onSurface.withValues(alpha: 0.55),
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 6),
+                  MoneyText(
+                    repo.cashBalance,
+                    compact: compactLayout,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF7C3AED),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Cash + bank'.tr,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: onSurface.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
+            CardBox(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Received this month'.tr,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: onSurface.withValues(alpha: 0.65),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  MoneyText(
+                    monthSummary.cashIn,
+                    compact: compactLayout,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Cash + collections'.tr,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: onSurface.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
 
         // Bank SMS (Android only)
@@ -458,6 +502,50 @@ class DashboardPage extends StatelessWidget {
               reminderDays: repo.settings.reminderDays,
             );
             final days = Ledger.daysLeft(s);
+            final compact = MediaQuery.sizeOf(context).width < 360;
+            final info = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  customer?.name ?? 'No customer'.tr,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${s.planName.tr} • ${J.d(s.endDate)}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            );
+            final expiryTag = TagChip(
+              Fmt.expiryLabel(days),
+              color: status.color,
+              dense: true,
+              maxWidth: compact ? 140 : null,
+            );
+            final renewButton = IconButton(
+              tooltip: 'Renew'.tr,
+              style: IconButton.styleFrom(
+                minimumSize: const Size(Taps.icon, Taps.icon),
+              ),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SellSubscriptionPage(renewFrom: s),
+                ),
+              ),
+              icon: const Icon(Icons.autorenew_rounded, size: 19),
+            );
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: CardBox(
@@ -474,53 +562,29 @@ class DashboardPage extends StatelessWidget {
                               CustomerDetailPage(customer: customer),
                         ),
                       ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                child: compact
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text(
-                            customer?.name ?? 'No customer'.tr,
-                            style: const TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            '${s.planName.tr} • ${J.d(s.endDate)}',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: onSurface.withValues(alpha: 0.6),
-                            ),
+                          info,
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              expiryTag,
+                              const Spacer(),
+                              renewButton,
+                            ],
                           ),
                         ],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(child: info),
+                          expiryTag,
+                          const SizedBox(width: 6),
+                          renewButton,
+                        ],
                       ),
-                    ),
-                    TagChip(
-                      Fmt.expiryLabel(days),
-                      color: status.color,
-                      dense: true,
-                    ),
-                    const SizedBox(width: 6),
-                    IconButton(
-                      tooltip: 'Renew'.tr,
-                      // Small glyph, full-size target: the icon stays light
-                      // while the button is still easy to hit.
-                      style: IconButton.styleFrom(
-                        minimumSize: const Size(Taps.icon, Taps.icon),
-                      ),
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => SellSubscriptionPage(renewFrom: s),
-                        ),
-                      ),
-                      icon: const Icon(Icons.autorenew_rounded, size: 19),
-                    ),
-                  ],
-                ),
               ),
             );
           }),
@@ -553,10 +617,21 @@ class DashboardPage extends StatelessWidget {
           onAction: () => onNavigate(4),
         ),
         if (recent.isEmpty)
-          const EmptyState(
+          EmptyState(
             icon: Icons.receipt_long_outlined,
-            title: 'No transactions yet',
-            text: 'Tap + to record your first sale or expense.',
+            title: hasNoTransactions
+                ? 'No transactions yet'
+                : 'No transactions in this view',
+            text: hasNoTransactions
+                ? 'Tap + to record your first sale or expense.'
+                : 'Change the account filter or show all transactions.',
+            actionLabel: hasNoTransactions ? null : 'Show all transactions',
+            onAction: hasNoTransactions
+                ? null
+                : () {
+                    repo.setScopeFilter(null);
+                    onNavigate(4);
+                  },
           )
         else
           Card(
@@ -593,11 +668,15 @@ class DashboardPage extends StatelessWidget {
           children: [
             Icon(icon, size: 14, color: color),
             const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11.5,
-                color: onSurface.withValues(alpha: 0.65),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: onSurface.withValues(alpha: 0.65),
+                ),
               ),
             ),
           ],
@@ -605,7 +684,7 @@ class DashboardPage extends StatelessWidget {
         const SizedBox(height: 6),
         MoneyText(
           value,
-          compact: false,
+          compact: MediaQuery.sizeOf(context).width < 360,
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,

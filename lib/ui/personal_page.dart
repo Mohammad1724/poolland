@@ -30,6 +30,7 @@ class PersonalPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    final compactLayout = MediaQuery.sizeOf(context).width < 360;
     final range = AppRepository.monthOf(DateTime.now());
     final month = repo.summary(
       from: range.start,
@@ -55,45 +56,73 @@ class PersonalPage extends StatelessWidget {
                 children: [
                   const Icon(Icons.person_outline_rounded, size: 17),
                   const SizedBox(width: 6),
-                  Text(
-                    'Personal summary — {month}'.trArgs({
-                      'month': J.mLabel(DateTime.now()),
-                    }),
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
+                  Expanded(
+                    child: Text(
+                      'Personal summary — {month}'.trArgs({
+                        'month': J.mLabel(DateTime.now()),
+                      }),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _miniStat(
+              if (compactLayout)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _miniStat(
                       context,
                       'Income',
                       month.income,
                       const Color(0xFF16A34A),
                       Icons.trending_up_rounded,
                     ),
-                  ),
-                  Container(
-                    width: 1,
-                    height: 42,
-                    color: Theme.of(context).dividerColor,
-                  ),
-                  Expanded(
-                    child: _miniStat(
+                    const SizedBox(height: 10),
+                    Divider(color: Theme.of(context).dividerColor),
+                    const SizedBox(height: 10),
+                    _miniStat(
                       context,
                       'Expense',
                       month.expense,
                       const Color(0xFFE11D48),
                       Icons.trending_down_rounded,
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                )
+              else
+                Row(
+                  children: [
+                    Expanded(
+                      child: _miniStat(
+                        context,
+                        'Income',
+                        month.income,
+                        const Color(0xFF16A34A),
+                        Icons.trending_up_rounded,
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 42,
+                      color: Theme.of(context).dividerColor,
+                    ),
+                    Expanded(
+                      child: _miniStat(
+                        context,
+                        'Expense',
+                        month.expense,
+                        const Color(0xFFE11D48),
+                        Icons.trending_down_rounded,
+                      ),
+                    ),
+                  ],
+                ),
               const SizedBox(height: 12),
               Divider(color: Theme.of(context).dividerColor),
               const SizedBox(height: 10),
@@ -101,22 +130,32 @@ class PersonalPage extends StatelessWidget {
                 children: [
                   const Icon(Icons.account_balance_wallet_rounded, size: 18),
                   const SizedBox(width: 8),
-                  Text(
-                    'Monthly net'.tr,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: onSurface.withValues(alpha: 0.7),
+                  Expanded(
+                    child: Text(
+                      'Monthly net'.tr,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: onSurface.withValues(alpha: 0.7),
+                      ),
                     ),
                   ),
-                  const Spacer(),
-                  MoneyText(
-                    month.profit,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: month.profit >= 0
-                          ? const Color(0xFF16A34A)
-                          : const Color(0xFFE11D48),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: MoneyText(
+                      month.profit,
+                      compact: compactLayout,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: month.profit >= 0
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFFE11D48),
+                      ),
                     ),
                   ),
                 ],
@@ -318,12 +357,16 @@ class PersonalPage extends StatelessWidget {
         children: [
           Icon(icon, size: 15, color: color),
           const SizedBox(width: 5),
-          Text(
-            label.tr,
-            style: TextStyle(
-              fontSize: 11.5,
-              color: Theme.of(context).colorScheme.onSurface
-                  .withValues(alpha: 0.6),
+          Expanded(
+            child: Text(
+              label.tr,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                color: Theme.of(context).colorScheme.onSurface
+                    .withValues(alpha: 0.6),
+              ),
             ),
           ),
         ],
@@ -331,6 +374,7 @@ class PersonalPage extends StatelessWidget {
       const SizedBox(height: 5),
       MoneyText(
         value,
+        compact: MediaQuery.sizeOf(context).width < 360,
         style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
       ),
     ],
@@ -395,6 +439,20 @@ class _BudgetTile extends StatelessWidget {
         ? const Color(0xFFD97706)
         : const Color(0xFF16A34A);
     final pct = usage.ratio > 1 ? 1.0 : usage.ratio;
+    final compact = MediaQuery.sizeOf(context).width < 360;
+
+    Widget deleteAction() => InkWell(
+      onTap: onDelete,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Icon(
+          Icons.delete_outline_rounded,
+          size: 17,
+          color: onSurface.withValues(alpha: 0.4),
+        ),
+      ),
+    );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -403,45 +461,74 @@ class _BudgetTile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    usage.categoryName,
-                    style: const TextStyle(
-                      fontSize: 13,
+            if (compact)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          usage.categoryName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      deleteAction(),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${Money.text(usage.spent, compact: true)} / ${Money.text(usage.budget.limit, compact: true)}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: TextStyle(
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w700,
+                      color: color,
                     ),
                   ),
-                ),
-                MoneyText(
-                  usage.spent,
-                  compact: true,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: color,
+                ],
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      usage.categoryName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
-                ),
-                Text(
-                  ' / ${Money.text(usage.budget.limit, compact: true)}',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: onSurface.withValues(alpha: 0.55),
+                  MoneyText(
+                    usage.spent,
+                    compact: true,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: color,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                InkWell(
-                  onTap: onDelete,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Icon(
-                    Icons.delete_outline_rounded,
-                    size: 17,
-                    color: onSurface.withValues(alpha: 0.4),
+                  Text(
+                    ' / ${Money.text(usage.budget.limit, compact: true)}',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: onSurface.withValues(alpha: 0.55),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 4),
+                  deleteAction(),
+                ],
+              ),
             const SizedBox(height: 8),
             // A simple, non-animated progress bar uses less battery.
             Container(

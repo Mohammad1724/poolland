@@ -129,11 +129,12 @@ class _HomeShellState extends State<HomeShell> {
       _fabVisible.value = true;
       return;
     }
-    controller.animateTo(
-      0,
-      duration: Motion.quick,
-      curve: Curves.easeOut,
-    );
+    final duration = Motion.adaptive(context, Motion.quick);
+    if (duration == Duration.zero) {
+      controller.jumpTo(0);
+    } else {
+      controller.animateTo(0, duration: duration, curve: Curves.easeOut);
+    }
     _fabVisible.value = true;
   }
 
@@ -141,6 +142,12 @@ class _HomeShellState extends State<HomeShell> {
   /// scrolling up. Scroll notifications bubble up from whichever list is
   /// currently visible, so no page has to know about this.
   bool _handleScroll(ScrollNotification notification) {
+    // Hiding a persistent action while a screen reader or switch-access user
+    // explores the list makes that action difficult to discover and reach.
+    if (MediaQuery.maybeOf(context)?.accessibleNavigation ?? false) {
+      if (!_fabVisible.value) _fabVisible.value = true;
+      return false;
+    }
     if (notification is ScrollUpdateNotification) {
       final delta = notification.scrollDelta ?? 0;
       if (delta > 4 && _fabVisible.value) {
@@ -154,7 +161,18 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   Widget _buildFab() {
+    final compact = MediaQuery.sizeOf(context).width < 360;
     if (_index == 2) {
+      if (compact) {
+        return FloatingActionButton(
+          tooltip: 'New customer'.tr,
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ContactEditPage()),
+          ),
+          child: const Icon(Icons.person_add_alt_1_rounded),
+        );
+      }
       return FloatingActionButton.extended(
         onPressed: () => Navigator.push(
           context,
@@ -165,6 +183,13 @@ class _HomeShellState extends State<HomeShell> {
       );
     }
     if (_index == 0) {
+      if (compact) {
+        return FloatingActionButton(
+          tooltip: 'Add personal entry'.tr,
+          onPressed: _personalAdd,
+          child: const Icon(Icons.add_rounded),
+        );
+      }
       return FloatingActionButton.extended(
         onPressed: _personalAdd,
         icon: const Icon(Icons.add_rounded),
@@ -172,6 +197,16 @@ class _HomeShellState extends State<HomeShell> {
       );
     }
     if (_index == 3) {
+      if (compact) {
+        return FloatingActionButton(
+          tooltip: 'Sell a subscription'.tr,
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SellSubscriptionPage()),
+          ),
+          child: const Icon(Icons.vpn_key_rounded),
+        );
+      }
       return FloatingActionButton.extended(
         onPressed: () => Navigator.push(
           context,
@@ -593,22 +628,31 @@ class _HomeShellState extends State<HomeShell> {
             // stops covering the last rows of long pages.
             : ValueListenableBuilder<bool>(
                 valueListenable: _fabVisible,
-                builder: (context, visible, _) => AnimatedSlide(
-                  offset: visible ? Offset.zero : const Offset(0, 2.5),
-                  duration: Motion.quick,
-                  curve: Curves.easeOut,
-                  child: _buildFab(),
-                ),
+                builder: (context, visible, _) {
+                  final accessibleNavigation =
+                      MediaQuery.maybeOf(context)?.accessibleNavigation ??
+                      false;
+                  return AnimatedSlide(
+                    offset: visible || accessibleNavigation
+                        ? Offset.zero
+                        : const Offset(0, 2.5),
+                    duration: Motion.adaptive(context, Motion.quick),
+                    curve: Curves.easeOut,
+                    child: _buildFab(),
+                  );
+                },
               ),
         bottomNavigationBar: isWide
             ? null
             : NavigationBar(
                 selectedIndex: _index,
                 onDestinationSelected: _goTo,
-                // Labels stay visible at all times: with five look-alike
-                // icons, the text is what users actually scan for.
-                labelBehavior:
-                    NavigationDestinationLabelBehavior.alwaysShow,
+                // Keep labels visible normally. At very narrow widths the
+                // selected destination keeps its label while the others make
+                // room; their semantic labels remain available to assistive tech.
+                labelBehavior: width < 360
+                    ? NavigationDestinationLabelBehavior.onlyShowSelected
+                    : NavigationDestinationLabelBehavior.alwaysShow,
                 destinations: [
                   NavigationDestination(
                     icon: const Icon(Icons.person_outline_rounded),

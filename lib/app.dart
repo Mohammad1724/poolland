@@ -106,24 +106,15 @@ class _VpnLedgerAppState extends State<VpnLedgerApp> {
       themeMode: themeMode,
       builder: (context, child) {
         final content = child ?? const SizedBox.shrink();
-        // Clamp the system font scale. Extreme accessibility scales break
-        // this dense ledger layout (overlapping labels, clipped buttons);
-        // values between 0.85x and 1.3x keep everything readable and intact.
-        final media = MediaQuery.of(context);
-        final scaled = MediaQuery(
-          data: media.copyWith(
-            textScaler: media.textScaler.clamp(
-              minScaleFactor: 0.85,
-              maxScaleFactor: 1.3,
-            ),
-          ),
-          child: content,
-        );
+        // Preserve the operating system's text scale. Clamping it made small
+        // labels technically visible but prevented people who need larger type
+        // from reading them. Layouts should adapt to accessibility settings,
+        // not silently override them.
         return Directionality(
           textDirection: locale.languageCode == 'fa'
               ? TextDirection.rtl
               : TextDirection.ltr,
-          child: lockable ? AppLockGate(child: scaled) : scaled,
+          child: lockable ? AppLockGate(child: content) : content,
         );
       },
       home: home,
