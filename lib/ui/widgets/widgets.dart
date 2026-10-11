@@ -1792,7 +1792,7 @@ class SwipeActions extends StatefulWidget {
     super.key,
     required this.child,
     required this.actions,
-    this.panelWidth = 138,
+    this.panelWidth = 150,
   });
 
   final Widget child;
@@ -1878,15 +1878,16 @@ class _SwipeActionsState extends State<SwipeActions>
                   child: SizedBox(
                     width: widget.panelWidth,
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         for (var i = 0; i < widget.actions.length; i++)
-                          _SwipeButton(
-                            action: widget.actions[i],
-                            appear: ((t * widget.actions.length) - i)
-                                .clamp(0.0, 1.0),
-                            enabled: raw >= 0.99,
-                            onUsed: () => _animateTo(0),
+                          Expanded(
+                            child: _SwipeButton(
+                              action: widget.actions[i],
+                              appear: ((t * widget.actions.length) - i)
+                                  .clamp(0.0, 1.0),
+                              enabled: raw >= 0.99,
+                              onUsed: () => _animateTo(0),
+                            ),
                           ),
                       ],
                     ),
@@ -1961,6 +1962,9 @@ class _SwipeButton extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     action.label.tr,
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 9.5,
                       fontWeight: FontWeight.w700,
