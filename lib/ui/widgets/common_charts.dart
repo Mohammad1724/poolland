@@ -329,8 +329,9 @@ class _CategoryPieChartState extends State<CategoryPieChart>
         ),
       ],
     );
-        // Painted on its own layer so page scrolling does not redraw the pie.
-        return RepaintBoundary(child: chart);
+        // Own layer so page scrolling does not redraw the pie, plus the
+        // slow ambient shimmer like the bar charts.
+        return ShimmerSweep(child: RepaintBoundary(child: chart));
       },
     );
   }

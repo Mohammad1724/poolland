@@ -512,6 +512,7 @@ class _BreathingGradientState extends State<BreathingGradient>
           widget.child,
           Positioned.fill(
             child: IgnorePointer(
+              child: RepaintBoundary(
               child: AnimatedBuilder(
                 animation: _c,
                 builder: (context, _) => DecoratedBox(
@@ -526,6 +527,7 @@ class _BreathingGradientState extends State<BreathingGradient>
                     ),
                   ),
                 ),
+              ),
               ),
             ),
           ),

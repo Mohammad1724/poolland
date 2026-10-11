@@ -128,8 +128,59 @@ class AppRepository extends ChangeNotifier {
   }
 
   // ---------------- Quick accessors ----------------
-  List<Customer> get activeCustomers =>
-      customers.where((c) => !c.archived).toList();
+
+  // Derived-data cache.
+  //
+  // Pages watch the whole repository and read these getters several times per
+  // build, and each aggregation walks the entire ledger. Caching per data
+  // version means every aggregation runs once per change instead of once per
+  // access; [notifyListeners] bumps the version, and every mutation goes
+  // through it, so cached values can never outlive the data they came from.
+  int _version = 0;
+
+  @override
+  void notifyListeners() {
+    _version++;
+    super.notifyListeners();
+  }
+
+  int _cacheVersion = -1;
+  List<Customer>? _activeCustomers;
+  List<Txn>? _businessTxns;
+  List<Txn>? _visibleTxns;
+  Balances? _totals;
+  double? _cashBalance;
+  int? _activeSubsCount;
+  List<Subscription>? _alerts;
+  Map<String, double>? _balancesMap;
+  List<MapEntry<Customer, double>>? _debtors;
+  List<MapEntry<Customer, double>>? _creditors;
+  final Map<String, Summary> _summaryCache = {};
+  final Map<String, List<MonthPoint>> _seriesCache = {};
+
+  /// Clears every cached aggregate when the data version has moved on.
+  void _syncCache() {
+    if (_cacheVersion == _version) return;
+    _cacheVersion = _version;
+    _activeCustomers = null;
+    _businessTxns = null;
+    _visibleTxns = null;
+    _totals = null;
+    _cashBalance = null;
+    _activeSubsCount = null;
+    _alerts = null;
+    _balancesMap = null;
+    _debtors = null;
+    _creditors = null;
+    _summaryCache.clear();
+    _seriesCache.clear();
+  }
+
+  List<Customer> get activeCustomers {
+    _syncCache();
+    return _activeCustomers ??=
+        customers.where((c) => !c.archived).toList();
+  }
 
   List<Plan> get activePlans => plans.where((p) => !p.archived).toList();
 
@@ -183,7 +234,10 @@ class AppRepository extends ChangeNotifier {
 
   double balanceOf(Customer c) => Ledger.customerBalance(c, businessTxns);
 
-  Balances get totals => Ledger.totals(customers, businessTxns);
+  Balances get totals {
+    _syncCache();
+    return _totals ??= Ledger.totals(customers, businessTxns);
+  }
 
   /// Transactions in a given scope (all scopes when null).
   List<Txn> scopeTxns(TxnScope? scope) => scope == null
@@ -193,47 +247,80 @@ class AppRepository extends ChangeNotifier {
   /// Business transactions — everything except personal transactions.
   /// All business calculations use this list so personal expenses
   /// do not distort VPN business profit.
-  List<Txn> get businessTxns =>
-      transactions.where((t) => t.scope != TxnScope.personal).toList();
+  List<Txn> get businessTxns {
+    _syncCache();
+    return _businessTxns ??=
+        transactions.where((t) => t.scope != TxnScope.personal).toList();
+  }
 
-  Summary summary({DateTime? from, DateTime? to, TxnScope? scope}) =>
-      Ledger.summarize(scopeTxns(scope), from: from, to: to, scope: scope);
+  Summary summary({DateTime? from, DateTime? to, TxnScope? scope}) {
+    _syncCache();
+    final key =
+        '${from?.millisecondsSinceEpoch ?? '-'}|'
+        '${to?.millisecondsSinceEpoch ?? '-'}|${scope?.name ?? '-'}';
+    return _summaryCache.putIfAbsent(
+      key,
+      () => Ledger.summarize(scopeTxns(scope), from: from, to: to, scope: scope),
+    );
+  }
 
-  List<MonthPoint> series({int months = 6, TxnScope? scope}) =>
-      Ledger.monthlySeries(scopeTxns(scope), months: months, scope: scope);
+  List<MonthPoint> series({int months = 6, TxnScope? scope}) {
+    _syncCache();
+    final key = '$months|${scope?.name ?? '-'}';
+    return _seriesCache.putIfAbsent(
+      key,
+      () => Ledger.monthlySeries(scopeTxns(scope), months: months, scope: scope),
+    );
+  }
 
-  List<Subscription> get alerts =>
-      Ledger.alerts(subscriptions, reminderDays: settings.reminderDays);
+  List<Subscription> get alerts {
+    _syncCache();
+    return _alerts ??=
+        Ledger.alerts(subscriptions, reminderDays: settings.reminderDays);
+  }
 
-  int get activeSubsCount => Ledger.activeCount(subscriptions);
+  int get activeSubsCount {
+    _syncCache();
+    return _activeSubsCount ??= Ledger.activeCount(subscriptions);
+  }
 
-  Map<String, double> balancesMap() =>
-      Ledger.balancesByCustomer(customers, businessTxns);
+  Map<String, double> balancesMap() {
+    _syncCache();
+    return _balancesMap ??=
+        Ledger.balancesByCustomer(customers, businessTxns);
+  }
 
   /// Cash/bank balance = opening balance + net business cash flow.
-  double get cashBalance =>
-      settings.openingCash + Ledger.summarize(businessTxns).netCash;
+  double get cashBalance {
+    _syncCache();
+    return _cashBalance ??=
+        settings.openingCash + Ledger.summarize(businessTxns).netCash;
+  }
 
   /// Sorted list of debtors (contacts who owe us).
   List<MapEntry<Customer, double>> debtorsList() {
-    final map = balancesMap();
-    final list =
-        activeCustomers
-            .map((c) => MapEntry(c, map[c.id] ?? 0))
-            .where((e) => e.value > 0.5)
-            .toList()
-          ..sort((a, b) => b.value.compareTo(a.value));
-    return list;
+    _syncCache();
+    return _debtors ??= () {
+      final map = balancesMap();
+      return activeCustomers
+          .map((c) => MapEntry(c, map[c.id] ?? 0))
+          .where((e) => e.value > 0.5)
+          .toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+    }();
   }
 
   /// Sorted list of creditors (contacts we owe).
   List<MapEntry<Customer, double>> creditorsList() {
-    final map = balancesMap();
-    return activeCustomers
-        .map((e) => MapEntry(e, map[e.id] ?? 0))
-        .where((e) => e.value < -0.5)
-        .toList()
-      ..sort((a, b) => a.value.compareTo(b.value));
+    _syncCache();
+    return _creditors ??= () {
+      final map = balancesMap();
+      return activeCustomers
+          .map((e) => MapEntry(e, map[e.id] ?? 0))
+          .where((e) => e.value < -0.5)
+          .toList()
+        ..sort((a, b) => a.value.compareTo(b.value));
+    }();
   }
 
   // ---------------- Customers ----------------
@@ -802,9 +889,12 @@ class AppRepository extends ChangeNotifier {
   }
 
   /// Visible transactions after applying the scope filter.
-  List<Txn> get visibleTxns => scopeFilter == null
-      ? transactions
-      : transactions.where((t) => t.scope == scopeFilter).toList();
+  List<Txn> get visibleTxns {
+    _syncCache();
+    return _visibleTxns ??= scopeFilter == null
+        ? transactions
+        : transactions.where((t) => t.scope == scopeFilter).toList();
+  }
 
   Future<void> upsertCurrency(CurrencyDef def) async {
     final list = [...settings.currencies];
