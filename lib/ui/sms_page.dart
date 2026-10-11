@@ -69,7 +69,16 @@ class _SmsPageState extends State<SmsPage> {
           )
           .firstOrNull;
       if (target == null || !mounted) return;
-      await _openReview(context, target, repo.matchCustomerForSms(target));
+      final matched = repo.matchCustomerForSms(target);
+      final ok = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => SmsReviewSheet(sms: target, initialCustomer: matched),
+      );
+      if (ok == true && mounted) {
+        showSnack(context, 'Transaction recorded from SMS');
+      }
     });
   }
 
@@ -589,7 +598,7 @@ class _SmsCard extends StatelessWidget {
                   onPressed: () => _openReview(context, sms, matched),
                   icon: const Icon(Icons.check_rounded, size: 17),
                   label: Text(
-                    matched == null ? 'Review and record' : 'Confirm',
+                    (matched == null ? 'Review and record' : 'Confirm').tr,
                   ),
                 ),
               ),
