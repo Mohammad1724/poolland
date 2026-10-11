@@ -193,7 +193,8 @@ class _CustomersPageState extends State<CustomersPage> {
               : ListView.separated(
                   controller: widget.controller,
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
-                  scrollCacheExtent: 600,
+                  // ignore: deprecated_member_use
+                  cacheExtent: 600,
                   itemCount: list.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 8),
                   itemBuilder: (context, i) {
