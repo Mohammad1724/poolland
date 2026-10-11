@@ -110,7 +110,9 @@ Future<T?> showLedgerSheet<T>(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.sizeOf(ctx).height * 0.92,
         ),
-        child: Material(color: Colors.transparent, child: builder(ctx)),
+        child: _SheetDragDismiss(
+          child: Material(color: Colors.transparent, child: builder(ctx)),
+        ),
       ),
     ),
     transitionBuilder: (ctx, anim, _, child) {
@@ -784,4 +786,100 @@ class _CoinFacePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_CoinFacePainter old) => false;
+}
+
+/// Drag-to-dismiss for ledger sheets.
+///
+/// A translucent strip along the top edge (where every sheet has its grab
+/// handle) follows the finger down, tilting the sheet like soft paper. Past a
+/// threshold — or on a fling — the sheet pops; otherwise it springs back.
+/// Taps still fall through to the content underneath.
+class _SheetDragDismiss extends StatefulWidget {
+  const _SheetDragDismiss({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_SheetDragDismiss> createState() => _SheetDragDismissState();
+}
+
+class _SheetDragDismissState extends State<_SheetDragDismiss>
+    with SingleTickerProviderStateMixin {
+  double _dy = 0;
+  double _springFrom = 0;
+  late final AnimationController _spring = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  );
+
+  @override
+  void dispose() {
+    _spring.dispose();
+    super.dispose();
+  }
+
+  double get _current {
+    if (!_spring.isAnimating) return _dy;
+    return _springFrom * (1 - Curves.easeOutCubic.transform(_spring.value));
+  }
+
+  void _onUpdate(DragUpdateDetails d) {
+    _spring.stop();
+    setState(() => _dy = (_dy + d.delta.dy).clamp(0.0, 480.0));
+  }
+
+  void _onEnd(DragEndDetails d) {
+    final v = d.primaryVelocity ?? 0;
+    if (_dy > 110 || v > 900) {
+      Navigator.maybePop(context);
+      return;
+    }
+    _springFrom = _dy;
+    _dy = 0;
+    _spring.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dy = _current;
+    return AnimatedBuilder(
+      animation: _spring,
+      builder: (context, child) {
+        final now = _current;
+        final tilt = Matrix4.identity()
+          ..setEntry(3, 2, 0.001)
+          ..rotateX(math.min(now / 3200, 0.05));
+        return Transform.translate(
+          offset: Offset(0, now),
+          child: Transform(
+            alignment: Alignment.topCenter,
+            transform: tilt,
+            child: child,
+          ),
+        );
+      },
+      child: Stack(
+        children: [
+          widget.child,
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 34,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onVerticalDragUpdate: _onUpdate,
+              onVerticalDragEnd: _onEnd,
+              onVerticalDragCancel: () {
+                _springFrom = _dy;
+                _dy = 0;
+                _spring.forward(from: 0);
+              },
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

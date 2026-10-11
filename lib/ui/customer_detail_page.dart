@@ -17,6 +17,7 @@ import 'forms/payment_sheet.dart';
 import 'forms/sell_subscription_page.dart';
 import 'forms/transaction_edit_page.dart';
 import 'widgets/widgets.dart';
+import 'widgets/txn_actions.dart';
 
 import '../core/localization.dart';
 
@@ -166,7 +167,7 @@ class CustomerDetailPage extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 6),
-                          OdometerMoney(
+                          CopyMoney(value: balance.abs(), child: OdometerMoney(
                             balance.abs(),
                             style: TextStyle(
                               fontSize: 22,
@@ -177,7 +178,7 @@ class CustomerDetailPage extends StatelessWidget {
                                   ? const Color(0xFF0F766E)
                                   : const Color(0xFF2563EB),
                             ),
-                          ),
+                          )),
                         ],
                       ),
                     ),
@@ -485,15 +486,18 @@ class CustomerDetailPage extends StatelessWidget {
               child: Column(
                 children: [
                   for (var i = 0; i < txns.length; i++) ...[
-                    TxnTile(
-                      txn: txns[i],
-                      categoryName: repo.categoryName(txns[i].categoryId),
-                      showCustomer: false,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              TransactionEditPage(existing: txns[i]),
+                    SwipeActions(
+                      actions: txnSwipeActions(context, txns[i], repo),
+                      child: TxnTile(
+                        txn: txns[i],
+                        categoryName: repo.categoryName(txns[i].categoryId),
+                        showCustomer: false,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                TransactionEditPage(existing: txns[i]),
+                          ),
                         ),
                       ),
                     ),

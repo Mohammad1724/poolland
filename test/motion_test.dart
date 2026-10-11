@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:poolland/core/money.dart';
+import 'package:flutter/services.dart';
 import 'package:poolland/ui/design.dart';
 import 'package:poolland/ui/motion_kit.dart';
 import 'package:poolland/ui/widgets/ledger_nav_bar.dart';
+import 'package:poolland/ui/widgets/widgets.dart';
 
 /// Component tests for the motion kit.
 ///
@@ -103,6 +105,67 @@ void main() {
     await tester.tap(find.text('Pick me'));
     await tester.pumpAndSettle();
     expect(result, 'picked');
+  });
+
+  testWidgets('SwipeActions opens on a trailing drag and fires the action', (
+    tester,
+  ) async {
+    var fired = false;
+    await tester.pumpWidget(
+      wrap(
+        Center(
+          child: SizedBox(
+            width: 320,
+            child: SwipeActions(
+              actions: [
+                SwipeAction(
+                  icon: Icons.edit_rounded,
+                  label: 'Act',
+                  color: const Color(0xFF0F766E),
+                  onTap: () => fired = true,
+                ),
+              ],
+              child: Container(height: 64, color: const Color(0xFFEEEEEE),
+                  child: const Center(child: Text('row'))),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('row'), findsOneWidget);
+    await tester.drag(find.text('row'), const Offset(-160, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Act'));
+    await tester.pumpAndSettle();
+    expect(fired, isTrue);
+  });
+
+  testWidgets('CopyMoney copies the plain number on long-press', (
+    tester,
+  ) async {
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null));
+    await tester.pumpWidget(
+      wrap(
+        const Center(
+          child: CopyMoney(value: 1250.4, child: Text('1,250')),
+        ),
+      ),
+    );
+    await tester.longPress(find.text('1,250'));
+    await tester.pumpAndSettle();
+    expect(copied, '1250');
   });
 
   testWidgets('EnterMotion and SlipIn render their child', (tester) async {

@@ -14,6 +14,7 @@ import 'forms/transaction_edit_page.dart';
 import 'widgets/period_chart.dart';
 import 'widgets/quick_buttons.dart';
 import 'widgets/widgets.dart';
+import 'widgets/txn_actions.dart';
 
 import '../core/localization.dart';
 
@@ -206,7 +207,9 @@ class PersonalPage extends StatelessWidget {
             child: Column(
               children: [
                 for (final t in personal.take(8))
-                  TxnTile(
+                  SwipeActions(
+                    actions: txnSwipeActions(context, t, repo),
+                    child: TxnTile(
                     txn: t,
                     categoryName:
                         repo.categories
@@ -221,6 +224,7 @@ class PersonalPage extends StatelessWidget {
                         builder: (_) => TransactionEditPage(existing: t),
                       ),
                     ),
+                  ),
                   ),
               ],
             ),

@@ -14,6 +14,7 @@ import 'sms_page.dart';
 import 'widgets/common_charts.dart';
 import 'widgets/quick_buttons.dart';
 import 'widgets/widgets.dart';
+import 'widgets/txn_actions.dart';
 
 import '../core/localization.dart';
 
@@ -264,7 +265,7 @@ class DashboardPage extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Flexible(
-                    child: OdometerMoney(
+                    child: CopyMoney(value: monthSummary.profit, child: OdometerMoney(
                       monthSummary.profit,
                       compact: compactLayout,
                       maxLines: 1,
@@ -277,7 +278,7 @@ class DashboardPage extends StatelessWidget {
                             ? const Color(0xFF16A34A)
                             : const Color(0xFFE11D48),
                       ),
-                    ),
+                    )),
                   ),
                 ],
               ),
@@ -303,7 +304,7 @@ class DashboardPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  OdometerMoney(
+                  CopyMoney(value: totals.receivable, child: OdometerMoney(
                     totals.receivable,
                     compact: compactLayout,
                     style: const TextStyle(
@@ -311,7 +312,7 @@ class DashboardPage extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF0F766E),
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 3),
                   Text(
                     '{count} debtors'.trArgs({'count': totals.debtorsCount}),
@@ -336,7 +337,7 @@ class DashboardPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  OdometerMoney(
+                  CopyMoney(value: totals.payable, child: OdometerMoney(
                     totals.payable,
                     compact: compactLayout,
                     style: const TextStyle(
@@ -344,7 +345,7 @@ class DashboardPage extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF2563EB),
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 3),
                   Text(
                     '{count} creditors'.trArgs({
@@ -374,7 +375,7 @@ class DashboardPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  OdometerMoney(
+                  CopyMoney(value: repo.cashBalance, child: OdometerMoney(
                     repo.cashBalance,
                     compact: compactLayout,
                     style: const TextStyle(
@@ -382,7 +383,7 @@ class DashboardPage extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF7C3AED),
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 3),
                   Text(
                     'Cash + bank'.tr,
@@ -406,14 +407,14 @@ class DashboardPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  OdometerMoney(
+                  CopyMoney(value: monthSummary.cashIn, child: OdometerMoney(
                     monthSummary.cashIn,
                     compact: compactLayout,
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 3),
                   Text(
                     'Cash + collections'.tr,
@@ -609,7 +610,7 @@ class DashboardPage extends StatelessWidget {
         CollapsibleCard(
           title: 'Last 6 months',
           icon: Icons.bar_chart_rounded,
-          summary: OdometerMoney(
+          summary: CopyMoney(value: series.fold<double>(0, (sum, p) => sum + p.profit), child: OdometerMoney(
             series.fold<double>(0, (sum, p) => sum + p.profit),
             compact: true,
             signed: true,
@@ -617,7 +618,7 @@ class DashboardPage extends StatelessWidget {
               fontSize: FontSizes.small,
               fontWeight: FontWeight.w700,
             ),
-          ),
+          )),
           bodyPadding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
           child: SizedBox(height: 190, child: MonthlyBarChart(points: series)),
         ),
@@ -651,10 +652,13 @@ class DashboardPage extends StatelessWidget {
             child: Column(
               children: [
                 for (var i = 0; i < recent.length; i++) ...[
-                  TxnTile(
-                    txn: recent[i],
-                    categoryName: repo.categoryName(recent[i].categoryId),
-                    customerName: repo.customerName(recent[i].customerId),
+                  SwipeActions(
+                    actions: txnSwipeActions(context, recent[i], repo),
+                    child: TxnTile(
+                      txn: recent[i],
+                      categoryName: repo.categoryName(recent[i].categoryId),
+                      customerName: repo.customerName(recent[i].customerId),
+                    ),
                   ),
                   if (i != recent.length - 1)
                     Divider(height: 1, color: Theme.of(context).dividerColor),
@@ -695,7 +699,7 @@ class DashboardPage extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 6),
-        OdometerMoney(
+        CopyMoney(value: value, child: OdometerMoney(
           value,
           compact: MediaQuery.sizeOf(context).width < 360,
           style: TextStyle(
@@ -703,7 +707,7 @@ class DashboardPage extends StatelessWidget {
             fontWeight: FontWeight.w700,
             color: color,
           ),
-        ),
+        )),
       ],
     );
   }

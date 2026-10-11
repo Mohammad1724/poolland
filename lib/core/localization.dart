@@ -38,6 +38,7 @@ class AppLocalization {
     'All': 'همه',
     'Save': 'ذخیره',
     'Cancel': 'انصراف',
+    'Copied': 'کپی شد',
     'Add': 'افزودن',
     'Edit': 'ویرایش',
     'Duplicate': 'تکرار',

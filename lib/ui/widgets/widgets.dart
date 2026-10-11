@@ -67,31 +67,61 @@ class MoneyText extends StatelessWidget {
 }
 
 /// ---------------- Card ----------------
-class CardBox extends StatelessWidget {
+class CardBox extends StatefulWidget {
   const CardBox({
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(14),
     this.onTap,
+    this.onLongPress,
   });
 
   final Widget child;
   final EdgeInsets padding;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  @override
+  State<CardBox> createState() => _CardBoxState();
+}
+
+class _CardBoxState extends State<CardBox> {
+  bool _down = false;
+
+  bool get _squishy => Motion.motionEnabled && widget.onTap != null;
+
+  void _setDown(bool v) {
+    if (_squishy && _down != v) setState(() => _down = v);
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Every card arrives instead of popping: a light fade + rise the first
-    // time it is mounted (skipped in tests and under reduced motion).
-    return EnterMotion(
-      child: Card(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(Radii.card),
-          child: Padding(padding: padding, child: child),
-        ),
+    Widget card = Card(
+      child: InkWell(
+        onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
+        borderRadius: BorderRadius.circular(Radii.card),
+        child: Padding(padding: widget.padding, child: widget.child),
       ),
     );
+    // Tappable cards compress a hair under the finger — the whole app feels
+    // physically pressable without changing any layout.
+    if (_squishy) {
+      card = Listener(
+        onPointerDown: (_) => _setDown(true),
+        onPointerUp: (_) => _setDown(false),
+        onPointerCancel: (_) => _setDown(false),
+        child: AnimatedScale(
+          scale: _down ? 0.982 : 1,
+          duration: const Duration(milliseconds: 110),
+          curve: Curves.easeOut,
+          child: card,
+        ),
+      );
+    }
+    // Every card arrives instead of popping: a light fade + rise the first
+    // time it is mounted (skipped in tests and under reduced motion).
+    return EnterMotion(child: card);
   }
 }
 
@@ -1115,7 +1145,9 @@ class TxnTile extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
+            CopyMoney(
+              value: txn.amount,
+              child: Text(
               Money.text(
                 txn.amount *
                     switch (txn.kind) {
@@ -1138,6 +1170,7 @@ class TxnTile extends StatelessWidget {
                 fontWeight: FontWeight.w700,
                 color: _color,
               ),
+            ),
             ),
             if (txn.currency != 'IRT' || txn.rateToBase != 1)
               Padding(
@@ -1577,4 +1610,369 @@ class _DashLinePainter extends CustomPainter {
   @override
   bool shouldRepaint(_DashLinePainter old) =>
       old.t != t || old.line != line || old.tip != tip;
+}
+
+/// ---------------- Copy on long-press ----------------
+/// Long-press any money amount to copy the plain number to the clipboard.
+///
+/// Feedback: a haptic tick, the number pops, and a small "Copied" chip
+/// floats up and fades. No dialogs, no menus — the fastest possible path
+/// from "I see this number" to "it is in the clipboard".
+class CopyMoney extends StatefulWidget {
+  const CopyMoney({super.key, required this.value, required this.child});
+
+  final double value;
+  final Widget child;
+
+  @override
+  State<CopyMoney> createState() => _CopyMoneyState();
+}
+
+class _CopyMoneyState extends State<CopyMoney> {
+  bool _pop = false;
+
+  Future<void> _copy() async {
+    Haptics.tap();
+    await Clipboard.setData(
+      ClipboardData(text: widget.value.round().toString()),
+    );
+    if (!mounted) return;
+    setState(() => _pop = true);
+    Future.delayed(const Duration(milliseconds: 240), () {
+      if (mounted) setState(() => _pop = false);
+    });
+    _showChip();
+  }
+
+  void _showChip() {
+    if (!Motion.motionEnabled) return;
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    final box = context.findRenderObject();
+    if (overlay == null || box is! RenderBox || !box.hasSize) return;
+    final at = box.localToGlobal(box.size.center(Offset.zero));
+    late final OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => _CopyChip(
+        at: at,
+        onDone: () {
+          if (entry.mounted) entry.remove();
+        },
+      ),
+    );
+    overlay.insert(entry);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onLongPress: _copy,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 1, end: _pop ? 1.10 : 1),
+        duration: const Duration(milliseconds: 130),
+        curve: Curves.easeOut,
+        builder: (context, scale, child) =>
+            Transform.scale(scale: scale, child: child),
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class _CopyChip extends StatefulWidget {
+  const _CopyChip({required this.at, required this.onDone});
+
+  final Offset at;
+  final VoidCallback onDone;
+
+  @override
+  State<_CopyChip> createState() => _CopyChipState();
+}
+
+class _CopyChipState extends State<_CopyChip>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 950),
+  )
+    ..addListener(() {
+      if (_c.isCompleted) widget.onDone();
+    })
+    ..forward();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _c,
+        builder: (context, child) {
+          final t = _c.value;
+          final appear = Curves.easeOutBack.transform(
+            (t / 0.22).clamp(0.0, 1.0),
+          );
+          final fade = t < 0.72 ? 1.0 : 1 - ((t - 0.72) / 0.28).clamp(0.0, 1.0);
+          final rise = 30 * Curves.easeOutCubic.transform(t);
+          return Opacity(
+            opacity: fade,
+            child: Transform.translate(
+              offset: Offset(widget.at.dx - 46, widget.at.dy - 52 - rise),
+              child: Transform.scale(scale: appear, child: child),
+            ),
+          );
+        },
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: scheme.inverseSurface,
+            borderRadius: BorderRadius.circular(11),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.22),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check_rounded, size: 14, color: scheme.inversePrimary),
+                const SizedBox(width: 5),
+                Text(
+                  'Copied'.tr,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// ---------------- Swipe row actions ----------------
+/// One row action revealed by a trailing swipe.
+class SwipeAction {
+  const SwipeAction({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+
+  /// Localization key, translated at render time.
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+}
+
+/// Swipe a row toward its trailing edge to fan open a panel of actions.
+///
+/// Direction-aware (RTL mirrors everything), rubber-bands past full open,
+/// snaps open or shut on fling, ticks once when the release threshold is
+/// crossed, and each button scales in with a small stagger. Tapping the row
+/// while open closes the panel instead of activating the row.
+class SwipeActions extends StatefulWidget {
+  const SwipeActions({
+    super.key,
+    required this.child,
+    required this.actions,
+    this.panelWidth = 138,
+  });
+
+  final Widget child;
+  final List<SwipeAction> actions;
+  final double panelWidth;
+
+  @override
+  State<SwipeActions> createState() => _SwipeActionsState();
+}
+
+class _SwipeActionsState extends State<SwipeActions>
+    with SingleTickerProviderStateMixin {
+  double _open = 0;
+  double _snapFrom = 0;
+  double _snapTarget = 0;
+  bool _ticked = false;
+  late final AnimationController _snap = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 200),
+  );
+
+  @override
+  void dispose() {
+    _snap.dispose();
+    super.dispose();
+  }
+
+  double get _current => _snap.isAnimating
+      ? _snapFrom +
+            (_snapTarget - _snapFrom) *
+                Curves.easeOutCubic.transform(_snap.value)
+      : _open;
+
+  void _animateTo(double target) {
+    _snapFrom = _current;
+    _snapTarget = target;
+    _open = target;
+    _snap.forward(from: 0);
+  }
+
+  double _sign(BuildContext context) =>
+      Directionality.of(context) == TextDirection.rtl ? 1 : -1;
+
+  void _onUpdate(DragUpdateDetails d) {
+    _snap.stop();
+    final delta = (d.delta.dx * _sign(context)) / widget.panelWidth;
+    setState(() => _open = (_open + delta).clamp(-0.02, 1.25));
+    if (!_ticked && _open >= 0.5) {
+      _ticked = true;
+      Haptics.selection();
+    } else if (_ticked && _open < 0.45) {
+      _ticked = false;
+    }
+  }
+
+  void _onEnd(DragEndDetails d) {
+    final v = (d.primaryVelocity ?? 0) * _sign(context);
+    if (_open > 0.5 || v > 600) {
+      _animateTo(1);
+    } else {
+      _animateTo(0);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.actions.isEmpty) return widget.child;
+    return GestureDetector(
+      onHorizontalDragUpdate: _onUpdate,
+      onHorizontalDragEnd: _onEnd,
+      onHorizontalDragCancel: () => _animateTo(0),
+      child: AnimatedBuilder(
+        animation: _snap,
+        builder: (context, child) {
+          final raw = _current;
+          final t = raw.clamp(0.0, 1.0);
+          final dx = _sign(context) * widget.panelWidth * t;
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: SizedBox(
+                    width: widget.panelWidth,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        for (var i = 0; i < widget.actions.length; i++)
+                          _SwipeButton(
+                            action: widget.actions[i],
+                            appear: ((t * widget.actions.length) - i)
+                                .clamp(0.0, 1.0),
+                            enabled: raw >= 0.99,
+                            onUsed: () => _animateTo(0),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Transform.translate(
+                offset: Offset(dx, 0),
+                child: raw > 0.02
+                    ? GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => _animateTo(0),
+                        child: child,
+                      )
+                    : child,
+              ),
+            ],
+          );
+        },
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class _SwipeButton extends StatelessWidget {
+  const _SwipeButton({
+    required this.action,
+    required this.appear,
+    required this.enabled,
+    required this.onUsed,
+  });
+
+  final SwipeAction action;
+  final double appear;
+  final bool enabled;
+  final VoidCallback onUsed;
+
+  @override
+  Widget build(BuildContext context) {
+    final e = Curves.easeOutBack.transform(appear);
+    return Opacity(
+      opacity: appear.clamp(0.0, 1.0),
+      child: Transform.scale(
+        scale: 0.4 + 0.6 * e,
+        child: Semantics(
+          button: true,
+          label: action.label.tr,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: enabled
+                ? () {
+                    onUsed();
+                    action.onTap();
+                  }
+                : null,
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: action.color.withValues(alpha: 0.13),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(action.icon, size: 19, color: action.color),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    action.label.tr,
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: action.color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

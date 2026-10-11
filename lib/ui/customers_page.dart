@@ -12,6 +12,7 @@ import '../data/models.dart';
 import '../data/repository.dart';
 import 'customer_detail_page.dart';
 import 'design.dart';
+import 'motion_kit.dart';
 import 'forms/contact_edit_page.dart';
 import 'forms/payment_sheet.dart';
 import 'widgets/widgets.dart';
@@ -53,6 +54,73 @@ class _CustomersPageState extends State<CustomersPage> {
     _searchDebouncer.run(() {
       if (mounted) setState(() => _q = query);
     });
+  }
+
+  /// Long-press shortcut sheet for a customer row.
+  Future<void> _customerActions(BuildContext context, Customer c) async {
+    Haptics.tap();
+    final choice = await showLedgerSheet<String>(
+      context,
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(ctx).cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(ctx)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(
+                  Icons.call_received_rounded,
+                  color: Color(0xFF0F766E),
+                ),
+                title: Text('Receive from customer'.tr),
+                onTap: () => Navigator.pop(ctx, 'r'),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.call_made_rounded,
+                  color: Color(0xFFE11D48),
+                ),
+                title: Text('Pay customer'.tr),
+                onTap: () => Navigator.pop(ctx, 'p'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit_rounded),
+                title: Text('Edit'.tr),
+                onTap: () => Navigator.pop(ctx, 'e'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == null || !context.mounted) return;
+    if (choice == 'r') {
+      await showPaymentSheet(context, customer: c, isReceive: true);
+    } else if (choice == 'p') {
+      await showPaymentSheet(context, customer: c);
+    } else if (choice == 'e' && context.mounted) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => ContactEditPage(existing: c)),
+      );
+    }
   }
 
   void _clearSearchAndFilters() {
@@ -261,6 +329,9 @@ class _CustomersPageState extends State<CustomersPage> {
                             builder: (_) => CustomerDetailPage(customer: c),
                           ),
                         ),
+                        // Long-press: the money shortcuts without opening the
+                        // detail page first.
+                        onLongPress: () => _customerActions(context, c),
                         child: Row(
                           children: [
                             Hero(

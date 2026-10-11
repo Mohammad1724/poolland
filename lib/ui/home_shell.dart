@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -37,6 +39,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   /// the matching side (mirrored in RTL).
   bool _dirForward = true;
 
+  // --- FAB speed dial (long-press) ---
+  OverlayEntry? _dialEntry;
+  final ValueNotifier<int> _dialHighlight = ValueNotifier<int>(-1);
+  List<_DialItem> _dialItems = const [];
+  Offset _dialOrigin = Offset.zero;
+  Size _dialSize = Size.zero;
+
   /// Tab indexes that have been opened at least once.
   ///
   /// Building all five pages up front made the first frame do the work of
@@ -73,6 +82,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _closeDial();
+    _dialHighlight.dispose();
     WidgetsBinding.instance.removeObserver(this);
     // The repository and the SMS channel outlive this shell, so they must
     // not keep callbacks that hold a dead BuildContext.
@@ -525,6 +536,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       ),
     );
     if (!mounted || choice == null) return;
+    await _runChoice(choice);
+  }
+
+  /// Shared destination for the quick-add sheet and the FAB speed dial:
+  /// every choice opens the matching form.
+  Future<void> _runChoice(String choice) async {
     switch (choice) {
       case 'sale_sub':
         await Navigator.push(
@@ -583,6 +600,117 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         );
         break;
     }
+  }
+
+  // ---------------- FAB speed dial ----------------
+
+  List<_DialItem> _dialItemsFor() => switch (_index) {
+    0 => const [
+      _DialItem(
+        'p_expense',
+        Icons.person_outline_rounded,
+        'Personal expense',
+        Color(0xFFE11D48),
+      ),
+      _DialItem(
+        'p_income',
+        Icons.savings_outlined,
+        'Personal income',
+        Color(0xFF16A34A),
+      ),
+    ],
+    // These tabs' buttons are single direct actions; a dial adds nothing.
+    2 || 3 => const [],
+    _ => const [
+      _DialItem(
+        'income',
+        Icons.trending_up_rounded,
+        'Record income (no subscription)',
+        Color(0xFF16A34A),
+      ),
+      _DialItem(
+        'receive',
+        Icons.call_received_rounded,
+        'Receive from customer',
+        Color(0xFF0F766E),
+      ),
+      _DialItem(
+        'expense',
+        Icons.trending_down_rounded,
+        'Record expense',
+        Color(0xFFE11D48),
+      ),
+      _DialItem(
+        'refund',
+        Icons.call_made_rounded,
+        'Payment / refund',
+        Color(0xFFD97706),
+      ),
+      _DialItem(
+        'sale_sub',
+        Icons.vpn_key_rounded,
+        'Sell a subscription',
+        Color(0xFF7C3AED),
+      ),
+    ],
+  };
+
+  void _onFabLongPressStart(LongPressStartDetails d) {
+    final items = _dialItemsFor();
+    if (items.isEmpty) return;
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) return;
+    Haptics.confirm();
+    _dialItems = items;
+    _dialOrigin = d.globalPosition;
+    _dialSize = MediaQuery.sizeOf(context);
+    _dialHighlight.value = -1;
+    _dialEntry = OverlayEntry(
+      builder: (_) => _SpeedDialLayer(
+        origin: _dialOrigin,
+        size: _dialSize,
+        items: _dialItems,
+        highlight: _dialHighlight,
+        onBarrier: _closeDial,
+        onPick: (i) {
+          final value = _dialItems[i].value;
+          _closeDial();
+          if (mounted) _runChoice(value);
+        },
+      ),
+    );
+    overlay.insert(_dialEntry!);
+  }
+
+  void _onFabLongPressMove(LongPressMoveUpdateDetails d) {
+    if (_dialEntry == null) return;
+    var hit = -1;
+    for (var i = 0; i < _dialItems.length; i++) {
+      final slot = _dialSlot(i, _dialItems.length, _dialOrigin, _dialSize);
+      if ((slot - d.globalPosition).distance < 58) {
+        hit = i;
+        break;
+      }
+    }
+    if (hit != _dialHighlight.value) {
+      _dialHighlight.value = hit;
+      if (hit >= 0) Haptics.selection();
+    }
+  }
+
+  void _onFabLongPressEnd(LongPressEndDetails d) {
+    final hi = _dialHighlight.value;
+    final items = _dialItems;
+    _closeDial();
+    if (hi >= 0 && hi < items.length && mounted) {
+      _runChoice(items[hi].value);
+    }
+  }
+
+  void _closeDial() {
+    _dialEntry?.remove();
+    _dialEntry = null;
+    _dialHighlight.value = -1;
   }
 
   Widget _menuTile(
@@ -758,7 +886,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                       scale: visible || accessibleNavigation ? 1 : 0.62,
                       duration: Motion.adaptive(context, Motion.quick),
                       curve: Curves.easeOut,
-                      child: _buildFab(),
+                      // Long-press fans out the speed dial: drag to an item
+                      // and release to pick it, or tap an item directly.
+                      child: GestureDetector(
+                        onLongPressStart: _onFabLongPressStart,
+                        onLongPressMoveUpdate: _onFabLongPressMove,
+                        onLongPressEnd: _onFabLongPressEnd,
+                        child: _buildFab(),
+                      ),
                     ),
                   );
                 },
@@ -868,6 +1003,180 @@ class _TabPaneState extends State<_TabPane>
         );
       },
       child: widget.child,
+    );
+  }
+}
+
+/// Where the i-th speed-dial item sits: a fan of arcs opening upward,
+/// tilted toward the middle of the screen, clamped inside the viewport.
+Offset _dialSlot(int i, int n, Offset origin, Size size) {
+  const r = 122.0;
+  final spread = n <= 1 ? 0.5 : i / (n - 1);
+  final a = math.pi / 2 + spread * 1.12; // 90 degrees -> ~154 degrees
+  final dx = origin.dx > size.width / 2
+      ? math.cos(a) * r
+      : -math.cos(a) * r;
+  final p = Offset(origin.dx + dx, origin.dy - math.sin(a) * r);
+  return Offset(
+    p.dx.clamp(34.0, size.width - 34.0),
+    p.dy.clamp(34.0, size.height - 34.0),
+  );
+}
+
+class _DialItem {
+  const _DialItem(this.value, this.icon, this.label, this.color);
+
+  /// The same choice values the quick-add sheet returns.
+  final String value;
+  final IconData icon;
+
+  /// Localization key.
+  final String label;
+  final Color color;
+}
+
+class _SpeedDialLayer extends StatefulWidget {
+  const _SpeedDialLayer({
+    required this.origin,
+    required this.size,
+    required this.items,
+    required this.highlight,
+    required this.onBarrier,
+    required this.onPick,
+  });
+
+  final Offset origin;
+  final Size size;
+  final List<_DialItem> items;
+  final ValueListenable<int> highlight;
+  final VoidCallback onBarrier;
+  final ValueChanged<int> onPick;
+
+  @override
+  State<_SpeedDialLayer> createState() => _SpeedDialLayerState();
+}
+
+class _SpeedDialLayerState extends State<_SpeedDialLayer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _fan = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 280),
+  )..forward();
+
+  @override
+  void dispose() {
+    _fan.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onBarrier,
+      child: AnimatedBuilder(
+        animation: _fan,
+        builder: (context, _) {
+          final t = Curves.easeOutCubic.transform(_fan.value);
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.34 * t),
+                ),
+              ),
+              ValueListenableBuilder<int>(
+                valueListenable: widget.highlight,
+                builder: (context, hi, _) => Stack(
+                  children: [
+                    for (var i = 0; i < widget.items.length; i++)
+                      _item(context, i, t, hi == i),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _item(BuildContext context, int i, double t, bool hot) {
+    final item = widget.items[i];
+    final slot = _dialSlot(i, widget.items.length, widget.origin, widget.size);
+    final appear = Curves.easeOutBack.transform(
+      ((t - i * 0.05) / 0.7).clamp(0.0, 1.0),
+    );
+    return Positioned(
+      left: slot.dx - 27,
+      top: slot.dy - 27,
+      child: Opacity(
+        opacity: appear.clamp(0.0, 1.0),
+        child: Transform.scale(
+          scale: appear,
+          child: GestureDetector(
+            onTap: () => widget.onPick(i),
+            child: AnimatedScale(
+              scale: hot ? 1.28 : 1,
+              duration: const Duration(milliseconds: 120),
+              curve: Curves.easeOut,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 54,
+                    height: 54,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: hot
+                          ? item.color
+                          : item.color.withValues(alpha: 0.16),
+                      border: Border.all(color: item.color, width: 1.6),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.25),
+                          blurRadius: 12,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      item.icon,
+                      size: 24,
+                      color: hot ? Colors.white : item.color,
+                    ),
+                  ),
+                  if (hot)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 5),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.inverseSurface,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          child: Text(
+                            item.label.tr,
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
