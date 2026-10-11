@@ -11,6 +11,7 @@ import '../data/ledger.dart';
 import '../data/models.dart';
 import '../data/pdf_service.dart';
 import '../data/repository.dart';
+import 'motion_kit.dart';
 import 'forms/contact_edit_page.dart';
 import 'forms/payment_sheet.dart';
 import 'forms/sell_subscription_page.dart';
@@ -46,7 +47,41 @@ class CustomerDetailPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(c.name),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // The list card's avatar and name fly into the header (Hero).
+            Hero(
+              tag: 'cust-avatar-${c.id}',
+              child: CircleAvatar(
+                radius: 15,
+                backgroundColor: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.13),
+                child: Text(
+                  c.name.characters.first,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Hero(
+                tag: 'cust-name-${c.id}',
+                child: Text(
+                  c.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: 'Edit'.tr,
@@ -131,7 +166,7 @@ class CustomerDetailPage extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 6),
-                          MoneyText(
+                          OdometerMoney(
                             balance.abs(),
                             style: TextStyle(
                               fontSize: 22,

@@ -7,6 +7,7 @@ import '../core/money.dart';
 import '../data/ledger.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
+import 'motion_kit.dart';
 import '../data/store.dart';
 import 'design.dart';
 import 'forms/transaction_edit_page.dart';
@@ -382,37 +383,29 @@ class PersonalPage extends StatelessWidget {
 
   // ---------- Actions ----------
   Future<void> _manageQuick(BuildContext context) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    await showLedgerSheet<void>(
+      context,
       builder: (_) => const _QuickManagerSheet(),
     );
   }
 
   Future<void> _editQuick(BuildContext context, QuickExpense? q) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    await showLedgerSheet<void>(
+      context,
       builder: (_) => QuickEditSheet(initial: q),
     );
   }
 
   Future<void> _editBudget(BuildContext context, Budget? b) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    await showLedgerSheet<void>(
+      context,
       builder: (_) => _BudgetSheet(initial: b),
     );
   }
 
   Future<void> _editRecurring(BuildContext context, RecurringRule? r) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    await showLedgerSheet<void>(
+      context,
       builder: (_) => _RecurringSheet(initial: r),
     );
   }

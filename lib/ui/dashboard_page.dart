@@ -8,6 +8,7 @@ import '../data/models.dart';
 import '../data/repository.dart';
 import 'customer_detail_page.dart';
 import 'design.dart';
+import 'motion_kit.dart';
 import 'forms/sell_subscription_page.dart';
 import 'sms_page.dart';
 import 'widgets/common_charts.dart';
@@ -161,8 +162,19 @@ class DashboardPage extends StatelessWidget {
           const SizedBox(height: 12),
         ],
 
-        // Monthly summary
-        CardBox(
+        // Monthly summary — the hero card breathes: a very slow drift
+        // between two nearly identical washes keeps the page alive.
+        BreathingGradient(
+          borderRadius: BorderRadius.circular(Radii.card),
+          base: [
+            const Color(0xFF087F78).withValues(alpha: 0.030),
+            const Color(0xFF7C3AED).withValues(alpha: 0.018),
+          ],
+          variant: [
+            const Color(0xFF087F78).withValues(alpha: 0.075),
+            const Color(0xFF7C3AED).withValues(alpha: 0.040),
+          ],
+          child: CardBox(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -252,7 +264,7 @@ class DashboardPage extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Flexible(
-                    child: MoneyText(
+                    child: OdometerMoney(
                       monthSummary.profit,
                       compact: compactLayout,
                       maxLines: 1,
@@ -272,6 +284,7 @@ class DashboardPage extends StatelessWidget {
             ],
           ),
         ),
+        ),
         const SizedBox(height: 12),
 
         // Business receivables and payables are not meaningful in the personal-only view.
@@ -290,7 +303,7 @@ class DashboardPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  MoneyText(
+                  OdometerMoney(
                     totals.receivable,
                     compact: compactLayout,
                     style: const TextStyle(
@@ -323,7 +336,7 @@ class DashboardPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  MoneyText(
+                  OdometerMoney(
                     totals.payable,
                     compact: compactLayout,
                     style: const TextStyle(
@@ -361,7 +374,7 @@ class DashboardPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  MoneyText(
+                  OdometerMoney(
                     repo.cashBalance,
                     compact: compactLayout,
                     style: const TextStyle(
@@ -393,7 +406,7 @@ class DashboardPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  MoneyText(
+                  OdometerMoney(
                     monthSummary.cashIn,
                     compact: compactLayout,
                     style: const TextStyle(
@@ -596,7 +609,7 @@ class DashboardPage extends StatelessWidget {
         CollapsibleCard(
           title: 'Last 6 months',
           icon: Icons.bar_chart_rounded,
-          summary: MoneyText(
+          summary: OdometerMoney(
             series.fold<double>(0, (sum, p) => sum + p.profit),
             compact: true,
             signed: true,
@@ -682,7 +695,7 @@ class DashboardPage extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 6),
-        MoneyText(
+        OdometerMoney(
           value,
           compact: MediaQuery.sizeOf(context).width < 360,
           style: TextStyle(

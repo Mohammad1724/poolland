@@ -7,6 +7,7 @@ import '../../core/jalali_utils.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
 import '../design.dart';
+import '../motion_kit.dart';
 import 'date_picker.dart';
 
 import '../../core/localization.dart';
@@ -80,11 +81,15 @@ class CardBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(Radii.card),
-        child: Padding(padding: padding, child: child),
+    // Every card arrives instead of popping: a light fade + rise the first
+    // time it is mounted (skipped in tests and under reduced motion).
+    return EnterMotion(
+      child: Card(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(Radii.card),
+          child: Padding(padding: padding, child: child),
+        ),
       ),
     );
   }
@@ -289,7 +294,7 @@ class TagChip extends StatelessWidget {
 }
 
 /// ---------------- Empty state ----------------
-class EmptyState extends StatelessWidget {
+class EmptyState extends StatefulWidget {
   const EmptyState({
     super.key,
     required this.icon,
@@ -306,8 +311,55 @@ class EmptyState extends StatelessWidget {
   final VoidCallback? onAction;
 
   @override
+  State<EmptyState> createState() => _EmptyStateState();
+}
+
+class _EmptyStateState extends State<EmptyState>
+    with TickerProviderStateMixin {
+  /// Slow breathing of the icon: the empty state stays gently alive.
+  late final AnimationController _breath = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 3),
+  );
+
+  /// One-shot: the dashed ledger line under the icon draws itself.
+  late final AnimationController _draw = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (Motion.motionEnabled) _draw.forward();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (Motion.ambientOn(context)) {
+      if (!_breath.isAnimating) _breath.repeat(reverse: true);
+    } else {
+      _breath.stop();
+      _breath.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _breath.dispose();
+    _draw.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    final icon = widget.icon;
+    final title = widget.title;
+    final text = widget.text;
+    final actionLabel = widget.actionLabel;
+    final onAction = widget.onAction;
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(26),
@@ -316,20 +368,48 @@ class EmptyState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary
-                      .withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  icon,
-                  size: 34,
-                  color: Theme.of(context).colorScheme.primary,
+              AnimatedBuilder(
+                animation: _breath,
+                builder: (context, child) {
+                  final b = Curves.easeInOut.transform(_breath.value);
+                  return Opacity(
+                    opacity: 1 - 0.14 * b,
+                    child: Transform.scale(scale: 1 + 0.05 * b, child: child),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary
+                        .withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 34,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
               ),
-              const SizedBox(height: 14),
+              // The dashed rule of a ledger page, drawn in once.
+              SizedBox(
+                height: 12,
+                width: 190,
+                child: AnimatedBuilder(
+                  animation: _draw,
+                  builder: (context, _) => CustomPaint(
+                    painter: _DashLinePainter(
+                      t: Motion.motionEnabled
+                          ? Curves.easeOutCubic.transform(_draw.value)
+                          : 1,
+                      line: onSurface.withValues(alpha: 0.2),
+                      tip: Theme.of(context).colorScheme.primary
+                          .withValues(alpha: 0.5),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
               Text(
                 title.tr,
                 textAlign: TextAlign.center,
@@ -619,10 +699,8 @@ class SelectField<T> extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: () async {
-        final res = await showModalBottomSheet<_PickResult<T>>(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
+        final res = await showLedgerSheet<_PickResult<T>>(
+          context,
           builder: (_) => _PickSheet<T>(
             title: sheetTitle ?? label,
             items: items,
@@ -1463,4 +1541,40 @@ class StatusDot extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The dashed rule of a ledger page drawing itself under the empty-state
+/// icon; a small dot rides the tip like a pen while it is still moving.
+class _DashLinePainter extends CustomPainter {
+  _DashLinePainter({required this.t, required this.line, required this.tip});
+
+  final double t;
+  final Color line;
+  final Color tip;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (t <= 0) return;
+    const dash = 9.0;
+    const gap = 6.5;
+    final y = size.height / 2 + 2;
+    final total = size.width * t;
+    final paint = Paint()
+      ..color = line
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+    var x = 0.0;
+    while (x < total) {
+      final end = x + dash > total ? total : x + dash;
+      if (end > x) canvas.drawLine(Offset(x, y), Offset(end, y), paint);
+      x += dash + gap;
+    }
+    if (t < 1) {
+      canvas.drawCircle(Offset(total, y), 2.4, Paint()..color = tip);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashLinePainter old) =>
+      old.t != t || old.line != line || old.tip != tip;
 }

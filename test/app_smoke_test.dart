@@ -29,6 +29,7 @@ import 'package:poolland/ui/unrecognized_sms_page.dart';
 import 'package:poolland/ui/theme.dart';
 import 'package:poolland/ui/transactions_page.dart';
 import 'package:poolland/ui/widgets/widgets.dart';
+import 'package:poolland/ui/widgets/ledger_nav_bar.dart';
 
 /// Smoke test: all pages should render without errors.
 void main() {
@@ -95,7 +96,7 @@ void main() {
   }
 
   Future<void> tapTab(WidgetTester tester, int index) async {
-    final bar = find.byType(NavigationBar);
+    final bar = find.byType(LedgerNavBar);
     final rect = tester.getRect(bar);
     await tester.tapAt(
       Offset(rect.left + rect.width * (index + 0.5) / 5, rect.center.dy),
@@ -209,7 +210,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byType(NavigationRail), findsOneWidget);
-    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byType(LedgerNavBar), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

@@ -6,6 +6,7 @@ import '../../core/money.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
 import 'widgets.dart';
+import '../motion_kit.dart';
 
 import '../../core/localization.dart';
 
@@ -189,10 +190,8 @@ Future<void> recordQuickExpense(BuildContext context, QuickExpense q) async {
   final repo = context.read<AppRepository>();
   var amount = q.amount;
   if (!q.hasFixedAmount) {
-    final res = await showModalBottomSheet<double>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    final res = await showLedgerSheet<double>(
+      context,
       builder: (_) => QuickAmountSheet(quick: q),
     );
     if (res == null || res <= 0) return;
@@ -200,6 +199,7 @@ Future<void> recordQuickExpense(BuildContext context, QuickExpense q) async {
   }
   final txn = await repo.addQuickExpense(q, amount: amount);
   if (!context.mounted) return;
+  MoneyCelebration.recorded(context);
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(

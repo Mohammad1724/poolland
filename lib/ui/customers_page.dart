@@ -210,7 +210,9 @@ class _CustomersPageState extends State<CustomersPage> {
                     final latest = subs.isEmpty ? null : subs.first;
                     // Swiping a row is a shortcut, never a delete: the row
                     // snaps back and the payment sheet opens instead.
-                    return Dismissible(
+                    return EnterMotion(
+              index: i,
+              child: Dismissible(
                       key: ValueKey('customer-swipe-${c.id}'),
                       direction: DismissDirection.horizontal,
                       // A shortcut, not a full dismiss: a short swipe is
@@ -259,18 +261,21 @@ class _CustomersPageState extends State<CustomersPage> {
                         ),
                         child: Row(
                           children: [
-                            CircleAvatar(
-                              radius: 20,
-                              backgroundColor: Theme.of(context)
-                                  .colorScheme
-                                  .primary
-                                  .withValues(alpha: 0.13),
-                              child: Text(
-                                c.name.characters.first,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: Theme.of(context).colorScheme.primary,
+                            Hero(
+                              tag: 'cust-avatar-${c.id}',
+                              child: CircleAvatar(
+                                radius: 20,
+                                backgroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withValues(alpha: 0.13),
+                                child: Text(
+                                  c.name.characters.first,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  ),
                                 ),
                               ),
                             ),
@@ -282,13 +287,16 @@ class _CustomersPageState extends State<CustomersPage> {
                                   Row(
                                     children: [
                                       Flexible(
-                                        child: Text(
-                                          c.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w700,
+                                        child: Hero(
+                                          tag: 'cust-name-${c.id}',
+                                          child: Text(
+                                            c.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -364,7 +372,8 @@ class _CustomersPageState extends State<CustomersPage> {
                           ],
                         ),
                       ),
-                    );
+                    ),
+            );
                   },
                 ),
         ),

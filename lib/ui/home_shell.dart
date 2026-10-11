@@ -9,6 +9,7 @@ import '../data/repository.dart';
 import 'customers_page.dart';
 import 'dashboard_page.dart';
 import 'design.dart';
+import 'motion_kit.dart';
 import 'forms/contact_edit_page.dart';
 import 'forms/sell_subscription_page.dart';
 import 'forms/transaction_edit_page.dart';
@@ -18,6 +19,7 @@ import 'settings_page.dart';
 import 'sms_page.dart';
 import 'subscriptions_page.dart';
 import 'transactions_page.dart';
+import 'widgets/ledger_nav_bar.dart';
 
 import '../core/localization.dart';
 
@@ -30,6 +32,10 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _index = 0;
+
+  /// Which way the last tab change went, so the incoming page slides in from
+  /// the matching side (mirrored in RTL).
+  bool _dirForward = true;
 
   /// Tab indexes that have been opened at least once.
   ///
@@ -206,8 +212,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       _scrollToTop(i);
       return;
     }
+    final forward = i > _index;
     setState(() {
       _index = i;
+      _dirForward = forward;
       // Tabs are built the first time they are opened; from then on they stay
       // mounted, so their scroll position and filters survive switching.
       _visited.add(i);
@@ -340,9 +348,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   }
 
   Future<void> _personalAdd() async {
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.transparent,
+    final choice = await showLedgerSheet<String>(
+      context,
       builder: (ctx) => SafeArea(
         top: false,
         child: Container(
@@ -405,10 +412,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   }
 
   Future<void> _quickAdd() async {
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    final choice = await showLedgerSheet<String>(
+      context,
       builder: (ctx) => SafeArea(
         top: false,
         child: Container(
@@ -623,14 +628,26 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             index: _index,
             children: [
               for (var i = 0; i < pages.length; i++)
-                if (_visited.contains(i)) pages[i] else const SizedBox.shrink(),
+                if (_visited.contains(i))
+                  _TabPane(
+                    active: _index == i,
+                    forward: _dirForward,
+                    child: pages[i],
+                  )
+                else
+                  const SizedBox.shrink(),
             ],
           );
 
     return PopScope<Object?>(
       canPop: _index == 0,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && _index != 0) setState(() => _index = 0);
+        if (!didPop && _index != 0) {
+          setState(() {
+            _index = 0;
+            _dirForward = false;
+          });
+        }
       },
       child: Scaffold(
         appBar: AppBar(
@@ -735,55 +752,122 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                         : const Offset(0, 4),
                     duration: Motion.adaptive(context, Motion.quick),
                     curve: Curves.easeOut,
-                    child: _buildFab(),
+                    // It collects itself into a smaller circle on the way out
+                    // instead of just leaving the screen.
+                    child: AnimatedScale(
+                      scale: visible || accessibleNavigation ? 1 : 0.62,
+                      duration: Motion.adaptive(context, Motion.quick),
+                      curve: Curves.easeOut,
+                      child: _buildFab(),
+                    ),
                   );
                 },
               ),
         bottomNavigationBar: isWide
             ? null
-            : NavigationBar(
-                selectedIndex: _index,
+            // The elastic-pill bar: same geometry and theme colors as the
+            // Material NavigationBar, but the indicator stretches between
+            // destinations and the chosen icon bounces once. Labels shrink
+            // instead of hiding at very narrow widths.
+            : LedgerNavBar(
+                index: _index,
                 onDestinationSelected: _goTo,
-                // Keep labels visible normally. At very narrow widths the
-                // selected destination keeps its label while the others make
-                // room; their semantic labels remain available to assistive tech.
-                labelBehavior: width < 360
-                    ? NavigationDestinationLabelBehavior.onlyShowSelected
-                    : NavigationDestinationLabelBehavior.alwaysShow,
                 destinations: [
-                  NavigationDestination(
-                    icon: const Icon(Icons.person_outline_rounded),
-                    selectedIcon: const Icon(Icons.person_rounded),
+                  LedgerNavDestination(
+                    icon: Icons.person_outline_rounded,
+                    selectedIcon: Icons.person_rounded,
                     label: 'Personal'.tr,
-                    tooltip: 'Personal'.tr,
                   ),
-                  NavigationDestination(
-                    icon: const Icon(Icons.dashboard_outlined),
-                    selectedIcon: const Icon(Icons.dashboard_rounded),
+                  LedgerNavDestination(
+                    icon: Icons.dashboard_outlined,
+                    selectedIcon: Icons.dashboard_rounded,
                     label: 'Dashboard'.tr,
-                    tooltip: 'Dashboard'.tr,
                   ),
-                  NavigationDestination(
-                    icon: const Icon(Icons.people_outline_rounded),
-                    selectedIcon: const Icon(Icons.people_rounded),
+                  LedgerNavDestination(
+                    icon: Icons.people_outline_rounded,
+                    selectedIcon: Icons.people_rounded,
                     label: 'Customers'.tr,
-                    tooltip: 'Customers'.tr,
                   ),
-                  NavigationDestination(
-                    icon: const Icon(Icons.vpn_key_outlined),
-                    selectedIcon: const Icon(Icons.vpn_key_rounded),
+                  LedgerNavDestination(
+                    icon: Icons.vpn_key_outlined,
+                    selectedIcon: Icons.vpn_key_rounded,
                     label: 'Subscriptions'.tr,
-                    tooltip: 'Subscriptions'.tr,
                   ),
-                  NavigationDestination(
-                    icon: const Icon(Icons.receipt_long_outlined),
-                    selectedIcon: const Icon(Icons.receipt_long_rounded),
+                  LedgerNavDestination(
+                    icon: Icons.receipt_long_outlined,
+                    selectedIcon: Icons.receipt_long_rounded,
                     label: 'Transactions'.tr,
-                    tooltip: 'Transactions'.tr,
                   ),
                 ],
               ),
       ),
+    );
+  }
+}
+
+/// Direction-aware entrance for tab content.
+///
+/// When a tab becomes active its page slides in ~10 logical pixels from the
+/// side the selection moved from (mirrored in RTL) and fades up. The first
+/// tab shows instantly — the cold start never animates. Inactive panes are
+/// left alone; the IndexedStack does not paint them anyway.
+class _TabPane extends StatefulWidget {
+  const _TabPane({
+    required this.active,
+    required this.forward,
+    required this.child,
+  });
+
+  final bool active;
+  final bool forward;
+  final Widget child;
+
+  @override
+  State<_TabPane> createState() => _TabPaneState();
+}
+
+class _TabPaneState extends State<_TabPane>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+    value: widget.active ? 1 : 0,
+  );
+
+  @override
+  void didUpdateWidget(_TabPane old) {
+    super.didUpdateWidget(old);
+    if (widget.active && !old.active) _c.forward(from: 0);
+    if (!widget.active) _c.value = 0;
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Motion.motionEnabled ||
+        (MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
+      return widget.child;
+    }
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    final dir = (widget.forward ? 1 : -1) * (rtl ? -1 : 1);
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, child) {
+        final t = Curves.easeOutCubic.transform(_c.value);
+        return Opacity(
+          opacity: t.clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(10 * dir * (1 - t), 0),
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
     );
   }
 }

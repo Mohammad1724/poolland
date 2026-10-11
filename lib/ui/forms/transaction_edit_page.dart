@@ -9,6 +9,7 @@ import '../../data/repository.dart';
 import '../personal_page.dart';
 import '../widgets/quick_buttons.dart';
 import '../widgets/widgets.dart';
+import '../motion_kit.dart';
 import 'contact_edit_page.dart';
 
 import '../../core/localization.dart';
@@ -167,10 +168,8 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
   }
 
   Future<void> _openQuickEdit([QuickExpense? q]) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    await showLedgerSheet<void>(
+      context,
       builder: (_) => QuickEditSheet(
         initial: q,
         presetScope: _scope,
@@ -254,6 +253,10 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
       }
     }
     if (!mounted) return;
+    if (!isEdit) {
+      // A new record gets the coin + stamp moment; edits stay quiet.
+      MoneyCelebration.recorded(context);
+    }
     showSnack(context, isEdit ? 'Transaction updated' : 'Transaction recorded');
     Navigator.pop(context);
   }

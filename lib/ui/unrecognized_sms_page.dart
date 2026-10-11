@@ -8,6 +8,8 @@ import '../core/money.dart';
 import '../core/sms/sms_models.dart';
 import '../core/sms/sms_parser.dart';
 import '../data/repository.dart';
+import 'design.dart';
+import 'motion_kit.dart';
 import 'sms_rules_page.dart';
 import 'widgets/widgets.dart';
 
@@ -67,7 +69,7 @@ class _UnrecognizedSmsPageState extends State<UnrecognizedSmsPage> {
       ),
       body: !repo.smsPermissionGranted
           ? _permissionView(context, repo)
-          : RefreshIndicator(
+          : CoinRefresh(
               onRefresh: () async {
                 await repo.scanUnrecognizedSms(force: true);
               },
@@ -103,10 +105,15 @@ class _UnrecognizedSmsPageState extends State<UnrecognizedSmsPage> {
                       ),
                     )
                   else
-                    for (final message in repo.smsUnrecognizedMessages)
+                    for (final (i, message) in repo
+                        .smsUnrecognizedMessages
+                        .indexed)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 10),
-                        child: _UnrecognizedSmsCard(message: message),
+                        child: SlipIn(
+                          index: i,
+                          child: _UnrecognizedSmsCard(message: message),
+                        ),
                       ),
                 ],
               ),

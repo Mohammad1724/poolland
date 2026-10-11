@@ -1,12 +1,20 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+
+import '../design.dart';
+import '../motion_kit.dart';
 
 import '../../core/money.dart';
 import '../../data/ledger.dart';
 
 /// Income and expense bar chart for selected time periods
-/// (daily, weekly, or monthly)
-class PeriodBarChart extends StatelessWidget {
+/// (daily, weekly, or monthly).
+///
+/// Bars grow from the baseline with a small stagger on first appearance and
+/// a slow ambient shimmer sweeps across, matching the dashboard chart.
+class PeriodBarChart extends StatefulWidget {
   const PeriodBarChart({
     super.key,
     required this.points,
@@ -21,7 +29,47 @@ class PeriodBarChart extends StatelessWidget {
   final bool showIncome;
 
   @override
+  State<PeriodBarChart> createState() => _PeriodBarChartState();
+}
+
+class _PeriodBarChartState extends State<PeriodBarChart>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _grow = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 850),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (Motion.motionEnabled) {
+      _grow.forward();
+    } else {
+      _grow.value = 1;
+    }
+  }
+
+  @override
+  void dispose() {
+    _grow.dispose();
+    super.dispose();
+  }
+
+  /// Per-group growth factor: group [i] starts slightly after the previous
+  /// one, so the bars rise like a wave.
+  double _f(int i) {
+    if (!Motion.motionEnabled) return 1;
+    final start = math.min(i * 0.06, 0.42);
+    final t = ((_grow.value - start) / (1 - start)).clamp(0.0, 1.0);
+    return Curves.easeOutCubic.transform(t);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final points = widget.points;
+    final labelOf = widget.labelOf;
+    final height = widget.height;
+    final showIncome = widget.showIncome;
     if (points.isEmpty) return const SizedBox.shrink();
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final maxValue = points
@@ -29,7 +77,10 @@ class PeriodBarChart extends StatelessWidget {
         .fold<double>(0, (a, b) => a > b ? a : b);
     final maxY = maxValue <= 0 ? 1000.0 : maxValue * 1.25;
 
-    final chart = SizedBox(
+    return AnimatedBuilder(
+      animation: _grow,
+      builder: (context, _) {
+        final chart = SizedBox(
       height: height,
       child: BarChart(
         BarChartData(
@@ -120,7 +171,7 @@ class PeriodBarChart extends StatelessWidget {
                 barRods: [
                   if (showIncome)
                     BarChartRodData(
-                      toY: points[i].income,
+                      toY: points[i].income * _f(i),
                       color: const Color(0xFF16A34A),
                       width: showIncome ? 7 : 12,
                       borderRadius: const BorderRadius.vertical(
@@ -128,7 +179,7 @@ class PeriodBarChart extends StatelessWidget {
                       ),
                     ),
                   BarChartRodData(
-                    toY: points[i].expense,
+                    toY: points[i].expense * _f(i),
                     color: const Color(0xFFE11D48),
                     width: showIncome ? 7 : 12,
                     borderRadius: const BorderRadius.vertical(
@@ -141,9 +192,11 @@ class PeriodBarChart extends StatelessWidget {
         ),
       ),
     );
-    // Own layer: switching the period or scrolling the page around it does not
-    // repaint neighbouring content together with the chart.
-    return RepaintBoundary(child: chart);
+        // Own layer: switching the period or scrolling the page around it
+        // does not repaint neighbouring content together with the chart.
+        return ShimmerSweep(child: RepaintBoundary(child: chart));
+      },
+    );
   }
 
   String _short(double v) {

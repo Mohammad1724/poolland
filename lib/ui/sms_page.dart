@@ -7,6 +7,8 @@ import '../core/money.dart';
 import '../core/sms/sms_models.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
+import 'design.dart';
+import 'motion_kit.dart';
 import 'forms/transaction_edit_page.dart';
 import 'sms_rules_page.dart';
 import 'unrecognized_sms_page.dart';
@@ -72,10 +74,8 @@ class _SmsPageState extends State<SmsPage> {
           .firstOrNull;
       if (target == null || !mounted) return;
       final matched = repo.matchCustomerForSms(target);
-      final ok = await showModalBottomSheet<bool>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
+      final ok = await showLedgerSheet<bool>(
+        context,
         builder: (ctx) => SmsReviewSheet(sms: target, initialCustomer: matched),
       );
       if (ok == true && mounted) {
@@ -205,7 +205,7 @@ class _SmsPageState extends State<SmsPage> {
     List<ParsedSms> all,
     List<ParsedSms> list,
     Color onSurface,
-  ) => RefreshIndicator(
+  ) => CoinRefresh(
     onRefresh: () => repo.syncSms(force: true),
     child: ListView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -244,10 +244,10 @@ class _SmsPageState extends State<SmsPage> {
             ),
           )
         else
-          for (final sms in list)
+          for (final (i, sms) in list.indexed)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _SmsCard(sms: sms, onSurface: onSurface),
+              child: SlipIn(index: i, child: _SmsCard(sms: sms, onSurface: onSurface)),
             ),
         const SizedBox(height: 6),
         OutlinedButton.icon(
@@ -616,10 +616,8 @@ class _SmsCard extends StatelessWidget {
     ParsedSms sms,
     Customer? matched,
   ) async {
-    final ok = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    final ok = await showLedgerSheet<bool>(
+      context,
       builder: (ctx) => SmsReviewSheet(sms: sms, initialCustomer: matched),
     );
     if (ok == true && context.mounted) {
@@ -849,10 +847,8 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   }
 
   Future<void> _openQuickEdit(TxnScope scope, [QuickExpense? q]) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    await showLedgerSheet<void>(
+      context,
       builder: (_) => QuickEditSheet(
         initial: q,
         presetScope: scope,
@@ -1089,6 +1085,8 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                               scope: scope,
                             );
                             if (context.mounted) {
+                              // Coin + stamp: the money-landed moment.
+                              MoneyCelebration.recorded(context);
                               Navigator.pop(context, true);
                             }
                           },

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:poolland/ui/design.dart';
 // The state of the running test is only exposed by the test framework's
 // internals; nothing here is used for anything but reporting.
 // ignore: implementation_imports, depend_on_referenced_packages
@@ -16,6 +17,11 @@ import 'package:test_api/src/backend/invoker.dart' as test_api;
 /// Nothing here changes how tests behave: it never throws, and it stays quiet
 /// unless the test has already failed.
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
+  // The motion kit stays out of widget tests: no celebration overlays, no
+  // stagger timers, no ambient loops, and animated values settle instantly.
+  // Production code never touches this flag.
+  Motion.motionEnabled = false;
+
   tearDown(() {
     final String? failed = _failedTest();
     if (failed == null) return;

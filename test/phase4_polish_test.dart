@@ -14,6 +14,7 @@ import 'package:poolland/ui/subscriptions_page.dart';
 import 'package:poolland/ui/theme.dart';
 import 'package:poolland/ui/transactions_page.dart';
 import 'package:poolland/ui/widgets/widgets.dart';
+import 'package:poolland/ui/widgets/ledger_nav_bar.dart';
 import 'package:provider/provider.dart';
 
 /// Cross-cutting polish tests: accessible text sizes, clearable search,
@@ -302,7 +303,7 @@ void main() {
         ),
       );
       await settleShell(tester);
-      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.byType(LedgerNavBar), findsOneWidget);
       expectNoFrameworkExceptions(tester, 'HomeShell navigation');
     });
 
@@ -323,7 +324,7 @@ void main() {
       );
       await settleShell(tester);
       expect(find.byType(NavigationRail), findsOneWidget);
-      expect(find.byType(NavigationBar), findsNothing);
+      expect(find.byType(LedgerNavBar), findsNothing);
       expect(tester.takeException(), isNull);
     });
   });

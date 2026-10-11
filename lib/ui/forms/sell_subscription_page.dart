@@ -8,6 +8,7 @@ import '../../data/models.dart';
 import '../../data/repository.dart';
 import '../design.dart';
 import '../widgets/widgets.dart';
+import '../motion_kit.dart';
 import 'contact_edit_page.dart';
 import 'plan_edit_page.dart';
 
@@ -170,6 +171,7 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
       categoryId: _categoryId,
     );
     if (!mounted) return;
+    MoneyCelebration.recorded(context);
     showSnack(context, isRenew ? 'Subscription renewed' : 'Sale recorded');
     Navigator.pop(context);
   }

@@ -7,6 +7,7 @@ import '../../core/money.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
 import '../widgets/widgets.dart';
+import '../motion_kit.dart';
 
 import '../../core/localization.dart';
 
@@ -16,10 +17,8 @@ Future<bool> showPaymentSheet(
   required Customer customer,
   bool isReceive = true,
 }) async {
-  final res = await showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
+  final res = await showLedgerSheet<bool>(
+    context,
     builder: (_) => _PaymentSheet(customer: customer, isReceive: isReceive),
   );
   return res ?? false;
@@ -82,6 +81,8 @@ class _PaymentSheetState extends State<_PaymentSheet> {
         note: _note.text.trim(),
       );
       if (!mounted) return;
+      // The signature "money recorded" moment: coin, impact ring, stamp.
+      MoneyCelebration.recorded(context);
       showMessengerSnack(
         messenger,
         _receive ? 'Payment received' : 'Payment made',
