@@ -1085,13 +1085,15 @@ class _SpeedDialLayerState extends State<_SpeedDialLayer>
                   color: Colors.black.withValues(alpha: 0.34 * t),
                 ),
               ),
-              ValueListenableBuilder<int>(
-                valueListenable: widget.highlight,
-                builder: (context, hi, _) => Stack(
-                  children: [
-                    for (var i = 0; i < widget.items.length; i++)
-                      _item(context, i, t, hi == i),
-                  ],
+              Positioned.fill(
+                child: ValueListenableBuilder<int>(
+                  valueListenable: widget.highlight,
+                  builder: (context, hi, _) => Stack(
+                    children: [
+                      for (var i = 0; i < widget.items.length; i++)
+                        _item(context, i, t, hi == i),
+                    ],
+                  ),
                 ),
               ),
             ],
