@@ -49,11 +49,11 @@ class _LedgerNavBarState extends State<LedgerNavBar>
   );
   // Leading edge arrives first, trailing edge catches up: the span between
   // the two curves is what makes the pill stretch like elastic.
-  late final Animation<double> _fast = CurvedAnimation(
+  late final CurvedAnimation _fast = CurvedAnimation(
     parent: _pill,
     curve: const Interval(0, 0.55, curve: Curves.easeOutCubic),
   );
-  late final Animation<double> _slow = CurvedAnimation(
+  late final CurvedAnimation _slow = CurvedAnimation(
     parent: _pill,
     curve: const Interval(0.30, 1.0, curve: Curves.easeOutQuint),
   );

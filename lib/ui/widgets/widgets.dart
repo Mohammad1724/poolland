@@ -421,7 +421,7 @@ class _EmptyStateState extends State<EmptyState>
               if (text != null) ...[
                 const SizedBox(height: 8),
                 Text(
-                  text!.tr,
+                  text.tr,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
@@ -434,7 +434,7 @@ class _EmptyStateState extends State<EmptyState>
                 const SizedBox(height: 16),
                 FilledButton.tonal(
                   onPressed: onAction,
-                  child: Text(actionLabel!.tr),
+                  child: Text(actionLabel.tr),
                 ),
               ],
             ],

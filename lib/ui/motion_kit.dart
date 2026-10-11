@@ -54,12 +54,18 @@ class LedgerPageTransitionsBuilder extends PageTransitionsBuilder {
       builder: (context, inner) {
         final t = enter.value;
         final s = Curves.easeOutCubic.transform(secondaryAnimation.value);
-        final back = Matrix4.identity()
-          ..scale(1 - 0.03 * s, 1 - 0.03 * s);
-        final turn = Matrix4.identity()
+        final back = Matrix4.diagonal3Values(
+          1 - 0.03 * s,
+          1 - 0.03 * s,
+          1,
+        );
+        final turn = Matrix4.diagonal3Values(
+          0.95 + 0.05 * t,
+          0.95 + 0.05 * t,
+          1,
+        )
           ..setEntry(3, 2, 0.0012)
-          ..rotateY((rtl ? -1 : 1) * (1 - t) * 0.10)
-          ..scale(0.95 + 0.05 * t, 0.95 + 0.05 * t);
+          ..rotateY((rtl ? -1 : 1) * (1 - t) * 0.10);
         return Transform(
           alignment: Alignment.center,
           transform: back,
