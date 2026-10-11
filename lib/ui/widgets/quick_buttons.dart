@@ -119,7 +119,7 @@ class QuickButtonsRow extends StatelessWidget {
                 : () => onTap!(q),
             onLongPress: onLongPress == null ? null : () => onLongPress!(q),
           ),
-        if (trailing != null) trailing!,
+        ?trailing,
       ],
     );
   }

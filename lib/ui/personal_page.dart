@@ -928,7 +928,7 @@ class _RecurringSheetState extends State<_RecurringSheet> {
     final cats = repo.categories
         .where(
           (c) =>
-              c.scope == _scope &&
+              c.scope == TxnScope.personal &&
               c.kind ==
                   (_kind == TxnKind.income ? TxnKind.income : TxnKind.expense),
         )
@@ -1071,7 +1071,7 @@ class _RecurringSheetState extends State<_RecurringSheet> {
                     title: _title.text.trim(),
                     kind: _kind,
                     amount: amount,
-                    scope: _scope,
+                    scope: initial?.scope ?? TxnScope.personal,
                     currency: initial?.currency ?? 'IRT',
                     customerId: initial?.customerId,
                     note: initial?.note ?? '',
