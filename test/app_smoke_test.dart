@@ -359,6 +359,14 @@ void main() {
       wrap(const TransactionEditPage(initialKind: TxnKind.expense)),
     );
     await tester.pumpAndSettle();
+    final texts = tester
+        .widgetList<Text>(find.byType(Text))
+        .map((t) => t.data)
+        .where((d) => d != null && d.isNotEmpty)
+        .toList();
+    if (!texts.contains('Category')) {
+      throw StateError('TEMPDEBUG TEXTS: ${texts.join(' | ')}');
+    }
     expect(find.text('Category'), findsOneWidget);
     expect(find.byType(FormActionBar), findsOneWidget);
     expect(tester.takeException(), isNull);
