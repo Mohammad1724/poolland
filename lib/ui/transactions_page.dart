@@ -327,7 +327,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
                   // Build a bit beyond the viewport so fast flings over long
                   // histories never show blank space.
-                  cacheExtent: 600,
+                  scrollCacheExtent: 600,
                   itemCount: groupList.length,
                   itemBuilder: (context, groupIndex) {
                     final entry = groupList[groupIndex];
