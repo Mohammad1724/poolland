@@ -59,6 +59,11 @@ class AppRepository extends ChangeNotifier {
   List<SmsMessage> smsUnrecognizedMessages = [];
   List<BankRule> smsRules = [];
   bool smsPermissionGranted = false;
+
+  /// Whether the OS currently allows posting notifications. Tracked so the
+  /// settings page never claims "notifications on" while Android is silently
+  /// dropping them (restored backups used to look enabled without this).
+  bool notificationPermissionGranted = true;
   bool smsBusy = false;
   bool smsUnrecognizedBusy = false;
   bool _smsInited = false;
@@ -74,6 +79,7 @@ class AppRepository extends ChangeNotifier {
     _loadFrom(_store!);
     _ready = true;
     await syncNativeSmsPrefs();
+    await refreshNotificationPermission();
     notifyListeners();
   }
 
@@ -992,6 +998,13 @@ class AppRepository extends ChangeNotifier {
     smsPermissionGranted = await SmsService.hasPermission();
     notifyListeners();
     return smsPermissionGranted;
+  }
+
+  /// Quiet probe of the notification permission (no system dialog).
+  Future<bool> refreshNotificationPermission() async {
+    notificationPermissionGranted = await reminder.notificationsEnabled();
+    notifyListeners();
+    return notificationPermissionGranted;
   }
 
   Future<bool> requestSmsPermission() async {

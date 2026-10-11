@@ -130,6 +130,22 @@ class ReminderService {
     return true; // Desktop does not require permission.
   }
 
+  /// Whether the OS currently allows posting notifications, without
+  /// showing any dialog (Android 13+ tracks this as a runtime permission).
+  Future<bool> notificationsEnabled() async {
+    await init();
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (android != null) {
+      return await android.areNotificationsEnabled() ?? false;
+    }
+    // iOS/macOS grant per notification style at request time; there is no
+    // quiet probe, and desktop needs no permission at all.
+    return true;
+  }
+
   /// Schedule a daily reminder at the specified hour and minute.
   Future<void> scheduleDaily({
     required int hour,

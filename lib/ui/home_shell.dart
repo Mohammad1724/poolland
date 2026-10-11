@@ -85,6 +85,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     // review queue and a snackbar cover that case) and posts a system
     // notification otherwise.
     SmsService.setForeground(state == AppLifecycleState.resumed);
+    // Coming back from the system settings or a permission dialog: the
+    // granted state may have changed without us asking here.
+    if (state == AppLifecycleState.resumed) {
+      final repo = _repo;
+      if (repo != null && repo.isReady) {
+        repo.refreshNotificationPermission();
+        if (repo.settings.smsEnabled) repo.refreshSmsPermission();
+      }
+    }
   }
 
   /// Returns the controller for a tab, creating it on first use so an unopened
@@ -127,10 +136,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
       // Android 13+ gates notifications behind a runtime permission. Asking
       // again after a denial returns silently, so this is safe every launch.
-      if (repo.smsPermissionGranted &&
-          repo.settings.smsEnabled &&
-          repo.settings.smsNotify) {
+      // Not gated on the SMS permission: the daily reminder needs this too,
+      // and a restored backup may enable notifications on a fresh install.
+      if (repo.settings.smsNotify || repo.settings.dailyReminder) {
         await reminder.requestPermission();
+        await repo.refreshNotificationPermission();
       }
 
       // Opened by tapping a bank-SMS arrival notification? Go straight to

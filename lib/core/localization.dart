@@ -502,6 +502,20 @@ class AppLocalization {
     'Transaction recorded from SMS': 'تراکنش از پیامک ثبت شد',
     'Review and record': 'بررسی و ثبت',
     'Quick button': 'دکمهٔ سریع',
+    'Required permissions': 'دسترسی‌های لازم',
+    'Poolland works best with two permissions. You can skip now and grant them later from Settings.':
+        'پول‌لند با دو دسترسی بهتر کار می‌کند: خواندن پیامک بانکی و نمایش اعلان‌ها. می‌توانید حالا رد کنید و بعداً از تنظیمات اعطا کنید.',
+    'Show notifications': 'نمایش اعلان‌ها',
+    'For bank SMS alerts and the daily reminder':
+        'برای هشدار پیامک بانکی و یادآور روزانه',
+    'Grant permissions': 'اعطای دسترسی‌ها',
+    'Skip for now': 'فعلاً رد کردن',
+    'SMS reading is only available on Android phones.':
+        'خواندن پیامک فقط روی گوشی‌های اندرویدی در دسترس است.',
+    'Notification permission not granted': 'دسترسی اعلان داده نشده',
+    'Notifications are switched on but Android blocks them. Tap to request again.':
+        'اعلان‌ها روشن‌اند ولی اندروید آن‌ها را مسدود می‌کند. برای درخواست دوباره بزنید.',
+    'Backup and data': 'پشتیبان‌گیری و داده‌ها',
     'Customer added': 'مشتری اضافه شد',
     'Saved': 'ذخیره شد',
     'Deleted': 'حذف شد',

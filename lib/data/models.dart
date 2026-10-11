@@ -71,6 +71,10 @@ class AppSettings {
   final double openingCash; // Initial cash/bank balance.
   final bool setupDone; // Whether initial setup is complete.
 
+  /// Whether the one-time permissions intro (SMS + notifications) has been
+  /// shown and answered; until then the app opens on the intro page.
+  final bool permissionsIntroDone;
+
   // ---- Bank SMS ----
   final bool smsEnabled; // Whether SMS reading is enabled.
   final int smsSyncDays; // Number of past days to scan.
@@ -101,6 +105,7 @@ class AppSettings {
     this.themeMode = 'system',
     this.openingCash = 0,
     this.setupDone = false,
+    this.permissionsIntroDone = false,
     this.smsEnabled = false,
     this.smsSyncDays = 90,
     this.smsLastSyncAt = 0,
@@ -174,6 +179,7 @@ class AppSettings {
     String? themeMode,
     double? openingCash,
     bool? setupDone,
+    bool? permissionsIntroDone,
     bool? smsEnabled,
     int? smsSyncDays,
     int? smsLastSyncAt,
@@ -200,6 +206,8 @@ class AppSettings {
     themeMode: themeMode ?? this.themeMode,
     openingCash: openingCash ?? this.openingCash,
     setupDone: setupDone ?? this.setupDone,
+    permissionsIntroDone:
+        permissionsIntroDone ?? this.permissionsIntroDone,
     smsEnabled: smsEnabled ?? this.smsEnabled,
     smsSyncDays: smsSyncDays ?? this.smsSyncDays,
     smsLastSyncAt: smsLastSyncAt ?? this.smsLastSyncAt,
@@ -236,6 +244,7 @@ class AppSettings {
     'themeMode': themeMode,
     'openingCash': openingCash,
     'setupDone': setupDone,
+    'permissionsIntroDone': permissionsIntroDone,
     'smsEnabled': smsEnabled,
     'smsSyncDays': smsSyncDays,
     'smsLastSyncAt': smsLastSyncAt,
@@ -266,6 +275,8 @@ class AppSettings {
     themeMode: '${map['themeMode'] ?? 'system'}',
     openingCash: (map['openingCash'] as num?)?.toDouble() ?? 0,
     setupDone: map['setupDone'] as bool? ?? false,
+    permissionsIntroDone:
+        map['permissionsIntroDone'] as bool? ?? false,
     smsEnabled: map['smsEnabled'] as bool? ?? false,
     smsSyncDays: (map['smsSyncDays'] as num?)?.toInt() ?? 90,
     smsLastSyncAt: (map['smsLastSyncAt'] as num?)?.toInt() ?? 0,

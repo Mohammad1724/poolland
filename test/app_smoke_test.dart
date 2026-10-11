@@ -18,6 +18,7 @@ import 'package:poolland/ui/forms/sell_subscription_page.dart';
 import 'package:poolland/ui/forms/transaction_edit_page.dart';
 import 'package:poolland/ui/home_shell.dart';
 import 'package:poolland/ui/onboarding.dart';
+import 'package:poolland/ui/permissions_intro_page.dart';
 import 'package:poolland/ui/personal_page.dart';
 import 'package:poolland/ui/reports_page.dart';
 import 'package:poolland/ui/settings_page.dart';
@@ -369,6 +370,16 @@ void main() {
     await tester.pumpWidget(wrap(const ContactEditPage()));
     await tester.pumpAndSettle();
     expect(find.text('Opening balance'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Permissions intro renders and can be skipped', (tester) async {
+    await tester.pumpWidget(wrap(const PermissionsIntroPage()));
+    await tester.pumpAndSettle();
+    expect(find.text('Required permissions'), findsOneWidget);
+    await tester.tap(find.text('Skip for now'));
+    await tester.pumpAndSettle();
+    expect(repo.settings.permissionsIntroDone, isTrue);
     expect(tester.takeException(), isNull);
   });
 

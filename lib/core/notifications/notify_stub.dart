@@ -10,6 +10,8 @@ class ReminderService {
 
   Future<bool> requestPermission() async => false;
 
+  Future<bool> notificationsEnabled() async => false;
+
   Future<void> scheduleDaily({
     required int hour,
     required int minute,

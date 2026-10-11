@@ -7,6 +7,7 @@ import 'data/repository.dart';
 import 'ui/home_shell.dart';
 import 'ui/lock/lock_screen.dart';
 import 'ui/onboarding.dart';
+import 'ui/permissions_intro_page.dart';
 import 'ui/theme.dart';
 
 class VpnLedgerApp extends StatefulWidget {
@@ -69,9 +70,11 @@ class _VpnLedgerAppState extends State<VpnLedgerApp> {
               return _materialApp(
                 locale: Locale(settings.languageCode),
                 themeMode: themeMode,
-                home: settings.setupDone
+                home: !settings.setupDone
+                    ? const OnboardingPage()
+                    : settings.permissionsIntroDone
                     ? const HomeShell()
-                    : const OnboardingPage(),
+                    : const PermissionsIntroPage(),
                 // The lock has to sit above the Navigator, not inside `home`:
                 // anything the user had pushed (a customer, an edit form)
                 // would otherwise stay on top of the lock screen.
