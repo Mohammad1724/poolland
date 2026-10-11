@@ -26,15 +26,6 @@ class _PermissionsIntroPageState extends State<PermissionsIntroPage> {
   bool? _notifyGranted;
   bool _busy = false;
 
-  @override
-  void initState() {
-    super.initState();
-    // Nothing to ask on this platform (web/desktop): go straight in.
-    if (!SmsService.isSupported && !reminder.supported) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _finish());
-    }
-  }
-
   bool get _answered =>
       (!SmsService.isSupported || _smsGranted != null) &&
       (!reminder.supported || _notifyGranted != null);

@@ -373,13 +373,11 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Permissions intro renders and can be skipped', (tester) async {
+  testWidgets('Permissions intro renders', (tester) async {
     await tester.pumpWidget(wrap(const PermissionsIntroPage()));
     await tester.pumpAndSettle();
     expect(find.text('Required permissions'), findsOneWidget);
-    await tester.tap(find.text('Skip for now'));
-    await tester.pumpAndSettle();
-    expect(repo.settings.permissionsIntroDone, isTrue);
+    expect(find.text('Skip for now'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

@@ -3,6 +3,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
 import 'core/localization.dart';
+import 'core/notifications/notify.dart';
+import 'core/sms/sms_service.dart';
 import 'data/repository.dart';
 import 'ui/home_shell.dart';
 import 'ui/lock/lock_screen.dart';
@@ -72,7 +74,10 @@ class _VpnLedgerAppState extends State<VpnLedgerApp> {
                 themeMode: themeMode,
                 home: !settings.setupDone
                     ? const OnboardingPage()
-                    : settings.permissionsIntroDone
+                    // The intro only makes sense where there is something
+                    // to ask for; web/desktop go straight in.
+                    : (settings.permissionsIntroDone ||
+                          (!SmsService.isSupported && !reminder.supported))
                     ? const HomeShell()
                     : const PermissionsIntroPage(),
                 // The lock has to sit above the Navigator, not inside `home`:
