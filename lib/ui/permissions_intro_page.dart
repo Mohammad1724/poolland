@@ -40,15 +40,16 @@ class _PermissionsIntroPageState extends State<PermissionsIntroPage> {
       (!reminder.supported || _notifyGranted != null);
 
   Future<void> _grantAll() async {
+    final repo = context.read<AppRepository>();
     setState(() => _busy = true);
     bool? sms;
     bool? notify;
     if (SmsService.isSupported) {
-      sms = await context.read<AppRepository>().requestSmsPermission();
+      sms = await repo.requestSmsPermission();
     }
     if (reminder.supported) {
       notify = await reminder.requestPermission();
-      await context.read<AppRepository>().refreshNotificationPermission();
+      await repo.refreshNotificationPermission();
     }
     if (!mounted) return;
     setState(() {
