@@ -1048,7 +1048,7 @@ class _SpeedDialLayer extends StatefulWidget {
   final Offset origin;
   final Size size;
   final List<_DialItem> items;
-  final ValueListenable<int> highlight;
+  final ValueNotifier<int> highlight;
   final VoidCallback onBarrier;
   final ValueChanged<int> onPick;
 

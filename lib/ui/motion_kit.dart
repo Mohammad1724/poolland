@@ -841,7 +841,6 @@ class _SheetDragDismissState extends State<_SheetDragDismiss>
 
   @override
   Widget build(BuildContext context) {
-    final dy = _current;
     return AnimatedBuilder(
       animation: _spring,
       builder: (context, child) {
