@@ -16,12 +16,5 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - name: "Analyze (temporary: publish issues as annotations)"
-        run: |
-          set +e
-          flutter analyze > analyze.txt 2>&1
-          code=$?
-          cat analyze.txt
-          grep -E '•' analyze.txt | sed -E 's|^ +([a-z]+) • (.+) • (.+):([0-9]+):([0-9]+) • (.+)$|::error file=\3,line=\4,col=\5::\1 [\6] \2|' || true
-          exit $code
+      - run: flutter analyze
       - run: flutter test --concurrency=1
