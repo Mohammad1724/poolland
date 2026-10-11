@@ -1945,21 +1945,21 @@ class _SwipeButton extends StatelessWidget {
                   }
                 : null,
             child: Padding(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 38,
-                    height: 38,
+                    width: 34,
+                    height: 34,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: action.color.withValues(alpha: 0.13),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(action.icon, size: 19, color: action.color),
+                    child: Icon(action.icon, size: 18, color: action.color),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 2),
                   Text(
                     action.label.tr,
                     maxLines: 1,
