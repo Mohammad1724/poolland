@@ -13,6 +13,8 @@ import 'unrecognized_sms_page.dart';
 import 'widgets/widgets.dart';
 
 import '../core/localization.dart';
+import 'personal_page.dart';
+import 'widgets/quick_buttons.dart';
 
 /// ============================================================
 ///  Bank SMS — review and approval queue
@@ -477,7 +479,7 @@ class _SmsCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      sms.bankName ?? 'Unknown bank'.tr,
+                      (sms.bankName ?? 'Unknown bank').tr,
                       style: const TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w700,
@@ -641,7 +643,7 @@ class _SmsHistoryCard extends StatelessWidget {
         ? const Color(0xFF16A34A)
         : const Color(0xFFE11D48);
     final title = entry.bankName?.isNotEmpty == true
-        ? entry.bankName!
+        ? entry.bankName!.tr
         : entry.message.address;
     Txn? transaction;
     if (entry.transactionId != null) {
@@ -846,6 +848,21 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     return [TxnKind.income, TxnKind.expense];
   }
 
+  Future<void> _openQuickEdit(TxnScope scope, [QuickExpense? q]) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => QuickEditSheet(
+        initial: q,
+        presetScope: scope,
+        presetKind: widget.sms.direction == SmsDirection.deposit
+            ? TxnKind.income
+            : TxnKind.expense,
+      ),
+    );
+  }
+
   void _changeScope(AppRepository repo, TxnScope scope) {
     if (_scope == scope) return;
     setState(() {
@@ -905,7 +922,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
             ),
             const SizedBox(height: 4),
             Text(
-              sms.bankName ?? sms.message.address,
+              sms.bankName?.tr ?? sms.message.address,
               style: TextStyle(
                 fontSize: 11.5,
                 color: Theme.of(context).colorScheme.onSurface
@@ -968,6 +985,25 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                       }),
                     ),
                 ],
+              ),
+              const SizedBox(height: 14),
+
+              // Quick-entry buttons for this section and direction: one tap
+              // sets the type/category here, the chip adds a new button.
+              QuickButtonsRow(
+                scopeFilter: scope,
+                incomeFilter: sms.direction == SmsDirection.deposit,
+                hideWhenEmpty: true,
+                onTap: (q) => setState(() {
+                  if (availableKinds.contains(q.kind)) _kind = q.kind;
+                  if (q.categoryId != null) _categoryId = q.categoryId;
+                }),
+                onLongPress: (q) => _openQuickEdit(scope, q),
+                trailing: ActionChip(
+                  avatar: const Icon(Icons.add_rounded, size: 16),
+                  label: Text('Quick button'.tr),
+                  onPressed: () => _openQuickEdit(scope),
+                ),
               ),
               const SizedBox(height: 14),
 

@@ -395,7 +395,7 @@ class PersonalPage extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _QuickEditSheet(initial: q),
+      builder: (_) => QuickEditSheet(initial: q),
     );
   }
 
@@ -825,7 +825,7 @@ class _BudgetSheetState extends State<_BudgetSheet> {
                 label: 'Category'.tr,
                 value: cats.where((c) => c.id == _categoryId).firstOrNull,
                 items: cats,
-                labelOf: (c) => c.name,
+                labelOf: (c) => c.name.tr,
                 onChanged: (c) => setState(() => _categoryId = c?.id),
               ),
               const SizedBox(height: 12),
@@ -928,7 +928,7 @@ class _RecurringSheetState extends State<_RecurringSheet> {
     final cats = repo.categories
         .where(
           (c) =>
-              c.scope == TxnScope.personal &&
+              c.scope == _scope &&
               c.kind ==
                   (_kind == TxnKind.income ? TxnKind.income : TxnKind.expense),
         )
@@ -1071,7 +1071,7 @@ class _RecurringSheetState extends State<_RecurringSheet> {
                     title: _title.text.trim(),
                     kind: _kind,
                     amount: amount,
-                    scope: initial?.scope ?? TxnScope.personal,
+                    scope: _scope,
                     currency: initial?.currency ?? 'IRT',
                     customerId: initial?.customerId,
                     note: initial?.note ?? '',
@@ -1224,21 +1224,39 @@ class _QuickManagerSheet extends StatelessWidget {
 }
 
 /// ---------------- Edit or create a quick-entry button ----------------
-class _QuickEditSheet extends StatelessWidget {
-  const _QuickEditSheet({this.initial});
+class QuickEditSheet extends StatelessWidget {
+  const QuickEditSheet({
+    super.key,
+    this.initial,
+    this.presetScope,
+    this.presetKind,
+  });
 
   final QuickExpense? initial;
+  final TxnScope? presetScope;
+  final TxnKind? presetKind;
 
   @override
-  Widget build(BuildContext context) =>
-      _QuickEditPage(initial: initial, asSheet: true);
+  Widget build(BuildContext context) => _QuickEditPage(
+    initial: initial,
+    asSheet: true,
+    presetScope: presetScope,
+    presetKind: presetKind,
+  );
 }
 
 class _QuickEditPage extends StatefulWidget {
-  const _QuickEditPage({this.initial, this.asSheet = false});
+  const _QuickEditPage({
+    this.initial,
+    this.asSheet = false,
+    this.presetScope,
+    this.presetKind,
+  });
 
   final QuickExpense? initial;
   final bool asSheet;
+  final TxnScope? presetScope;
+  final TxnKind? presetKind;
 
   @override
   State<_QuickEditPage> createState() => _QuickEditPageState();
@@ -1248,6 +1266,7 @@ class _QuickEditPageState extends State<_QuickEditPage> {
   final _label = TextEditingController();
   final _amount = TextEditingController();
   TxnKind _kind = TxnKind.expense;
+  TxnScope _scope = TxnScope.personal;
   String? _categoryId;
   int _iconCodePoint = 0xe15b;
 
@@ -1262,7 +1281,8 @@ class _QuickEditPageState extends State<_QuickEditPage> {
     _amount.text = q == null || !q.hasFixedAmount
         ? ''
         : groupedNumber(q.amount);
-    _kind = q?.kind ?? TxnKind.expense;
+    _kind = q?.kind ?? widget.presetKind ?? TxnKind.expense;
+    _scope = q?.scope ?? widget.presetScope ?? TxnScope.personal;
     _categoryId = q?.categoryId;
     _iconCodePoint = q?.iconCodePoint ?? 0xe15b;
   }
@@ -1313,6 +1333,31 @@ class _QuickEditPageState extends State<_QuickEditPage> {
             color: Theme.of(context).colorScheme.onSurface
                 .withValues(alpha: 0.55),
           ),
+        ),
+        const SizedBox(height: 14),
+        SegmentedButton<TxnScope>(
+          segments: [
+            for (final sc in TxnScope.values)
+              ButtonSegment(value: sc, label: Text(sc.label)),
+          ],
+          selected: {_scope},
+          onSelectionChanged: (s) => setState(() {
+            _scope = s.first;
+            final list = repo.categories
+                .where(
+                  (c) =>
+                      c.scope == _scope &&
+                      c.kind ==
+                          (_kind == TxnKind.income
+                              ? TxnKind.income
+                              : TxnKind.expense),
+                )
+                .toList();
+            if (_categoryId != null &&
+                !list.any((c) => c.id == _categoryId)) {
+              _categoryId = null;
+            }
+          }),
         ),
         const SizedBox(height: 14),
         SegmentedButton<TxnKind>(

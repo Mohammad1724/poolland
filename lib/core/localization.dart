@@ -501,6 +501,7 @@ class AppLocalization {
     'Transaction recorded': 'تراکنش ثبت شد',
     'Transaction recorded from SMS': 'تراکنش از پیامک ثبت شد',
     'Review and record': 'بررسی و ثبت',
+    'Quick button': 'دکمهٔ سریع',
     'Customer added': 'مشتری اضافه شد',
     'Saved': 'ذخیره شد',
     'Deleted': 'حذف شد',

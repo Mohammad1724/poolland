@@ -46,17 +46,57 @@ IconData materialIcon(int? codePoint) {
   return Icons.receipt_long_outlined;
 }
 
-/// Row of quick-entry buttons (one tap records an expense or income).
+/// Row of quick-entry buttons.
+///
+/// On the personal page one tap records the button straight away; inside a
+/// transaction form [onTap] instead prefills the form so the entry stays
+/// fully editable. [scopeFilter] and [incomeFilter] keep the row separated
+/// by section (business/personal) and by direction (income/expense), so each
+/// form only offers the buttons that fit what is being recorded right now.
 class QuickButtonsRow extends StatelessWidget {
-  const QuickButtonsRow({super.key, this.emptyHint, this.onLongPress});
+  const QuickButtonsRow({
+    super.key,
+    this.emptyHint,
+    this.onLongPress,
+    this.onTap,
+    this.scopeFilter,
+    this.incomeFilter,
+    this.hideWhenEmpty = false,
+    this.trailing,
+  });
 
   final String? emptyHint;
   final void Function(QuickExpense q)? onLongPress;
 
+  /// When set, tapping a chip calls this instead of recording immediately.
+  final void Function(QuickExpense q)? onTap;
+
+  /// Only show buttons of this section (null = both).
+  final TxnScope? scopeFilter;
+
+  /// Only show income (true) or expense (false) buttons; null = both.
+  final bool? incomeFilter;
+
+  /// Render nothing (except [trailing]) when no button matches, so forms
+  /// stay clean for users who have not configured buttons for that case.
+  final bool hideWhenEmpty;
+
+  /// Extra widget appended after the chips (typically an "add" chip).
+  final Widget? trailing;
+
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
-    if (repo.quickExpenses.isEmpty) {
+    final items = repo.quickExpenses
+        .where(
+          (q) =>
+              (scopeFilter == null || q.scope == scopeFilter) &&
+              (incomeFilter == null ||
+                  (q.kind == TxnKind.income) == incomeFilter),
+        )
+        .toList();
+    if (items.isEmpty && trailing == null) {
+      if (hideWhenEmpty) return const SizedBox.shrink();
       return Text(
         emptyHint ?? 'No quick buttons configured.',
         style: TextStyle(
@@ -71,12 +111,15 @@ class QuickButtonsRow extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
-        for (final q in repo.quickExpenses)
+        for (final q in items)
           QuickChip(
             quick: q,
-            onTap: () => recordQuickExpense(context, q),
+            onTap: onTap == null
+                ? () => recordQuickExpense(context, q)
+                : () => onTap!(q),
             onLongPress: onLongPress == null ? null : () => onLongPress!(q),
           ),
+        if (trailing != null) trailing!,
       ],
     );
   }

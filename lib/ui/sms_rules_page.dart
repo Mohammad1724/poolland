@@ -401,7 +401,7 @@ class _SmsRuleEditPageState extends State<SmsRuleEditPage> {
     final recognized = preview.isTransaction;
     final message = recognized
         ? 'Matched {bank}: {direction} {amount}.'.trArgs({
-            'bank': preview.bankName ?? '',
+            'bank': (preview.bankName ?? '').tr,
             'direction': preview.direction.label,
             'amount': Money.text(preview.amount, currency: preview.currency),
           })

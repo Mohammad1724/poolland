@@ -722,7 +722,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                   return AnimatedSlide(
                     offset: visible || accessibleNavigation
                         ? Offset.zero
-                        : const Offset(0, 2.5),
+                        : const Offset(0, 4),
                     duration: Motion.adaptive(context, Motion.quick),
                     curve: Curves.easeOut,
                     child: _buildFab(),

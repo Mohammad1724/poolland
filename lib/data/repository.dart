@@ -939,7 +939,7 @@ class AppRepository extends ChangeNotifier {
         .where((sms) => sms.isTransaction)
         .toList()
       ..sort((a, b) => b.message.date.compareTo(a.message.date));
-    smsSuggestions = refreshed;
+    smsSuggestions = collapseTwins(refreshed);
     smsUnrecognizedMessages = [];
     notifyListeners();
   }
@@ -952,7 +952,7 @@ class AppRepository extends ChangeNotifier {
     SmsService.onSmsReceived = _onIncomingSms;
   }
 
-  void _onIncomingSms(SmsMessage msg) {
+  Future<void> _onIncomingSms(SmsMessage msg) async {
     final parsed = SmsParser.parse(
       msg,
       extraRules: smsRules,
@@ -961,6 +961,24 @@ class AppRepository extends ChangeNotifier {
     if (!parsed.isTransaction) return;
     final state = store.loadSmsState();
     if (state.containsKey(parsed.key)) return;
+
+    // A duplicate confirmation of an event already queued or reviewed must
+    // not create a second card for the same transaction.
+    final twinQueued = smsSuggestions.any(isTwinSmsOf(parsed));
+    final twinReviewed = smsHistory.any(
+      (h) =>
+          _twinKeyOf(h.message.address, h.direction, h.amount) ==
+              _twinKey(parsed) &&
+          h.message.date.difference(parsed.message.date).abs() <= twinWindow,
+    );
+    if (twinQueued || twinReviewed) {
+      await store.setSmsState(
+        parsed.key,
+        SmsHistoryEntry.rejectedStatus,
+        history: _smsHistoryEntry(parsed, SmsHistoryEntry.rejectedStatus),
+      );
+      return;
+    }
 
     smsSuggestions = [
       parsed,
@@ -1034,7 +1052,17 @@ class AppRepository extends ChangeNotifier {
         ...current,
         ...pending.where((p) => !known.contains(p.key)),
       ]..sort((a, b) => b.message.date.compareTo(a.message.date));
-      smsSuggestions = merged;
+      final collapsed = collapseTwins(merged);
+      for (final twin in merged.where(
+        (s) => !collapsed.any((k) => k.key == s.key),
+      )) {
+        await store.setSmsState(
+          twin.key,
+          SmsHistoryEntry.rejectedStatus,
+          history: _smsHistoryEntry(twin, SmsHistoryEntry.rejectedStatus),
+        );
+      }
+      smsSuggestions = collapsed;
 
       await updateSettings(
         settings.copyWith(smsLastSyncAt: DateTime.now().millisecondsSinceEpoch),
@@ -1220,6 +1248,47 @@ class AppRepository extends ChangeNotifier {
     transactionId: transactionId,
   );
 
+  // ---------------------------------------------------------
+  // Duplicate SMS collapse
+  // ---------------------------------------------------------
+
+  /// Banks such as Blu/Sina send a second confirmation message seconds after
+  /// the transaction SMS (charge notice, balance echo…). Both parse into
+  /// suggestions for the *same* real-world event, so recording one left its
+  /// twin sitting in the review queue forever.
+  static const Duration twinWindow = Duration(minutes: 2);
+
+  static String _twinKeyOf(
+    String address,
+    SmsDirection direction,
+    double amount,
+  ) => '${address.toUpperCase()}|${direction.name}|${amount.round()}';
+
+  static String _twinKey(ParsedSms s) =>
+      _twinKeyOf(s.message.address, s.direction, s.amount);
+
+  /// Whether two suggestions describe the same real-world event (same
+  /// sender, direction and amount within [twinWindow]) while being distinct
+  /// messages — the signature of a duplicate confirmation SMS.
+  static bool isTwinSms(ParsedSms a, ParsedSms b) =>
+      a.key != b.key &&
+      _twinKey(a) == _twinKey(b) &&
+      a.message.date.difference(b.message.date).abs() <= twinWindow;
+
+  /// Keeps the newest of each twin pair; callers mark the collapsed
+  /// duplicates rejected so later syncs never resurrect them.
+  static List<ParsedSms> collapseTwins(List<ParsedSms> list) {
+    final kept = <ParsedSms>[];
+    for (final s in list) {
+      if (kept.any(isTwinSmsOf(s))) continue;
+      kept.add(s);
+    }
+    return kept;
+  }
+
+  static bool Function(ParsedSms) isTwinSmsOf(ParsedSms s) =>
+      (other) => isTwinSms(s, other);
+
   /// Clear review history so all messages are scanned again.
   Future<void> resetSmsState() async {
     await store.clearSmsState();
@@ -1261,7 +1330,7 @@ class AppRepository extends ChangeNotifier {
   static String _smsNote(ParsedSms sms) {
     final parts = <String>[];
     if (sms.bankName != null && sms.bankName!.isNotEmpty) {
-      parts.add(sms.bankName!);
+      parts.add(sms.bankName!.tr);
     }
     if (sms.cardMask != null && sms.cardMask!.isNotEmpty) {
       parts.add('Card ${sms.cardMask}');

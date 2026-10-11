@@ -6,6 +6,8 @@ import '../design.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
+import '../personal_page.dart';
+import '../widgets/quick_buttons.dart';
 import '../widgets/widgets.dart';
 import 'contact_edit_page.dart';
 
@@ -140,6 +142,50 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
     _note.dispose();
     super.dispose();
   }
+
+  /// Prefill the form from a quick-entry button; everything stays editable.
+  void _applyQuick(QuickExpense q) {
+    final repo = context.read<AppRepository>();
+    setState(() {
+      _scope = q.scope;
+      _kind = q.kind == TxnKind.income ? TxnKind.income : TxnKind.expense;
+      if (q.scope == TxnScope.personal) {
+        _customer = null;
+        _subscription = null;
+        _credit = false;
+      }
+      if (q.categoryId != null) {
+        _category = repo.categoryById(q.categoryId);
+      }
+      if (q.hasFixedAmount) {
+        _amount.text = groupedNumber(
+          q.amount,
+          decimals: Money.decimals(_currency),
+        );
+      }
+    });
+  }
+
+  Future<void> _openQuickEdit([QuickExpense? q]) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => QuickEditSheet(
+        initial: q,
+        presetScope: _scope,
+        presetKind: _kind == TxnKind.income || _kind == TxnKind.receive
+            ? TxnKind.income
+            : TxnKind.expense,
+      ),
+    );
+  }
+
+  Widget _addQuickChip() => ActionChip(
+    avatar: const Icon(Icons.add_rounded, size: 16),
+    label: Text('Quick button'.tr),
+    onPressed: () => _openQuickEdit(),
+  );
 
   Future<void> _save() async {
     final repo = context.read<AppRepository>();
@@ -310,6 +356,19 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                   color: Theme.of(context).colorScheme.onSurface
                       .withValues(alpha: 0.55),
                 ),
+              ),
+              const SizedBox(height: 12),
+              // Quick-entry buttons matching the current section and
+              // direction; tapping one prefills this form (still editable),
+              // the trailing chip adds a new button for exactly this case.
+              QuickButtonsRow(
+                scopeFilter: _scope,
+                incomeFilter: _kind == TxnKind.income ||
+                    _kind == TxnKind.receive,
+                hideWhenEmpty: true,
+                onTap: _applyQuick,
+                onLongPress: (q) => _openQuickEdit(q),
+                trailing: _addQuickChip(),
               ),
               const SizedBox(height: 16),
               Row(

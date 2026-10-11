@@ -682,6 +682,54 @@ void main() {
     expect(t.rateToBase, 35000);
   });
 
+  group('Duplicate SMS collapse', () {
+    ParsedSms blu(String id, String body, int minutesAfter) => ParsedSms(
+      message: SmsMessage(
+        id: id,
+        address: 'BLU-BANK',
+        body: body,
+        date: DateTime(2026, 10, 1, 14, 24).add(
+          Duration(minutes: minutesAfter),
+        ),
+      ),
+      bankName: 'Sina Bank / Blu Bank',
+      amount: 22000,
+      direction: SmsDirection.withdraw,
+    );
+
+    test('A confirmation twin seconds later collapses into one card', () {
+      final txn = blu('a', 'transaction done', 0);
+      final charge = blu('b', 'charge notice', 0);
+      final kept = AppRepository.collapseTwins([txn, charge]);
+      expect(kept, hasLength(1));
+      expect(kept.single.message.id, 'a');
+      expect(AppRepository.isTwinSms(txn, charge), isTrue);
+    });
+
+    test('Same amount half an hour apart is a real second purchase', () {
+      final first = blu('a', 'coffee', 0);
+      final second = blu('b', 'coffee again', 30);
+      expect(AppRepository.isTwinSms(first, second), isFalse);
+      expect(AppRepository.collapseTwins([first, second]), hasLength(2));
+    });
+
+    test('Different amounts from the same sender are not twins', () {
+      final small = blu('a', 'taxi', 0);
+      final big = ParsedSms(
+        message: SmsMessage(
+          id: 'b',
+          address: 'BLU-BANK',
+          body: 'rent',
+          date: DateTime(2026, 10, 1, 14, 25),
+        ),
+        bankName: 'Sina Bank / Blu Bank',
+        amount: 900000,
+        direction: SmsDirection.withdraw,
+      );
+      expect(AppRepository.isTwinSms(small, big), isFalse);
+    });
+  });
+
   group('Mirrored SMS notification rules', () {
     test('Default rules include the built-in banks and their Persian names',
         () {
