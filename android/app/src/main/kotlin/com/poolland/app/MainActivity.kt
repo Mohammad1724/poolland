@@ -37,10 +37,17 @@ object SmsBus {
     /// SharedPreferences file mirroring the Dart-side notification setting.
     const val PREFS_NAME = "poolland_sms"
     const val PREF_NOTIFY_ENABLED = "notify_enabled"
+    const val PREF_LANGUAGE = "language"
+    const val PREF_RULES_JSON = "rules_json"
 
     /// Intent extra asking the app to open the SMS review page.
     const val EXTRA_ROUTE = "poolland_route"
     const val ROUTE_SMS_REVIEW = "sms_review"
+
+    /// Identity of the SMS the notification was posted for, so the app can
+    /// open the review sheet of that exact message.
+    const val EXTRA_SMS_DATE = "poolland_sms_date"
+    const val EXTRA_SMS_ADDRESS = "poolland_sms_address"
 
     const val NOTIFICATION_CHANNEL_ID = "bank_sms"
     const val NOTIFICATION_ID = 24040101
@@ -55,6 +62,12 @@ object SmsBus {
     /// Route requested by a notification tap, consumed once by Dart.
     @Volatile
     var pendingRoute: String? = null
+
+    @Volatile
+    var pendingSmsDate: Long? = null
+
+    @Volatile
+    var pendingSmsAddress: String? = null
 }
 
 /**
@@ -88,12 +101,21 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     /// Remembers a route requested by tapping the bank-SMS notification so
-    /// Dart can consume it once the engine is up.
+    /// Dart can consume it once the engine is up. When the engine is already
+    /// alive (warm start), the request is also pushed over the channel so
+    /// the review sheet opens immediately.
     private fun handleRouteIntent(intent: Intent?) {
         val route = intent?.getStringExtra(SmsBus.EXTRA_ROUTE)
-        if (!route.isNullOrBlank()) {
-            SmsBus.pendingRoute = route
-        }
+        if (route.isNullOrBlank()) return
+        val date = intent?.getLongExtra(SmsBus.EXTRA_SMS_DATE, 0L)?.takeIf { it != 0L }
+        val address = intent?.getStringExtra(SmsBus.EXTRA_SMS_ADDRESS)
+        SmsBus.pendingRoute = route
+        SmsBus.pendingSmsDate = date
+        SmsBus.pendingSmsAddress = address
+        SmsBus.channel?.invokeMethod(
+            "openRoute",
+            mapOf("route" to route, "date" to date, "address" to address),
+        )
     }
 
     private data class PendingSoundImport(
@@ -118,11 +140,16 @@ class MainActivity : FlutterFragmentActivity() {
                     val limit = (call.argument<Number>("limit") ?: 500).toInt()
                     result.success(readInbox(since, limit))
                 }
-                "setNotificationEnabled" -> {
-                    val enabled = call.arguments as? Boolean ?: true
+                "syncSmsPrefs" -> {
+                    val args = call.arguments as? Map<*, *> ?: emptyMap<Any, Any>()
                     getSharedPreferences(SmsBus.PREFS_NAME, Context.MODE_PRIVATE)
                         .edit()
-                        .putBoolean(SmsBus.PREF_NOTIFY_ENABLED, enabled)
+                        .putBoolean(
+                            SmsBus.PREF_NOTIFY_ENABLED,
+                            args["enabled"] as? Boolean ?: true,
+                        )
+                        .putString(SmsBus.PREF_LANGUAGE, args["language"] as? String ?: "fa")
+                        .putString(SmsBus.PREF_RULES_JSON, args["rules"] as? String ?: "[]")
                         .apply()
                     result.success(null)
                 }
@@ -132,8 +159,18 @@ class MainActivity : FlutterFragmentActivity() {
                 }
                 "consumePendingRoute" -> {
                     val route = SmsBus.pendingRoute
+                    val date = SmsBus.pendingSmsDate
+                    val address = SmsBus.pendingSmsAddress
                     SmsBus.pendingRoute = null
-                    result.success(route)
+                    SmsBus.pendingSmsDate = null
+                    SmsBus.pendingSmsAddress = null
+                    result.success(
+                        if (route == null) {
+                            null
+                        } else {
+                            mapOf("route" to route, "date" to date, "address" to address)
+                        },
+                    )
                 }
                 else -> result.notImplemented()
             }

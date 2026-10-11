@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart' show ChangeNotifier, VoidCallback;
@@ -72,7 +73,7 @@ class AppRepository extends ChangeNotifier {
     _store ??= await LocalStore.open();
     _loadFrom(_store!);
     _ready = true;
-    await syncSmsNotificationSetting();
+    await syncNativeSmsPrefs();
     notifyListeners();
   }
 
@@ -752,15 +753,13 @@ class AppRepository extends ChangeNotifier {
         s.reminderHour != settings.reminderHour ||
         s.reminderMinute != settings.reminderMinute ||
         s.notificationSoundUri != settings.notificationSoundUri;
-    final smsNotifyChanged =
-        s.smsEnabled != settings.smsEnabled ||
-        s.smsNotify != settings.smsNotify;
     final wasEnabled = settings.dailyReminder;
     settings = s;
     _syncGlobals();
     await store.saveSettings(s);
     notifyListeners();
-    if (smsNotifyChanged) await syncSmsNotificationSetting();
+    // The native receiver mirrors language, rules, and the notification flag.
+    await syncNativeSmsPrefs();
     if (!reminderChanged) return;
     if (s.dailyReminder) {
       await scheduleDailyReminder();
@@ -856,13 +855,41 @@ class AppRepository extends ChangeNotifier {
   /// Whether SMS is supported on this device (Android only).
   bool get smsSupported => SmsService.isSupported;
 
-  /// Mirror the arrival-notification preference into the native receiver.
+  /// Mirror everything the native SMS receiver needs into Android
+  /// SharedPreferences: the notification flag, the app language, and the
+  /// effective bank rules.
   ///
-  /// The receiver runs even when the Flutter engine is not alive, so it keeps
-  /// its own copy of the flag in Android SharedPreferences. Notifications are
-  /// only meaningful while SMS reading itself is enabled.
-  Future<void> syncSmsNotificationSetting() =>
-      SmsService.setNotificationEnabled(settings.smsEnabled && settings.smsNotify);
+  /// The receiver runs even when the Flutter engine is not alive, so it
+  /// cannot read Hive. Mirroring the rules keeps the native pre-filter (and
+  /// therefore the arrival notification) in lockstep with the Dart parser:
+  /// a carrier or shop SMS that matches no rule never produces a
+  /// “bank SMS” notification.
+  Future<void> syncNativeSmsPrefs() => SmsService.syncNotificationPrefs(
+    enabled: settings.smsEnabled && settings.smsNotify,
+    language: settings.languageCode,
+    rulesJson: nativeRulesJson(),
+  );
+
+  /// The active bank rules (custom rules first, like [SmsParser.findRule])
+  /// as JSON the native side can match against: normalized sender hints,
+  /// normalized body hints, and the bank name in both app languages.
+  String nativeRulesJson() {
+    final active = [...smsRules, ...builtinBankRules]
+        .where((rule) => isSmsRuleEnabled(rule.id))
+        .toList();
+    return jsonEncode([
+      for (final rule in active)
+        {
+          's': [
+            for (final hint in rule.senderHints)
+              SmsParser.normalize(hint).toUpperCase(),
+          ],
+          'b': [for (final hint in rule.bodyHints) SmsParser.normalize(hint)],
+          'fa': AppLocalization.text(rule.bankName, languageCode: 'fa'),
+          'en': rule.bankName,
+        },
+    ]);
+  }
 
   /// Number of suggestions awaiting approval.
   int get smsPendingCount => smsSuggestions.length;
@@ -1206,6 +1233,7 @@ class AppRepository extends ChangeNotifier {
     await store.putSmsRule(rule);
     await reload();
     _refreshPendingSms();
+    await syncNativeSmsPrefs();
     if (smsPermissionGranted) {
       try {
         await syncSms(force: true);
@@ -1227,6 +1255,7 @@ class AppRepository extends ChangeNotifier {
     }
     await reload();
     _refreshPendingSms();
+    await syncNativeSmsPrefs();
   }
 
   static String _smsNote(ParsedSms sms) {

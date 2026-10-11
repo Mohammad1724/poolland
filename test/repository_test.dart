@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -679,5 +680,43 @@ void main() {
       date: J.today,
     );
     expect(t.rateToBase, 35000);
+  });
+
+  group('Mirrored SMS notification rules', () {
+    test('Default rules include the built-in banks and their Persian names',
+        () {
+      final rules = jsonDecode(repo.nativeRulesJson()) as List;
+      final mellat =
+          rules.firstWhere((r) => (r['s'] as List).contains('MELLAT'));
+      expect(mellat['fa'], 'بانک ملت');
+      expect((mellat['b'] as List).join(' '), contains('ملت'));
+    });
+
+    test('Disabled built-in rules are not mirrored', () async {
+      final disabled = {...repo.settings.disabledSmsRuleIds, 'melat'};
+      await repo.updateSettings(
+        repo.settings.copyWith(disabledSmsRuleIds: disabled.toList()..sort()),
+      );
+      final rules = jsonDecode(repo.nativeRulesJson()) as List;
+      expect(rules.any((r) => (r['s'] as List).contains('MELLAT')), isFalse);
+      expect(rules.any((r) => (r['s'] as List).contains('SEPAH')), isTrue);
+    });
+
+    test('Custom rules are mirrored with their hints and label', () async {
+      await repo.addSmsRule(
+        const BankRule(
+          id: 'q1',
+          bankName: 'صندوق اعتباری',
+          senderHints: ['CREDIT1'],
+          bodyHints: ['صندوق'],
+          custom: true,
+        ),
+      );
+      final rules = jsonDecode(repo.nativeRulesJson()) as List;
+      final custom =
+          rules.firstWhere((r) => (r['s'] as List).contains('CREDIT1'));
+      expect(custom['fa'], 'صندوق اعتباری');
+      expect((custom['b'] as List).join(' '), contains('صندوق'));
+    });
   });
 }

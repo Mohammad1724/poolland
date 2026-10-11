@@ -670,7 +670,7 @@ class DashboardPage extends StatelessWidget {
             const SizedBox(width: 5),
             Expanded(
               child: Text(
-                label,
+                label.tr,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(

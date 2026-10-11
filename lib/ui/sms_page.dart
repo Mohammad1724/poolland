@@ -21,7 +21,16 @@ import '../core/localization.dart';
 ///  no transaction is recorded in the ledger.
 /// ============================================================
 class SmsPage extends StatefulWidget {
-  const SmsPage({super.key});
+  const SmsPage({
+    super.key,
+    this.autoReviewDate,
+    this.autoReviewAddress,
+  });
+
+  /// Identity of the SMS message whose review sheet should open as soon as
+  /// the page is ready (set when arriving from an arrival notification).
+  final int? autoReviewDate;
+  final String? autoReviewAddress;
 
   @override
   State<SmsPage> createState() => _SmsPageState();
@@ -41,9 +50,26 @@ class _SmsPageState extends State<SmsPage> {
       final repo = context.read<AppRepository>();
       repo.initSms();
       await repo.refreshSmsPermission();
-      if (repo.smsPermissionGranted && repo.smsSuggestions.isEmpty) {
-        await repo.syncSms();
+      if (repo.smsPermissionGranted &&
+          (repo.smsSuggestions.isEmpty || widget.autoReviewDate != null)) {
+        // Arriving from a notification: force the sync so the message that
+        // triggered it is in the queue even if older suggestions exist.
+        await repo.syncSms(force: widget.autoReviewDate != null);
       }
+      // Arrived from an arrival notification: open the review sheet of that
+      // exact message, the way a banking app opens the matching receipt.
+      if (widget.autoReviewDate == null || !mounted) return;
+      final target = repo.smsSuggestions
+          .where(
+            (s) =>
+                s.message.date.millisecondsSinceEpoch ==
+                    widget.autoReviewDate &&
+                (widget.autoReviewAddress == null ||
+                    s.message.address == widget.autoReviewAddress),
+          )
+          .firstOrNull;
+      if (target == null || !mounted) return;
+      await _openReview(context, target, repo.matchCustomerForSms(target));
     });
   }
 

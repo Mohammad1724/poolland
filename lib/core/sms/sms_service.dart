@@ -11,14 +11,19 @@ import 'sms_models.dart';
 ///  · requestPermission        → Request permission.
 ///  · readInbox                → Read received SMS messages.
 ///  · onSms                    → Called by Android when a new SMS arrives.
-///  · setNotificationEnabled   → Let the native receiver post (or not post)
-///                                an arrival notification while the app is
-///                                closed or in the background.
+///  · syncSmsPrefs             → Mirror the notification flag, the app
+///                                language, and the effective bank rules so
+///                                the receiver can filter and localize the
+///                                arrival notification it posts while the app
+///                                is closed or in the background.
 ///  · setForeground            → Tell the receiver whether the UI is visible,
 ///                                so an open app is not doubled by a
 ///                                notification for the same message.
 ///  · consumePendingRoute      → The route the app was launched from by
-///                                tapping an arrival notification, if any.
+///                                tapping an arrival notification, plus the
+///                                date and address of that exact message.
+///  · openRoute                → Pushed by Android when a notification is
+///                                tapped while the engine is already alive.
 /// ============================================================
 class SmsService {
   static const MethodChannel _channel = MethodChannel('poolland/sms');
@@ -27,6 +32,11 @@ class SmsService {
 
   /// Called when a new SMS arrives while the app is open.
   static void Function(SmsMessage message)? onSmsReceived;
+
+  /// Called when the app is brought forward by tapping an arrival
+  /// notification while the engine is already alive (the cold-start case is
+  /// covered by [consumePendingRoute] instead).
+  static void Function(String route, int? date, String? address)? onOpenRoute;
 
   /// Whether SMS is available on this platform (Android only).
   static bool get isSupported => isSmsCapable;
@@ -41,6 +51,17 @@ class SmsService {
           if (args is Map) {
             final msg = SmsMessage.fromMap(Map<dynamic, dynamic>.from(args));
             onSmsReceived?.call(msg);
+          }
+          break;
+        case 'openRoute':
+          final args = call.arguments;
+          if (args is Map) {
+            final m = Map<Object?, Object?>.from(args);
+            onOpenRoute?.call(
+              '${m['route'] ?? ''}',
+              (m['date'] as num?)?.toInt(),
+              m['address'] as String?,
+            );
           }
           break;
       }
@@ -96,14 +117,24 @@ class SmsService {
     }
   }
 
-  /// Whether the native receiver should notify about arriving bank SMS.
+  /// Whether the native receiver should notify about arriving bank SMS,
+  /// in which language, and which senders count as a bank.
   ///
-  /// The receiver cannot read the Hive database, so the preference is
-  /// mirrored into Android SharedPreferences on every change.
-  static Future<void> setNotificationEnabled(bool enabled) async {
+  /// The receiver can run in a fresh process where the Flutter engine (and
+  /// Hive) never started, so the whole preference set is mirrored into
+  /// Android SharedPreferences on every change.
+  static Future<void> syncNotificationPrefs({
+    required bool enabled,
+    required String language,
+    required String rulesJson,
+  }) async {
     if (!isSupported) return;
     try {
-      await _channel.invokeMethod<void>('setNotificationEnabled', enabled);
+      await _channel.invokeMethod<void>('syncSmsPrefs', <String, dynamic>{
+        'enabled': enabled,
+        'language': language,
+        'rules': rulesJson,
+      });
     } on PlatformException {
       // The preference stays at its previous value; the in-app queue still
       // receives every message, so nothing is lost.
@@ -126,12 +157,17 @@ class SmsService {
 
   /// The route requested by tapping an arrival notification, consumed once.
   ///
-  /// Returns `'sms_review'` when the app was opened (or brought forward) by
-  /// the notification, and null otherwise.
-  static Future<String?> consumePendingRoute() async {
+  /// Returns `{'route': 'sms_review', 'date': …, 'address': …}` when the app
+  /// was opened by the notification, and null otherwise. The message date and
+  /// address let the UI open the review sheet of that exact SMS.
+  static Future<Map<String, Object?>?> consumePendingRoute() async {
     if (!isSupported) return null;
     try {
-      return await _channel.invokeMethod<String>('consumePendingRoute');
+      final res = await _channel.invokeMethod<Map<Object?, Object?>>(
+        'consumePendingRoute',
+      );
+      if (res == null) return null;
+      return Map<String, Object?>.from(res);
     } on PlatformException {
       return null;
     } on MissingPluginException {

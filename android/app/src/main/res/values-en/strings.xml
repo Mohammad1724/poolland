@@ -7,25 +7,4 @@
     <string name="sms_notify_body">A new bank SMS arrived — open Poolland to record it.</string>
     <string name="sms_notify_body_bank">New bank SMS from %1$s — open Poolland to record it.</string>
 
-    <string name="bank_mellat">Mellat Bank</string>
-    <string name="bank_saderat">Saderat Bank</string>
-    <string name="bank_tejarat">Tejarat Bank</string>
-    <string name="bank_melli">Melli Bank</string>
-    <string name="bank_parsian">Parsian Bank</string>
-    <string name="bank_saman">Saman Bank</string>
-    <string name="bank_pasargad">Pasargad Bank</string>
-    <string name="bank_ayandeh">Ayandeh Bank</string>
-    <string name="bank_resalat">Resalat Bank</string>
-    <string name="bank_sina">Sina Bank / Blu Bank</string>
-    <string name="bank_keshavarzi">Keshavarzi Bank</string>
-    <string name="bank_refah">Refah Bank</string>
-    <string name="bank_shahr">Shahr Bank</string>
-    <string name="bank_karafarin">Karafarin Bank</string>
-    <string name="bank_sarmayeh">Sarmayeh Bank</string>
-    <string name="bank_sepah">Sepah Bank</string>
-    <string name="bank_post">Post Bank</string>
-    <string name="bank_iranzamin">Iran Zamin Bank</string>
-    <string name="bank_day">Day Bank</string>
-    <string name="bank_tourism">Tourism Bank</string>
-    <string name="bank_mehr">Mehr Bank / Qarz al-Hasaneh</string>
 </resources>

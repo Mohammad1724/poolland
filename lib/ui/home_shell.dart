@@ -68,9 +68,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    // The repository outlives this shell, so it must not keep a callback
-    // that holds a dead BuildContext.
+    // The repository and the SMS channel outlive this shell, so they must
+    // not keep callbacks that hold a dead BuildContext.
     _repo?.onNewSmsSuggestion = null;
+    SmsService.onOpenRoute = null;
     _fabVisible.dispose();
     for (final controller in _scrollControllers.values) {
       controller.dispose();
@@ -95,6 +96,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Set synchronously: a notification tap can arrive over the channel at
+    // any moment once the engine is alive.
+    SmsService.onOpenRoute = _handleOpenRoute;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final repo = context.read<AppRepository>();
       _repo = repo;
@@ -130,14 +134,38 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       }
 
       // Opened by tapping a bank-SMS arrival notification? Go straight to
-      // the review queue instead of making the user find it.
-      final route = await SmsService.consumePendingRoute();
-      if (!mounted || route != 'sms_review') return;
-      await Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const SmsPage()),
-      );
+      // the review sheet of that exact SMS instead of making the user
+      // find it in the queue.
+      final pending = await SmsService.consumePendingRoute();
+      if (!mounted || pending == null) return;
+      await _openSmsReview(pending);
     });
+  }
+
+  /// Native push for the warm-start case (engine alive, app brought
+  /// forward by a notification tap).
+  void _handleOpenRoute(String route, int? date, String? address) {
+    if (!mounted || route != 'sms_review') return;
+    _openSmsReview({'route': route, 'date': date, 'address': address});
+  }
+
+  /// Opens the SMS review page and, when the notification carried the
+  /// message identity, the review sheet of that exact message.
+  Future<void> _openSmsReview(Map<String, Object?> pending) async {
+    if (pending['route'] != 'sms_review') return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SmsPage(
+          autoReviewDate: (pending['date'] as num?)?.toInt(),
+          autoReviewAddress: pending['address'] as String?,
+        ),
+      ),
+    );
+    // The native side keeps the tap request until it is consumed; consuming
+    // here also clears a warm-start request so a later cold start does not
+    // reopen an already reviewed message.
+    await SmsService.consumePendingRoute();
   }
 
   /// Foreground counterpart of the native arrival notification: points at
