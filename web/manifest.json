@@ -5,7 +5,7 @@
     "display": "standalone",
     "background_color": "#0B1220",
     "theme_color": "#0EA5A4",
-    "description": "A simple offline ledger for VPN sellers: customers, receivables, payables, subscriptions, income, and expenses across multiple currencies.",
+    "description": "دفتر مالی آفلاین فروشندگان VPN: مشتری‌ها، مطالبات و بدهی‌ها، اشتراک‌ها، درآمد و هزینه در چند ارز.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

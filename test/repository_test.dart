@@ -37,6 +37,20 @@ void main() {
     expect(repo.scopeFilter, TxnScope.business);
   });
 
+  test('Bank SMS notification preference defaults on and persists', () async {
+    expect(repo.settings.smsNotify, isTrue);
+
+    await repo.updateSettings(repo.settings.copyWith(smsNotify: false));
+    expect(store.loadSettings().smsNotify, isFalse);
+    final restored = AppSettings.fromMap(store.loadSettings().toMap());
+    expect(restored.smsNotify, isFalse);
+
+    // Legacy backups without the flag turn notifications on, not off.
+    final legacy = Map<String, dynamic>.from(store.loadSettings().toMap())
+      ..remove('smsNotify');
+    expect(AppSettings.fromMap(legacy).smsNotify, isTrue);
+  });
+
   test('SMS rule enablement defaults on and persists per rule', () async {
     expect(repo.isSmsRuleEnabled('melat'), isTrue);
     expect(

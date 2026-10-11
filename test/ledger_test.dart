@@ -404,4 +404,29 @@ void main() {
       expect(byCat['VPN sales'], 300000);
     });
   });
+
+  group('Search', () {
+    test('Persian-digit queries match Latin-digit amounts', () {
+      final txns = [
+        txn(kind: TxnKind.expense, amount: 500000).copyWith(note: 'server'),
+        txn(kind: TxnKind.expense, amount: 700000).copyWith(note: 'advert'),
+      ];
+      // “۵۰۰۰۰۰” typed with a Persian keyboard.
+      final found = Ledger.filter(txns, search: '۵۰۰۰۰۰').toList();
+      expect(found.length, 1);
+      expect(found.single.amount, 500000);
+      // Latin digits keep working as before.
+      expect(Ledger.filter(txns, search: '500000').toList().length, 1);
+    });
+
+    test('Latin-digit queries match Persian-digit notes', () {
+      final txns = [
+        txn(kind: TxnKind.expense, amount: 1).copyWith(note: 'ثبت ۱۲۳۴'),
+        txn(kind: TxnKind.expense, amount: 2).copyWith(note: 'nothing'),
+      ];
+      final found = Ledger.filter(txns, search: '1234').toList();
+      expect(found.length, 1);
+      expect(found.single.note, contains('۱۲۳۴'));
+    });
+  });
 }

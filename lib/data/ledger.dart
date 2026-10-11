@@ -1,3 +1,4 @@
+import '../core/format_utils.dart';
 import '../core/jalali_utils.dart';
 import 'models.dart';
 
@@ -117,8 +118,10 @@ class Ledger {
       if (customerId != null && t.customerId != customerId) return false;
       if (categoryId != null && t.categoryId != categoryId) return false;
       if (search != null && search.trim().isNotEmpty) {
-        final q = search.trim().toLowerCase();
-        if (!t.note.toLowerCase().contains(q) &&
+        // Persian and Arabic-Indic digits are normalized on both sides so a
+        // search typed with either keyboard matches stored Latin-digit data.
+        final q = Fmt.normalizeDigits(search.trim().toLowerCase());
+        if (!Fmt.normalizeDigits(t.note.toLowerCase()).contains(q) &&
             !t.amount.toStringAsFixed(0).contains(q)) {
           return false;
         }
@@ -447,9 +450,16 @@ class Ledger {
     String categoryId, {
     DateTime? from,
     DateTime? to,
+    TxnScope? scope,
   }) {
     var total = 0.0;
-    for (final t in filter(txns, from: from, to: to, kind: TxnKind.expense)) {
+    for (final t in filter(
+      txns,
+      from: from,
+      to: to,
+      kind: TxnKind.expense,
+      scope: scope,
+    )) {
       if (t.categoryId != categoryId) continue;
       total += base(t);
     }
@@ -457,6 +467,11 @@ class Ledger {
   }
 
   /// Daily series from [days] ago through today.
+  ///
+  /// Single pass over the transactions: each one is placed in its day bucket
+  /// directly. The previous implementation re-scanned the whole list twice per
+  /// day (sixty passes for a 30-day chart), which made the personal page
+  /// noticeably janky once a ledger grew to a few thousand rows.
   static List<DayPoint> dailySeries(
     List<Txn> txns, {
     int days = 30,
@@ -465,32 +480,30 @@ class Ledger {
   }) {
     final end = J.startOfDay(endDay ?? DateTime.now());
     final start = J.addDays(end, -(days - 1));
-    final points = <DayPoint>[];
-    for (var i = 0; i < days; i++) {
-      final day = J.addDays(start, i);
-      final dayEnd = DateTime(day.year, day.month, day.day, 23, 59, 59, 999);
-      double expense = 0, income = 0;
-      for (final t in filter(
-        txns,
-        from: day,
-        to: dayEnd,
-        kind: TxnKind.expense,
-        scope: scope,
-      )) {
-        expense += base(t);
+    final income = List<double>.filled(days, 0);
+    final expense = List<double>.filled(days, 0);
+    for (final t in txns) {
+      if (t.kind != TxnKind.income && t.kind != TxnKind.expense) continue;
+      if (scope != null && t.scope != scope) continue;
+      final day = J.startOfDay(t.date);
+      if (day.isBefore(start) || day.isAfter(end)) continue;
+      final index = day.difference(start).inDays;
+      if (index < 0 || index >= days) continue;
+      final v = base(t);
+      if (t.kind == TxnKind.income) {
+        income[index] += v;
+      } else {
+        expense[index] += v;
       }
-      for (final t in filter(
-        txns,
-        from: day,
-        to: dayEnd,
-        kind: TxnKind.income,
-        scope: scope,
-      )) {
-        income += base(t);
-      }
-      points.add(DayPoint(day: day, income: income, expense: expense));
     }
-    return points;
+    return [
+      for (var i = 0; i < days; i++)
+        DayPoint(
+          day: J.addDays(start, i),
+          income: income[i],
+          expense: expense[i],
+        ),
+    ];
   }
 
   /// Weekly series from [weeks] ago through the current week.

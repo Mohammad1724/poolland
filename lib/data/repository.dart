@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart' show ChangeNotifier;
+import 'package:flutter/foundation.dart' show ChangeNotifier, VoidCallback;
 
 import '../core/app_lock.dart';
 import '../core/jalali_utils.dart';
@@ -62,11 +62,17 @@ class AppRepository extends ChangeNotifier {
   bool smsUnrecognizedBusy = false;
   bool _smsInited = false;
 
+  /// Called when a new bank SMS lands in the review queue while the app is
+  /// open, so the shell can point at the queue. The system notification for
+  /// the background case is posted natively (see SmsReceiver.kt).
+  VoidCallback? onNewSmsSuggestion;
+
   /// Initialize the repository and open the database.
   Future<void> init() async {
     _store ??= await LocalStore.open();
     _loadFrom(_store!);
     _ready = true;
+    await syncSmsNotificationSetting();
     notifyListeners();
   }
 
@@ -488,22 +494,27 @@ class AppRepository extends ChangeNotifier {
     );
   }
 
-  /// Usage for all budgets in the current month.
+  /// Usage for all enabled budgets in the current month.
   List<BudgetUsage> budgetUsages({DateTime? now}) {
     final range = monthOf(now ?? DateTime.now());
-    return budgets.map((b) {
-      final cat = categories.where((c) => c.id == b.categoryId).firstOrNull;
-      return BudgetUsage(
-        budget: b,
-        categoryName: cat?.name ?? 'Deleted category',
-        spent: Ledger.spentIn(
-          transactions,
-          b.categoryId,
-          from: range.start,
-          to: range.end,
-        ),
-      );
-    }).toList()..sort((a, b) => b.ratio.compareTo(a.ratio));
+    return budgets
+        .where((b) => b.enabled)
+        .map((b) {
+          final cat = categories.where((c) => c.id == b.categoryId).firstOrNull;
+          return BudgetUsage(
+            budget: b,
+            categoryName: cat?.name ?? 'Deleted category',
+            spent: Ledger.spentIn(
+              transactions,
+              b.categoryId,
+              from: range.start,
+              to: range.end,
+              scope: b.scope,
+            ),
+          );
+        })
+        .toList()
+      ..sort((a, b) => b.ratio.compareTo(a.ratio));
   }
 
   Future<void> addBudget(Budget b) async {
@@ -741,11 +752,15 @@ class AppRepository extends ChangeNotifier {
         s.reminderHour != settings.reminderHour ||
         s.reminderMinute != settings.reminderMinute ||
         s.notificationSoundUri != settings.notificationSoundUri;
+    final smsNotifyChanged =
+        s.smsEnabled != settings.smsEnabled ||
+        s.smsNotify != settings.smsNotify;
     final wasEnabled = settings.dailyReminder;
     settings = s;
     _syncGlobals();
     await store.saveSettings(s);
     notifyListeners();
+    if (smsNotifyChanged) await syncSmsNotificationSetting();
     if (!reminderChanged) return;
     if (s.dailyReminder) {
       await scheduleDailyReminder();
@@ -841,6 +856,14 @@ class AppRepository extends ChangeNotifier {
   /// Whether SMS is supported on this device (Android only).
   bool get smsSupported => SmsService.isSupported;
 
+  /// Mirror the arrival-notification preference into the native receiver.
+  ///
+  /// The receiver runs even when the Flutter engine is not alive, so it keeps
+  /// its own copy of the flag in Android SharedPreferences. Notifications are
+  /// only meaningful while SMS reading itself is enabled.
+  Future<void> syncSmsNotificationSetting() =>
+      SmsService.setNotificationEnabled(settings.smsEnabled && settings.smsNotify);
+
   /// Number of suggestions awaiting approval.
   int get smsPendingCount => smsSuggestions.length;
 
@@ -917,6 +940,7 @@ class AppRepository extends ChangeNotifier {
       ...smsSuggestions.where((e) => e.key != parsed.key),
     ]..sort((a, b) => b.message.date.compareTo(a.message.date));
     notifyListeners();
+    onNewSmsSuggestion?.call();
   }
 
   Future<bool> refreshSmsPermission() async {

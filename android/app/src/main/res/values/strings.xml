@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Native strings for the parts of the app that run without the Flutter
+  engine: the bank-SMS arrival notification posted by SmsReceiver.
+
+  The default (this file) is Persian, matching the app's primary language;
+  English devices pick up values-en/strings.xml instead.
+-->
+<resources>
+    <!-- Bank SMS arrival notification -->
+    <string name="sms_notify_channel_name">پیامک بانکی</string>
+    <string name="sms_notify_channel_description">هشدار رسیدن پیامک واریز و برداشت بانک‌ها تا ثبتشان فراموش نشود</string>
+    <string name="sms_notify_title">پیامک بانکی جدید</string>
+    <string name="sms_notify_body">پیامک بانکی جدید رسیده؛ برای ثبت باز کنید.</string>
+    <string name="sms_notify_body_bank">پیامک بانکی جدید از %1$s؛ برای ثبت باز کنید.</string>
+
+    <!-- Bank names (kept in sync with lib/core/sms/bank_rules.dart) -->
+    <string name="bank_mellat">بانک ملت</string>
+    <string name="bank_saderat">بانک صادرات</string>
+    <string name="bank_tejarat">بانک تجارت</string>
+    <string name="bank_melli">بانک ملی</string>
+    <string name="bank_parsian">بانک پارسیان</string>
+    <string name="bank_saman">بانک سامان</string>
+    <string name="bank_pasargad">بانک پاسارگاد</string>
+    <string name="bank_ayandeh">بانک آینده</string>
+    <string name="bank_resalat">بانک رسالت</string>
+    <string name="bank_sina">بانک سینا / بلو</string>
+    <string name="bank_keshavarzi">بانک کشاورزی</string>
+    <string name="bank_refah">بانک رفاه</string>
+    <string name="bank_shahr">بانک شهر</string>
+    <string name="bank_karafarin">بانک کارآفرین</string>
+    <string name="bank_sarmayeh">بانک سرمایه</string>
+    <string name="bank_sepah">بانک سپه</string>
+    <string name="bank_post">پست بانک</string>
+    <string name="bank_iranzamin">بانک ایران‌زمین</string>
+    <string name="bank_day">بانک دی</string>
+    <string name="bank_tourism">بانک گردشگری</string>
+    <string name="bank_mehr">بانک مهر / قرض‌الحسنه</string>
+</resources>

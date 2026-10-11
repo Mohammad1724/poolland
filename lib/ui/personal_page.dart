@@ -441,15 +441,22 @@ class _BudgetTile extends StatelessWidget {
     final pct = usage.ratio > 1 ? 1.0 : usage.ratio;
     final compact = MediaQuery.sizeOf(context).width < 360;
 
-    Widget deleteAction() => InkWell(
-      onTap: onDelete,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: Icon(
-          Icons.delete_outline_rounded,
-          size: 17,
-          color: onSurface.withValues(alpha: 0.4),
+    Widget deleteAction() => Tooltip(
+      message: 'Delete'.tr,
+      child: InkWell(
+        onTap: onDelete,
+        borderRadius: BorderRadius.circular(8),
+        child: Semantics(
+          label: 'Delete'.tr,
+          button: true,
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: Icon(
+              Icons.delete_outline_rounded,
+              size: 17,
+              color: onSurface.withValues(alpha: 0.4),
+            ),
+          ),
         ),
       ),
     );
@@ -643,13 +650,20 @@ class _RecurringTile extends StatelessWidget {
                 dense: true,
               ),
             const SizedBox(width: 6),
-            InkWell(
-              onTap: onDelete,
-              borderRadius: BorderRadius.circular(8),
-              child: Icon(
-                Icons.delete_outline_rounded,
-                size: 17,
-                color: onSurface.withValues(alpha: 0.4),
+            Tooltip(
+              message: 'Delete'.tr,
+              child: InkWell(
+                onTap: onDelete,
+                borderRadius: BorderRadius.circular(8),
+                child: Semantics(
+                  label: 'Delete'.tr,
+                  button: true,
+                  child: Icon(
+                    Icons.delete_outline_rounded,
+                    size: 17,
+                    color: onSurface.withValues(alpha: 0.4),
+                  ),
+                ),
               ),
             ),
           ],
@@ -752,12 +766,14 @@ class _BudgetSheet extends StatefulWidget {
 class _BudgetSheetState extends State<_BudgetSheet> {
   final _limit = TextEditingController();
   String? _categoryId;
+  bool _enabled = true;
 
   @override
   void initState() {
     super.initState();
     final b = widget.initial;
     _categoryId = b?.categoryId;
+    _enabled = b?.enabled ?? true;
     _limit.text = b == null ? '' : groupedNumber(b.limit);
   }
 
@@ -798,7 +814,7 @@ class _BudgetSheetState extends State<_BudgetSheet> {
               ),
               const SizedBox(height: 16),
               Text(
-                widget.initial == null ? 'New budget' : 'Edit budget',
+                (widget.initial == null ? 'New budget' : 'Edit budget').tr,
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -814,18 +830,39 @@ class _BudgetSheetState extends State<_BudgetSheet> {
               ),
               const SizedBox(height: 12),
               AmountField(controller: _limit, label: 'Monthly limit'.tr),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Active'.tr, style: const TextStyle(fontSize: 13)),
+                subtitle: Text(
+                  'Disabled budgets are hidden from the list'.tr,
+                  style: const TextStyle(fontSize: 11.5),
+                ),
+                value: _enabled,
+                onChanged: (v) => setState(() => _enabled = v),
+              ),
+              const SizedBox(height: 12),
               FilledButton(
                 onPressed: () async {
                   final limit = parseAmount(_limit.text);
                   if (_categoryId == null || limit <= 0) return;
                   final repo = context.read<AppRepository>();
-                  final b = Budget(
-                    id: widget.initial?.id ?? LocalStore.newId(),
-                    categoryId: _categoryId!,
-                    limit: limit,
-                  );
-                  if (widget.initial == null) {
+                  // Editing keeps the stored id and scope instead of
+                  // rebuilding the budget from scratch.
+                  final initial = widget.initial;
+                  final b = initial == null
+                      ? Budget(
+                          id: LocalStore.newId(),
+                          categoryId: _categoryId!,
+                          limit: limit,
+                          enabled: _enabled,
+                        )
+                      : initial.copyWith(
+                          categoryId: _categoryId!,
+                          limit: limit,
+                          enabled: _enabled,
+                        );
+                  if (initial == null) {
                     await repo.addBudget(b);
                   } else {
                     await repo.updateBudget(b);
@@ -921,7 +958,7 @@ class _RecurringSheetState extends State<_RecurringSheet> {
               ),
               const SizedBox(height: 16),
               Text(
-                widget.initial == null ? 'New rule' : 'Edit rule',
+                (widget.initial == null ? 'New rule' : 'Edit rule').tr,
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -1025,20 +1062,28 @@ class _RecurringSheetState extends State<_RecurringSheet> {
                   final amount = parseAmount(_amount.text);
                   if (_title.text.trim().isEmpty || amount <= 0) return;
                   final repo = context.read<AppRepository>();
+                  // Fields this sheet does not edit (scope, currency, customer,
+                  // note) are carried over from the stored rule instead of
+                  // silently reset to their defaults.
+                  final initial = widget.initial;
                   final r = RecurringRule(
-                    id: widget.initial?.id ?? LocalStore.newId(),
+                    id: initial?.id ?? LocalStore.newId(),
                     title: _title.text.trim(),
                     kind: _kind,
                     amount: amount,
+                    scope: initial?.scope ?? TxnScope.personal,
+                    currency: initial?.currency ?? 'IRT',
+                    customerId: initial?.customerId,
+                    note: initial?.note ?? '',
                     categoryId: _categoryId,
                     period: _period,
                     dayOfMonth: _dayOfMonth,
                     startDate: _start,
                     endDate: _end,
                     enabled: _enabled,
-                    lastPosted: widget.initial?.lastPosted,
+                    lastPosted: initial?.lastPosted,
                   );
-                  if (widget.initial == null) {
+                  if (initial == null) {
                     await repo.addRecurring(r);
                   } else {
                     await repo.updateRecurring(r);
@@ -1096,6 +1141,7 @@ class _QuickManagerSheet extends StatelessWidget {
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Close'.tr,
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close_rounded, size: 20),
                   ),
@@ -1119,6 +1165,7 @@ class _QuickManagerSheet extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
+                            tooltip: 'Edit'.tr,
                             icon: const Icon(Icons.edit_outlined, size: 19),
                             onPressed: () => Navigator.push(
                               context,
@@ -1128,6 +1175,7 @@ class _QuickManagerSheet extends StatelessWidget {
                             ),
                           ),
                           IconButton(
+                            tooltip: 'Delete'.tr,
                             icon: const Icon(
                               Icons.delete_outline_rounded,
                               size: 19,
@@ -1324,20 +1372,24 @@ class _QuickEditPageState extends State<_QuickEditPage> {
           onPressed: () async {
             if (_label.text.trim().isEmpty) return;
             final repo = context.read<AppRepository>();
+            final initial = widget.initial;
             final q = QuickExpense(
-              id: widget.initial?.id ?? LocalStore.newId(),
+              id: initial?.id ?? LocalStore.newId(),
               label: _label.text.trim(),
               amount: parseAmount(_amount.text),
               kind: _kind,
+              // Keep the stored scope: this sheet edits personal buttons, but
+              // a button created elsewhere must not flip scopes on edit.
+              scope: initial?.scope ?? TxnScope.personal,
               categoryId: _categoryId,
               iconCodePoint: _iconCodePoint,
               sortOrder:
-                  widget.initial?.sortOrder ??
+                  initial?.sortOrder ??
                   (repo.quickExpenses.isEmpty
                       ? 0
                       : repo.quickExpenses.last.sortOrder + 1),
             );
-            if (widget.initial == null) {
+            if (initial == null) {
               await repo.addQuickButton(q);
             } else {
               await repo.updateQuickButton(q);

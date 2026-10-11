@@ -457,6 +457,36 @@ class SettingsPage extends StatelessWidget {
                     },
                   ),
                   Divider(color: Theme.of(context).dividerColor),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: s.smsNotify,
+                    title: Text(
+                      'Bank SMS notification'.tr,
+                      style: TextStyle(fontSize: 13.5),
+                    ),
+                    subtitle: Text(
+                      'Show a notification when a new bank SMS arrives, even if the app is closed'
+                          .tr,
+                      style: TextStyle(fontSize: 11.5),
+                    ),
+                    onChanged: (v) async {
+                      if (v && isAndroidPlatform) {
+                        // Android 13+ silently refuses to post notifications
+                        // without this; a denied request returns false
+                        // without a dialog, so the toggle still saves.
+                        final ok = await reminder.requestPermission();
+                        if (!ok && context.mounted) {
+                          showSnack(
+                            context,
+                            'Notification permission is required for bank SMS alerts',
+                          );
+                        }
+                      }
+                      if (!context.mounted) return;
+                      await repo.updateSettings(s.copyWith(smsNotify: v));
+                    },
+                  ),
+                  Divider(color: Theme.of(context).dividerColor),
                   _navTile(
                     context,
                     icon: Icons.fact_check_outlined,

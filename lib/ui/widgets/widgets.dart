@@ -745,6 +745,7 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Close'.tr,
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close_rounded, size: 20),
                   ),

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/haptics.dart';
+import '../core/notifications/notify.dart';
+import '../core/sms/sms_service.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 import 'customers_page.dart';
@@ -13,6 +15,7 @@ import 'forms/transaction_edit_page.dart';
 import 'personal_page.dart';
 import 'reports_page.dart';
 import 'settings_page.dart';
+import 'sms_page.dart';
 import 'subscriptions_page.dart';
 import 'transactions_page.dart';
 
@@ -25,7 +28,7 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _index = 0;
 
   /// Tab indexes that have been opened at least once.
@@ -59,13 +62,28 @@ class _HomeShellState extends State<HomeShell> {
     'Transactions',
   ];
 
+  /// The repository this shell reports new SMS messages to.
+  AppRepository? _repo;
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    // The repository outlives this shell, so it must not keep a callback
+    // that holds a dead BuildContext.
+    _repo?.onNewSmsSuggestion = null;
     _fabVisible.dispose();
     for (final controller in _scrollControllers.values) {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // The native SMS receiver stays quiet while the app is visible (the
+    // review queue and a snackbar cover that case) and posts a system
+    // notification otherwise.
+    SmsService.setForeground(state == AppLifecycleState.resumed);
   }
 
   /// Returns the controller for a tab, creating it on first use so an unopened
@@ -76,8 +94,11 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final repo = context.read<AppRepository>();
+      _repo = repo;
+      repo.onNewSmsSuggestion = _onNewSmsSuggestion;
       if (!repo.isReady) await repo.init();
 
       // Automatically post due recurring transactions (rent, internet, and so on).
@@ -99,7 +120,45 @@ class _HomeShellState extends State<HomeShell> {
           repo.smsSuggestions.isEmpty) {
         await repo.syncSms();
       }
+
+      // Android 13+ gates notifications behind a runtime permission. Asking
+      // again after a denial returns silently, so this is safe every launch.
+      if (repo.smsPermissionGranted &&
+          repo.settings.smsEnabled &&
+          repo.settings.smsNotify) {
+        await reminder.requestPermission();
+      }
+
+      // Opened by tapping a bank-SMS arrival notification? Go straight to
+      // the review queue instead of making the user find it.
+      final route = await SmsService.consumePendingRoute();
+      if (!mounted || route != 'sms_review') return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const SmsPage()),
+      );
     });
+  }
+
+  /// Foreground counterpart of the native arrival notification: points at
+  /// the review queue the moment a new bank SMS lands in it.
+  void _onNewSmsSuggestion() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('New bank SMS — review and record it'.tr),
+          duration: const Duration(seconds: 6),
+          action: SnackBarAction(
+            label: 'Review SMS'.tr,
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SmsPage()),
+            ),
+          ),
+        ),
+      );
   }
 
   void _goTo(int i) {

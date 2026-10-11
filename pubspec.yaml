@@ -2,7 +2,7 @@ name: poolland
 description: "Poolland — a simple offline ledger for VPN sellers: customers, subscriptions, receivables, payables, income, and expenses across multiple currencies."
 publish_to: 'none'
 
-version: 1.2.0+3
+version: 1.3.0+4
 
 environment:
   sdk: ^3.13.0

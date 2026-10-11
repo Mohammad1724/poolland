@@ -77,6 +77,9 @@ class AppSettings {
   final int smsLastSyncAt; // Last sync timestamp (for incremental updates).
   /// Built-in or custom rules turned off; empty preserves legacy behavior.
   final List<String> disabledSmsRuleIds;
+  /// Show a system notification when a new bank SMS arrives while the app is
+  /// in the background or closed, so the transaction is not left unrecorded.
+  final bool smsNotify;
 
   // ---- Daily expense reminder ----
   final bool dailyReminder; // Whether the daily reminder is enabled.
@@ -102,6 +105,7 @@ class AppSettings {
     this.smsSyncDays = 90,
     this.smsLastSyncAt = 0,
     this.disabledSmsRuleIds = const [],
+    this.smsNotify = true,
     this.dailyReminder = false,
     this.reminderHour = 21,
     this.reminderMinute = 0,
@@ -174,6 +178,7 @@ class AppSettings {
     int? smsSyncDays,
     int? smsLastSyncAt,
     List<String>? disabledSmsRuleIds,
+    bool? smsNotify,
     bool? dailyReminder,
     int? reminderHour,
     int? reminderMinute,
@@ -199,6 +204,7 @@ class AppSettings {
     smsSyncDays: smsSyncDays ?? this.smsSyncDays,
     smsLastSyncAt: smsLastSyncAt ?? this.smsLastSyncAt,
     disabledSmsRuleIds: disabledSmsRuleIds ?? this.disabledSmsRuleIds,
+    smsNotify: smsNotify ?? this.smsNotify,
     dailyReminder: dailyReminder ?? this.dailyReminder,
     reminderHour: reminderHour ?? this.reminderHour,
     reminderMinute: reminderMinute ?? this.reminderMinute,
@@ -234,6 +240,7 @@ class AppSettings {
     'smsSyncDays': smsSyncDays,
     'smsLastSyncAt': smsLastSyncAt,
     'disabledSmsRuleIds': disabledSmsRuleIds,
+    'smsNotify': smsNotify,
     'dailyReminder': dailyReminder,
     'reminderHour': reminderHour,
     'reminderMinute': reminderMinute,
@@ -267,6 +274,8 @@ class AppSettings {
         .where((e) => e.isNotEmpty)
         .toSet()
         .toList(),
+    // Legacy backups predate the flag; notifications default to on.
+    smsNotify: map['smsNotify'] as bool? ?? true,
     dailyReminder: map['dailyReminder'] as bool? ?? false,
     reminderHour: (map['reminderHour'] as num?)?.toInt() ?? 21,
     reminderMinute: (map['reminderMinute'] as num?)?.toInt() ?? 0,
@@ -1006,15 +1015,22 @@ class RecurringRule {
   }
 
   /// Next due date for display in the UI.
+  ///
+  /// Uses the same lower bound as [pendingDues]: occurrences already posted
+  /// (up to and including [lastPosted]) are skipped, while an occurrence due
+  /// today that has not been posted yet is reported as due today.
   DateTime? nextDue(DateTime now) {
     if (!enabled) return null;
-    final from = lastPosted ?? _dateOnly(startDate);
+    final first = _dateOnly(startDate);
+    final from = lastPosted == null
+        ? first
+        : _dateOnly(DateTime(lastPosted!.year, lastPosted!.month, lastPosted!.day + 1));
     final list = occurrencesUpTo(
       DateTime(now.year, now.month + 1, now.day),
       limit: 60,
     );
     for (final d in list) {
-      if (d.isAfter(_dateOnly(from))) return d;
+      if (!d.isBefore(from)) return d;
     }
     return null;
   }
