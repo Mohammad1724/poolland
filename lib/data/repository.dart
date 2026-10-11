@@ -1002,7 +1002,12 @@ class AppRepository extends ChangeNotifier {
 
   /// Quiet probe of the notification permission (no system dialog).
   Future<bool> refreshNotificationPermission() async {
-    notificationPermissionGranted = await reminder.notificationsEnabled();
+    try {
+      notificationPermissionGranted = await reminder.notificationsEnabled();
+    } catch (_) {
+      // A platform without the plugin must never break startup or tests.
+      notificationPermissionGranted = false;
+    }
     notifyListeners();
     return notificationPermissionGranted;
   }

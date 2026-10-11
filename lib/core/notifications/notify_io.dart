@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
@@ -133,17 +134,25 @@ class ReminderService {
   /// Whether the OS currently allows posting notifications, without
   /// showing any dialog (Android 13+ tracks this as a runtime permission).
   Future<bool> notificationsEnabled() async {
-    await init();
-    final android = _plugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-    if (android != null) {
-      return await android.areNotificationsEnabled() ?? false;
+    try {
+      await init();
+      final android = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      if (android != null) {
+        return await android.areNotificationsEnabled() ?? false;
+      }
+      // iOS/macOS grant per notification style at request time; there is no
+      // quiet probe, and desktop needs no permission at all.
+      return true;
+    } on MissingPluginException {
+      // No notification plugin in this environment (tests, odd builds):
+      // never crash a quiet state probe.
+      return false;
+    } on PlatformException {
+      return false;
     }
-    // iOS/macOS grant per notification style at request time; there is no
-    // quiet probe, and desktop needs no permission at all.
-    return true;
   }
 
   /// Schedule a daily reminder at the specified hour and minute.
