@@ -16,5 +16,18 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
+      - name: "Analyze (temporary: publish issues as annotations)"
+        run: |
+          set +e
+          flutter analyze > an.txt 2>&1
+          awk -F' • ' '/ • /{split($3,a,":"); print "::error file=" a[1] ",line=" a[2] ",col=" a[3] "::" $4 ": " $2}' an.txt | head -60
+          tail -3 an.txt
+          exit 0
+      - name: "Test (temporary: failures-only dump)"
+        run: |
+          set +e
+          flutter test --concurrency=1 --reporter failures-only > testout.txt 2>&1
+          echo "::error file=test/tail::FAILONLY %0A$(head -80 testout.txt | sed 's/$/%0A/' | tr -d '\n')"
+          exit 0
       - run: flutter analyze
       - run: flutter test --concurrency=1

@@ -771,7 +771,7 @@ class _CoinRefreshState extends State<CoinRefresh>
 class _CoinFacePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    paintCoin(canvas, size.center(Offset.zero), 0);
+    paintCoin(canvas, size.center(Offset.zero), 17, 0);
   }
 
   @override
