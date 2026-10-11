@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
@@ -15,7 +16,14 @@ const int _dailyReminderId = 14040101;
 class ReminderService {
   ReminderService();
 
-  bool get supported => true;
+  /// flutter_local_notifications only registers a platform implementation
+  /// on Android/iOS/macOS; touching it on any other dart:io host (Linux or
+  /// Windows desktop, and widget tests running on them) throws a
+  /// LateInitializationError, so every entry point no-ops there instead.
+  static bool get _available =>
+      Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
+
+  bool get supported => _available;
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -75,7 +83,10 @@ class ReminderService {
   bool _inited = false;
 
   Future<void> init() async {
-    if (_inited) return;
+    if (_inited || !_available) {
+      _inited = true;
+      return;
+    }
     tzdata.initializeTimeZones();
     try {
       tz.setLocalLocation(tz.getLocation('Asia/Tehran'));
@@ -95,6 +106,7 @@ class ReminderService {
 
   /// Request permission to show notifications (Android 13+, iOS, and macOS).
   Future<bool> requestPermission() async {
+    if (!_available) return false;
     await init();
     final android = _plugin
         .resolvePlatformSpecificImplementation<
@@ -134,6 +146,7 @@ class ReminderService {
   /// Whether the OS currently allows posting notifications, without
   /// showing any dialog (Android 13+ tracks this as a runtime permission).
   Future<bool> notificationsEnabled() async {
+    if (!_available) return false;
     try {
       await init();
       final android = _plugin
@@ -164,6 +177,7 @@ class ReminderService {
     String? soundUri,
     String? soundName,
   }) async {
+    if (!_available) return;
     await init();
     await _plugin.cancel(id: _dailyReminderId);
     await _plugin.zonedSchedule(
@@ -179,6 +193,7 @@ class ReminderService {
   }
 
   Future<void> cancelDaily() async {
+    if (!_available) return;
     await init();
     await _plugin.cancel(id: _dailyReminderId);
   }
@@ -190,6 +205,7 @@ class ReminderService {
     String? soundUri,
     String? soundName,
   }) async {
+    if (!_available) return;
     await init();
     await _plugin.show(
       id: _dailyReminderId + 1,
