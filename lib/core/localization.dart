@@ -760,7 +760,6 @@ class AppLocalization {
         'برای اعلان پیامک بانکی، اجازهٔ اعلان لازم است',
     'New bank SMS — review and record it':
         'پیامک بانکی جدید رسیده — بررسی و ثبت کن',
-    'Close': 'بستن',
   };
 
   static String text(String source, {String? languageCode}) =>

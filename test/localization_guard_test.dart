@@ -21,7 +21,7 @@ void main() {
     for (final file in _dartFiles(Directory('lib'))) {
       if (file.path.endsWith('localization.dart')) continue;
       final source = file.readAsStringSync();
-      for (final use in translatedLiterals(source)) {
+      for (final use in _translatedLiterals(source)) {
         // Interpolated strings are built at runtime and cannot be keys.
         if (use.text.contains(r'$')) continue;
         if (!keys.contains(use.text)) {
@@ -68,7 +68,7 @@ Set<String> faKeys(String localizationSource) => RegExp(r"'((?:[^'\\]|\\.)*)'\s*
 /// Walks backwards from each call over adjacent and `+`-joined literals, so
 /// a message assembled from several lines is checked as one key. Ternary
 /// choices (`cond ? 'a' : 'b').tr`) are collected as well.
-List<_Use> translatedLiterals(String source) {
+List<_Use> _translatedLiterals(String source) {
   final out = <_Use>[];
   for (final m in RegExp(r'\.tr(?:Args)?\b').allMatches(source)) {
     var cursor = m.start;
