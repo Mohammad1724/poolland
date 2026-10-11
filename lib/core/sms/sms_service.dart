@@ -54,9 +54,9 @@ class SmsService {
           }
           break;
         case 'openRoute':
-          final args = call.arguments;
-          if (args is Map) {
-            final m = Map<Object?, Object?>.from(args);
+          final routeArgs = call.arguments;
+          if (routeArgs is Map) {
+            final m = Map<Object?, Object?>.from(routeArgs);
             onOpenRoute?.call(
               '${m['route'] ?? ''}',
               (m['date'] as num?)?.toInt(),
