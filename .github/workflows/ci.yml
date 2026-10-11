@@ -23,4 +23,11 @@ jobs:
           awk -F' • ' '/ • /{split($3,a,":"); print "::error file=" a[1] ",line=" a[2] ",col=" a[3] "::" $4 ": " $2}' an.txt | head -60
           exit 0
       - run: flutter analyze
+      - name: "Test (temporary: publish exception context)"
+        run: |
+          set +e
+          flutter test --concurrency=1 --reporter expanded > testout.txt 2>&1
+          awk '/EXCEPTION CAUGHT BY/{n++; if(n<=3){show=1; c=0}} show&&c<30{print $0; c++; if(c>=30)show=0}' testout.txt | sed -E 's/:[0-9]+:[0-9]+//g' | awk '{print "::error file=test/ctx,line=" NR "::" $0}'
+          grep -E "Some tests failed|All tests passed" testout.txt | awk '{print "::error file=test/sum,line=1::SUMMARY " $0}'
+          exit 0
       - run: flutter test --concurrency=1
