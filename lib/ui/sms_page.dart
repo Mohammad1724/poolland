@@ -84,10 +84,13 @@ class _SmsPageState extends State<SmsPage> {
           .firstOrNull;
       target ??= repo.smsSuggestions.firstOrNull;
       if (target == null || !mounted) return;
-      final matched = repo.matchCustomerForSms(target);
+      // Copy out of the nullable local: the sheet builder is a closure, and
+      // closures never see flow-promoted types of a reassigned variable.
+      final ParsedSms chosen = target;
+      final matched = repo.matchCustomerForSms(chosen);
       final ok = await showLedgerSheet<bool>(
         context,
-        builder: (ctx) => SmsReviewSheet(sms: target, initialCustomer: matched),
+        builder: (ctx) => SmsReviewSheet(sms: chosen, initialCustomer: matched),
       );
       if (ok == true && mounted) {
         showSnack(context, 'Transaction recorded from SMS');
