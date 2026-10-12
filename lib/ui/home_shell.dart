@@ -192,7 +192,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final date = (pending['date'] as num?)?.toInt();
     final address = pending['address'] as String?;
 
-    SmsSuggestion? exact() {
+    ParsedSms? exact() {
       if (date == null) return null;
       final hits = repo.smsSuggestions
           .where(
@@ -204,7 +204,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       return hits.isEmpty ? null : hits.first;
     }
 
-    SmsSuggestion? bySender() {
+    ParsedSms? bySender() {
       if (address == null) return null;
       final hits = repo.smsSuggestions
           .where((s) => s.message.address == address)
