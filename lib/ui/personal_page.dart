@@ -801,14 +801,7 @@ class _BudgetSheetState extends State<_BudgetSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).dividerColor,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              SheetHandle(),
               const SizedBox(height: 16),
               Text(
                 (widget.initial == null ? 'New budget' : 'Edit budget').tr,
@@ -945,14 +938,7 @@ class _RecurringSheetState extends State<_RecurringSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).dividerColor,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              SheetHandle(),
               const SizedBox(height: 16),
               Text(
                 (widget.initial == null ? 'New rule' : 'Edit rule').tr,
@@ -1116,14 +1102,7 @@ class _QuickManagerSheet extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 10),
-            Container(
-              width: 42,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(context).dividerColor,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+            SheetHandle(),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
               child: Row(
@@ -1453,14 +1432,7 @@ class _QuickEditPageState extends State<_QuickEditPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 10),
-            Container(
-              width: 42,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(context).dividerColor,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+            SheetHandle(),
             Flexible(child: body),
           ],
         ),

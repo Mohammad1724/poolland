@@ -903,14 +903,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 42,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(context).dividerColor,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+            SheetHandle(),
             const SizedBox(height: 14),
             Text(
               'Record this SMS transaction'.tr,

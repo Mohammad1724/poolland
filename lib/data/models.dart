@@ -75,6 +75,10 @@ class AppSettings {
   /// shown and answered; until then the app opens on the intro page.
   final bool permissionsIntroDone;
 
+  /// Whether the one-time gesture tour has been shown; until then the
+  /// shell opens it once on first frame so the gestures are discoverable.
+  final bool gestureTourSeen;
+
   // ---- Bank SMS ----
   final bool smsEnabled; // Whether SMS reading is enabled.
   final int smsSyncDays; // Number of past days to scan.
@@ -106,6 +110,7 @@ class AppSettings {
     this.openingCash = 0,
     this.setupDone = false,
     this.permissionsIntroDone = false,
+    this.gestureTourSeen = false,
     this.smsEnabled = false,
     this.smsSyncDays = 90,
     this.smsLastSyncAt = 0,
@@ -180,6 +185,7 @@ class AppSettings {
     double? openingCash,
     bool? setupDone,
     bool? permissionsIntroDone,
+    bool? gestureTourSeen,
     bool? smsEnabled,
     int? smsSyncDays,
     int? smsLastSyncAt,
@@ -208,6 +214,7 @@ class AppSettings {
     setupDone: setupDone ?? this.setupDone,
     permissionsIntroDone:
         permissionsIntroDone ?? this.permissionsIntroDone,
+    gestureTourSeen: gestureTourSeen ?? this.gestureTourSeen,
     smsEnabled: smsEnabled ?? this.smsEnabled,
     smsSyncDays: smsSyncDays ?? this.smsSyncDays,
     smsLastSyncAt: smsLastSyncAt ?? this.smsLastSyncAt,
@@ -245,6 +252,7 @@ class AppSettings {
     'openingCash': openingCash,
     'setupDone': setupDone,
     'permissionsIntroDone': permissionsIntroDone,
+    'gestureTourSeen': gestureTourSeen,
     'smsEnabled': smsEnabled,
     'smsSyncDays': smsSyncDays,
     'smsLastSyncAt': smsLastSyncAt,
@@ -277,6 +285,7 @@ class AppSettings {
     setupDone: map['setupDone'] as bool? ?? false,
     permissionsIntroDone:
         map['permissionsIntroDone'] as bool? ?? false,
+    gestureTourSeen: map['gestureTourSeen'] as bool? ?? false,
     smsEnabled: map['smsEnabled'] as bool? ?? false,
     smsSyncDays: (map['smsSyncDays'] as num?)?.toInt() ?? 90,
     smsLastSyncAt: (map['smsLastSyncAt'] as num?)?.toInt() ?? 0,

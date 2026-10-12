@@ -430,6 +430,7 @@ class DashboardPage extends StatelessWidget {
 
         // Bank SMS (Android only)
         if (repo.smsSupported) ...[
+          const SizedBox(height: 12),
           CardBox(
             onTap: () => Navigator.push(
               context,

@@ -101,7 +101,14 @@ class _LedgerNavBarState extends State<LedgerNavBar>
           child: LayoutBuilder(
             builder: (context, constraints) {
               final cellW = constraints.maxWidth / n;
-              double centerOf(int i) => (i + 0.5) * cellW;
+              // The Row lays cells out in the ambient text direction, but
+              // `Positioned.left` is always physical: mirror the centers in
+              // RTL or the pill lands on the wrong tab.
+              final rtl = Directionality.of(context) == TextDirection.rtl;
+              double centerOf(int i) {
+                final c = (i + 0.5) * cellW;
+                return rtl ? constraints.maxWidth - c : c;
+              }
               return Stack(
                 children: [
                   // The elastic pill. Two curves on one controller: the

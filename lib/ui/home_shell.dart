@@ -9,6 +9,7 @@ import '../core/sms/sms_service.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 import 'customers_page.dart';
+import 'gesture_tour.dart';
 import 'dashboard_page.dart';
 import 'design.dart';
 import 'motion_kit.dart';
@@ -121,6 +122,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    // First run after an update: teach the gestures once, with animation.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) maybeShowGestureTour(context);
+    });
     WidgetsBinding.instance.addObserver(this);
     // Set synchronously: a notification tap can arrive over the channel at
     // any moment once the engine is alive.
@@ -372,14 +377,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Theme.of(ctx).dividerColor,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              SheetHandle(),
               const SizedBox(height: 16),
               Align(
                 alignment: AlignmentDirectional.centerStart,
@@ -441,14 +439,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 42,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Theme.of(ctx).dividerColor,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
+                  SheetHandle(),
                   const SizedBox(height: 16),
                   Align(
                     alignment: AlignmentDirectional.centerStart,

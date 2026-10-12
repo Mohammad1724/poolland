@@ -72,17 +72,7 @@ class _CustomersPageState extends State<CustomersPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Theme.of(ctx)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              SheetHandle(),
               const SizedBox(height: 8),
               ListTile(
                 leading: const Icon(

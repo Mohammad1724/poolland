@@ -831,14 +831,7 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
         child: Column(
           children: [
             const SizedBox(height: 10),
-            Container(
-              width: 42,
-              height: 4,
-              decoration: BoxDecoration(
-                color: theme.dividerColor,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+            SheetHandle(),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
               child: Row(
@@ -1618,6 +1611,32 @@ class _DashLinePainter extends CustomPainter {
 /// Feedback: a haptic tick, the number pops, and a small "Copied" chip
 /// floats up and fades. No dialogs, no menus — the fastest possible path
 /// from "I see this number" to "it is in the clipboard".
+/// The little grab handle at the top of every bottom sheet.
+///
+/// One shared widget instead of ten hand-rolled containers: always
+/// centered, always 44x4 with soft corners — in every sheet of the app
+/// (ledger, payment, quick record, SMS review, pickers...). `Align` keeps
+/// it centered even inside `CrossAxisAlignment.stretch` columns, which is
+/// where the old handles used to stretch to the full sheet width.
+class SheetHandle extends StatelessWidget {
+  const SheetHandle({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Container(
+        width: 44,
+        height: 4,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.22),
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+    );
+  }
+}
+
 class CopyMoney extends StatefulWidget {
   const CopyMoney({super.key, required this.value, required this.child});
 

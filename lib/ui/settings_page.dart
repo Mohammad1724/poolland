@@ -19,6 +19,7 @@ import 'forms/plan_edit_page.dart';
 import 'lock/pin_setup_page.dart';
 import 'sms_page.dart';
 import 'sms_rules_page.dart';
+import 'gesture_tour.dart';
 import 'widgets/widgets.dart';
 
 import '../core/localization.dart';
@@ -626,6 +627,21 @@ class SettingsPage extends StatelessWidget {
           ),
 
           // ---------- Security ----------
+          CardBox(
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.touch_app_outlined, size: 20),
+              title: Text(
+                'Gesture guide'.tr,
+                style: const TextStyle(fontSize: 13.5),
+              ),
+              subtitle: Text(
+                'See every swipe, hold and drag again'.tr,
+                style: const TextStyle(fontSize: 11.5),
+              ),
+              onTap: () => showGestureTour(context),
+            ),
+          ),
           const SectionTitle('Security', icon: Icons.lock_outline_rounded),
           CardBox(
             child: Column(

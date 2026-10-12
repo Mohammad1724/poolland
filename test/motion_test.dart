@@ -3,7 +3,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:poolland/core/money.dart';
 import 'package:flutter/services.dart';
+import 'package:poolland/core/localization.dart';
 import 'package:poolland/ui/design.dart';
+import 'package:poolland/ui/gesture_tour.dart';
 import 'package:poolland/ui/motion_kit.dart';
 import 'package:poolland/ui/widgets/ledger_nav_bar.dart';
 import 'package:poolland/ui/widgets/widgets.dart';
@@ -166,6 +168,62 @@ void main() {
     await tester.longPress(find.text('1,250'));
     await tester.pumpAndSettle();
     expect(copied, '1250');
+  });
+
+  testWidgets('SheetHandle stays centered inside stretch columns', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(
+        Center(
+          child: SizedBox(
+            width: 300,
+            height: 200,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: const [SheetHandle()],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final rect = tester.getRect(
+      find.descendant(
+        of: find.byType(SheetHandle),
+        matching: find.byType(Container),
+      ),
+    );
+    expect(rect.width, 44);
+    expect(rect.center.dx, 400); // centered in the 800-wide test surface
+  });
+
+  testWidgets('Gesture tour lists every gesture', (tester) async {
+    await tester.pumpWidget(
+      wrap(
+        Builder(
+          builder: (c) => FilledButton(
+            onPressed: () => showGestureTour(c),
+            child: const Text('go'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    for (final key in [
+      'Gesture guide',
+      'Swipe actions',
+      'Copy money',
+      'Quick menu',
+      'Dismiss sheets',
+      'Customer shortcuts',
+      'Got it',
+    ]) {
+      expect(find.text(key.tr), findsOneWidget, reason: key);
+    }
+    await tester.tap(find.text('Got it'.tr));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('EnterMotion and SlipIn render their child', (tester) async {

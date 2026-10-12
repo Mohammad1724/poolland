@@ -263,14 +263,7 @@ class _QuickAmountSheetState extends State<QuickAmountSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              width: 42,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(context).dividerColor,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+            SheetHandle(),
             const SizedBox(height: 16),
             Row(
               children: [
