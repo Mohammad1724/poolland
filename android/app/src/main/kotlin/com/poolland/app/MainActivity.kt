@@ -4,11 +4,13 @@ import android.Manifest
 import android.app.Activity
 import android.content.ContentResolver
 import android.content.ContentValues
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.provider.Telephony
@@ -23,10 +25,49 @@ import io.flutter.plugin.common.MethodChannel
  * Holds the channel shared with the Flutter app.
  * SmsReceiver uses this channel to
  * send newly received SMS messages to Dart in real time.
+ *
+ * It also carries the little piece of state the native SMS notification
+ * needs while the Flutter engine is not running: whether the UI is visible
+ * ([foreground]) and which route a notification tap asked for
+ * ([pendingRoute]).
  */
 object SmsBus {
     const val CHANNEL_NAME = "poolland/sms"
+
+    /// SharedPreferences file mirroring the Dart-side notification setting.
+    const val PREFS_NAME = "poolland_sms"
+    const val PREF_NOTIFY_ENABLED = "notify_enabled"
+    const val PREF_LANGUAGE = "language"
+    const val PREF_RULES_JSON = "rules_json"
+
+    /// Intent extra asking the app to open the SMS review page.
+    const val EXTRA_ROUTE = "poolland_route"
+    const val ROUTE_SMS_REVIEW = "sms_review"
+
+    /// Identity of the SMS the notification was posted for, so the app can
+    /// open the review sheet of that exact message.
+    const val EXTRA_SMS_DATE = "poolland_sms_date"
+    const val EXTRA_SMS_ADDRESS = "poolland_sms_address"
+
+    const val NOTIFICATION_CHANNEL_ID = "bank_sms"
+    const val NOTIFICATION_ID = 24040101
+    const val NOTIFICATION_REQUEST_CODE = 24040102
+
     var channel: MethodChannel? = null
+
+    /// True while the Flutter UI is resumed; set over the method channel.
+    @Volatile
+    var foreground: Boolean = false
+
+    /// Route requested by a notification tap, consumed once by Dart.
+    @Volatile
+    var pendingRoute: String? = null
+
+    @Volatile
+    var pendingSmsDate: Long? = null
+
+    @Volatile
+    var pendingSmsAddress: String? = null
 }
 
 /**
@@ -49,6 +90,34 @@ class MainActivity : FlutterFragmentActivity() {
     private var pendingSystemSoundResult: MethodChannel.Result? = null
     private var pendingSoundImport: PendingSoundImport? = null
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        handleRouteIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleRouteIntent(intent)
+    }
+
+    /// Remembers a route requested by tapping the bank-SMS notification so
+    /// Dart can consume it once the engine is up. When the engine is already
+    /// alive (warm start), the request is also pushed over the channel so
+    /// the review sheet opens immediately.
+    private fun handleRouteIntent(intent: Intent?) {
+        val route = intent?.getStringExtra(SmsBus.EXTRA_ROUTE)
+        if (route.isNullOrBlank()) return
+        val date = intent?.getLongExtra(SmsBus.EXTRA_SMS_DATE, 0L)?.takeIf { it != 0L }
+        val address = intent?.getStringExtra(SmsBus.EXTRA_SMS_ADDRESS)
+        SmsBus.pendingRoute = route
+        SmsBus.pendingSmsDate = date
+        SmsBus.pendingSmsAddress = address
+        SmsBus.channel?.invokeMethod(
+            "openRoute",
+            mapOf("route" to route, "date" to date, "address" to address),
+        )
+    }
+
     private data class PendingSoundImport(
         val name: String,
         val extension: String,
@@ -70,6 +139,38 @@ class MainActivity : FlutterFragmentActivity() {
                     val since = (call.argument<Number>("since") ?: 0).toLong()
                     val limit = (call.argument<Number>("limit") ?: 500).toInt()
                     result.success(readInbox(since, limit))
+                }
+                "syncSmsPrefs" -> {
+                    val args = call.arguments as? Map<*, *> ?: emptyMap<Any, Any>()
+                    getSharedPreferences(SmsBus.PREFS_NAME, Context.MODE_PRIVATE)
+                        .edit()
+                        .putBoolean(
+                            SmsBus.PREF_NOTIFY_ENABLED,
+                            args["enabled"] as? Boolean ?: true,
+                        )
+                        .putString(SmsBus.PREF_LANGUAGE, args["language"] as? String ?: "fa")
+                        .putString(SmsBus.PREF_RULES_JSON, args["rules"] as? String ?: "[]")
+                        .apply()
+                    result.success(null)
+                }
+                "setForeground" -> {
+                    SmsBus.foreground = call.arguments as? Boolean ?: false
+                    result.success(null)
+                }
+                "consumePendingRoute" -> {
+                    val route = SmsBus.pendingRoute
+                    val date = SmsBus.pendingSmsDate
+                    val address = SmsBus.pendingSmsAddress
+                    SmsBus.pendingRoute = null
+                    SmsBus.pendingSmsDate = null
+                    SmsBus.pendingSmsAddress = null
+                    result.success(
+                        if (route == null) {
+                            null
+                        } else {
+                            mapOf("route" to route, "date" to date, "address" to address)
+                        },
+                    )
                 }
                 else -> result.notImplemented()
             }

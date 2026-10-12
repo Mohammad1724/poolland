@@ -1,4 +1,4 @@
-name: GitHub Pages site (gh-pages branch)
+name: Web (GitHub Pages)
 
 on:
   push:
@@ -8,12 +8,16 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   publish-web:
     name: Build and publish website
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: subosito/flutter-action@v2
         with:
@@ -23,13 +27,13 @@ jobs:
       - name: Prepare Flutter project
         run: flutter pub get
 
+      # --no-web-resources-cdn keeps the build free of Google's gstatic CDN,
+      # so the web app also loads on networks where Google is unreachable.
       - name: Build web app
         run: flutter build web --release --base-href=/poolland/ --no-web-resources-cdn
 
       - name: Add .nojekyll marker
-        run: |
-          touch build/web/.nojekyll
-          echo "poolland" > build/web/CNAME.txt || true
+        run: touch build/web/.nojekyll
 
       - name: Publish to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4

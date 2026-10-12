@@ -3,10 +3,13 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
 import 'core/localization.dart';
+import 'core/notifications/notify.dart';
+import 'core/sms/sms_service.dart';
 import 'data/repository.dart';
 import 'ui/home_shell.dart';
 import 'ui/lock/lock_screen.dart';
 import 'ui/onboarding.dart';
+import 'ui/permissions_intro_page.dart';
 import 'ui/theme.dart';
 
 class VpnLedgerApp extends StatefulWidget {
@@ -69,9 +72,14 @@ class _VpnLedgerAppState extends State<VpnLedgerApp> {
               return _materialApp(
                 locale: Locale(settings.languageCode),
                 themeMode: themeMode,
-                home: settings.setupDone
+                home: !settings.setupDone
+                    ? const OnboardingPage()
+                    // The intro only makes sense where there is something
+                    // to ask for; web/desktop go straight in.
+                    : (settings.permissionsIntroDone ||
+                          (!SmsService.isSupported && !reminder.supported))
                     ? const HomeShell()
-                    : const OnboardingPage(),
+                    : const PermissionsIntroPage(),
                 // The lock has to sit above the Navigator, not inside `home`:
                 // anything the user had pushed (a customer, an edit form)
                 // would otherwise stay on top of the lock screen.
@@ -92,7 +100,7 @@ class _VpnLedgerAppState extends State<VpnLedgerApp> {
   }) {
     AppLocalization.languageCode = locale.languageCode;
     return MaterialApp(
-      title: 'Poolland — VPN Seller Ledger',
+      title: 'Poolland — VPN Seller Ledger'.tr,
       debugShowCheckedModeBanner: false,
       locale: locale,
       supportedLocales: const [Locale('fa'), Locale('en')],

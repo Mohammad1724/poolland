@@ -14,6 +14,7 @@ import 'package:poolland/ui/home_shell.dart';
 import 'package:poolland/ui/theme.dart';
 import 'package:poolland/ui/transactions_page.dart';
 import 'package:poolland/ui/widgets/widgets.dart';
+import 'package:poolland/ui/widgets/ledger_nav_bar.dart';
 import 'package:provider/provider.dart';
 
 /// Phase 3 tests: the gestures that save taps — swiping a row, repeating the
@@ -110,7 +111,7 @@ void main() {
   }
 
   Future<void> tapTab(WidgetTester tester, int index) async {
-    final rect = tester.getRect(find.byType(NavigationBar));
+    final rect = tester.getRect(find.byType(LedgerNavBar));
     await tester.tapAt(
       Offset(rect.left + rect.width * (index + 0.5) / 5, rect.center.dy),
     );
@@ -278,8 +279,12 @@ void main() {
     ) async {
       await tester.pumpWidget(wrap(const TransactionEditPage()));
       await tester.pumpAndSettle();
-
-      final size = tester.getSize(find.byType(SegmentedButton<TxnScope>));
+      // The lazy form list can keep the selector alive offstage depending
+      // on scroll state; the touch-target contract is about its size, so
+      // measure it wherever it currently lives.
+      final size = tester.getSize(
+        find.byType(SegmentedButton<TxnScope>, skipOffstage: false),
+      );
       expect(size.height, greaterThanOrEqualTo(44));
       expect(tester.takeException(), isNull);
     });

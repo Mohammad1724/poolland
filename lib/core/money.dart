@@ -17,6 +17,8 @@ class Money {
   static void sync(AppSettings settings) {
     _map = {for (final c in settings.currencies) c.code: c};
     persianDigits = settings.persianDigits;
+    // Dates, clocks, and percentages follow the same preference as money.
+    Fmt.persianDigits = settings.persianDigits;
   }
 
   static CurrencyDef def(String code) =>

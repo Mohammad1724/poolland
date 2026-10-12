@@ -11,11 +11,13 @@ import '../data/ledger.dart';
 import '../data/models.dart';
 import '../data/pdf_service.dart';
 import '../data/repository.dart';
+import 'motion_kit.dart';
 import 'forms/contact_edit_page.dart';
 import 'forms/payment_sheet.dart';
 import 'forms/sell_subscription_page.dart';
 import 'forms/transaction_edit_page.dart';
 import 'widgets/widgets.dart';
+import 'widgets/txn_actions.dart';
 
 import '../core/localization.dart';
 
@@ -46,7 +48,41 @@ class CustomerDetailPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(c.name),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // The list card's avatar and name fly into the header (Hero).
+            Hero(
+              tag: 'cust-avatar-${c.id}',
+              child: CircleAvatar(
+                radius: 15,
+                backgroundColor: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.13),
+                child: Text(
+                  c.name.characters.first,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Hero(
+                tag: 'cust-name-${c.id}',
+                child: Text(
+                  c.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: 'Edit'.tr,
@@ -121,17 +157,17 @@ class CustomerDetailPage extends StatelessWidget {
                         children: [
                           Text(
                             balance.abs() < 1
-                                ? 'Settled'
+                                ? 'Settled'.tr
                                 : balance > 0
-                                ? 'Owes you'
-                                : 'You owe them',
+                                ? 'Owes you'.tr
+                                : 'You owe them'.tr,
                             style: TextStyle(
                               fontSize: 12,
                               color: onSurface.withValues(alpha: 0.65),
                             ),
                           ),
                           const SizedBox(height: 6),
-                          MoneyText(
+                          CopyMoney(value: balance.abs(), child: OdometerMoney(
                             balance.abs(),
                             style: TextStyle(
                               fontSize: 22,
@@ -142,7 +178,7 @@ class CustomerDetailPage extends StatelessWidget {
                                   ? const Color(0xFF0F766E)
                                   : const Color(0xFF2563EB),
                             ),
-                          ),
+                          )),
                         ],
                       ),
                     ),
@@ -340,7 +376,7 @@ class CustomerDetailPage extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              s.planName,
+                              s.planName.tr,
                               style: const TextStyle(
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w700,
@@ -450,15 +486,18 @@ class CustomerDetailPage extends StatelessWidget {
               child: Column(
                 children: [
                   for (var i = 0; i < txns.length; i++) ...[
-                    TxnTile(
-                      txn: txns[i],
-                      categoryName: repo.categoryName(txns[i].categoryId),
-                      showCustomer: false,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              TransactionEditPage(existing: txns[i]),
+                    SwipeActions(
+                      actions: txnSwipeActions(context, txns[i], repo),
+                      child: TxnTile(
+                        txn: txns[i],
+                        categoryName: repo.categoryName(txns[i].categoryId),
+                        showCustomer: false,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                TransactionEditPage(existing: txns[i]),
+                          ),
                         ),
                       ),
                     ),

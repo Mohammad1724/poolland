@@ -248,6 +248,38 @@ void main() {
     expect(store.loadBudgets(), isEmpty);
   });
 
+  test('Disabled budgets are hidden from the usage list', () async {
+    final cat = repo
+        .categoriesOf(TxnKind.expense, scope: TxnScope.personal)
+        .first;
+    await repo.addBudget(
+      Budget(id: 'b1', categoryId: cat.id, limit: 1000000, enabled: false),
+    );
+    expect(repo.budgets.length, 1);
+    expect(repo.budgetUsages(), isEmpty);
+
+    await repo.updateBudget(repo.budgets.first.copyWith(enabled: true));
+    expect(repo.budgetUsages().length, 1);
+  });
+
+  test('A personal budget ignores business-scope spending', () async {
+    final cat = repo
+        .categoriesOf(TxnKind.expense, scope: TxnScope.personal)
+        .first;
+    await repo.addBudget(Budget(id: 'b1', categoryId: cat.id, limit: 1000000));
+    await repo.addTxn(
+      repo.buildTxn(
+        kind: TxnKind.expense,
+        amount: 400000,
+        currency: 'IRT',
+        date: DateTime.now(),
+        categoryId: cat.id,
+        scope: TxnScope.business, // Same category id, but the wrong scope.
+      ),
+    );
+    expect(repo.budgetUsages().first.spent, closeTo(0, 0.01));
+  });
+
   // ------------------------------------------------- Recurring rules
 
   test('Monthly due dates use the selected day', () {
@@ -297,6 +329,28 @@ void main() {
     );
     expect(r.pendingDues(DateTime.now()), isEmpty);
     expect(r.nextDue(DateTime.now()), isNull);
+  });
+
+  test('An unposted occurrence due today is reported as next due', () {
+    final today = J.dateOnly(DateTime.now());
+    final r = RecurringRule(
+      id: 'r',
+      title: 'x',
+      amount: 1000,
+      startDate: today,
+      period: RecurringPeriod.monthly,
+      dayOfMonth: J.of(today).day,
+    );
+    // Due today, not posted yet: both the poster and the UI agree on today.
+    expect(r.pendingDues(DateTime.now()), [today]);
+    expect(r.nextDue(DateTime.now()), today);
+
+    // Once posted, today is history and the next month is next.
+    final posted = r.copyWith(lastPosted: today);
+    expect(posted.pendingDues(DateTime.now()), isEmpty);
+    final next = posted.nextDue(DateTime.now());
+    expect(next, isNotNull);
+    expect(next!.isAfter(today), isTrue);
   });
 
   test('The end date is respected', () {

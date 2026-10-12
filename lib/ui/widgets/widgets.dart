@@ -7,6 +7,7 @@ import '../../core/jalali_utils.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
 import '../design.dart';
+import '../motion_kit.dart';
 import 'date_picker.dart';
 
 import '../../core/localization.dart';
@@ -66,27 +67,61 @@ class MoneyText extends StatelessWidget {
 }
 
 /// ---------------- Card ----------------
-class CardBox extends StatelessWidget {
+class CardBox extends StatefulWidget {
   const CardBox({
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(14),
     this.onTap,
+    this.onLongPress,
   });
 
   final Widget child;
   final EdgeInsets padding;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  @override
+  State<CardBox> createState() => _CardBoxState();
+}
+
+class _CardBoxState extends State<CardBox> {
+  bool _down = false;
+
+  bool get _squishy => Motion.motionEnabled && widget.onTap != null;
+
+  void _setDown(bool v) {
+    if (_squishy && _down != v) setState(() => _down = v);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    Widget card = Card(
       child: InkWell(
-        onTap: onTap,
+        onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
         borderRadius: BorderRadius.circular(Radii.card),
-        child: Padding(padding: padding, child: child),
+        child: Padding(padding: widget.padding, child: widget.child),
       ),
     );
+    // Tappable cards compress a hair under the finger — the whole app feels
+    // physically pressable without changing any layout.
+    if (_squishy) {
+      card = Listener(
+        onPointerDown: (_) => _setDown(true),
+        onPointerUp: (_) => _setDown(false),
+        onPointerCancel: (_) => _setDown(false),
+        child: AnimatedScale(
+          scale: _down ? 0.982 : 1,
+          duration: const Duration(milliseconds: 110),
+          curve: Curves.easeOut,
+          child: card,
+        ),
+      );
+    }
+    // Every card arrives instead of popping: a light fade + rise the first
+    // time it is mounted (skipped in tests and under reduced motion).
+    return EnterMotion(child: card);
   }
 }
 
@@ -289,7 +324,7 @@ class TagChip extends StatelessWidget {
 }
 
 /// ---------------- Empty state ----------------
-class EmptyState extends StatelessWidget {
+class EmptyState extends StatefulWidget {
   const EmptyState({
     super.key,
     required this.icon,
@@ -306,8 +341,55 @@ class EmptyState extends StatelessWidget {
   final VoidCallback? onAction;
 
   @override
+  State<EmptyState> createState() => _EmptyStateState();
+}
+
+class _EmptyStateState extends State<EmptyState>
+    with TickerProviderStateMixin {
+  /// Slow breathing of the icon: the empty state stays gently alive.
+  late final AnimationController _breath = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 3),
+  );
+
+  /// One-shot: the dashed ledger line under the icon draws itself.
+  late final AnimationController _draw = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (Motion.motionEnabled) _draw.forward();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (Motion.ambientOn(context)) {
+      if (!_breath.isAnimating) _breath.repeat(reverse: true);
+    } else {
+      _breath.stop();
+      _breath.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _breath.dispose();
+    _draw.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    final icon = widget.icon;
+    final title = widget.title;
+    final text = widget.text;
+    final actionLabel = widget.actionLabel;
+    final onAction = widget.onAction;
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(26),
@@ -316,20 +398,48 @@ class EmptyState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary
-                      .withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  icon,
-                  size: 34,
-                  color: Theme.of(context).colorScheme.primary,
+              AnimatedBuilder(
+                animation: _breath,
+                builder: (context, child) {
+                  final b = Curves.easeInOut.transform(_breath.value);
+                  return Opacity(
+                    opacity: 1 - 0.14 * b,
+                    child: Transform.scale(scale: 1 + 0.05 * b, child: child),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary
+                        .withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 34,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
               ),
-              const SizedBox(height: 14),
+              // The dashed rule of a ledger page, drawn in once.
+              SizedBox(
+                height: 12,
+                width: 190,
+                child: AnimatedBuilder(
+                  animation: _draw,
+                  builder: (context, _) => CustomPaint(
+                    painter: _DashLinePainter(
+                      t: Motion.motionEnabled
+                          ? Curves.easeOutCubic.transform(_draw.value)
+                          : 1,
+                      line: onSurface.withValues(alpha: 0.2),
+                      tip: Theme.of(context).colorScheme.primary
+                          .withValues(alpha: 0.5),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
               Text(
                 title.tr,
                 textAlign: TextAlign.center,
@@ -341,7 +451,7 @@ class EmptyState extends StatelessWidget {
               if (text != null) ...[
                 const SizedBox(height: 8),
                 Text(
-                  text!.tr,
+                  text.tr,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
@@ -354,7 +464,7 @@ class EmptyState extends StatelessWidget {
                 const SizedBox(height: 16),
                 FilledButton.tonal(
                   onPressed: onAction,
-                  child: Text(actionLabel!.tr),
+                  child: Text(actionLabel.tr),
                 ),
               ],
             ],
@@ -619,10 +729,8 @@ class SelectField<T> extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: () async {
-        final res = await showModalBottomSheet<_PickResult<T>>(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
+        final res = await showLedgerSheet<_PickResult<T>>(
+          context,
           builder: (_) => _PickSheet<T>(
             title: sheetTitle ?? label,
             items: items,
@@ -723,14 +831,7 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
         child: Column(
           children: [
             const SizedBox(height: 10),
-            Container(
-              width: 42,
-              height: 4,
-              decoration: BoxDecoration(
-                color: theme.dividerColor,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+            SheetHandle(),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
               child: Row(
@@ -745,6 +846,7 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Close'.tr,
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close_rounded, size: 20),
                   ),
@@ -895,11 +997,21 @@ Future<bool> confirmDialog(
   return res ?? false;
 }
 
-void showSnack(BuildContext context, String message, {bool error = false}) {
+void showSnack(
+  BuildContext context,
+  String message, {
+  bool error = false,
+  String? actionLabel,
+  VoidCallback? onAction,
+  Duration duration = const Duration(seconds: 2),
+}) {
   showMessengerSnack(
     ScaffoldMessenger.of(context),
     message,
     error: error,
+    actionLabel: actionLabel,
+    onAction: onAction,
+    duration: duration,
   );
 }
 
@@ -912,6 +1024,9 @@ void showMessengerSnack(
   ScaffoldMessengerState messenger,
   String message, {
   bool error = false,
+  String? actionLabel,
+  VoidCallback? onAction,
+  Duration duration = const Duration(seconds: 2),
 }) {
   messenger
     ..hideCurrentSnackBar()
@@ -919,7 +1034,13 @@ void showMessengerSnack(
       SnackBar(
         content: Text(message.tr),
         backgroundColor: error ? const Color(0xFFB91C1C) : null,
-        duration: const Duration(seconds: 2),
+        duration: actionLabel == null ? duration : const Duration(seconds: 5),
+        action: actionLabel == null
+            ? null
+            : SnackBarAction(
+                label: actionLabel.tr,
+                onPressed: () => onAction?.call(),
+              ),
       ),
     );
 }
@@ -1003,7 +1124,10 @@ class TxnTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
     final compactAmounts = MediaQuery.sizeOf(context).width < 360;
-    final title = txn.note.isNotEmpty ? txn.note : categoryName.tr;
+    // Notes written by the app itself ('Payment received', 'Imported from
+    // SMS', ...) are localization keys; free-typed user notes simply miss
+    // the map and render as-is.
+    final title = txn.note.isNotEmpty ? txn.note.tr : categoryName.tr;
     final sub = <String>[
       J.d(txn.date),
       if (showCustomer && customerName != null) customerName!,
@@ -1036,7 +1160,9 @@ class TxnTile extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
+            CopyMoney(
+              value: txn.amount,
+              child: Text(
               Money.text(
                 txn.amount *
                     switch (txn.kind) {
@@ -1059,6 +1185,7 @@ class TxnTile extends StatelessWidget {
                 fontWeight: FontWeight.w700,
                 color: _color,
               ),
+            ),
             ),
             if (txn.currency != 'IRT' || txn.rateToBase != 1)
               Padding(
@@ -1458,6 +1585,437 @@ class StatusDot extends StatelessWidget {
           width: size,
           height: size,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+      ),
+    );
+  }
+}
+
+/// The dashed rule of a ledger page drawing itself under the empty-state
+/// icon; a small dot rides the tip like a pen while it is still moving.
+class _DashLinePainter extends CustomPainter {
+  _DashLinePainter({required this.t, required this.line, required this.tip});
+
+  final double t;
+  final Color line;
+  final Color tip;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (t <= 0) return;
+    const dash = 9.0;
+    const gap = 6.5;
+    final y = size.height / 2 + 2;
+    final total = size.width * t;
+    final paint = Paint()
+      ..color = line
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+    var x = 0.0;
+    while (x < total) {
+      final end = x + dash > total ? total : x + dash;
+      if (end > x) canvas.drawLine(Offset(x, y), Offset(end, y), paint);
+      x += dash + gap;
+    }
+    if (t < 1) {
+      canvas.drawCircle(Offset(total, y), 2.4, Paint()..color = tip);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashLinePainter old) =>
+      old.t != t || old.line != line || old.tip != tip;
+}
+
+/// ---------------- Copy on long-press ----------------
+/// Long-press any money amount to copy the plain number to the clipboard.
+///
+/// Feedback: a haptic tick, the number pops, and a small "Copied" chip
+/// floats up and fades. No dialogs, no menus — the fastest possible path
+/// from "I see this number" to "it is in the clipboard".
+/// The little grab handle at the top of every bottom sheet.
+///
+/// One shared widget instead of ten hand-rolled containers: always
+/// centered, always 44x4 with soft corners — in every sheet of the app
+/// (ledger, payment, quick record, SMS review, pickers...). `Align` keeps
+/// it centered even inside `CrossAxisAlignment.stretch` columns, which is
+/// where the old handles used to stretch to the full sheet width.
+class SheetHandle extends StatelessWidget {
+  const SheetHandle({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Container(
+        width: 44,
+        height: 4,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.22),
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+    );
+  }
+}
+
+class CopyMoney extends StatefulWidget {
+  const CopyMoney({super.key, required this.value, required this.child});
+
+  final double value;
+  final Widget child;
+
+  @override
+  State<CopyMoney> createState() => _CopyMoneyState();
+}
+
+class _CopyMoneyState extends State<CopyMoney> {
+  bool _pop = false;
+
+  Future<void> _copy() async {
+    Haptics.tap();
+    await Clipboard.setData(
+      ClipboardData(text: widget.value.round().toString()),
+    );
+    if (!mounted) return;
+    setState(() => _pop = true);
+    Future.delayed(const Duration(milliseconds: 240), () {
+      if (mounted) setState(() => _pop = false);
+    });
+    _showChip();
+  }
+
+  void _showChip() {
+    if (!Motion.motionEnabled) return;
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    final box = context.findRenderObject();
+    if (overlay == null || box is! RenderBox || !box.hasSize) return;
+    final at = box.localToGlobal(box.size.center(Offset.zero));
+    late final OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => _CopyChip(
+        at: at,
+        onDone: () {
+          if (entry.mounted) entry.remove();
+        },
+      ),
+    );
+    overlay.insert(entry);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onLongPress: _copy,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 1, end: _pop ? 1.10 : 1),
+        duration: const Duration(milliseconds: 130),
+        curve: Curves.easeOut,
+        builder: (context, scale, child) =>
+            Transform.scale(scale: scale, child: child),
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class _CopyChip extends StatefulWidget {
+  const _CopyChip({required this.at, required this.onDone});
+
+  final Offset at;
+  final VoidCallback onDone;
+
+  @override
+  State<_CopyChip> createState() => _CopyChipState();
+}
+
+class _CopyChipState extends State<_CopyChip>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 950),
+  )
+    ..addListener(() {
+      if (_c.isCompleted) widget.onDone();
+    })
+    ..forward();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _c,
+        builder: (context, child) {
+          final t = _c.value;
+          final appear = Curves.easeOutBack.transform(
+            (t / 0.22).clamp(0.0, 1.0),
+          );
+          final fade = t < 0.72 ? 1.0 : 1 - ((t - 0.72) / 0.28).clamp(0.0, 1.0);
+          final rise = 30 * Curves.easeOutCubic.transform(t);
+          return Opacity(
+            opacity: fade,
+            child: Transform.translate(
+              offset: Offset(widget.at.dx - 46, widget.at.dy - 52 - rise),
+              child: Transform.scale(scale: appear, child: child),
+            ),
+          );
+        },
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: scheme.inverseSurface,
+            borderRadius: BorderRadius.circular(11),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.22),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check_rounded, size: 14, color: scheme.inversePrimary),
+                const SizedBox(width: 5),
+                Text(
+                  'Copied'.tr,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// ---------------- Swipe row actions ----------------
+/// One row action revealed by a trailing swipe.
+class SwipeAction {
+  const SwipeAction({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+
+  /// Localization key, translated at render time.
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+}
+
+/// Swipe a row toward its trailing edge to fan open a panel of actions.
+///
+/// Direction-aware (RTL mirrors everything), rubber-bands past full open,
+/// snaps open or shut on fling, ticks once when the release threshold is
+/// crossed, and each button scales in with a small stagger. Tapping the row
+/// while open closes the panel instead of activating the row.
+class SwipeActions extends StatefulWidget {
+  const SwipeActions({
+    super.key,
+    required this.child,
+    required this.actions,
+    this.panelWidth = 150,
+  });
+
+  final Widget child;
+  final List<SwipeAction> actions;
+  final double panelWidth;
+
+  @override
+  State<SwipeActions> createState() => _SwipeActionsState();
+}
+
+class _SwipeActionsState extends State<SwipeActions>
+    with SingleTickerProviderStateMixin {
+  double _open = 0;
+  double _snapFrom = 0;
+  double _snapTarget = 0;
+  bool _ticked = false;
+  late final AnimationController _snap = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 200),
+  );
+
+  @override
+  void dispose() {
+    _snap.dispose();
+    super.dispose();
+  }
+
+  double get _current => _snap.isAnimating
+      ? _snapFrom +
+            (_snapTarget - _snapFrom) *
+                Curves.easeOutCubic.transform(_snap.value)
+      : _open;
+
+  void _animateTo(double target) {
+    _snapFrom = _current;
+    _snapTarget = target;
+    _open = target;
+    _snap.forward(from: 0);
+  }
+
+  double _sign(BuildContext context) =>
+      Directionality.of(context) == TextDirection.rtl ? 1 : -1;
+
+  void _onUpdate(DragUpdateDetails d) {
+    _snap.stop();
+    final delta = (d.delta.dx * _sign(context)) / widget.panelWidth;
+    setState(() => _open = (_open + delta).clamp(-0.02, 1.25));
+    if (!_ticked && _open >= 0.5) {
+      _ticked = true;
+      Haptics.selection();
+    } else if (_ticked && _open < 0.45) {
+      _ticked = false;
+    }
+  }
+
+  void _onEnd(DragEndDetails d) {
+    final v = (d.primaryVelocity ?? 0) * _sign(context);
+    if (_open > 0.5 || v > 600) {
+      _animateTo(1);
+    } else {
+      _animateTo(0);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.actions.isEmpty) return widget.child;
+    return GestureDetector(
+      onHorizontalDragUpdate: _onUpdate,
+      onHorizontalDragEnd: _onEnd,
+      onHorizontalDragCancel: () => _animateTo(0),
+      child: AnimatedBuilder(
+        animation: _snap,
+        builder: (context, child) {
+          final raw = _current;
+          final t = raw.clamp(0.0, 1.0);
+          final dx = _sign(context) * widget.panelWidth * t;
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: SizedBox(
+                    width: widget.panelWidth,
+                    child: Row(
+                      children: [
+                        for (var i = 0; i < widget.actions.length; i++)
+                          Expanded(
+                            child: _SwipeButton(
+                              action: widget.actions[i],
+                              appear: ((t * widget.actions.length) - i)
+                                  .clamp(0.0, 1.0),
+                              enabled: raw >= 0.99,
+                              onUsed: () => _animateTo(0),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Transform.translate(
+                offset: Offset(dx, 0),
+                child: raw > 0.02
+                    ? GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => _animateTo(0),
+                        child: child,
+                      )
+                    : child,
+              ),
+            ],
+          );
+        },
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class _SwipeButton extends StatelessWidget {
+  const _SwipeButton({
+    required this.action,
+    required this.appear,
+    required this.enabled,
+    required this.onUsed,
+  });
+
+  final SwipeAction action;
+  final double appear;
+  final bool enabled;
+  final VoidCallback onUsed;
+
+  @override
+  Widget build(BuildContext context) {
+    final e = Curves.easeOutBack.transform(appear);
+    return Opacity(
+      opacity: appear.clamp(0.0, 1.0),
+      child: Transform.scale(
+        scale: 0.4 + 0.6 * e,
+        child: Semantics(
+          button: true,
+          label: action.label.tr,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: enabled
+                ? () {
+                    onUsed();
+                    action.onTap();
+                  }
+                : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: action.color.withValues(alpha: 0.13),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(action.icon, size: 18, color: action.color),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    action.label.tr,
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: action.color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

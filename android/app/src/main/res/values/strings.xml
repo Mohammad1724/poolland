@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Native strings for the parts of the app that run without the Flutter
+  engine: the bank-SMS arrival notification posted by SmsReceiver.
+
+  The default (this file) is Persian, matching the app's primary language.
+  SmsReceiver resolves these strings through a context configured with the
+  language selected inside the app (values-en/ for English), so a Persian
+  ledger on an English phone still gets Persian notifications.
+-->
+<resources>
+    <!-- Bank SMS arrival notification -->
+    <string name="sms_notify_channel_name">پیامک بانکی</string>
+    <string name="sms_notify_channel_description">هشدار رسیدن پیامک واریز و برداشت بانک‌ها تا ثبتشان فراموش نشود</string>
+    <string name="sms_notify_title">پیامک بانکی جدید</string>
+    <string name="sms_notify_body">پیامک بانکی جدید رسیده؛ برای ثبت باز کنید.</string>
+    <string name="sms_notify_body_bank">پیامک بانکی جدید از %1$s؛ برای ثبت باز کنید.</string>
+
+</resources>

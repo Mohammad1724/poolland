@@ -19,6 +19,7 @@ import 'forms/plan_edit_page.dart';
 import 'lock/pin_setup_page.dart';
 import 'sms_page.dart';
 import 'sms_rules_page.dart';
+import 'gesture_tour.dart';
 import 'widgets/widgets.dart';
 
 import '../core/localization.dart';
@@ -204,227 +205,10 @@ class SettingsPage extends StatelessWidget {
                   subtitle: s.currencies
                       .map(
                         (c) =>
-                            '${c.code} ${Fmt.number(c.rateToBase, persian: false)}',
+                            '${c.code} ${Fmt.number(c.rateToBase)}',
                       )
                       .join(' • '),
                   page: const RatesPage(),
-                ),
-              ],
-            ),
-          ),
-
-          // ---------- Display ----------
-          const SectionTitle('Display', icon: Icons.palette_outlined),
-          CardBox(
-            child: Column(
-              children: [
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: s.persianDigits,
-                  onChanged: (v) =>
-                      repo.updateSettings(s.copyWith(persianDigits: v)),
-                  title: Text(
-                    'Use Persian digits'.tr,
-                    style: TextStyle(fontSize: 13.5),
-                  ),
-                ),
-                Divider(color: Theme.of(context).dividerColor),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(
-                    Icons.notifications_active_outlined,
-                    size: 20,
-                  ),
-                  title: Text(
-                    'Expiry reminders'.tr,
-                    style: TextStyle(fontSize: 13.5),
-                  ),
-                  subtitle: Text(
-                    '{days} days before expiry'.trArgs({
-                      'days': s.reminderDays,
-                    }),
-                    style: const TextStyle(fontSize: 11.5),
-                  ),
-                  onTap: () => _editInt(
-                    context,
-                    title:
-                        'How many days before expiry should we remind you?'.tr,
-                    initial: s.reminderDays,
-                    onSave: (v) =>
-                        repo.updateSettings(s.copyWith(reminderDays: v)),
-                  ),
-                ),
-                Divider(color: Theme.of(context).dividerColor),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Language'.tr,
-                        style: const TextStyle(fontSize: 13.5),
-                      ),
-                      const SizedBox(height: 8),
-                      SegmentedButton<String>(
-                        segments: [
-                          ButtonSegment(value: 'fa', label: Text('فارسی')),
-                          ButtonSegment(value: 'en', label: Text('English')),
-                        ],
-                        selected: {s.languageCode},
-                        onSelectionChanged: (v) => repo.updateSettings(
-                          s.copyWith(languageCode: v.first),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Appearance'.tr,
-                        style: const TextStyle(fontSize: 13.5),
-                      ),
-                      const SizedBox(height: 8),
-                      SegmentedButton<String>(
-                        segments: [
-                          ButtonSegment(
-                            value: 'system',
-                            label: Text('System'.tr),
-                          ),
-                          ButtonSegment(
-                            value: 'light',
-                            label: Text('Light'.tr),
-                          ),
-                          ButtonSegment(value: 'dark', label: Text('Dark'.tr)),
-                        ],
-                        selected: {s.themeMode},
-                        onSelectionChanged: (v) =>
-                            repo.updateSettings(s.copyWith(themeMode: v.first)),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ---------- Security ----------
-          const SectionTitle('Security', icon: Icons.lock_outline_rounded),
-          CardBox(
-            child: Column(
-              children: [
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: repo.hasAppLock,
-                  onChanged: (wantLock) =>
-                      _toggleAppLock(context, wantLock: wantLock),
-                  secondary: const Icon(Icons.pin_outlined, size: 20),
-                  title: Text(
-                    'App lock (PIN)'.tr,
-                    style: const TextStyle(fontSize: 13.5),
-                  ),
-                  subtitle: Text(
-                    (repo.hasAppLock
-                            ? 'Ask for a PIN when the app opens'
-                            : 'Your bank SMS and customer debts are readable by anyone holding the phone')
-                        .tr,
-                    style: const TextStyle(fontSize: 11.5),
-                  ),
-                ),
-                if (repo.hasAppLock) ...[
-                  Divider(color: Theme.of(context).dividerColor),
-                  const _BiometricUnlockTile(),
-                  _actionTile(
-                    context,
-                    icon: Icons.password_rounded,
-                    title: 'Change PIN'.tr,
-                    subtitle: 'Enter the current PIN, then pick a new one',
-                    onTap: () => _runPinSetup(
-                      context,
-                      PinSetupMode.change,
-                      'PIN changed',
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-
-          // ---------- Backups ----------
-          const SectionTitle('Backups', icon: Icons.cloud_sync_outlined),
-          CardBox(
-            child: Column(
-              children: [
-                _actionTile(
-                  context,
-                  icon: Icons.share_rounded,
-                  title: 'Share backup'.tr,
-                  subtitle:
-                      'Export JSON to a messaging app or save it on your phone',
-                  onTap: () => _backup(context, repo, share: true),
-                ),
-                Divider(color: Theme.of(context).dividerColor),
-                _actionTile(
-                  context,
-                  icon: Icons.download_rounded,
-                  title: 'Save backup to device'.tr,
-                  subtitle: 'Choose where to save the JSON file',
-                  onTap: () => _backup(context, repo, share: false),
-                ),
-                Divider(color: Theme.of(context).dividerColor),
-                _actionTile(
-                  context,
-                  icon: Icons.restore_rounded,
-                  title: 'Restore from backup'.tr,
-                  subtitle: 'All current data will be replaced with the selected file',
-                  onTap: () => _restore(context, repo),
-                ),
-              ],
-            ),
-          ),
-
-          // ---------- Data ----------
-          const SectionTitle('Data', icon: Icons.storage_rounded),
-          CardBox(
-            child: Column(
-              children: [
-                _actionTile(
-                  context,
-                  icon: Icons.auto_awesome_outlined,
-                  title: 'Load sample data'.tr,
-                  subtitle:
-                      'For a quick app demo (current data will be erased)',
-                  onTap: () async {
-                    final ok = await confirmDialog(
-                      context,
-                      title: 'Sample data'.tr,
-                      message: 'Current data will be erased and replaced with sample data. Continue?'
-                          .tr,
-                      okLabel: 'Continue'.tr,
-                    );
-                    if (!ok) return;
-                    await repo.loadDemoData();
-                    if (context.mounted) {
-                      showSnack(context, 'Sample data loaded'.tr);
-                    }
-                  },
-                ),
-                Divider(color: Theme.of(context).dividerColor),
-                _actionTile(
-                  context,
-                  icon: Icons.delete_forever_outlined,
-                  title: 'Erase all data'.tr,
-                  subtitle: 'Reset the app (cannot be undone)',
-                  danger: true,
-                  onTap: () async {
-                    final ok = await confirmDialog(
-                      context,
-                      title: 'Erase all data'.tr,
-                      message: 'All customers, subscriptions, and transactions will be deleted. Back up your data first.'
-                          .tr,
-                      okLabel: 'Clear',
-                      danger: true,
-                    );
-                    if (!ok) return;
-                    await repo.wipeAll();
-                    if (context.mounted) showSnack(context, 'All data erased');
-                  },
                 ),
               ],
             ),
@@ -456,6 +240,60 @@ class SettingsPage extends StatelessWidget {
                       await repo.updateSettings(s.copyWith(smsEnabled: v));
                     },
                   ),
+                  Divider(color: Theme.of(context).dividerColor),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: s.smsNotify,
+                    title: Text(
+                      'Bank SMS notification'.tr,
+                      style: TextStyle(fontSize: 13.5),
+                    ),
+                    subtitle: Text(
+                      'Show a notification when a new bank SMS arrives, even if the app is closed'
+                          .tr,
+                      style: TextStyle(fontSize: 11.5),
+                    ),
+                    onChanged: (v) async {
+                      if (v && isAndroidPlatform) {
+                        // Android 13+ silently refuses to post notifications
+                        // without this; a denied request returns false
+                        // without a dialog, so the toggle still saves.
+                        final ok = await reminder.requestPermission();
+                        if (!ok && context.mounted) {
+                          showSnack(
+                            context,
+                            'Notification permission is required for bank SMS alerts',
+                          );
+                        }
+                      }
+                      if (!context.mounted) return;
+                      await repo.updateSettings(s.copyWith(smsNotify: v));
+                    },
+                  ),
+                  if (isAndroidPlatform &&
+                      s.smsNotify &&
+                      !repo.notificationPermissionGranted) ...[
+                    Divider(color: Theme.of(context).dividerColor),
+                    _actionTile(
+                      context,
+                      icon: Icons.notification_important_outlined,
+                      title: 'Notification permission not granted'.tr,
+                      subtitle:
+                          'Notifications are switched on but Android blocks them. Tap to request again.'
+                              .tr,
+                      onTap: () async {
+                        final ok = await reminder.requestPermission();
+                        await repo.refreshNotificationPermission();
+                        if (!ok && context.mounted) {
+                          showSnack(
+                            context,
+                            'Notification permission denied. Enable it in Android settings.',
+                            error: true,
+                          );
+                        }
+                      },
+                    ),
+                  ],
                   Divider(color: Theme.of(context).dividerColor),
                   _navTile(
                     context,
@@ -527,6 +365,30 @@ class SettingsPage extends StatelessWidget {
             CardBox(
               child: Column(
                 children: [
+                  if (isAndroidPlatform &&
+                      s.dailyReminder &&
+                      !repo.notificationPermissionGranted) ...[
+                    _actionTile(
+                      context,
+                      icon: Icons.notification_important_outlined,
+                      title: 'Notification permission not granted'.tr,
+                      subtitle:
+                          'Notifications are switched on but Android blocks them. Tap to request again.'
+                              .tr,
+                      onTap: () async {
+                        final ok = await reminder.requestPermission();
+                        await repo.refreshNotificationPermission();
+                        if (!ok && context.mounted) {
+                          showSnack(
+                            context,
+                            'Notification permission denied. Enable it in Android settings.',
+                            error: true,
+                          );
+                        }
+                      },
+                    ),
+                    Divider(color: Theme.of(context).dividerColor),
+                  ],
                   if (isAndroidPlatform) ...[
                     ListTile(
                       contentPadding: EdgeInsets.zero,
@@ -672,6 +534,238 @@ class SettingsPage extends StatelessWidget {
               ),
             ),
           ],
+
+          // ---------- Display ----------
+          const SectionTitle('Display', icon: Icons.palette_outlined),
+          CardBox(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: s.persianDigits,
+                  onChanged: (v) =>
+                      repo.updateSettings(s.copyWith(persianDigits: v)),
+                  title: Text(
+                    'Use Persian digits'.tr,
+                    style: TextStyle(fontSize: 13.5),
+                  ),
+                ),
+                Divider(color: Theme.of(context).dividerColor),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(
+                    Icons.notifications_active_outlined,
+                    size: 20,
+                  ),
+                  title: Text(
+                    'Expiry reminders'.tr,
+                    style: TextStyle(fontSize: 13.5),
+                  ),
+                  subtitle: Text(
+                    '{days} days before expiry'.trArgs({
+                      'days': s.reminderDays,
+                    }),
+                    style: const TextStyle(fontSize: 11.5),
+                  ),
+                  onTap: () => _editInt(
+                    context,
+                    title:
+                        'How many days before expiry should we remind you?'.tr,
+                    initial: s.reminderDays,
+                    onSave: (v) =>
+                        repo.updateSettings(s.copyWith(reminderDays: v)),
+                  ),
+                ),
+                Divider(color: Theme.of(context).dividerColor),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Language'.tr,
+                        style: const TextStyle(fontSize: 13.5),
+                      ),
+                      const SizedBox(height: 8),
+                      SegmentedButton<String>(
+                        segments: [
+                          ButtonSegment(value: 'fa', label: Text('فارسی')),
+                          ButtonSegment(value: 'en', label: Text('English')),
+                        ],
+                        selected: {s.languageCode},
+                        onSelectionChanged: (v) => repo.updateSettings(
+                          s.copyWith(languageCode: v.first),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Appearance'.tr,
+                        style: const TextStyle(fontSize: 13.5),
+                      ),
+                      const SizedBox(height: 8),
+                      SegmentedButton<String>(
+                        segments: [
+                          ButtonSegment(
+                            value: 'system',
+                            label: Text('System'.tr),
+                          ),
+                          ButtonSegment(
+                            value: 'light',
+                            label: Text('Light'.tr),
+                          ),
+                          ButtonSegment(value: 'dark', label: Text('Dark'.tr)),
+                        ],
+                        selected: {s.themeMode},
+                        onSelectionChanged: (v) =>
+                            repo.updateSettings(s.copyWith(themeMode: v.first)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ---------- Security ----------
+          CardBox(
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.touch_app_outlined, size: 20),
+              title: Text(
+                'Gesture guide'.tr,
+                style: const TextStyle(fontSize: 13.5),
+              ),
+              subtitle: Text(
+                'See every swipe, hold and drag again'.tr,
+                style: const TextStyle(fontSize: 11.5),
+              ),
+              onTap: () => showGestureTour(context),
+            ),
+          ),
+          const SectionTitle('Security', icon: Icons.lock_outline_rounded),
+          CardBox(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: repo.hasAppLock,
+                  onChanged: (wantLock) =>
+                      _toggleAppLock(context, wantLock: wantLock),
+                  secondary: const Icon(Icons.pin_outlined, size: 20),
+                  title: Text(
+                    'App lock (PIN)'.tr,
+                    style: const TextStyle(fontSize: 13.5),
+                  ),
+                  subtitle: Text(
+                    (repo.hasAppLock
+                            ? 'Ask for a PIN when the app opens'
+                            : 'Your bank SMS and customer debts are readable by anyone holding the phone')
+                        .tr,
+                    style: const TextStyle(fontSize: 11.5),
+                  ),
+                ),
+                if (repo.hasAppLock) ...[
+                  Divider(color: Theme.of(context).dividerColor),
+                  const _BiometricUnlockTile(),
+                  _actionTile(
+                    context,
+                    icon: Icons.password_rounded,
+                    title: 'Change PIN'.tr,
+                    subtitle: 'Enter the current PIN, then pick a new one',
+                    onTap: () => _runPinSetup(
+                      context,
+                      PinSetupMode.change,
+                      'PIN changed',
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          // ---------- Backups ----------
+          const SectionTitle('Backup and data', icon: Icons.cloud_sync_outlined),
+          CardBox(
+            child: Column(
+              children: [
+                _actionTile(
+                  context,
+                  icon: Icons.share_rounded,
+                  title: 'Share backup'.tr,
+                  subtitle:
+                      'Export JSON to a messaging app or save it on your phone',
+                  onTap: () => _backup(context, repo, share: true),
+                ),
+                Divider(color: Theme.of(context).dividerColor),
+                _actionTile(
+                  context,
+                  icon: Icons.download_rounded,
+                  title: 'Save backup to device'.tr,
+                  subtitle: 'Choose where to save the JSON file',
+                  onTap: () => _backup(context, repo, share: false),
+                ),
+                Divider(color: Theme.of(context).dividerColor),
+                _actionTile(
+                  context,
+                  icon: Icons.restore_rounded,
+                  title: 'Restore from backup'.tr,
+                  subtitle: 'All current data will be replaced with the selected file',
+                  onTap: () => _restore(context, repo),
+                ),
+              ],
+            ),
+          ),
+
+          // ---------- Data actions (second card of Backup and data) ----------
+          const SizedBox(height: 8),
+          CardBox(
+            child: Column(
+              children: [
+                _actionTile(
+                  context,
+                  icon: Icons.auto_awesome_outlined,
+                  title: 'Load sample data'.tr,
+                  subtitle:
+                      'For a quick app demo (current data will be erased)',
+                  onTap: () async {
+                    final ok = await confirmDialog(
+                      context,
+                      title: 'Sample data'.tr,
+                      message: 'Current data will be erased and replaced with sample data. Continue?'
+                          .tr,
+                      okLabel: 'Continue'.tr,
+                    );
+                    if (!ok) return;
+                    await repo.loadDemoData();
+                    if (context.mounted) {
+                      showSnack(context, 'Sample data loaded'.tr);
+                    }
+                  },
+                ),
+                Divider(color: Theme.of(context).dividerColor),
+                _actionTile(
+                  context,
+                  icon: Icons.delete_forever_outlined,
+                  title: 'Erase all data'.tr,
+                  subtitle: 'Reset the app (cannot be undone)',
+                  danger: true,
+                  onTap: () async {
+                    final ok = await confirmDialog(
+                      context,
+                      title: 'Erase all data'.tr,
+                      message: 'All customers, subscriptions, and transactions will be deleted. Back up your data first.'
+                          .tr,
+                      okLabel: 'Clear',
+                      danger: true,
+                    );
+                    if (!ok) return;
+                    await repo.wipeAll();
+                    if (context.mounted) showSnack(context, 'All data erased');
+                  },
+                ),
+              ],
+            ),
+          ),
 
           // ---------- About ----------
           const SectionTitle('About', icon: Icons.info_outline_rounded),
@@ -904,12 +998,29 @@ class SettingsPage extends StatelessWidget {
       );
       if (!ok) return;
       await repo.importData(data);
+      // A backup restored onto a phone that never granted the permissions
+      // must not pretend notifications work: ask for what the restored
+      // settings now require, and refresh the displayed state either way.
+      await repo.refreshSmsPermission();
+      await repo.refreshNotificationPermission();
+      if (repo.settings.smsEnabled && !repo.smsPermissionGranted) {
+        await repo.requestSmsPermission();
+      }
+      if ((repo.settings.smsNotify || repo.settings.dailyReminder) &&
+          !repo.notificationPermissionGranted) {
+        await reminder.requestPermission();
+        await repo.refreshNotificationPermission();
+      }
       if (context.mounted) showSnack(context, 'Backup restored');
     } catch (e) {
       if (context.mounted) {
         showSnack(
           context,
-          'Invalid file: {error}'.trArgs({'error': '$e'}),
+          'Invalid file: {error}'.trArgs({
+            // The store throws localized-key FormatExceptions; anything
+            // else is shown as-is for support.
+            'error': e is FormatException ? e.message.tr : '$e',
+          }),
           error: true,
         );
       }
@@ -995,7 +1106,7 @@ class RatesPage extends StatelessWidget {
                         const SizedBox(height: 3),
                         Text(
                           c.code == s.baseCurrency
-                              ? 'Base currency'
+                              ? 'Base currency'.tr
                               : '1 ${c.name.tr} = ${Money.text(c.rateToBase)}',
                           style: TextStyle(
                             fontSize: 11.5,
@@ -1085,25 +1196,25 @@ class RatesPage extends StatelessWidget {
               TextField(
                 controller: code,
                 textDirection: TextDirection.ltr,
-                decoration: const InputDecoration(labelText: 'Code (e.g. AED)'),
+                decoration: InputDecoration(labelText: 'Code (e.g. AED)'.tr),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: name,
-                decoration: const InputDecoration(labelText: 'Name'),
+                decoration: InputDecoration(labelText: 'Name'.tr),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: symbol,
-                decoration: const InputDecoration(labelText: 'Symbol'),
+                decoration: InputDecoration(labelText: 'Symbol'.tr),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: rate,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Rate in Toman',
-                  suffixText: 'Toman',
+                decoration: InputDecoration(
+                  labelText: 'Rate in Toman'.tr,
+                  suffixText: 'Toman'.tr,
                 ),
               ),
             ],
@@ -1276,14 +1387,14 @@ class _CategoriesPageState extends State<CategoriesPage> {
               builder: (ctx) => AlertDialog(
                 title: Text(
                   kind == TxnKind.income
-                      ? 'New income category'
-                      : 'New expense category',
+                      ? 'New income category'.tr
+                      : 'New expense category'.tr,
                 ),
                 content: TextField(
                   controller: ctrl,
                   autofocus: true,
-                  decoration: const InputDecoration(
-                    hintText: 'e.g. Server purchase',
+                  decoration: InputDecoration(
+                    hintText: 'e.g. Server purchase'.tr,
                   ),
                 ),
                 actions: [

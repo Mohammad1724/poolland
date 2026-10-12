@@ -1,7 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart' show ChangeNotifier;
+import 'package:flutter/foundation.dart' show ChangeNotifier, VoidCallback;
 
 import '../core/app_lock.dart';
 import '../core/jalali_utils.dart';
@@ -58,15 +59,27 @@ class AppRepository extends ChangeNotifier {
   List<SmsMessage> smsUnrecognizedMessages = [];
   List<BankRule> smsRules = [];
   bool smsPermissionGranted = false;
+
+  /// Whether the OS currently allows posting notifications. Tracked so the
+  /// settings page never claims "notifications on" while Android is silently
+  /// dropping them (restored backups used to look enabled without this).
+  bool notificationPermissionGranted = true;
   bool smsBusy = false;
   bool smsUnrecognizedBusy = false;
   bool _smsInited = false;
+
+  /// Called when a new bank SMS lands in the review queue while the app is
+  /// open, so the shell can point at the queue. The system notification for
+  /// the background case is posted natively (see SmsReceiver.kt).
+  VoidCallback? onNewSmsSuggestion;
 
   /// Initialize the repository and open the database.
   Future<void> init() async {
     _store ??= await LocalStore.open();
     _loadFrom(_store!);
     _ready = true;
+    await syncNativeSmsPrefs();
+    await refreshNotificationPermission();
     notifyListeners();
   }
 
@@ -108,6 +121,19 @@ class AppRepository extends ChangeNotifier {
 
   void _syncGlobals() => Money.sync(settings);
 
+  /// Pull-to-refresh: re-read the ledger from disk and re-scan bank SMS,
+  /// so a manual pully always shows the freshest data.
+  Future<void> refreshAll() async {
+    await reload();
+    if (smsSupported && settings.smsEnabled) {
+      try {
+        await syncSms();
+      } catch (_) {
+        // A failed SMS scan must not break the refresh gesture.
+      }
+    }
+  }
+
   Future<void> reload() async {
     if (_store == null) return;
     _loadFrom(_store!);
@@ -115,8 +141,59 @@ class AppRepository extends ChangeNotifier {
   }
 
   // ---------------- Quick accessors ----------------
-  List<Customer> get activeCustomers =>
-      customers.where((c) => !c.archived).toList();
+
+  // Derived-data cache.
+  //
+  // Pages watch the whole repository and read these getters several times per
+  // build, and each aggregation walks the entire ledger. Caching per data
+  // version means every aggregation runs once per change instead of once per
+  // access; [notifyListeners] bumps the version, and every mutation goes
+  // through it, so cached values can never outlive the data they came from.
+  int _version = 0;
+
+  @override
+  void notifyListeners() {
+    _version++;
+    super.notifyListeners();
+  }
+
+  int _cacheVersion = -1;
+  List<Customer>? _activeCustomers;
+  List<Txn>? _businessTxns;
+  List<Txn>? _visibleTxns;
+  Balances? _totals;
+  double? _cashBalance;
+  int? _activeSubsCount;
+  List<Subscription>? _alerts;
+  Map<String, double>? _balancesMap;
+  List<MapEntry<Customer, double>>? _debtors;
+  List<MapEntry<Customer, double>>? _creditors;
+  final Map<String, Summary> _summaryCache = {};
+  final Map<String, List<MonthPoint>> _seriesCache = {};
+
+  /// Clears every cached aggregate when the data version has moved on.
+  void _syncCache() {
+    if (_cacheVersion == _version) return;
+    _cacheVersion = _version;
+    _activeCustomers = null;
+    _businessTxns = null;
+    _visibleTxns = null;
+    _totals = null;
+    _cashBalance = null;
+    _activeSubsCount = null;
+    _alerts = null;
+    _balancesMap = null;
+    _debtors = null;
+    _creditors = null;
+    _summaryCache.clear();
+    _seriesCache.clear();
+  }
+
+  List<Customer> get activeCustomers {
+    _syncCache();
+    return _activeCustomers ??=
+        customers.where((c) => !c.archived).toList();
+  }
 
   List<Plan> get activePlans => plans.where((p) => !p.archived).toList();
 
@@ -157,6 +234,59 @@ class AppRepository extends ChangeNotifier {
   String categoryName(String? id) =>
       categoryById(id)?.name.tr ?? 'Uncategorized'.tr;
 
+  /// Categories used the most in real transactions, for preset chips:
+  /// usage counts beat any hand-picked default because they follow the
+  /// actual bookkeeping of this ledger.
+  List<Category> topCategories(
+    TxnKind categoryKind, {
+    TxnScope? scope,
+    int limit = 6,
+  }) {
+    final counts = <String, int>{};
+    for (final t in transactions) {
+      final id = t.categoryId;
+      if (id == null) continue;
+      if (scope != null && t.scope != scope) continue;
+      final ck = t.kind == TxnKind.income || t.kind == TxnKind.receive
+          ? TxnKind.income
+          : TxnKind.expense;
+      if (ck != categoryKind) continue;
+      counts[id] = (counts[id] ?? 0) + 1;
+    }
+    final pool = categoriesOf(categoryKind, scope: scope);
+    pool.sort((a, b) => (counts[b.id] ?? 0).compareTo(counts[a.id] ?? 0));
+    return pool.take(limit).toList();
+  }
+
+  /// Customers with the most transactions: the likely pick whenever a form
+  /// or the SMS sheet asks "which contact?".
+  List<Customer> topCustomers({int limit = 4}) {
+    final counts = <String, int>{};
+    for (final t in transactions) {
+      final id = t.customerId;
+      if (id == null) continue;
+      counts[id] = (counts[id] ?? 0) + 1;
+    }
+    final list = customers.where((c) => (counts[c.id] ?? 0) > 0).toList();
+    list.sort((a, b) => (counts[b.id] ?? 0).compareTo(counts[a.id] ?? 0));
+    return list.take(limit).toList();
+  }
+
+  /// Newest distinct entries (same kind+category+contact+note+amount counts
+  /// once), for "repeat a recent transaction" chips.
+  List<Txn> recentDistinctTxns(int limit) {
+    final seen = <String>{};
+    final out = <Txn>[];
+    for (final t in transactions) {
+      final key =
+          '${t.kind.name}|${t.scope.name}|${t.categoryId}|${t.customerId}|'
+          '${t.note}|${t.amount.round()}';
+      if (seen.add(key)) out.add(t);
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
   List<Category> categoriesOf(TxnKind kind, {TxnScope? scope}) => categories
       .where((c) => c.kind == kind && c.scope == (scope ?? TxnScope.business))
       .toList();
@@ -170,7 +300,10 @@ class AppRepository extends ChangeNotifier {
 
   double balanceOf(Customer c) => Ledger.customerBalance(c, businessTxns);
 
-  Balances get totals => Ledger.totals(customers, businessTxns);
+  Balances get totals {
+    _syncCache();
+    return _totals ??= Ledger.totals(customers, businessTxns);
+  }
 
   /// Transactions in a given scope (all scopes when null).
   List<Txn> scopeTxns(TxnScope? scope) => scope == null
@@ -180,47 +313,80 @@ class AppRepository extends ChangeNotifier {
   /// Business transactions — everything except personal transactions.
   /// All business calculations use this list so personal expenses
   /// do not distort VPN business profit.
-  List<Txn> get businessTxns =>
-      transactions.where((t) => t.scope != TxnScope.personal).toList();
+  List<Txn> get businessTxns {
+    _syncCache();
+    return _businessTxns ??=
+        transactions.where((t) => t.scope != TxnScope.personal).toList();
+  }
 
-  Summary summary({DateTime? from, DateTime? to, TxnScope? scope}) =>
-      Ledger.summarize(scopeTxns(scope), from: from, to: to, scope: scope);
+  Summary summary({DateTime? from, DateTime? to, TxnScope? scope}) {
+    _syncCache();
+    final key =
+        '${from?.millisecondsSinceEpoch ?? '-'}|'
+        '${to?.millisecondsSinceEpoch ?? '-'}|${scope?.name ?? '-'}';
+    return _summaryCache.putIfAbsent(
+      key,
+      () => Ledger.summarize(scopeTxns(scope), from: from, to: to, scope: scope),
+    );
+  }
 
-  List<MonthPoint> series({int months = 6, TxnScope? scope}) =>
-      Ledger.monthlySeries(scopeTxns(scope), months: months, scope: scope);
+  List<MonthPoint> series({int months = 6, TxnScope? scope}) {
+    _syncCache();
+    final key = '$months|${scope?.name ?? '-'}';
+    return _seriesCache.putIfAbsent(
+      key,
+      () => Ledger.monthlySeries(scopeTxns(scope), months: months, scope: scope),
+    );
+  }
 
-  List<Subscription> get alerts =>
-      Ledger.alerts(subscriptions, reminderDays: settings.reminderDays);
+  List<Subscription> get alerts {
+    _syncCache();
+    return _alerts ??=
+        Ledger.alerts(subscriptions, reminderDays: settings.reminderDays);
+  }
 
-  int get activeSubsCount => Ledger.activeCount(subscriptions);
+  int get activeSubsCount {
+    _syncCache();
+    return _activeSubsCount ??= Ledger.activeCount(subscriptions);
+  }
 
-  Map<String, double> balancesMap() =>
-      Ledger.balancesByCustomer(customers, businessTxns);
+  Map<String, double> balancesMap() {
+    _syncCache();
+    return _balancesMap ??=
+        Ledger.balancesByCustomer(customers, businessTxns);
+  }
 
   /// Cash/bank balance = opening balance + net business cash flow.
-  double get cashBalance =>
-      settings.openingCash + Ledger.summarize(businessTxns).netCash;
+  double get cashBalance {
+    _syncCache();
+    return _cashBalance ??=
+        settings.openingCash + Ledger.summarize(businessTxns).netCash;
+  }
 
   /// Sorted list of debtors (contacts who owe us).
   List<MapEntry<Customer, double>> debtorsList() {
-    final map = balancesMap();
-    final list =
-        activeCustomers
-            .map((c) => MapEntry(c, map[c.id] ?? 0))
-            .where((e) => e.value > 0.5)
-            .toList()
-          ..sort((a, b) => b.value.compareTo(a.value));
-    return list;
+    _syncCache();
+    return _debtors ??= () {
+      final map = balancesMap();
+      return activeCustomers
+          .map((c) => MapEntry(c, map[c.id] ?? 0))
+          .where((e) => e.value > 0.5)
+          .toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+    }();
   }
 
   /// Sorted list of creditors (contacts we owe).
   List<MapEntry<Customer, double>> creditorsList() {
-    final map = balancesMap();
-    return activeCustomers
-        .map((e) => MapEntry(e, map[e.id] ?? 0))
-        .where((e) => e.value < -0.5)
-        .toList()
-      ..sort((a, b) => a.value.compareTo(b.value));
+    _syncCache();
+    return _creditors ??= () {
+      final map = balancesMap();
+      return activeCustomers
+          .map((e) => MapEntry(e, map[e.id] ?? 0))
+          .where((e) => e.value < -0.5)
+          .toList()
+        ..sort((a, b) => a.value.compareTo(b.value));
+    }();
   }
 
   // ---------------- Customers ----------------
@@ -262,7 +428,7 @@ class AppRepository extends ChangeNotifier {
     for (final t in transactions.where(
       (t) =>
           t.customerId == id ||
-          (withData && subscriptionIds.contains(t.subscriptionId)),
+          subscriptionIds.contains(t.subscriptionId),
     )) {
       if (withData) {
         await store.deleteTxn(t.id);
@@ -364,7 +530,7 @@ class AppRepository extends ChangeNotifier {
           categoryId: saleCategoryId,
           customerId: customer.id,
           subscriptionId: s.id,
-          note: 'Payment for $title',
+          note: 'Payment for {plan}'.trArgs({'plan': title.tr}),
           createdAt: DateTime.now(),
         ),
       );
@@ -402,7 +568,7 @@ class AppRepository extends ChangeNotifier {
       received: received ?? 0,
       receiveCurrency: currencyCode ?? old.currency,
       autoRenew: old.autoRenew,
-      note: 'Renewal: ${old.planName}',
+      note: 'Renewal: {plan}'.trArgs({'plan': old.planName.tr}),
       categoryId: categoryId,
       deviceCount: old.deviceCount,
     );
@@ -488,22 +654,27 @@ class AppRepository extends ChangeNotifier {
     );
   }
 
-  /// Usage for all budgets in the current month.
+  /// Usage for all enabled budgets in the current month.
   List<BudgetUsage> budgetUsages({DateTime? now}) {
     final range = monthOf(now ?? DateTime.now());
-    return budgets.map((b) {
-      final cat = categories.where((c) => c.id == b.categoryId).firstOrNull;
-      return BudgetUsage(
-        budget: b,
-        categoryName: cat?.name ?? 'Deleted category',
-        spent: Ledger.spentIn(
-          transactions,
-          b.categoryId,
-          from: range.start,
-          to: range.end,
-        ),
-      );
-    }).toList()..sort((a, b) => b.ratio.compareTo(a.ratio));
+    return budgets
+        .where((b) => b.enabled)
+        .map((b) {
+          final cat = categories.where((c) => c.id == b.categoryId).firstOrNull;
+          return BudgetUsage(
+            budget: b,
+            categoryName: cat?.name ?? 'Deleted category',
+            spent: Ledger.spentIn(
+              transactions,
+              b.categoryId,
+              from: range.start,
+              to: range.end,
+              scope: b.scope,
+            ),
+          );
+        })
+        .toList()
+      ..sort((a, b) => b.ratio.compareTo(a.ratio));
   }
 
   Future<void> addBudget(Budget b) async {
@@ -740,12 +911,17 @@ class AppRepository extends ChangeNotifier {
         s.dailyReminder != settings.dailyReminder ||
         s.reminderHour != settings.reminderHour ||
         s.reminderMinute != settings.reminderMinute ||
-        s.notificationSoundUri != settings.notificationSoundUri;
+        s.notificationSoundUri != settings.notificationSoundUri ||
+        // The reminder text is baked into the scheduled notification, so a
+        // language switch must reschedule it in the new language.
+        s.languageCode != settings.languageCode;
     final wasEnabled = settings.dailyReminder;
     settings = s;
     _syncGlobals();
     await store.saveSettings(s);
     notifyListeners();
+    // The native receiver mirrors language, rules, and the notification flag.
+    await syncNativeSmsPrefs();
     if (!reminderChanged) return;
     if (s.dailyReminder) {
       await scheduleDailyReminder();
@@ -763,6 +939,17 @@ class AppRepository extends ChangeNotifier {
       await reminder.scheduleDaily(
         hour: settings.reminderHour,
         minute: settings.reminderMinute,
+        // Baked into the scheduled notification: translate with the saved
+        // settings language explicitly — the global language code only
+        // catches up when MaterialApp rebuilds, which can be later.
+        title: AppLocalization.text(
+          'Expense reminder',
+          languageCode: settings.languageCode,
+        ),
+        body: AppLocalization.text(
+          'Have you recorded today’s expenses and income?',
+          languageCode: settings.languageCode,
+        ),
         soundUri: settings.notificationSoundUri,
         soundName: settings.notificationSoundName,
       );
@@ -782,9 +969,12 @@ class AppRepository extends ChangeNotifier {
   }
 
   /// Visible transactions after applying the scope filter.
-  List<Txn> get visibleTxns => scopeFilter == null
-      ? transactions
-      : transactions.where((t) => t.scope == scopeFilter).toList();
+  List<Txn> get visibleTxns {
+    _syncCache();
+    return _visibleTxns ??= scopeFilter == null
+        ? transactions
+        : transactions.where((t) => t.scope == scopeFilter).toList();
+  }
 
   Future<void> upsertCurrency(CurrencyDef def) async {
     final list = [...settings.currencies];
@@ -841,6 +1031,42 @@ class AppRepository extends ChangeNotifier {
   /// Whether SMS is supported on this device (Android only).
   bool get smsSupported => SmsService.isSupported;
 
+  /// Mirror everything the native SMS receiver needs into Android
+  /// SharedPreferences: the notification flag, the app language, and the
+  /// effective bank rules.
+  ///
+  /// The receiver runs even when the Flutter engine is not alive, so it
+  /// cannot read Hive. Mirroring the rules keeps the native pre-filter (and
+  /// therefore the arrival notification) in lockstep with the Dart parser:
+  /// a carrier or shop SMS that matches no rule never produces a
+  /// “bank SMS” notification.
+  Future<void> syncNativeSmsPrefs() => SmsService.syncNotificationPrefs(
+    enabled: settings.smsEnabled && settings.smsNotify,
+    language: settings.languageCode,
+    rulesJson: nativeRulesJson(),
+  );
+
+  /// The active bank rules (custom rules first, like [SmsParser.findRule])
+  /// as JSON the native side can match against: normalized sender hints,
+  /// normalized body hints, and the bank name in both app languages.
+  String nativeRulesJson() {
+    final active = [...smsRules, ...builtinBankRules]
+        .where((rule) => isSmsRuleEnabled(rule.id))
+        .toList();
+    return jsonEncode([
+      for (final rule in active)
+        {
+          's': [
+            for (final hint in rule.senderHints)
+              SmsParser.normalize(hint).toUpperCase(),
+          ],
+          'b': [for (final hint in rule.bodyHints) SmsParser.normalize(hint)],
+          'fa': AppLocalization.text(rule.bankName, languageCode: 'fa'),
+          'en': rule.bankName,
+        },
+    ]);
+  }
+
   /// Number of suggestions awaiting approval.
   int get smsPendingCount => smsSuggestions.length;
 
@@ -889,7 +1115,7 @@ class AppRepository extends ChangeNotifier {
         .where((sms) => sms.isTransaction)
         .toList()
       ..sort((a, b) => b.message.date.compareTo(a.message.date));
-    smsSuggestions = refreshed;
+    smsSuggestions = collapseTwins(refreshed);
     smsUnrecognizedMessages = [];
     notifyListeners();
   }
@@ -902,7 +1128,7 @@ class AppRepository extends ChangeNotifier {
     SmsService.onSmsReceived = _onIncomingSms;
   }
 
-  void _onIncomingSms(SmsMessage msg) {
+  Future<void> _onIncomingSms(SmsMessage msg) async {
     final parsed = SmsParser.parse(
       msg,
       extraRules: smsRules,
@@ -912,11 +1138,30 @@ class AppRepository extends ChangeNotifier {
     final state = store.loadSmsState();
     if (state.containsKey(parsed.key)) return;
 
+    // A duplicate confirmation of an event already queued or reviewed must
+    // not create a second card for the same transaction.
+    final twinQueued = smsSuggestions.any(isTwinSmsOf(parsed));
+    final twinReviewed = smsHistory.any(
+      (h) =>
+          _twinKeyOf(h.message.address, h.direction, h.amount) ==
+              _twinKey(parsed) &&
+          h.message.date.difference(parsed.message.date).abs() <= twinWindow,
+    );
+    if (twinQueued || twinReviewed) {
+      await store.setSmsState(
+        parsed.key,
+        SmsHistoryEntry.rejectedStatus,
+        history: _smsHistoryEntry(parsed, SmsHistoryEntry.rejectedStatus),
+      );
+      return;
+    }
+
     smsSuggestions = [
       parsed,
       ...smsSuggestions.where((e) => e.key != parsed.key),
     ]..sort((a, b) => b.message.date.compareTo(a.message.date));
     notifyListeners();
+    onNewSmsSuggestion?.call();
   }
 
   Future<bool> refreshSmsPermission() async {
@@ -925,12 +1170,26 @@ class AppRepository extends ChangeNotifier {
     return smsPermissionGranted;
   }
 
+  /// Quiet probe of the notification permission (no system dialog).
+  Future<bool> refreshNotificationPermission() async {
+    try {
+      notificationPermissionGranted = await reminder.notificationsEnabled();
+    } catch (_) {
+      // A platform without the plugin must never break startup or tests.
+      notificationPermissionGranted = false;
+    }
+    notifyListeners();
+    return notificationPermissionGranted;
+  }
+
   Future<bool> requestSmsPermission() async {
     final ok = await SmsService.requestPermission();
     smsPermissionGranted = ok;
     if (ok) {
       await updateSettings(settings.copyWith(smsEnabled: true));
-      unawaited(syncSms());
+      // Fire-and-forget, but an inbox read failure must not surface as an
+      // unhandled async error; the review page offers a manual retry.
+      unawaited(syncSms().catchError((_) => 0));
     }
     notifyListeners();
     return ok;
@@ -983,7 +1242,17 @@ class AppRepository extends ChangeNotifier {
         ...current,
         ...pending.where((p) => !known.contains(p.key)),
       ]..sort((a, b) => b.message.date.compareTo(a.message.date));
-      smsSuggestions = merged;
+      final collapsed = collapseTwins(merged);
+      for (final twin in merged.where(
+        (s) => !collapsed.any((k) => k.key == s.key),
+      )) {
+        await store.setSmsState(
+          twin.key,
+          SmsHistoryEntry.rejectedStatus,
+          history: _smsHistoryEntry(twin, SmsHistoryEntry.rejectedStatus),
+        );
+      }
+      smsSuggestions = collapsed;
 
       await updateSettings(
         settings.copyWith(smsLastSyncAt: DateTime.now().millisecondsSinceEpoch),
@@ -1169,6 +1438,47 @@ class AppRepository extends ChangeNotifier {
     transactionId: transactionId,
   );
 
+  // ---------------------------------------------------------
+  // Duplicate SMS collapse
+  // ---------------------------------------------------------
+
+  /// Banks such as Blu/Sina send a second confirmation message seconds after
+  /// the transaction SMS (charge notice, balance echo…). Both parse into
+  /// suggestions for the *same* real-world event, so recording one left its
+  /// twin sitting in the review queue forever.
+  static const Duration twinWindow = Duration(minutes: 2);
+
+  static String _twinKeyOf(
+    String address,
+    SmsDirection direction,
+    double amount,
+  ) => '${address.toUpperCase()}|${direction.name}|${amount.round()}';
+
+  static String _twinKey(ParsedSms s) =>
+      _twinKeyOf(s.message.address, s.direction, s.amount);
+
+  /// Whether two suggestions describe the same real-world event (same
+  /// sender, direction and amount within [twinWindow]) while being distinct
+  /// messages — the signature of a duplicate confirmation SMS.
+  static bool isTwinSms(ParsedSms a, ParsedSms b) =>
+      a.key != b.key &&
+      _twinKey(a) == _twinKey(b) &&
+      a.message.date.difference(b.message.date).abs() <= twinWindow;
+
+  /// Keeps the newest of each twin pair; callers mark the collapsed
+  /// duplicates rejected so later syncs never resurrect them.
+  static List<ParsedSms> collapseTwins(List<ParsedSms> list) {
+    final kept = <ParsedSms>[];
+    for (final s in list) {
+      if (kept.any(isTwinSmsOf(s))) continue;
+      kept.add(s);
+    }
+    return kept;
+  }
+
+  static bool Function(ParsedSms) isTwinSmsOf(ParsedSms s) =>
+      (other) => isTwinSms(s, other);
+
   /// Clear review history so all messages are scanned again.
   Future<void> resetSmsState() async {
     await store.clearSmsState();
@@ -1182,6 +1492,7 @@ class AppRepository extends ChangeNotifier {
     await store.putSmsRule(rule);
     await reload();
     _refreshPendingSms();
+    await syncNativeSmsPrefs();
     if (smsPermissionGranted) {
       try {
         await syncSms(force: true);
@@ -1203,20 +1514,21 @@ class AppRepository extends ChangeNotifier {
     }
     await reload();
     _refreshPendingSms();
+    await syncNativeSmsPrefs();
   }
 
   static String _smsNote(ParsedSms sms) {
     final parts = <String>[];
     if (sms.bankName != null && sms.bankName!.isNotEmpty) {
-      parts.add(sms.bankName!);
+      parts.add(sms.bankName!.tr);
     }
     if (sms.cardMask != null && sms.cardMask!.isNotEmpty) {
-      parts.add('Card ${sms.cardMask}');
+      parts.add('Card {card}'.trArgs({'card': sms.cardMask}));
     }
     if (sms.reference != null && sms.reference!.isNotEmpty) {
-      parts.add('Reference ${sms.reference}');
+      parts.add('Reference {reference}'.trArgs({'reference': sms.reference}));
     }
-    if (parts.isEmpty) parts.add('Imported from SMS');
+    if (parts.isEmpty) parts.add('Imported from SMS'.tr);
     return parts.join(' · ');
   }
 
@@ -1315,7 +1627,7 @@ class AppRepository extends ChangeNotifier {
             customerId: c.id,
             subscriptionId: sub.id,
             credit: true,
-            note: 'Sale: ${plan.name}',
+            note: 'Sale: {plan}'.trArgs({'plan': plan.name.tr}),
             createdAt: start,
           ),
         );
@@ -1388,7 +1700,9 @@ class AppRepository extends ChangeNotifier {
             categoryId: defaultIncomeCategoryId,
             customerId: c.id,
             credit: false,
-            note: 'Configuration sale (paid in $cur)',
+            note: 'Configuration sale (paid in {currency})'.trArgs({
+              'currency': cur,
+            }),
             createdAt: now,
           ),
         );
@@ -1447,7 +1761,7 @@ class AppRepository extends ChangeNotifier {
             28,
           ),
           categoryId: salaryCat.isEmpty ? null : salaryCat.first.id,
-          note: 'Monthly salary',
+          note: 'Monthly salary'.tr,
           scope: TxnScope.personal,
           createdAt: now,
         ),
@@ -1479,7 +1793,7 @@ class AppRepository extends ChangeNotifier {
     await store.putRecurring(
       RecurringRule(
         id: LocalStore.newId(),
-        title: 'Home rent',
+        title: 'Home rent'.tr,
         amount: 8000000,
         categoryId: rentCat.isEmpty ? null : rentCat.first.id,
         period: RecurringPeriod.monthly,

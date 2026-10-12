@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'motion_kit.dart';
+
 /// Light and dark app themes using the Vazirmatn font
 class AppTheme {
   AppTheme._();
@@ -42,6 +44,17 @@ class AppTheme {
         titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
       ),
       scaffoldBackgroundColor: bg,
+      // Every pushed route turns like a page of the paper ledger this app
+      // digitizes; mirrored automatically in RTL.
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: LedgerPageTransitionsBuilder(),
+          TargetPlatform.iOS: LedgerPageTransitionsBuilder(),
+          TargetPlatform.linux: LedgerPageTransitionsBuilder(),
+          TargetPlatform.macOS: LedgerPageTransitionsBuilder(),
+          TargetPlatform.windows: LedgerPageTransitionsBuilder(),
+        },
+      ),
       cardColor: card,
       cardTheme: CardThemeData(
         color: card,

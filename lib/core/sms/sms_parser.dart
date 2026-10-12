@@ -1,3 +1,4 @@
+import '../localization.dart';
 import 'bank_rules.dart';
 import 'sms_models.dart';
 
@@ -175,7 +176,7 @@ class SmsParser {
       return ParsedSms(
         message: msg,
         bankName: rule?.bankName,
-        note: 'Non-transaction message (password, code, or notification)',
+        note: 'Non-transaction message (password, code, or notification)'.tr,
       );
     }
 
@@ -472,16 +473,19 @@ class SmsParser {
   }
 
   static String _buildNote(BankRule? rule, _Amount amount, SmsDirection dir) {
+    // The note is rendered verbatim on the review cards, so it is built
+    // in the active language; `bankName` itself stays an untranslated key
+    // for callers that render it separately.
     final parts = <String>[];
-    if (rule != null) parts.add(rule.bankName);
+    if (rule != null) parts.add(rule.bankName.tr);
     if (amount.unit == 'rial') {
-      parts.add('Amount converted from Rials to Tomans');
+      parts.add('Amount converted from Rials to Tomans'.tr);
     }
     if (amount.unit == 'rial?') {
-      parts.add('Amount assumed to be in Rials (bank rule)');
+      parts.add('Amount assumed to be in Rials (bank rule)'.tr);
     }
     if (dir == SmsDirection.unknown) {
-      parts.add('Transaction direction could not be determined');
+      parts.add('Transaction direction could not be determined'.tr);
     }
     return parts.join(' · ');
   }

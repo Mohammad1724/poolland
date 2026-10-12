@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -28,6 +29,30 @@ void main() {
     await tmp.delete(recursive: true);
   });
 
+  test('Preset helpers follow real usage', () async {
+    final cats = repo.categoriesOf(TxnKind.expense);
+    final a = cats[0];
+    final b = cats[1];
+    Txn mk(Category c, int day, [String note = '']) => Txn(
+      id: 't$day${c.id}',
+      kind: TxnKind.expense,
+      amount: 1000,
+      date: DateTime(2026, 1, day),
+      createdAt: DateTime(2026, 1, day),
+      categoryId: c.id,
+      note: note,
+    );
+    await repo.addTxn(mk(a, 3));
+    await repo.addTxn(mk(a, 2, 'x'));
+    await repo.addTxn(mk(b, 1));
+
+    expect(repo.topCategories(TxnKind.expense).first.id, a.id);
+    final recent = repo.recentDistinctTxns(4);
+    expect(recent, hasLength(3));
+    expect(recent.first.date, DateTime(2026, 1, 3));
+    expect(repo.topCustomers(), isEmpty);
+  });
+
   test('Initial data is seeded', () {
     expect(repo.categoriesOf(TxnKind.income), isNotEmpty);
     expect(repo.categoriesOf(TxnKind.expense), isNotEmpty);
@@ -35,6 +60,20 @@ void main() {
     expect(repo.settings.baseCurrency, 'IRT');
     expect(repo.settings.languageCode, 'fa');
     expect(repo.scopeFilter, TxnScope.business);
+  });
+
+  test('Bank SMS notification preference defaults on and persists', () async {
+    expect(repo.settings.smsNotify, isTrue);
+
+    await repo.updateSettings(repo.settings.copyWith(smsNotify: false));
+    expect(store.loadSettings().smsNotify, isFalse);
+    final restored = AppSettings.fromMap(store.loadSettings().toMap());
+    expect(restored.smsNotify, isFalse);
+
+    // Legacy backups without the flag turn notifications on, not off.
+    final legacy = Map<String, dynamic>.from(store.loadSettings().toMap())
+      ..remove('smsNotify');
+    expect(AppSettings.fromMap(legacy).smsNotify, isTrue);
   });
 
   test('SMS rule enablement defaults on and persists per rule', () async {
@@ -665,5 +704,91 @@ void main() {
       date: J.today,
     );
     expect(t.rateToBase, 35000);
+  });
+
+  group('Duplicate SMS collapse', () {
+    ParsedSms blu(String id, String body, int minutesAfter) => ParsedSms(
+      message: SmsMessage(
+        id: id,
+        address: 'BLU-BANK',
+        body: body,
+        date: DateTime(2026, 10, 1, 14, 24).add(
+          Duration(minutes: minutesAfter),
+        ),
+      ),
+      bankName: 'Sina Bank / Blu Bank',
+      amount: 22000,
+      direction: SmsDirection.withdraw,
+    );
+
+    test('A confirmation twin seconds later collapses into one card', () {
+      final txn = blu('a', 'transaction done', 0);
+      final charge = blu('b', 'charge notice', 0);
+      final kept = AppRepository.collapseTwins([txn, charge]);
+      expect(kept, hasLength(1));
+      expect(kept.single.message.id, 'a');
+      expect(AppRepository.isTwinSms(txn, charge), isTrue);
+    });
+
+    test('Same amount half an hour apart is a real second purchase', () {
+      final first = blu('a', 'coffee', 0);
+      final second = blu('b', 'coffee again', 30);
+      expect(AppRepository.isTwinSms(first, second), isFalse);
+      expect(AppRepository.collapseTwins([first, second]), hasLength(2));
+    });
+
+    test('Different amounts from the same sender are not twins', () {
+      final small = blu('a', 'taxi', 0);
+      final big = ParsedSms(
+        message: SmsMessage(
+          id: 'b',
+          address: 'BLU-BANK',
+          body: 'rent',
+          date: DateTime(2026, 10, 1, 14, 25),
+        ),
+        bankName: 'Sina Bank / Blu Bank',
+        amount: 900000,
+        direction: SmsDirection.withdraw,
+      );
+      expect(AppRepository.isTwinSms(small, big), isFalse);
+    });
+  });
+
+  group('Mirrored SMS notification rules', () {
+    test('Default rules include the built-in banks and their Persian names',
+        () {
+      final rules = jsonDecode(repo.nativeRulesJson()) as List;
+      final mellat =
+          rules.firstWhere((r) => (r['s'] as List).contains('MELLAT'));
+      expect(mellat['fa'], 'بانک ملت');
+      expect((mellat['b'] as List).join(' '), contains('ملت'));
+    });
+
+    test('Disabled built-in rules are not mirrored', () async {
+      final disabled = {...repo.settings.disabledSmsRuleIds, 'melat'};
+      await repo.updateSettings(
+        repo.settings.copyWith(disabledSmsRuleIds: disabled.toList()..sort()),
+      );
+      final rules = jsonDecode(repo.nativeRulesJson()) as List;
+      expect(rules.any((r) => (r['s'] as List).contains('MELLAT')), isFalse);
+      expect(rules.any((r) => (r['s'] as List).contains('SEPAH')), isTrue);
+    });
+
+    test('Custom rules are mirrored with their hints and label', () async {
+      await repo.addSmsRule(
+        const BankRule(
+          id: 'q1',
+          bankName: 'صندوق اعتباری',
+          senderHints: ['CREDIT1'],
+          bodyHints: ['صندوق'],
+          custom: true,
+        ),
+      );
+      final rules = jsonDecode(repo.nativeRulesJson()) as List;
+      final custom =
+          rules.firstWhere((r) => (r['s'] as List).contains('CREDIT1'));
+      expect(custom['fa'], 'صندوق اعتباری');
+      expect((custom['b'] as List).join(' '), contains('صندوق'));
+    });
   });
 }

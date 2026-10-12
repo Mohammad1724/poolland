@@ -7,12 +7,16 @@ import '../core/money.dart';
 import '../core/sms/sms_models.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
+import 'design.dart';
+import 'motion_kit.dart';
 import 'forms/transaction_edit_page.dart';
 import 'sms_rules_page.dart';
 import 'unrecognized_sms_page.dart';
 import 'widgets/widgets.dart';
 
 import '../core/localization.dart';
+import 'personal_page.dart';
+import 'widgets/quick_buttons.dart';
 
 /// ============================================================
 ///  Bank SMS — review and approval queue
@@ -21,7 +25,16 @@ import '../core/localization.dart';
 ///  no transaction is recorded in the ledger.
 /// ============================================================
 class SmsPage extends StatefulWidget {
-  const SmsPage({super.key});
+  const SmsPage({
+    super.key,
+    this.autoReviewDate,
+    this.autoReviewAddress,
+  });
+
+  /// Identity of the SMS message whose review sheet should open as soon as
+  /// the page is ready (set when arriving from an arrival notification).
+  final int? autoReviewDate;
+  final String? autoReviewAddress;
 
   @override
   State<SmsPage> createState() => _SmsPageState();
@@ -41,8 +54,46 @@ class _SmsPageState extends State<SmsPage> {
       final repo = context.read<AppRepository>();
       repo.initSms();
       await repo.refreshSmsPermission();
-      if (repo.smsPermissionGranted && repo.smsSuggestions.isEmpty) {
-        await repo.syncSms();
+      if (repo.smsPermissionGranted &&
+          (repo.smsSuggestions.isEmpty || widget.autoReviewDate != null)) {
+        // Arriving from a notification: force the sync so the message that
+        // triggered it is in the queue even if older suggestions exist.
+        await repo.syncSms(force: widget.autoReviewDate != null);
+      }
+      // Arrived from an arrival notification: open the review sheet of that
+      // exact message, the way a banking app opens the matching receipt.
+      if (widget.autoReviewDate == null || !mounted) return;
+      var target = repo.smsSuggestions
+          .where(
+            (s) =>
+                s.message.date.millisecondsSinceEpoch ==
+                    widget.autoReviewDate &&
+                (widget.autoReviewAddress == null ||
+                    s.message.address == widget.autoReviewAddress),
+          )
+          .firstOrNull;
+      // Notification taps must always land on a sheet: fall back to the
+      // sender, then to the newest suggestion, instead of showing a bare
+      // queue when the exact identity no longer matches.
+      target ??= repo.smsSuggestions
+          .where(
+            (s) =>
+                widget.autoReviewAddress != null &&
+                s.message.address == widget.autoReviewAddress,
+          )
+          .firstOrNull;
+      target ??= repo.smsSuggestions.firstOrNull;
+      if (target == null || !mounted) return;
+      // Copy out of the nullable local: the sheet builder is a closure, and
+      // closures never see flow-promoted types of a reassigned variable.
+      final ParsedSms chosen = target;
+      final matched = repo.matchCustomerForSms(chosen);
+      final ok = await showLedgerSheet<bool>(
+        context,
+        builder: (ctx) => SmsReviewSheet(sms: chosen, initialCustomer: matched),
+      );
+      if (ok == true && mounted) {
+        showSnack(context, 'Transaction recorded from SMS');
       }
     });
   }
@@ -168,7 +219,7 @@ class _SmsPageState extends State<SmsPage> {
     List<ParsedSms> all,
     List<ParsedSms> list,
     Color onSurface,
-  ) => RefreshIndicator(
+  ) => CoinRefresh(
     onRefresh: () => repo.syncSms(force: true),
     child: ListView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -207,10 +258,10 @@ class _SmsPageState extends State<SmsPage> {
             ),
           )
         else
-          for (final sms in list)
+          for (final (i, sms) in list.indexed)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _SmsCard(sms: sms, onSurface: onSurface),
+              child: SlipIn(index: i, child: _SmsCard(sms: sms, onSurface: onSurface)),
             ),
         const SizedBox(height: 6),
         OutlinedButton.icon(
@@ -442,7 +493,7 @@ class _SmsCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      sms.bankName ?? 'Unknown bank'.tr,
+                      (sms.bankName ?? 'Unknown bank').tr,
                       style: const TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w700,
@@ -563,7 +614,7 @@ class _SmsCard extends StatelessWidget {
                   onPressed: () => _openReview(context, sms, matched),
                   icon: const Icon(Icons.check_rounded, size: 17),
                   label: Text(
-                    matched == null ? 'Review and record' : 'Confirm',
+                    (matched == null ? 'Review and record' : 'Confirm').tr,
                   ),
                 ),
               ),
@@ -579,10 +630,8 @@ class _SmsCard extends StatelessWidget {
     ParsedSms sms,
     Customer? matched,
   ) async {
-    final ok = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    final ok = await showLedgerSheet<bool>(
+      context,
       builder: (ctx) => SmsReviewSheet(sms: sms, initialCustomer: matched),
     );
     if (ok == true && context.mounted) {
@@ -606,7 +655,7 @@ class _SmsHistoryCard extends StatelessWidget {
         ? const Color(0xFF16A34A)
         : const Color(0xFFE11D48);
     final title = entry.bankName?.isNotEmpty == true
-        ? entry.bankName!
+        ? entry.bankName!.tr
         : entry.message.address;
     Txn? transaction;
     if (entry.transactionId != null) {
@@ -748,6 +797,27 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   TxnKind _kind = TxnKind.income;
   TxnScope? _scope;
   String? _categoryId;
+  bool _presetDone = false;
+
+  /// The sheet opens ready to save: the section follows the matched
+  /// customer (or the ledger's most recent scope), and kind + category
+  /// follow the section, so the record button is enabled immediately.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_presetDone) return;
+    _presetDone = true;
+    final repo = context.read<AppRepository>();
+    final prefer = widget.initialCustomer != null
+        ? TxnScope.business
+        : repo.transactions.isEmpty
+        ? TxnScope.business
+        : repo.transactions.first.scope;
+    _scope = prefer;
+    _customer = prefer == TxnScope.business ? widget.initialCustomer : null;
+    _kind = _suggestedKind(repo, prefer);
+    _categoryId = _suggestedCategoryId(repo, prefer);
+  }
 
   @override
   void initState() {
@@ -811,6 +881,19 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     return [TxnKind.income, TxnKind.expense];
   }
 
+  Future<void> _openQuickEdit(TxnScope scope, [QuickExpense? q]) async {
+    await showLedgerSheet<void>(
+      context,
+      builder: (_) => QuickEditSheet(
+        initial: q,
+        presetScope: scope,
+        presetKind: widget.sms.direction == SmsDirection.deposit
+            ? TxnKind.income
+            : TxnKind.expense,
+      ),
+    );
+  }
+
   void _changeScope(AppRepository repo, TxnScope scope) {
     if (_scope == scope) return;
     setState(() {
@@ -855,14 +938,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 42,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(context).dividerColor,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+            SheetHandle(),
             const SizedBox(height: 14),
             Text(
               'Record this SMS transaction'.tr,
@@ -870,7 +946,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
             ),
             const SizedBox(height: 4),
             Text(
-              sms.bankName ?? sms.message.address,
+              sms.bankName?.tr ?? sms.message.address,
               style: TextStyle(
                 fontSize: 11.5,
                 color: Theme.of(context).colorScheme.onSurface
@@ -934,6 +1010,77 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                     ),
                 ],
               ),
+              const SizedBox(height: 14),
+
+              // Quick-entry buttons for this section and direction: one tap
+              // sets the type/category here, the chip adds a new button.
+              QuickButtonsRow(
+                scopeFilter: scope,
+                incomeFilter: sms.direction == SmsDirection.deposit,
+                hideWhenEmpty: true,
+                onTap: (q) => setState(() {
+                  if (availableKinds.contains(q.kind)) _kind = q.kind;
+                  if (q.categoryId != null) _categoryId = q.categoryId;
+                }),
+                onLongPress: (q) => _openQuickEdit(scope, q),
+                trailing: ActionChip(
+                  avatar: const Icon(Icons.add_rounded, size: 16),
+                  label: Text('Quick button'.tr),
+                  onPressed: () => _openQuickEdit(scope),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Frequent categories for this section: one tap, no picker.
+              Text(
+                'Frequent picks'.tr,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.onSurface
+                      .withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(height: 6),
+              if (categoryKind != null)
+                Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final c in repo.topCategories(
+                    categoryKind,
+                    scope: scope,
+                  ))
+                    ChoiceChip(
+                      selected: _categoryId == c.id,
+                      showCheckmark: false,
+                      label: Text(c.name.tr),
+                      onSelected: (_) => setState(() => _categoryId = c.id),
+                    ),
+                ],
+              ),
+              if (scope == TxnScope.business) ...[
+                const SizedBox(height: 8),
+                // Regular contacts, most-recorded first.
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final c in repo.topCustomers(limit: 3))
+                      ActionChip(
+                        avatar: Icon(
+                          _customer?.id == c.id
+                              ? Icons.check_rounded
+                              : Icons.person_outline_rounded,
+                          size: 16,
+                        ),
+                        label: Text(c.name),
+                        onPressed: () => setState(() =>
+                            _customer = _customer?.id == c.id ? null : c),
+                      ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 14),
 
               AmountField(
@@ -1018,6 +1165,8 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                               scope: scope,
                             );
                             if (context.mounted) {
+                              // Coin + stamp: the money-landed moment.
+                              MoneyCelebration.recorded(context);
                               Navigator.pop(context, true);
                             }
                           },

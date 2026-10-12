@@ -152,7 +152,10 @@ class _TransactionsPageState extends State<TransactionsPage> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Income ${Money.text(summary.income, compact: true)} • Expense ${Money.text(summary.expense, compact: true)}',
+                        'Income {income} • Expense {expense}'.trArgs({
+                          'income': Money.text(summary.income, compact: true),
+                          'expense': Money.text(summary.expense, compact: true),
+                        }),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
@@ -322,9 +325,16 @@ class _TransactionsPageState extends State<TransactionsPage> {
                       : null,
                   onAction: hasActiveFilters ? _clearSearchAndFilters : null,
                 )
-              : ListView.builder(
+              : RefreshIndicator(
+                  onRefresh: () => repo.refreshAll(),
+                  color: Theme.of(context).colorScheme.primary,
+                  child: ListView.builder(
                   controller: widget.controller,
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+                  // Build a bit beyond the viewport so fast flings over long
+                  // histories never show blank space.
+                  // ignore: deprecated_member_use
+                  cacheExtent: 600,
                   itemCount: groupList.length,
                   itemBuilder: (context, groupIndex) {
                     final entry = groupList[groupIndex];
@@ -472,6 +482,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                       ],
                     );
                   },
+                ),
                 ),
         ),
       ],

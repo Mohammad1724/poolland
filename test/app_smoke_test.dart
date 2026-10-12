@@ -17,7 +17,9 @@ import 'package:poolland/ui/forms/plan_edit_page.dart';
 import 'package:poolland/ui/forms/sell_subscription_page.dart';
 import 'package:poolland/ui/forms/transaction_edit_page.dart';
 import 'package:poolland/ui/home_shell.dart';
+import 'package:poolland/ui/motion_kit.dart';
 import 'package:poolland/ui/onboarding.dart';
+import 'package:poolland/ui/permissions_intro_page.dart';
 import 'package:poolland/ui/personal_page.dart';
 import 'package:poolland/ui/reports_page.dart';
 import 'package:poolland/ui/settings_page.dart';
@@ -27,7 +29,9 @@ import 'package:poolland/ui/subscriptions_page.dart';
 import 'package:poolland/ui/unrecognized_sms_page.dart';
 import 'package:poolland/ui/theme.dart';
 import 'package:poolland/ui/transactions_page.dart';
+import 'package:poolland/ui/widgets/quick_buttons.dart';
 import 'package:poolland/ui/widgets/widgets.dart';
+import 'package:poolland/ui/widgets/ledger_nav_bar.dart';
 
 /// Smoke test: all pages should render without errors.
 void main() {
@@ -94,7 +98,7 @@ void main() {
   }
 
   Future<void> tapTab(WidgetTester tester, int index) async {
-    final bar = find.byType(NavigationBar);
+    final bar = find.byType(LedgerNavBar);
     final rect = tester.getRect(bar);
     await tester.tapAt(
       Offset(rect.left + rect.width * (index + 0.5) / 5, rect.center.dy),
@@ -208,7 +212,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byType(NavigationRail), findsOneWidget);
-    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byType(LedgerNavBar), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -359,6 +363,18 @@ void main() {
       wrap(const TransactionEditPage(initialKind: TxnKind.expense)),
     );
     await tester.pumpAndSettle();
+    // The form is a lazy ListView: scroll so below-the-fold fields build.
+    await tester.scrollUntilVisible(
+      find.text('Category'),
+      200,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
     expect(find.text('Category'), findsOneWidget);
     expect(find.byType(FormActionBar), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -366,6 +382,97 @@ void main() {
     await tester.pumpWidget(wrap(const ContactEditPage()));
     await tester.pumpAndSettle();
     expect(find.text('Opening balance'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Switching the direction swaps the category to the new kind', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(
+        const TransactionEditPage(
+          initialKind: TxnKind.income,
+          // Autofocus would scroll the lazy form past the kind chips on the
+          // very first frame and dispose them before the test can tap one.
+          autofocusAmount: false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Flip income -> expense while the kind chips are on screen at the top
+    // of the form.
+    await tester.tap(find.text('Expense').last);
+    await tester.pumpAndSettle();
+
+    // Reveal the category field and inspect the form state directly: the
+    // selected category must have been re-derived for the new direction
+    // instead of silently keeping the income category (which would corrupt
+    // per-category reports on save).
+    await tester.scrollUntilVisible(
+      find.text('Category'),
+      200,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+    final field = tester.widget<SelectField<Category>>(
+      find.byType(SelectField<Category>).first,
+    );
+    expect(field.value, isNotNull);
+    expect(field.value!.kind, TxnKind.expense);
+    expect(field.value!.scope, TxnScope.business);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Quick amount sheet returns the picked day with the amount', (
+    tester,
+  ) async {
+    QuickAmountResult? result;
+    await tester.pumpWidget(
+      wrap(
+        Builder(
+          builder: (c) => FilledButton(
+            onPressed: () async => result =
+                await showLedgerSheet<QuickAmountResult>(
+                  c,
+                  builder: (_) => const QuickAmountSheet(
+                    quick: QuickExpense(id: 'q1', label: 'Snack'),
+                  ),
+                ),
+            child: const Text('go'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Amount'),
+      '2500',
+    );
+    await tester.tap(find.text('Record'));
+    await tester.pumpAndSettle();
+
+    expect(result, isNotNull);
+    expect(result!.amount, 2500);
+    // The sheet offers a date picker; the chosen day must travel back with
+    // the amount so recordQuickExpense can post entries that are not today.
+    final now = DateTime.now();
+    expect(result!.date.year, now.year);
+    expect(result!.date.month, now.month);
+    expect(result!.date.day, now.day);
+  });
+
+  testWidgets('Permissions intro renders', (tester) async {
+    await tester.pumpWidget(wrap(const PermissionsIntroPage()));
+    await tester.pumpAndSettle();
+    expect(find.text('Required permissions'), findsOneWidget);
+    expect(find.text('Skip for now'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -393,21 +500,20 @@ void main() {
     await tester.pumpWidget(wrap(SmsReviewSheet(sms: sms)));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('Choose where this transaction belongs before recording'),
-      findsOneWidget,
-    );
-    expect(find.text('Amount'), findsNothing);
+    // New contract: the sheet opens ready to save — section, kind and
+    // category come pre-picked from the ledger's own habits, and frequent
+    // categories / regular contacts are offered as one-tap chips.
     final buttonFinder = find.widgetWithText(
       FilledButton,
       'Record transaction',
     );
-    expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNull);
-
-    await tester.tap(find.text('VPN business'));
-    await tester.pumpAndSettle();
-
+    expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
     expect(find.text('Amount'), findsOneWidget);
+    expect(find.byType(ChoiceChip), findsWidgets);
+
+    // Switching the section still re-derives kind and category.
+    await tester.tap(find.text('Personal'));
+    await tester.pumpAndSettle();
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
   });
 

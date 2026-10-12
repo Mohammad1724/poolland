@@ -6,6 +6,7 @@ import '../../core/money.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
 import 'widgets.dart';
+import '../motion_kit.dart';
 
 import '../../core/localization.dart';
 
@@ -46,19 +47,59 @@ IconData materialIcon(int? codePoint) {
   return Icons.receipt_long_outlined;
 }
 
-/// Row of quick-entry buttons (one tap records an expense or income).
+/// Row of quick-entry buttons.
+///
+/// On the personal page one tap records the button straight away; inside a
+/// transaction form [onTap] instead prefills the form so the entry stays
+/// fully editable. [scopeFilter] and [incomeFilter] keep the row separated
+/// by section (business/personal) and by direction (income/expense), so each
+/// form only offers the buttons that fit what is being recorded right now.
 class QuickButtonsRow extends StatelessWidget {
-  const QuickButtonsRow({super.key, this.emptyHint, this.onLongPress});
+  const QuickButtonsRow({
+    super.key,
+    this.emptyHint,
+    this.onLongPress,
+    this.onTap,
+    this.scopeFilter,
+    this.incomeFilter,
+    this.hideWhenEmpty = false,
+    this.trailing,
+  });
 
   final String? emptyHint;
   final void Function(QuickExpense q)? onLongPress;
 
+  /// When set, tapping a chip calls this instead of recording immediately.
+  final void Function(QuickExpense q)? onTap;
+
+  /// Only show buttons of this section (null = both).
+  final TxnScope? scopeFilter;
+
+  /// Only show income (true) or expense (false) buttons; null = both.
+  final bool? incomeFilter;
+
+  /// Render nothing (except [trailing]) when no button matches, so forms
+  /// stay clean for users who have not configured buttons for that case.
+  final bool hideWhenEmpty;
+
+  /// Extra widget appended after the chips (typically an "add" chip).
+  final Widget? trailing;
+
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
-    if (repo.quickExpenses.isEmpty) {
+    final items = repo.quickExpenses
+        .where(
+          (q) =>
+              (scopeFilter == null || q.scope == scopeFilter) &&
+              (incomeFilter == null ||
+                  (q.kind == TxnKind.income) == incomeFilter),
+        )
+        .toList();
+    if (items.isEmpty && trailing == null) {
+      if (hideWhenEmpty) return const SizedBox.shrink();
       return Text(
-        emptyHint ?? 'No quick buttons configured.',
+        emptyHint ?? 'No quick buttons configured.'.tr,
         style: TextStyle(
           fontSize: 12,
           height: 1.7,
@@ -71,12 +112,15 @@ class QuickButtonsRow extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
-        for (final q in repo.quickExpenses)
+        for (final q in items)
           QuickChip(
             quick: q,
-            onTap: () => recordQuickExpense(context, q),
+            onTap: onTap == null
+                ? () => recordQuickExpense(context, q)
+                : () => onTap!(q),
             onLongPress: onLongPress == null ? null : () => onLongPress!(q),
           ),
+        ?trailing,
       ],
     );
   }
@@ -145,18 +189,21 @@ class QuickChip extends StatelessWidget {
 Future<void> recordQuickExpense(BuildContext context, QuickExpense q) async {
   final repo = context.read<AppRepository>();
   var amount = q.amount;
+  DateTime? date;
   if (!q.hasFixedAmount) {
-    final res = await showModalBottomSheet<double>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    final res = await showLedgerSheet<QuickAmountResult>(
+      context,
       builder: (_) => QuickAmountSheet(quick: q),
     );
-    if (res == null || res <= 0) return;
-    amount = res;
+    if (res == null || res.amount <= 0) return;
+    amount = res.amount;
+    // The sheet has a date picker; honour the day the user picked instead
+    // of silently recording everything as "today".
+    date = res.date;
   }
-  final txn = await repo.addQuickExpense(q, amount: amount);
+  final txn = await repo.addQuickExpense(q, amount: amount, date: date);
   if (!context.mounted) return;
+  MoneyCelebration.recorded(context);
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(
@@ -174,6 +221,15 @@ Future<void> recordQuickExpense(BuildContext context, QuickExpense q) async {
         ),
       ),
     );
+}
+
+/// What [QuickAmountSheet] hands back: the entered amount plus the day it
+/// belongs to.
+class QuickAmountResult {
+  const QuickAmountResult({required this.amount, required this.date});
+
+  final double amount;
+  final DateTime date;
 }
 
 /// Sheet for entering an amount (and date) for buttons without a fixed amount.
@@ -220,14 +276,7 @@ class _QuickAmountSheetState extends State<QuickAmountSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              width: 42,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(context).dividerColor,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+            SheetHandle(),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -255,7 +304,7 @@ class _QuickAmountSheetState extends State<QuickAmountSheet> {
               onPressed: () {
                 final v = parseAmount(_ctrl.text);
                 if (v <= 0) return;
-                Navigator.pop(context, v);
+                Navigator.pop(context, QuickAmountResult(amount: v, date: _date));
               },
               child: Text('Record'.tr),
             ),

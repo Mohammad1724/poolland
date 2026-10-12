@@ -6,7 +6,10 @@ import '../design.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
+import '../personal_page.dart';
+import '../widgets/quick_buttons.dart';
 import '../widgets/widgets.dart';
+import '../motion_kit.dart';
 import 'contact_edit_page.dart';
 
 import '../../core/localization.dart';
@@ -74,8 +77,59 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
       ? 'Duplicate transaction'
       : 'New transaction';
 
+  /// [TxnKind.icon] and [TxnKind.shortLabel] only cover the kinds a bank
+  /// SMS or a quick pick can produce; the recent-entries chips can meet any
+  /// kind (subscription sales included), so they use these safe mappings.
+  /// Chip text for "repeat this recent entry": the note when there is one,
+  /// otherwise the category or a safe kind name, plus the plain amount.
+  String _presetLabel(Txn t, AppRepository repo) {
+    final name = t.note.isNotEmpty
+        ? t.note
+        : repo.categoryById(t.categoryId)?.name ?? _safeKindLabel(t.kind);
+    return '${name.tr} · '
+        '${Fmt.number(t.amount, decimals: Money.decimals(t.currency))}';
+  }
+
+  IconData _safeKindIcon(TxnKind k) => switch (k) {
+    TxnKind.income => Icons.trending_up_rounded,
+    TxnKind.expense => Icons.trending_down_rounded,
+    TxnKind.receive => Icons.call_received_rounded,
+    TxnKind.refund => Icons.currency_exchange_rounded,
+    _ => Icons.receipt_long_rounded,
+  };
+
+  String _safeKindLabel(TxnKind k) => switch (k) {
+    TxnKind.income => 'Income',
+    TxnKind.expense => 'Expense',
+    TxnKind.receive => 'Receive',
+    TxnKind.refund => 'Refund',
+    TxnKind.payablePayment => 'Paid out',
+  }.tr;
+
   bool get _needsCategory =>
       _kind == TxnKind.income || _kind == TxnKind.expense;
+
+  /// Re-validates the selected category after the kind or the section
+  /// changes. Without this the form silently saves a category that belongs
+  /// to the *other* kind or scope (an income category on an expense, a
+  /// personal one on a business entry), which corrupts the per-category
+  /// reports. Falls back to the default category of the new list.
+  void _syncCategory(AppRepository repo) {
+    final kindForCats = switch (_kind) {
+      TxnKind.income || TxnKind.receive => TxnKind.income,
+      TxnKind.expense => TxnKind.expense,
+      _ => null,
+    };
+    if (kindForCats == null) {
+      _category = null;
+      return;
+    }
+    final list = repo.categoriesOf(kindForCats, scope: _scope);
+    if (_category != null && list.any((c) => c.id == _category!.id)) return;
+    _category = repo.categoryById(
+      repo.defaultCategoryId(kindForCats, scope: _scope),
+    );
+  }
 
   @override
   void initState() {
@@ -140,6 +194,51 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
     _note.dispose();
     super.dispose();
   }
+
+  /// Prefill the form from a quick-entry button; everything stays editable.
+  void _applyQuick(QuickExpense q) {
+    final repo = context.read<AppRepository>();
+    setState(() {
+      _scope = q.scope;
+      _kind = q.kind == TxnKind.income ? TxnKind.income : TxnKind.expense;
+      if (q.scope == TxnScope.personal) {
+        _customer = null;
+        _subscription = null;
+        _credit = false;
+      }
+      if (q.categoryId != null) {
+        _category = repo.categoryById(q.categoryId);
+      }
+      // The button may have moved the form to another section or direction;
+      // the category must belong to the new combination.
+      _syncCategory(repo);
+      if (q.hasFixedAmount) {
+        _amount.text = groupedNumber(
+          q.amount,
+          decimals: Money.decimals(_currency),
+        );
+      }
+    });
+  }
+
+  Future<void> _openQuickEdit([QuickExpense? q]) async {
+    await showLedgerSheet<void>(
+      context,
+      builder: (_) => QuickEditSheet(
+        initial: q,
+        presetScope: _scope,
+        presetKind: _kind == TxnKind.income || _kind == TxnKind.receive
+            ? TxnKind.income
+            : TxnKind.expense,
+      ),
+    );
+  }
+
+  Widget _addQuickChip() => ActionChip(
+    avatar: const Icon(Icons.add_rounded, size: 16),
+    label: Text('Quick button'.tr),
+    onPressed: () => _openQuickEdit(),
+  );
 
   Future<void> _save() async {
     final repo = context.read<AppRepository>();
@@ -208,6 +307,10 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
       }
     }
     if (!mounted) return;
+    if (!isEdit) {
+      // A new record gets the coin + stamp moment; edits stay quiet.
+      MoneyCelebration.recorded(context);
+    }
     showSnack(context, isEdit ? 'Transaction updated' : 'Transaction recorded');
     Navigator.pop(context);
   }
@@ -263,7 +366,10 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                   for (final k in TxnKind.values)
                     ChoiceChip(
                       selected: _kind == k,
-                      onSelected: (_) => setState(() => _kind = k),
+                      onSelected: (_) => setState(() {
+                        _kind = k;
+                        _syncCategory(repo);
+                      }),
                       avatar: Icon(k.icon, size: 16),
                       label: Text(k.label),
                     ),
@@ -284,16 +390,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                     _subscription = null;
                     _credit = false;
                   }
-                  final list = repo.categoriesOf(_kind, scope: _scope);
-                  if (_category != null &&
-                      !list.any((c) => c.id == _category!.id)) {
-                    _category =
-                        repo.defaultCategoryId(_kind, scope: _scope) == null
-                        ? null
-                        : repo.categoryById(
-                            repo.defaultCategoryId(_kind, scope: _scope),
-                          );
-                  }
+                  _syncCategory(repo);
                 }),
                 style: SegmentedButton.styleFrom(
                   // Compact density would shave this down to ~32dp, which is
@@ -310,6 +407,76 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                   color: Theme.of(context).colorScheme.onSurface
                       .withValues(alpha: 0.55),
                 ),
+              ),
+              if (!isEdit) ...[
+                // Presets from the ledger's own habits: repeat a recent
+                // entry or pick a most-used category, both one tap away,
+                // right at the top of the form where they are seen.
+                Text(
+                  'Frequent picks'.tr,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.onSurface
+                        .withValues(alpha: 0.7),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final t in repo.recentDistinctTxns(4))
+                      ActionChip(
+                        avatar: Icon(_safeKindIcon(t.kind), size: 16),
+                        label: Text(_presetLabel(t, repo)),
+                        onPressed: () => setState(() {
+                          _amount.text = groupedNumber(
+                            t.amount,
+                            decimals: Money.decimals(_currency),
+                          );
+                          _note.text = t.note;
+                          final c = repo.categoryById(t.categoryId);
+                          if (c != null &&
+                              repo
+                                  .categoriesOf(_kind, scope: _scope)
+                                  .any((x) => x.id == c.id)) {
+                            _category = c;
+                          }
+                          if (t.customerId != null) {
+                            _customer = repo.customerById(t.customerId);
+                          }
+                        }),
+                      ),
+                    if (_needsCategory)
+                      for (final c in repo.topCategories(
+                        _kind == TxnKind.income || _kind == TxnKind.receive
+                            ? TxnKind.income
+                            : TxnKind.expense,
+                        scope: _scope,
+                      ))
+                        ChoiceChip(
+                          selected: _category?.id == c.id,
+                          showCheckmark: false,
+                          label: Text(c.name.tr),
+                          onSelected: (_) => setState(() => _category = c),
+                        ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+              const SizedBox(height: 12),
+              // Quick-entry buttons matching the current section and
+              // direction; tapping one prefills this form (still editable),
+              // the trailing chip adds a new button for exactly this case.
+              QuickButtonsRow(
+                scopeFilter: _scope,
+                incomeFilter: _kind == TxnKind.income ||
+                    _kind == TxnKind.receive,
+                hideWhenEmpty: true,
+                onTap: _applyQuick,
+                onLongPress: (q) => _openQuickEdit(q),
+                trailing: _addQuickChip(),
               ),
               const SizedBox(height: 16),
               Row(
@@ -425,8 +592,8 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                     onChanged: (v) => setState(() => _credit = v),
                     title: Text(
                       _kind == TxnKind.income
-                          ? 'Credit (customer balance)'
-                          : 'Credit (our payable)',
+                          ? 'Credit (customer balance)'.tr
+                          : 'Credit (our payable)'.tr,
                       style: const TextStyle(fontSize: 13.5),
                     ),
                     subtitle: Text(

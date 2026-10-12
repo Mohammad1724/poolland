@@ -188,6 +188,7 @@ class _PlanEditPageState extends State<PlanEditPage> {
         actions: [
           if (isEdit)
             IconButton(
+              tooltip: 'Delete'.tr,
               icon: const Icon(Icons.delete_outline_rounded),
               onPressed: () async {
                 final inUse = repo.subscriptions.any(

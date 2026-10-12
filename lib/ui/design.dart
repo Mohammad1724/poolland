@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 
 /// Shared layout and typography tokens.
@@ -85,10 +87,164 @@ class Motion {
   /// Small state changes such as a floating action button sliding away.
   static const Duration quick = Duration(milliseconds: 200);
 
+  /// Pushed routes: the "ledger page turn" transition.
+  static const Duration page = Duration(milliseconds: 320);
+
+  /// One item of a staggered entrance (list items, dashboard cards).
+  static const Duration staggerStep = Duration(milliseconds: 28);
+
+  /// Master switch for the motion kit (page turn, stagger, odometer,
+  /// celebration, sheets). Widget tests flip it off so suites stay
+  /// deterministic: no overlays, no pending stagger timers, no loops, and
+  /// values settle instantly. Production never touches it.
+  static bool motionEnabled = true;
+
+  /// Whether continuously running "ambient" motion (breathing gradients,
+  /// shimmer sweeps, spinning coins) may play: the kit must be enabled and
+  /// the user must not have asked for reduced motion.
+  static bool ambientOn(BuildContext context) =>
+      motionEnabled &&
+      !(MediaQuery.maybeOf(context)?.disableAnimations ?? false);
+
   /// Respect the operating system's reduced-motion preference.
   static Duration adaptive(BuildContext context, Duration duration) {
     final reduceMotion =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     return reduceMotion ? Duration.zero : duration;
+  }
+}
+
+/// Staggered entrance: fade + rise, with an index-based delay.
+///
+/// Used for list items and cards so a freshly built page "arrives" instead of
+/// popping. Only plays on first mount of each item; widget tests skip it via
+/// [Motion.motionEnabled].
+class EnterMotion extends StatefulWidget {
+  const EnterMotion({
+    super.key,
+    required this.child,
+    this.index = 0,
+    this.rise = 12,
+    this.staggerCap = 8,
+  });
+
+  final Widget child;
+  final int index;
+  final double rise;
+  final int staggerCap;
+
+  @override
+  State<EnterMotion> createState() => _EnterMotionState();
+}
+
+class _EnterMotionState extends State<EnterMotion>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 240),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (!Motion.motionEnabled) {
+      _c.value = 1;
+      return;
+    }
+    final i = math.min(widget.index, widget.staggerCap);
+    final delay = Duration(milliseconds: 28 * i);
+    if (delay == Duration.zero) {
+      _c.forward();
+    } else {
+      Future.delayed(delay, () {
+        if (mounted) _c.forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Motion.motionEnabled) return widget.child;
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, child) {
+        final t = Curves.easeOutCubic.transform(_c.value);
+        return Opacity(
+          opacity: t.clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(0, widget.rise * (1 - t)),
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+/// Paper-slip entrance: an item drops into place like a slip falling into a
+/// tray — a slight tilt that straightens itself with a soft overshoot.
+class SlipIn extends StatefulWidget {
+  const SlipIn({super.key, required this.child, this.index = 0});
+
+  final Widget child;
+  final int index;
+
+  @override
+  State<SlipIn> createState() => _SlipInState();
+}
+
+class _SlipInState extends State<SlipIn> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 340),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (!Motion.motionEnabled) {
+      _c.value = 1;
+      return;
+    }
+    final delay = Duration(milliseconds: 40 * math.min(widget.index, 6));
+    if (delay == Duration.zero) {
+      _c.forward();
+    } else {
+      Future.delayed(delay, () {
+        if (mounted) _c.forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Motion.motionEnabled) return widget.child;
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, child) {
+        final t = Curves.easeOutBack.transform(_c.value);
+        return Opacity(
+          opacity: _c.value.clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(0, -16 * (1 - t)),
+            child: Transform.rotate(angle: -0.035 * (1 - t), child: child),
+          ),
+        );
+      },
+      child: widget.child,
+    );
   }
 }

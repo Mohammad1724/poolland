@@ -163,9 +163,8 @@ def main() -> None:
             foreground_size,
         )
 
-    # The larger copies are used by the README and by any in-app previews.
+    # The large rounded copy is used by the README.
     save(icon, os.path.join(ROOT, "docs", "logo.png"), 512, rounded=True)
-    save(icon, os.path.join(ROOT, "assets", "icon", "icon.png"), 512, rounded=True)
 
     # PWA maskable icons stay full bleed; the artwork is inside the safe zone.
     web = os.path.join(ROOT, "web", "icons")
@@ -174,7 +173,6 @@ def main() -> None:
     save(icon, os.path.join(web, "Icon-maskable-192.png"), 192)
     save(icon, os.path.join(web, "Icon-maskable-512.png"), 512)
     save(icon, os.path.join(web, "favicon.png"), 64)
-    save(icon, os.path.join(ROOT, "web", "favicon.png"), 64)
 
     update_adaptive_background(background)
     print("\nAll Poolland icons generated successfully.")

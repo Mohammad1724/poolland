@@ -121,7 +121,8 @@ class _ContactEditPageState extends State<ContactEditPage> {
                   context,
                   title: 'Delete contact'.tr,
                   message: count > 0
-                      ? 'This contact has $count transactions. Deleting them will also delete all of those transactions. Continue?'
+                      ? 'This contact has {count} transactions. Deleting them will also delete all of those transactions. Continue?'
+                            .trArgs({'count': count})
                       : 'Delete this contact?',
                   okLabel: 'Delete'.tr,
                   danger: true,

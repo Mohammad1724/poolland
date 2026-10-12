@@ -12,6 +12,7 @@ import '../data/models.dart';
 import '../data/repository.dart';
 import 'customer_detail_page.dart';
 import 'design.dart';
+import 'motion_kit.dart';
 import 'forms/contact_edit_page.dart';
 import 'forms/payment_sheet.dart';
 import 'widgets/widgets.dart';
@@ -53,6 +54,63 @@ class _CustomersPageState extends State<CustomersPage> {
     _searchDebouncer.run(() {
       if (mounted) setState(() => _q = query);
     });
+  }
+
+  /// Long-press shortcut sheet for a customer row.
+  Future<void> _customerActions(BuildContext context, Customer c) async {
+    Haptics.tap();
+    final choice = await showLedgerSheet<String>(
+      context,
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(ctx).cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SheetHandle(),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(
+                  Icons.call_received_rounded,
+                  color: Color(0xFF0F766E),
+                ),
+                title: Text('Receive from customer'.tr),
+                onTap: () => Navigator.pop(ctx, 'r'),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.call_made_rounded,
+                  color: Color(0xFFE11D48),
+                ),
+                title: Text('Pay customer'.tr),
+                onTap: () => Navigator.pop(ctx, 'p'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit_rounded),
+                title: Text('Edit'.tr),
+                onTap: () => Navigator.pop(ctx, 'e'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == null || !context.mounted) return;
+    if (choice == 'r') {
+      await showPaymentSheet(context, customer: c, isReceive: true);
+    } else if (choice == 'p') {
+      await showPaymentSheet(context, customer: c);
+    } else if (choice == 'e' && context.mounted) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => ContactEditPage(existing: c)),
+      );
+    }
   }
 
   void _clearSearchAndFilters() {
@@ -190,9 +248,14 @@ class _CustomersPageState extends State<CustomersPage> {
                         )
                       : _clearSearchAndFilters,
                 )
-              : ListView.separated(
+              : RefreshIndicator(
+                  onRefresh: () => repo.refreshAll(),
+                  color: Theme.of(context).colorScheme.primary,
+                  child: ListView.separated(
                   controller: widget.controller,
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+                  // ignore: deprecated_member_use
+                  cacheExtent: 600,
                   itemCount: list.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 8),
                   itemBuilder: (context, i) {
@@ -210,7 +273,9 @@ class _CustomersPageState extends State<CustomersPage> {
                     final latest = subs.isEmpty ? null : subs.first;
                     // Swiping a row is a shortcut, never a delete: the row
                     // snaps back and the payment sheet opens instead.
-                    return Dismissible(
+                    return EnterMotion(
+              index: i,
+              child: Dismissible(
                       key: ValueKey('customer-swipe-${c.id}'),
                       direction: DismissDirection.horizontal,
                       // A shortcut, not a full dismiss: a short swipe is
@@ -257,20 +322,26 @@ class _CustomersPageState extends State<CustomersPage> {
                             builder: (_) => CustomerDetailPage(customer: c),
                           ),
                         ),
+                        // Long-press: the money shortcuts without opening the
+                        // detail page first.
+                        onLongPress: () => _customerActions(context, c),
                         child: Row(
                           children: [
-                            CircleAvatar(
-                              radius: 20,
-                              backgroundColor: Theme.of(context)
-                                  .colorScheme
-                                  .primary
-                                  .withValues(alpha: 0.13),
-                              child: Text(
-                                c.name.characters.first,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: Theme.of(context).colorScheme.primary,
+                            Hero(
+                              tag: 'cust-avatar-${c.id}',
+                              child: CircleAvatar(
+                                radius: 20,
+                                backgroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withValues(alpha: 0.13),
+                                child: Text(
+                                  c.name.characters.first,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  ),
                                 ),
                               ),
                             ),
@@ -282,13 +353,16 @@ class _CustomersPageState extends State<CustomersPage> {
                                   Row(
                                     children: [
                                       Flexible(
-                                        child: Text(
-                                          c.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w700,
+                                        child: Hero(
+                                          tag: 'cust-name-${c.id}',
+                                          child: Text(
+                                            c.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -334,23 +408,33 @@ class _CustomersPageState extends State<CustomersPage> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                Text(
-                                  balance.abs() < 1
-                                      ? 'Settled'.tr
-                                      : Money.text(
-                                          balance.abs(),
-                                          withSymbol: false,
+                                balance.abs() < 1
+                                    ? Text(
+                                        'Settled'.tr,
+                                        style: TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: onSurface.withValues(
+                                            alpha: 0.45,
+                                          ),
                                         ),
-                                  style: TextStyle(
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: balance.abs() < 1
-                                        ? onSurface.withValues(alpha: 0.45)
-                                        : balance > 0
-                                        ? const Color(0xFF0F766E)
-                                        : const Color(0xFF2563EB),
-                                  ),
-                                ),
+                                      )
+                                    : CopyMoney(
+                                        value: balance.abs(),
+                                        child: Text(
+                                          Money.text(
+                                            balance.abs(),
+                                            withSymbol: false,
+                                          ),
+                                          style: TextStyle(
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: balance > 0
+                                                ? const Color(0xFF0F766E)
+                                                : const Color(0xFF2563EB),
+                                          ),
+                                        ),
+                                      ),
                                 if (balance.abs() >= 1)
                                   Text(
                                     balance > 0 ? 'Debtor'.tr : 'Creditor'.tr,
@@ -364,8 +448,10 @@ class _CustomersPageState extends State<CustomersPage> {
                           ],
                         ),
                       ),
-                    );
+                    ),
+            );
                   },
+                ),
                 ),
         ),
       ],

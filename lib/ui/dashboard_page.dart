@@ -8,11 +8,13 @@ import '../data/models.dart';
 import '../data/repository.dart';
 import 'customer_detail_page.dart';
 import 'design.dart';
+import 'motion_kit.dart';
 import 'forms/sell_subscription_page.dart';
 import 'sms_page.dart';
 import 'widgets/common_charts.dart';
 import 'widgets/quick_buttons.dart';
 import 'widgets/widgets.dart';
+import 'widgets/txn_actions.dart';
 
 import '../core/localization.dart';
 
@@ -63,7 +65,19 @@ class DashboardPage extends StatelessWidget {
       },
     );
 
-    return ListView(
+    return Stack(
+      children: [
+        const Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 240,
+          child: AmbientAurora(),
+        ),
+        RefreshIndicator(
+          onRefresh: () => repo.refreshAll(),
+          color: Theme.of(context).colorScheme.primary,
+          child: ListView(
       controller: controller,
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 100),
       children: [
@@ -161,8 +175,19 @@ class DashboardPage extends StatelessWidget {
           const SizedBox(height: 12),
         ],
 
-        // Monthly summary
-        CardBox(
+        // Monthly summary — the hero card breathes: a very slow drift
+        // between two nearly identical washes keeps the page alive.
+        BreathingGradient(
+          borderRadius: BorderRadius.circular(Radii.card),
+          base: [
+            const Color(0xFF087F78).withValues(alpha: 0.030),
+            const Color(0xFF7C3AED).withValues(alpha: 0.018),
+          ],
+          variant: [
+            const Color(0xFF087F78).withValues(alpha: 0.075),
+            const Color(0xFF7C3AED).withValues(alpha: 0.040),
+          ],
+          child: CardBox(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -252,7 +277,7 @@ class DashboardPage extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Flexible(
-                    child: MoneyText(
+                    child: CopyMoney(value: monthSummary.profit, child: OdometerMoney(
                       monthSummary.profit,
                       compact: compactLayout,
                       maxLines: 1,
@@ -265,12 +290,13 @@ class DashboardPage extends StatelessWidget {
                             ? const Color(0xFF16A34A)
                             : const Color(0xFFE11D48),
                       ),
-                    ),
+                    )),
                   ),
                 ],
               ),
             ],
           ),
+        ),
         ),
         const SizedBox(height: 12),
 
@@ -290,7 +316,7 @@ class DashboardPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  MoneyText(
+                  CopyMoney(value: totals.receivable, child: OdometerMoney(
                     totals.receivable,
                     compact: compactLayout,
                     style: const TextStyle(
@@ -298,7 +324,7 @@ class DashboardPage extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF0F766E),
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 3),
                   Text(
                     '{count} debtors'.trArgs({'count': totals.debtorsCount}),
@@ -323,7 +349,7 @@ class DashboardPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  MoneyText(
+                  CopyMoney(value: totals.payable, child: OdometerMoney(
                     totals.payable,
                     compact: compactLayout,
                     style: const TextStyle(
@@ -331,7 +357,7 @@ class DashboardPage extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF2563EB),
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 3),
                   Text(
                     '{count} creditors'.trArgs({
@@ -361,7 +387,7 @@ class DashboardPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  MoneyText(
+                  CopyMoney(value: repo.cashBalance, child: OdometerMoney(
                     repo.cashBalance,
                     compact: compactLayout,
                     style: const TextStyle(
@@ -369,7 +395,7 @@ class DashboardPage extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF7C3AED),
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 3),
                   Text(
                     'Cash + bank'.tr,
@@ -393,14 +419,14 @@ class DashboardPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  MoneyText(
+                  CopyMoney(value: monthSummary.cashIn, child: OdometerMoney(
                     monthSummary.cashIn,
                     compact: compactLayout,
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 3),
                   Text(
                     'Cash + collections'.tr,
@@ -416,6 +442,7 @@ class DashboardPage extends StatelessWidget {
 
         // Bank SMS (Android only)
         if (repo.smsSupported) ...[
+          const SizedBox(height: 12),
           CardBox(
             onTap: () => Navigator.push(
               context,
@@ -596,7 +623,7 @@ class DashboardPage extends StatelessWidget {
         CollapsibleCard(
           title: 'Last 6 months',
           icon: Icons.bar_chart_rounded,
-          summary: MoneyText(
+          summary: CopyMoney(value: series.fold<double>(0, (sum, p) => sum + p.profit), child: OdometerMoney(
             series.fold<double>(0, (sum, p) => sum + p.profit),
             compact: true,
             signed: true,
@@ -604,7 +631,7 @@ class DashboardPage extends StatelessWidget {
               fontSize: FontSizes.small,
               fontWeight: FontWeight.w700,
             ),
-          ),
+          )),
           bodyPadding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
           child: SizedBox(height: 190, child: MonthlyBarChart(points: series)),
         ),
@@ -638,10 +665,13 @@ class DashboardPage extends StatelessWidget {
             child: Column(
               children: [
                 for (var i = 0; i < recent.length; i++) ...[
-                  TxnTile(
-                    txn: recent[i],
-                    categoryName: repo.categoryName(recent[i].categoryId),
-                    customerName: repo.customerName(recent[i].customerId),
+                  SwipeActions(
+                    actions: txnSwipeActions(context, recent[i], repo),
+                    child: TxnTile(
+                      txn: recent[i],
+                      categoryName: repo.categoryName(recent[i].categoryId),
+                      customerName: repo.customerName(recent[i].customerId),
+                    ),
                   ),
                   if (i != recent.length - 1)
                     Divider(height: 1, color: Theme.of(context).dividerColor),
@@ -649,6 +679,9 @@ class DashboardPage extends StatelessWidget {
               ],
             ),
           ),
+      ],
+    ),
+        ),
       ],
     );
   }
@@ -670,7 +703,7 @@ class DashboardPage extends StatelessWidget {
             const SizedBox(width: 5),
             Expanded(
               child: Text(
-                label,
+                label.tr,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -682,7 +715,7 @@ class DashboardPage extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 6),
-        MoneyText(
+        CopyMoney(value: value, child: OdometerMoney(
           value,
           compact: MediaQuery.sizeOf(context).width < 360,
           style: TextStyle(
@@ -690,7 +723,7 @@ class DashboardPage extends StatelessWidget {
             fontWeight: FontWeight.w700,
             color: color,
           ),
-        ),
+        )),
       ],
     );
   }

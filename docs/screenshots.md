@@ -15,12 +15,12 @@ To add screenshots:
 | `shot-reports.png` | Reports |
 | `shot-statement.png` | PDF statement |
 
-Then uncomment the “Screenshots” section in `README.md`:
+Then add a screenshots row right under the hero block of `README.md`:
 
 ```html
-<p align="center">
+<div align="center">
   <img src="docs/shot-dashboard.png" width="200" />
   <img src="docs/shot-customers.png" width="200" />
   <img src="docs/shot-subscriptions.png" width="200" />
-</p>
+</div>
 ```
