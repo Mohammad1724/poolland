@@ -16,28 +16,5 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - name: flutter analyze (annotated)
-        run: |
-          set +e
-          dart analyze --format=machine lib test > analyze.txt
-          code=$?
-          while IFS='|' read -r sev typ cod file line col len msg; do
-            echo "::error file=${file},line=${line},col=${col}::${sev} ${cod}: ${msg}"
-          done < analyze.txt
-          cat analyze.txt
-          exit $code
-      - name: flutter test
-        if: ${{ !cancelled() }}
-        run: flutter test --concurrency=1
-      - name: failure details (temporary)
-        if: ${{ failure() }}
-        run: |
-          set +e
-          f=test/app_smoke_test.dart
-          flutter test "$f" --reporter expanded --plain-name 'Switching the direction' > det.txt 2>&1
-          code=$?
-          block=$(grep -v 'available)' det.txt | tail -45)
-          block="${block//'%'/'%25'}"
-          block="${block//$'\r'/''}"
-          block="${block//$'\n'/%0A}"
-          echo "::error file=${f},line=1::solo exit ${code}: ${block}"
+      - run: flutter analyze
+      - run: flutter test --concurrency=1
