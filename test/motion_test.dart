@@ -176,12 +176,11 @@ void main() {
     await tester.pumpWidget(
       wrap(const SizedBox(height: 240, width: 400, child: AmbientAurora())),
     );
+    // pumpAndSettle returning means nothing ticks forever: with motion
+    // disabled the aurora freezes on a static frame.
     await tester.pumpAndSettle();
     expect(find.byType(AmbientAurora), findsOneWidget);
-    // No ticking controller: the frame must not change on its own.
-    final before = tester.binding.currentSystemFrameTimeStamp;
-    await tester.pump(const Duration(seconds: 1));
-    expect(tester.binding.currentSystemFrameTimeStamp, isNot(before));
+    expect(find.byType(Icon), findsNWidgets(4)); // the four sparks
   });
 
   testWidgets('SheetHandle stays centered inside stretch columns', (
