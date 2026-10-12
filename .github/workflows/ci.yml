@@ -35,8 +35,9 @@ jobs:
           set +e
           f=test/app_smoke_test.dart
           flutter test "$f" --reporter expanded --plain-name 'Switching the direction' > det.txt 2>&1
-          echo "solo exit: $?" >> det.txt
-          tail -60 det.txt | while IFS= read -r l; do
-            l="${l//'%'/'%25'}"
-            echo "::error file=${f},line=1::${l}"
-          done
+          code=$?
+          block=$(grep -v 'available)' det.txt | tail -45)
+          block="${block//'%'/'%25'}"
+          block="${block//$'\r'/''}"
+          block="${block//$'\n'/%0A}"
+          echo "::error file=${f},line=1::solo exit ${code}: ${block}"
