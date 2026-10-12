@@ -116,7 +116,7 @@ void main() {
       expect(Fmt.date(1404, 12, 13), '۱۴۰۴/۱۲/۱۳');
       expect(Fmt.clock(dt), '۰۵:۰۶');
       expect(Fmt.percent(0.25), '۲۵٪');
-      expect(Fmt.number(1500), '۱,۵۰۰');
+      expect(Fmt.number(1500), '۱٬۵۰۰'); // _localize uses the Arabic thousands separator
 
       // Explicit overrides still win (CSV/export paths stay Latin).
       expect(Fmt.date(1404, 12, 13, persian: false), '1404/12/13');
