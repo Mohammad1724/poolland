@@ -300,16 +300,23 @@ class _CustomersPageState extends State<CustomersPage> {
                         alignment: AlignmentDirectional.centerEnd,
                         borderRadius: BorderRadius.circular(Radii.card),
                       ),
-                      confirmDismiss: (direction) async {
+                      confirmDismiss: (direction) {
                         Haptics.tap();
                         final isReceive =
                             direction == DismissDirection.startToEnd;
-                        await showPaymentSheet(
+                        // Snap the row home first: awaiting the sheet here
+                        // would leave the row slid off-screen behind the
+                        // sheet's translucent barrier the whole time it is
+                        // open.
+                        afterSwipeSnapBack(
                           context,
-                          customer: c,
-                          isReceive: isReceive,
+                          () => showPaymentSheet(
+                            context,
+                            customer: c,
+                            isReceive: isReceive,
+                          ),
                         );
-                        return false;
+                        return Future.value(false);
                       },
                       child: CardBox(
                         padding: const EdgeInsets.symmetric(

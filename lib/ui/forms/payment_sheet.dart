@@ -108,18 +108,20 @@ class _PaymentSheetState extends State<_PaymentSheet> {
         ? 'Saving…'
         : (_receive ? 'Record receipt' : 'Record payment');
 
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
+    // The sheet route keeps the sheet clear of the soft keyboard and measures
+    // its maximum height against what is actually visible, so no `viewInsets`
+    // padding is needed here. What is needed is a scrollable body: on a short
+    // screen the keyboard alone can leave less room than this form takes, and
+    // a fixed column would overflow with the confirm button out of reach.
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-        ),
-        padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
-        child: Form(
-          key: _formKey,
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,

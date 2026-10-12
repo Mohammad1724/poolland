@@ -263,15 +263,17 @@ class _QuickAmountSheetState extends State<QuickAmountSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottom),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-        ),
-        padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
+      // The amount field autofocuses, so this sheet always opens with the
+      // keyboard up: on a short screen the remaining space is tighter than the
+      // form. Scroll instead of overflowing — and scrolling also gives the
+      // sheet the usual pull-down-to-close at its top.
+      child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -304,7 +306,10 @@ class _QuickAmountSheetState extends State<QuickAmountSheet> {
               onPressed: () {
                 final v = parseAmount(_ctrl.text);
                 if (v <= 0) return;
-                Navigator.pop(context, QuickAmountResult(amount: v, date: _date));
+                Navigator.pop(
+                  context,
+                  QuickAmountResult(amount: v, date: _date),
+                );
               },
               child: Text('Record'.tr),
             ),

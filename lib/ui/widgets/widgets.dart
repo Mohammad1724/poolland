@@ -1558,6 +1558,32 @@ class SwipeHint extends StatelessWidget {
   }
 }
 
+/// Runs [action] on the frame after a swipe has been let go, so a swiped row
+/// is already on its way home before anything opens over it.
+///
+/// `Dismissible` slides its row a full row-width off-screen *before* it calls
+/// `confirmDismiss`, and it leaves the row there until that future resolves.
+/// Awaiting a sheet or a page inside the callback therefore parks the row off
+/// screen for the whole time the sheet is open — visible as a coloured gap in
+/// the list through the sheet's translucent barrier. Returning `false`
+/// straight away and opening on the next frame lets the row spring home and
+/// the sheet rise at the same time.
+///
+/// Use it like this:
+///
+/// ```dart
+/// confirmDismiss: (direction) {
+///   afterSwipeSnapBack(context, () => showPaymentSheet(context, ...));
+///   return Future.value(false);
+/// },
+/// ```
+void afterSwipeSnapBack(BuildContext context, Future<void> Function() action) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!context.mounted) return;
+    action();
+  });
+}
+
 /// ---------------- Status dot ----------------
 /// Tiny colored dot for a status that would otherwise need a full chip.
 ///

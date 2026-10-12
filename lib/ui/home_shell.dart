@@ -49,6 +49,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   Offset _dialOrigin = Offset.zero;
   Size _dialSize = Size.zero;
 
+  /// Lets the dial fan out of the button's centre instead of the finger's,
+  /// which on the wide extended FAB can sit ~30 px away from it.
+  final GlobalKey _fabKey = GlobalKey();
+
   /// Tab indexes that have been opened at least once.
   ///
   /// Building all five pages up front made the first frame do the work of
@@ -273,6 +277,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   void _goTo(int i) {
     Haptics.selection();
+    // Never switch tabs from under an open speed dial.
+    _closeDial();
     // Tapping the tab that is already open means "take me back to the top".
     if (i == _index) {
       _scrollToTop(i);
@@ -743,14 +749,21 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     ],
   };
 
+  /// How close the finger has to be to a dial slot to light it up.
+  static const double _dialPickRadius = 58;
+
   void _onFabLongPressStart(LongPressStartDetails d) {
     final items = _dialItemsFor();
     if (items.isEmpty) return;
     final overlay = Overlay.maybeOf(context, rootOverlay: true);
     if (overlay == null) return;
+    // A second long press (a second finger, or one that never released) must
+    // not stack a new entry on top of the open one: `_dialEntry` would be
+    // overwritten and the previous entry could never be removed again.
+    _closeDial();
     Haptics.confirm();
     _dialItems = items;
-    _dialOrigin = d.globalPosition;
+    _dialOrigin = _fabCenter() ?? d.globalPosition;
     _dialSize = MediaQuery.sizeOf(context);
     _dialHighlight.value = -1;
     _dialEntry = OverlayEntry(
@@ -770,14 +783,29 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     overlay.insert(_dialEntry!);
   }
 
+  /// The action button's centre in global coordinates, or null before it has
+  /// been laid out (the caller then falls back to the finger position).
+  Offset? _fabCenter() {
+    final box = _fabKey.currentContext?.findRenderObject();
+    if (box is RenderBox && box.hasSize) {
+      return box.localToGlobal(box.size.center(Offset.zero));
+    }
+    return null;
+  }
+
   void _onFabLongPressMove(LongPressMoveUpdateDetails d) {
     if (_dialEntry == null) return;
+    // The *nearest* slot inside the radius wins. Taking the first match used to
+    // stick on the wrong item once the screen got small enough for two slots to
+    // overlap the radius, because `_dialSlot` clamps them to the screen edges.
     var hit = -1;
+    var best = _dialPickRadius;
     for (var i = 0; i < _dialItems.length; i++) {
       final slot = _dialSlot(i, _dialItems.length, _dialOrigin, _dialSize);
-      if ((slot - d.globalPosition).distance < 58) {
+      final distance = (slot - d.globalPosition).distance;
+      if (distance < best) {
+        best = distance;
         hit = i;
-        break;
       }
     }
     if (hit != _dialHighlight.value) {
@@ -974,13 +1002,20 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                       scale: visible || accessibleNavigation ? 1 : 0.62,
                       duration: Motion.adaptive(context, Motion.quick),
                       curve: Curves.easeOut,
-                      // Long-press fans out the speed dial: drag to an item
-                      // and release to pick it, or tap an item directly.
-                      child: GestureDetector(
-                        onLongPressStart: _onFabLongPressStart,
-                        onLongPressMoveUpdate: _onFabLongPressMove,
-                        onLongPressEnd: _onFabLongPressEnd,
-                        child: _buildFab(),
+                      // Long-press fans out the speed dial: hold, drag to an
+                      // item, release to run it. The dial swallows every other
+                      // touch while it is up (a second finger can tap an item
+                      // or the dim backdrop directly), and the finger that
+                      // opened it is the one that picks.
+                      child: IgnorePointer(
+                        ignoring: !(visible || accessibleNavigation),
+                        child: GestureDetector(
+                          key: _fabKey,
+                          onLongPressStart: _onFabLongPressStart,
+                          onLongPressMoveUpdate: _onFabLongPressMove,
+                          onLongPressEnd: _onFabLongPressEnd,
+                          child: _buildFab(),
+                        ),
                       ),
                     ),
                   );
@@ -1149,12 +1184,29 @@ class _SpeedDialLayerState extends State<_SpeedDialLayer>
   late final AnimationController _fan = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 280),
-  )..forward();
+  );
+  bool _fanStarted = false;
 
   @override
   void dispose() {
     _fan.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Started here rather than in `initState` so the reduced-motion preference
+    // can be read: `MediaQuery` lookups are not allowed before the first
+    // `didChangeDependencies`. Under reduced motion the dial is simply there,
+    // already fanned out, instead of animating for 280 ms.
+    if (_fanStarted) return;
+    _fanStarted = true;
+    if (Motion.reduced(context)) {
+      _fan.value = 1;
+    } else {
+      _fan.forward();
+    }
   }
 
   @override

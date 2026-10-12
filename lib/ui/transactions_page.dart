@@ -428,29 +428,31 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                     color: const Color(0xFF2563EB),
                                     alignment: AlignmentDirectional.centerEnd,
                                   ),
-                                  confirmDismiss: (direction) async {
+                                  confirmDismiss: (direction) {
                                     Haptics.tap();
                                     final txn = entry.value[i];
-                                    if (direction ==
-                                        DismissDirection.startToEnd) {
-                                      await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              TransactionEditPage(existing: txn),
-                                        ),
-                                      );
-                                    } else {
-                                      await Navigator.push(
+                                    final duplicate =
+                                        direction !=
+                                        DismissDirection.startToEnd;
+                                    // Snap the row home before the form opens:
+                                    // awaiting the push inside
+                                    // `confirmDismiss` parks the row a full
+                                    // width off-screen for as long as the form
+                                    // is up, and keeps the Dismissible in its
+                                    // confirming state across a whole page.
+                                    afterSwipeSnapBack(
+                                      context,
+                                      () => Navigator.push(
                                         context,
                                         MaterialPageRoute(
                                           builder: (_) => TransactionEditPage(
-                                            duplicateOf: txn,
+                                            existing: duplicate ? null : txn,
+                                            duplicateOf: duplicate ? txn : null,
                                           ),
                                         ),
-                                      );
-                                    }
-                                    return false;
+                                      ),
+                                    );
+                                    return Future.value(false);
                                   },
                                   child: TxnTile(
                                     txn: entry.value[i],

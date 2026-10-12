@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/localization.dart';
 import '../data/repository.dart';
 import 'design.dart';
+import 'motion_kit.dart';
 import 'widgets/widgets.dart';
 
 /// Discoverability for the app's gestures.
@@ -31,13 +32,13 @@ Future<void> maybeShowGestureTour(BuildContext context) async {
 }
 
 /// Opens the gesture tour sheet right now (Settings → Gesture guide).
-Future<void> showGestureTour(BuildContext context) => showModalBottomSheet(
+///
+/// Goes through [showLedgerSheet] like every other sheet, so the sheet that
+/// teaches "drag any sheet down to close it" can itself be dragged down to
+/// close — and picks up the same keyboard/safe-area handling instead of
+/// padding for the soft keyboard on its own.
+Future<void> showGestureTour(BuildContext context) => showLedgerSheet<void>(
   context: context,
-  isScrollControlled: true,
-  backgroundColor: Theme.of(context).colorScheme.surface,
-  shape: const RoundedRectangleBorder(
-    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-  ),
   builder: (ctx) => const _TourSheet(),
 );
 
@@ -47,16 +48,22 @@ class _TourSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.68,
-        maxChildSize: 0.9,
-        minChildSize: 0.4,
-        builder: (ctx, controller) => Column(
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.68,
+      maxChildSize: 0.9,
+      minChildSize: 0.4,
+      builder: (ctx, controller) => Container(
+        // `showLedgerSheet` hands the sheet a transparent `Material`: the
+        // surface and the rounded top edge belong to the sheet itself, exactly
+        // as in every other ledger sheet.
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(Radii.sheet),
+          ),
+        ),
+        child: Column(
           children: [
             const SizedBox(height: 12),
             const SheetHandle(),

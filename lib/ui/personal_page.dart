@@ -801,83 +801,78 @@ class _BudgetSheetState extends State<_BudgetSheet> {
     final cats = repo.categories
         .where((c) => c.kind == TxnKind.expense && c.scope == TxnScope.personal)
         .toList();
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottom),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-        ),
-        padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SheetHandle(),
-              const SizedBox(height: 16),
-              Text(
-                (widget.initial == null ? 'New budget' : 'Edit budget').tr,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SheetHandle(),
+            const SizedBox(height: 16),
+            Text(
+              (widget.initial == null ? 'New budget' : 'Edit budget').tr,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
               ),
-              const SizedBox(height: 14),
-              SelectField<Category>(
-                label: 'Category'.tr,
-                value: cats.where((c) => c.id == _categoryId).firstOrNull,
-                items: cats,
-                labelOf: (c) => c.name.tr,
-                onChanged: (c) => setState(() => _categoryId = c?.id),
+            ),
+            const SizedBox(height: 14),
+            SelectField<Category>(
+              label: 'Category'.tr,
+              value: cats.where((c) => c.id == _categoryId).firstOrNull,
+              items: cats,
+              labelOf: (c) => c.name.tr,
+              onChanged: (c) => setState(() => _categoryId = c?.id),
+            ),
+            const SizedBox(height: 12),
+            AmountField(controller: _limit, label: 'Monthly limit'.tr),
+            const SizedBox(height: 8),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: Text('Active'.tr, style: const TextStyle(fontSize: 13)),
+              subtitle: Text(
+                'Disabled budgets are hidden from the list'.tr,
+                style: const TextStyle(fontSize: 11.5),
               ),
-              const SizedBox(height: 12),
-              AmountField(controller: _limit, label: 'Monthly limit'.tr),
-              const SizedBox(height: 8),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: Text('Active'.tr, style: const TextStyle(fontSize: 13)),
-                subtitle: Text(
-                  'Disabled budgets are hidden from the list'.tr,
-                  style: const TextStyle(fontSize: 11.5),
-                ),
-                value: _enabled,
-                onChanged: (v) => setState(() => _enabled = v),
-              ),
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: () async {
-                  final limit = parseAmount(_limit.text);
-                  if (_categoryId == null || limit <= 0) return;
-                  final repo = context.read<AppRepository>();
-                  // Editing keeps the stored id and scope instead of
-                  // rebuilding the budget from scratch.
-                  final initial = widget.initial;
-                  final b = initial == null
-                      ? Budget(
-                          id: LocalStore.newId(),
-                          categoryId: _categoryId!,
-                          limit: limit,
-                          enabled: _enabled,
-                        )
-                      : initial.copyWith(
-                          categoryId: _categoryId!,
-                          limit: limit,
-                          enabled: _enabled,
-                        );
-                  if (initial == null) {
-                    await repo.addBudget(b);
-                  } else {
-                    await repo.updateBudget(b);
-                  }
-                  if (context.mounted) Navigator.pop(context);
-                },
-                child: Text('Save'.tr),
-              ),
-            ],
-          ),
+              value: _enabled,
+              onChanged: (v) => setState(() => _enabled = v),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () async {
+                final limit = parseAmount(_limit.text);
+                if (_categoryId == null || limit <= 0) return;
+                final repo = context.read<AppRepository>();
+                // Editing keeps the stored id and scope instead of
+                // rebuilding the budget from scratch.
+                final initial = widget.initial;
+                final b = initial == null
+                    ? Budget(
+                        id: LocalStore.newId(),
+                        categoryId: _categoryId!,
+                        limit: limit,
+                        enabled: _enabled,
+                      )
+                    : initial.copyWith(
+                        categoryId: _categoryId!,
+                        limit: limit,
+                        enabled: _enabled,
+                      );
+                if (initial == null) {
+                  await repo.addBudget(b);
+                } else {
+                  await repo.updateBudget(b);
+                }
+                if (context.mounted) Navigator.pop(context);
+              },
+              child: Text('Save'.tr),
+            ),
+          ],
         ),
       ),
     );
@@ -938,176 +933,171 @@ class _RecurringSheetState extends State<_RecurringSheet> {
                   (_kind == TxnKind.income ? TxnKind.income : TxnKind.expense),
         )
         .toList();
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottom),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-        ),
-        padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SheetHandle(),
-              const SizedBox(height: 16),
-              Text(
-                (widget.initial == null ? 'New rule' : 'Edit rule').tr,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SheetHandle(),
+            const SizedBox(height: 16),
+            Text(
+              (widget.initial == null ? 'New rule' : 'Edit rule').tr,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 14),
+            AppTextField(
+              controller: _title,
+              label: 'Title'.tr,
+              hint: 'e.g. Home rent'.tr,
+              icon: Icons.title_rounded,
+            ),
+            const SizedBox(height: 12),
+            AmountField(controller: _amount),
+            const SizedBox(height: 12),
+            SegmentedButton<TxnKind>(
+              segments: [
+                ButtonSegment(
+                  value: TxnKind.expense,
+                  label: Text('Expense'.tr),
                 ),
-              ),
-              const SizedBox(height: 14),
-              AppTextField(
-                controller: _title,
-                label: 'Title'.tr,
-                hint: 'e.g. Home rent'.tr,
-                icon: Icons.title_rounded,
-              ),
-              const SizedBox(height: 12),
-              AmountField(controller: _amount),
-              const SizedBox(height: 12),
-              SegmentedButton<TxnKind>(
-                segments: [
-                  ButtonSegment(
-                    value: TxnKind.expense,
-                    label: Text('Expense'.tr),
-                  ),
-                  ButtonSegment(
-                    value: TxnKind.income,
-                    label: Text('Income'.tr),
-                  ),
-                ],
-                selected: {_kind},
-                // Flipping the direction must not keep a category of the
-                // other direction on the saved rule.
-                onSelectionChanged: (s) => setState(() {
-                  _kind = s.first == TxnKind.income
-                      ? TxnKind.income
-                      : TxnKind.expense;
-                  final list = repo.categories
-                      .where(
-                        (c) =>
-                            c.scope == TxnScope.personal &&
-                            c.kind ==
-                                (_kind == TxnKind.income
-                                    ? TxnKind.income
-                                    : TxnKind.expense),
-                      )
-                      .toList();
-                  if (_categoryId != null &&
-                      !list.any((c) => c.id == _categoryId)) {
-                    _categoryId = null;
-                  }
-                }),
-              ),
-              const SizedBox(height: 12),
-              SelectField<Category>(
-                label: 'Category'.tr,
-                value: cats.where((c) => c.id == _categoryId).firstOrNull,
-                items: cats,
-                labelOf: (c) => c.name,
-                clearable: true,
-                onChanged: (c) => setState(() => _categoryId = c?.id),
-              ),
-              const SizedBox(height: 12),
-              SelectField<RecurringPeriod>(
-                label: 'Repeat interval'.tr,
-                value: _period,
-                items: RecurringPeriod.values,
-                labelOf: (p) => p.label,
-                onChanged: (p) => setState(() => _period = p ?? _period),
-              ),
-              if (_period == RecurringPeriod.monthly) ...[
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Text('Day of month:'.tr, style: TextStyle(fontSize: 12.5)),
-                    const SizedBox(width: 10),
-                    DropdownButton<int>(
-                      value: _dayOfMonth,
-                      items: [
-                        for (var d = 1; d <= 31; d++)
-                          DropdownMenuItem(value: d, child: Text('$d')),
-                      ],
-                      onChanged: (v) => setState(() => _dayOfMonth = v ?? 1),
-                    ),
-                  ],
+                ButtonSegment(
+                  value: TxnKind.income,
+                  label: Text('Income'.tr),
                 ),
               ],
-              const SizedBox(height: 12),
-              JalaliDateField(
-                label: 'Start'.tr,
-                value: _start,
-                onChanged: (d) => setState(() => _start = d),
-              ),
+              selected: {_kind},
+              // Flipping the direction must not keep a category of the
+              // other direction on the saved rule.
+              onSelectionChanged: (s) => setState(() {
+                _kind = s.first == TxnKind.income
+                    ? TxnKind.income
+                    : TxnKind.expense;
+                final list = repo.categories
+                    .where(
+                      (c) =>
+                          c.scope == TxnScope.personal &&
+                          c.kind ==
+                              (_kind == TxnKind.income
+                                  ? TxnKind.income
+                                  : TxnKind.expense),
+                    )
+                    .toList();
+                if (_categoryId != null &&
+                    !list.any((c) => c.id == _categoryId)) {
+                  _categoryId = null;
+                }
+              }),
+            ),
+            const SizedBox(height: 12),
+            SelectField<Category>(
+              label: 'Category'.tr,
+              value: cats.where((c) => c.id == _categoryId).firstOrNull,
+              items: cats,
+              labelOf: (c) => c.name,
+              clearable: true,
+              onChanged: (c) => setState(() => _categoryId = c?.id),
+            ),
+            const SizedBox(height: 12),
+            SelectField<RecurringPeriod>(
+              label: 'Repeat interval'.tr,
+              value: _period,
+              items: RecurringPeriod.values,
+              labelOf: (p) => p.label,
+              onChanged: (p) => setState(() => _period = p ?? _period),
+            ),
+            if (_period == RecurringPeriod.monthly) ...[
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Expanded(
-                    child: Text(
-                      _end == null
-                          ? 'End: Never'.tr
-                          : 'End: {date}'.trArgs({'date': J.d(_end!)}),
-                      style: const TextStyle(fontSize: 12.5),
-                    ),
+                  Text('Day of month:'.tr, style: TextStyle(fontSize: 12.5)),
+                  const SizedBox(width: 10),
+                  DropdownButton<int>(
+                    value: _dayOfMonth,
+                    items: [
+                      for (var d = 1; d <= 31; d++)
+                        DropdownMenuItem(value: d, child: Text('$d')),
+                    ],
+                    onChanged: (v) => setState(() => _dayOfMonth = v ?? 1),
                   ),
-                  if (_end != null)
-                    TextButton(
-                      onPressed: () => setState(() => _end = null),
-                      child: Text('Never'.tr),
-                    ),
                 ],
               ),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: Text('Active'.tr, style: TextStyle(fontSize: 13)),
-                value: _enabled,
-                onChanged: (v) => setState(() => _enabled = v),
-              ),
-              const SizedBox(height: 10),
-              FilledButton(
-                onPressed: () async {
-                  final amount = parseAmount(_amount.text);
-                  if (_title.text.trim().isEmpty || amount <= 0) return;
-                  final repo = context.read<AppRepository>();
-                  // Fields this sheet does not edit (scope, currency, customer,
-                  // note) are carried over from the stored rule instead of
-                  // silently reset to their defaults.
-                  final initial = widget.initial;
-                  final r = RecurringRule(
-                    id: initial?.id ?? LocalStore.newId(),
-                    title: _title.text.trim(),
-                    kind: _kind,
-                    amount: amount,
-                    scope: initial?.scope ?? TxnScope.personal,
-                    currency: initial?.currency ?? 'IRT',
-                    customerId: initial?.customerId,
-                    note: initial?.note ?? '',
-                    categoryId: _categoryId,
-                    period: _period,
-                    dayOfMonth: _dayOfMonth,
-                    startDate: _start,
-                    endDate: _end,
-                    enabled: _enabled,
-                    lastPosted: initial?.lastPosted,
-                  );
-                  if (initial == null) {
-                    await repo.addRecurring(r);
-                  } else {
-                    await repo.updateRecurring(r);
-                  }
-                  if (context.mounted) Navigator.pop(context);
-                },
-                child: Text('Save'.tr),
-              ),
             ],
-          ),
+            const SizedBox(height: 12),
+            JalaliDateField(
+              label: 'Start'.tr,
+              value: _start,
+              onChanged: (d) => setState(() => _start = d),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _end == null
+                        ? 'End: Never'.tr
+                        : 'End: {date}'.trArgs({'date': J.d(_end!)}),
+                    style: const TextStyle(fontSize: 12.5),
+                  ),
+                ),
+                if (_end != null)
+                  TextButton(
+                    onPressed: () => setState(() => _end = null),
+                    child: Text('Never'.tr),
+                  ),
+              ],
+            ),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: Text('Active'.tr, style: TextStyle(fontSize: 13)),
+              value: _enabled,
+              onChanged: (v) => setState(() => _enabled = v),
+            ),
+            const SizedBox(height: 10),
+            FilledButton(
+              onPressed: () async {
+                final amount = parseAmount(_amount.text);
+                if (_title.text.trim().isEmpty || amount <= 0) return;
+                final repo = context.read<AppRepository>();
+                // Fields this sheet does not edit (scope, currency, customer,
+                // note) are carried over from the stored rule instead of
+                // silently reset to their defaults.
+                final initial = widget.initial;
+                final r = RecurringRule(
+                  id: initial?.id ?? LocalStore.newId(),
+                  title: _title.text.trim(),
+                  kind: _kind,
+                  amount: amount,
+                  scope: initial?.scope ?? TxnScope.personal,
+                  currency: initial?.currency ?? 'IRT',
+                  customerId: initial?.customerId,
+                  note: initial?.note ?? '',
+                  categoryId: _categoryId,
+                  period: _period,
+                  dayOfMonth: _dayOfMonth,
+                  startDate: _start,
+                  endDate: _end,
+                  enabled: _enabled,
+                  lastPosted: initial?.lastPosted,
+                );
+                if (initial == null) {
+                  await repo.addRecurring(r);
+                } else {
+                  await repo.updateRecurring(r);
+                }
+                if (context.mounted) Navigator.pop(context);
+              },
+              child: Text('Save'.tr),
+            ),
+          ],
         ),
       ),
     );
@@ -1316,12 +1306,10 @@ class _QuickEditPageState extends State<_QuickEditPage> {
         .toList();
 
     final body = ListView(
-      padding: EdgeInsets.fromLTRB(
-        18,
-        widget.asSheet ? 12 : 12,
-        18,
-        24 + MediaQuery.of(context).viewInsets.bottom,
-      ),
+      // No keyboard inset here: as a sheet the ledger-sheet route already
+      // keeps the whole sheet clear of the soft keyboard, and as a full page
+      // the Scaffold's resize-to-avoid-bottom-inset does the same job.
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
       children: [
         AppTextField(
           controller: _label,

@@ -244,6 +244,195 @@ void main() {
     expect(find.text('sheet body'), findsOneWidget);
   });
 
+  /// A bottom-aligned ledger sheet holding one 30-row list.
+  Widget sheetHost({
+    Widget Function(BuildContext ctx)? sheet,
+    bool isDismissible = true,
+  }) => wrap(
+    Builder(
+      builder: (c) => FilledButton(
+        onPressed: () => showLedgerSheet<void>(
+          c,
+          isDismissible: isDismissible,
+          builder:
+              sheet ??
+              (ctx) => SizedBox(
+                height: 300,
+                child: ListView(
+                  children: [
+                    for (var i = 0; i < 30; i++)
+                      SizedBox(height: 40, child: Text('row $i')),
+                  ],
+                ),
+              ),
+        ),
+        child: const Text('go'),
+      ),
+    ),
+  );
+
+  testWidgets('ledger sheet closes on a pull-down under bouncing physics', (
+    tester,
+  ) async {
+    // iOS, macOS and Safari-iOS scroll with bouncing physics, where the offset
+    // itself travels past the top instead of reporting an overscroll. Reading
+    // only `OverscrollNotification` left such a sheet impossible to pull shut.
+    await tester.pumpWidget(
+      sheetHost(
+        sheet: (ctx) => SizedBox(
+          height: 300,
+          child: ListView(
+            physics: const BouncingScrollPhysics(),
+            children: [
+              for (var i = 0; i < 30; i++)
+                SizedBox(height: 40, child: Text('row $i')),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(find.text('row 0'), findsOneWidget);
+    await tester.drag(find.byType(ListView), const Offset(0, 260));
+    await tester.pumpAndSettle();
+    expect(find.text('row 0'), findsNothing);
+  });
+
+  testWidgets('ledger sheet survives a pull below the dismiss threshold', (
+    tester,
+  ) async {
+    // A graze at the top of a list is not an intent to close: the sheet has to
+    // visibly leave its resting place, and it has to come back when let go.
+    await tester.pumpWidget(sheetHost());
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    final before = tester.getTopLeft(find.text('row 0'));
+    await tester.drag(find.byType(ListView), const Offset(0, 60));
+    await tester.pumpAndSettle();
+    expect(find.text('row 0'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('row 0')), before);
+  });
+
+  testWidgets('a nested list at its own top leaves the sheet open', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      sheetHost(
+        sheet: (ctx) => SizedBox(
+          height: 400,
+          child: ListView(
+            children: [
+              const SizedBox(
+                height: 60,
+                child: Center(child: Text('outer head')),
+              ),
+              SizedBox(
+                height: 200,
+                child: ListView(
+                  children: [
+                    for (var i = 0; i < 20; i++)
+                      SizedBox(height: 40, child: Text('inner $i')),
+                  ],
+                ),
+              ),
+              for (var i = 0; i < 20; i++)
+                SizedBox(height: 40, child: Text('outer $i')),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(find.text('inner 0'), findsOneWidget);
+    // The inner list overscrolls at its own top, which is a depth-1 scrollable:
+    // it says nothing about whether the sheet should go.
+    await tester.drag(find.text('inner 0'), const Offset(0, 260));
+    await tester.pumpAndSettle();
+    expect(find.text('outer head'), findsOneWidget);
+  });
+
+  testWidgets('a vetoed drag puts the sheet back where it was', (tester) async {
+    await tester.pumpWidget(
+      sheetHost(
+        sheet: (ctx) => PopScope(
+          canPop: false,
+          child: SizedBox(
+            height: 300,
+            child: ListView(
+              children: [
+                for (var i = 0; i < 30; i++)
+                  SizedBox(height: 40, child: Text('row $i')),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    final before = tester.getTopLeft(find.text('row 0'));
+    await tester.drag(find.byType(ListView), const Offset(0, 260));
+    await tester.pumpAndSettle();
+    // The `PopScope` refused the close, so the sheet must not stay translated:
+    // a sheet hanging halfway down has no gesture left to bring it back.
+    expect(find.text('row 0'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('row 0')), before);
+  });
+
+  testWidgets('a non-dismissible sheet ignores drag and barrier', (
+    tester,
+  ) async {
+    await tester.pumpWidget(sheetHost(isDismissible: false));
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    final before = tester.getTopLeft(find.text('row 0'));
+    await tester.drag(find.byType(ListView), const Offset(0, 260));
+    await tester.pumpAndSettle();
+    expect(find.text('row 0'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('row 0')), before);
+    // Above the sheet: the barrier.
+    await tester.tapAt(const Offset(400, 40));
+    await tester.pumpAndSettle();
+    expect(find.text('row 0'), findsOneWidget);
+  });
+
+  testWidgets('a draggable sheet closes at its minimum extent', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      sheetHost(
+        sheet: (ctx) => DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.6,
+          maxChildSize: 0.9,
+          minChildSize: 0.3,
+          builder: (ctx, controller) => Container(
+            color: const Color(0xFFEEEEEE),
+            child: ListView(
+              controller: controller,
+              children: [
+                for (var i = 0; i < 30; i++)
+                  SizedBox(height: 40, child: Text('row $i')),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(find.text('row 0'), findsOneWidget);
+    // Dragging the list down shrinks the sheet rather than scrolling it. The
+    // framework's own bottom sheet closes there, through
+    // `BottomSheet.onClosing`; a plain dialog route has to listen for the same
+    // notification itself.
+    await tester.drag(find.byType(ListView), const Offset(0, 300));
+    await tester.pumpAndSettle();
+    expect(find.text('row 0'), findsNothing);
+  });
+
   testWidgets('AmbientAurora renders a frozen layer without motion', (
     tester,
   ) async {

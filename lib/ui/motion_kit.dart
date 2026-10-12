@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart' show VelocityTracker;
 import 'package:flutter/material.dart';
 
 import '../core/haptics.dart';
@@ -36,36 +37,72 @@ class LedgerPageTransitionsBuilder extends PageTransitionsBuilder {
     Widget child,
   ) {
     final ctx = context;
-    final plain =
-        ctx == null ||
-        !Motion.motionEnabled ||
-        (MediaQuery.maybeOf(ctx)?.disableAnimations ?? false);
-    if (plain) {
+    if (ctx == null || !Motion.motionEnabled || Motion.reduced(ctx)) {
       return FadeTransition(opacity: animation, child: child);
     }
-    final rtl = Directionality.of(ctx) == TextDirection.rtl;
-    final enter = CurvedAnimation(
-      parent: animation,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
+    // The curved animations live in a State: `buildTransitions` runs on every
+    // frame of the transition, and a `CurvedAnimation` registers a status
+    // listener on its parent in its constructor. Building one per frame leaked
+    // a listener per frame for as long as the route stayed in the stack.
+    return _LedgerPageTurn(
+      animation: animation,
+      secondaryAnimation: secondaryAnimation,
+      child: child,
     );
+  }
+}
+
+/// The "turning a ledger page" transform, owning its curved animations.
+class _LedgerPageTurn extends StatefulWidget {
+  const _LedgerPageTurn({
+    required this.animation,
+    required this.secondaryAnimation,
+    required this.child,
+  });
+
+  final Animation<double> animation;
+  final Animation<double> secondaryAnimation;
+  final Widget child;
+
+  @override
+  State<_LedgerPageTurn> createState() => _LedgerPageTurnState();
+}
+
+class _LedgerPageTurnState extends State<_LedgerPageTurn> {
+  late final CurvedAnimation _enter = CurvedAnimation(
+    parent: widget.animation,
+    curve: Curves.easeOutCubic,
+    reverseCurve: Curves.easeInCubic,
+  );
+
+  /// Both animations, merged once so the [AnimatedBuilder] below keeps the
+  /// same [Listenable] across rebuilds.
+  late final Listenable _listenable = Listenable.merge([
+    _enter,
+    widget.secondaryAnimation,
+  ]);
+
+  @override
+  void dispose() {
+    _enter.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rtl = Directionality.of(context) == TextDirection.rtl;
     return AnimatedBuilder(
-      animation: Listenable.merge([enter, secondaryAnimation]),
+      animation: _listenable,
       builder: (context, inner) {
-        final t = enter.value;
-        final s = Curves.easeOutCubic.transform(secondaryAnimation.value);
-        final back = Matrix4.diagonal3Values(
-          1 - 0.03 * s,
-          1 - 0.03 * s,
-          1,
+        final t = _enter.value;
+        final s = Curves.easeOutCubic.transform(
+          widget.secondaryAnimation.value,
         );
-        final turn = Matrix4.diagonal3Values(
-          0.95 + 0.05 * t,
-          0.95 + 0.05 * t,
-          1,
-        )
-          ..setEntry(3, 2, 0.0012)
-          ..rotateY((rtl ? -1 : 1) * (1 - t) * 0.10);
+        final back = Matrix4.diagonal3Values(1 - 0.03 * s, 1 - 0.03 * s, 1);
+        final turn =
+            Matrix4.diagonal3Values(0.95 + 0.05 * t, 0.95 + 0.05 * t, 1)
+              ..setEntry(3, 2, 0.0012)
+              ..rotateY((rtl ? -1 : 1) * (1 - t) * 0.10);
         return Transform(
           alignment: Alignment.center,
           transform: back,
@@ -79,7 +116,7 @@ class LedgerPageTransitionsBuilder extends PageTransitionsBuilder {
           ),
         );
       },
-      child: child,
+      child: widget.child,
     );
   }
 }
@@ -90,6 +127,22 @@ class LedgerPageTransitionsBuilder extends PageTransitionsBuilder {
 /// motion: the sheet rises like a printed receipt while its top edge tilts
 /// back a few degrees and settles flat. On dismiss the same animation plays
 /// in reverse — the receipt folds back down.
+///
+/// Every way out of a sheet works the same everywhere in the app:
+///  * drag the grab strip at the top edge down ([_SheetDismiss]),
+///  * keep pulling down once the sheet's own list is already at its top
+///    ([_SheetPullDismiss]), on both clamping and bouncing scroll physics,
+///  * drag a [DraggableScrollableSheet] down to its minimum size,
+///  * tap the barrier, or press back.
+///
+/// The route also keeps the sheet clear of the soft keyboard and of the
+/// system navigation area, and measures its maximum height against what is
+/// actually visible, so a tall form plus a keyboard can never overflow.
+/// Sheets therefore must not add their own `viewInsets` padding.
+///
+/// [isDismissible] turns off *all* of the ways out above, not just the
+/// barrier: a sheet that must be answered cannot be dragged or back-pressed
+/// away either.
 Future<T?> showLedgerSheet<T>(
   BuildContext context, {
   required WidgetBuilder builder,
@@ -104,53 +157,135 @@ Future<T?> showLedgerSheet<T>(
     barrierColor: Colors.black54,
     transitionDuration: const Duration(milliseconds: 300),
     routeSettings: const RouteSettings(name: 'ledger-sheet'),
-    pageBuilder: (ctx, _, _) => Align(
-      alignment: Alignment.bottomCenter,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(ctx).height * 0.92,
+    pageBuilder: (ctx, _, _) =>
+        _LedgerSheetFrame(dismissible: isDismissible, builder: builder),
+    transitionBuilder: (ctx, anim, _, child) =>
+        _LedgerSheetTransition(animation: anim, child: child),
+  );
+}
+
+/// Lays a ledger sheet out inside its dialog route.
+///
+/// Split out of [showLedgerSheet] because `pageBuilder` is only called once
+/// per route while this needs to rebuild whenever the keyboard or the safe
+/// area changes.
+class _LedgerSheetFrame extends StatelessWidget {
+  const _LedgerSheetFrame({required this.dismissible, required this.builder});
+
+  final bool dismissible;
+  final WidgetBuilder builder;
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    // `viewPadding` does not shrink when the keyboard opens and `padding`
+    // does, so the maximum of the two is the space the sheet must stay clear
+    // of in both states.
+    final bottom = math.max(mq.viewInsets.bottom, mq.viewPadding.bottom);
+    final visible = math.max(0.0, mq.size.height - bottom);
+
+    Widget sheet = _SheetDismiss(
+      enabled: dismissible,
+      child: Material(
+        color: Colors.transparent,
+        child: _SheetPullDismiss(
+          enabled: dismissible,
+          child: Builder(builder: builder),
         ),
-        child: _SheetDragDismiss(
-          child: Material(
-            color: Colors.transparent,
-            // A sheet whose list is at the top closes on a further
-            // pull-down, the way people expect any bottom sheet to
-            // behave — no back button needed.
-            child: _OverscrollDismiss(child: builder(ctx)),
+      ),
+    );
+
+    // A sheet built on `DraggableScrollableSheet` closes when it is dragged
+    // down to its minimum size — what the framework's own `BottomSheet`
+    // does. This is a plain dialog route, so without this listener such a
+    // sheet would just park at its minimum and refuse to leave.
+    sheet = NotificationListener<DraggableScrollableNotification>(
+      onNotification: (n) {
+        if (!dismissible) return false;
+        if (!n.shouldCloseOnMinExtent || n.extent > n.minExtent) return false;
+        Navigator.maybePop(context);
+        return true;
+      },
+      child: sheet,
+    );
+
+    if (!dismissible) {
+      sheet = PopScope<Object?>(canPop: false, child: sheet);
+    }
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottom),
+      child: MediaQuery.removePadding(
+        context: context,
+        // The route just paid for the bottom inset; a `SafeArea` inside a
+        // sheet must not add the same space a second time.
+        removeBottom: true,
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: visible * 0.92),
+            child: sheet,
           ),
         ),
       ),
-    ),
-    transitionBuilder: (ctx, anim, _, child) {
-      if (!Motion.motionEnabled ||
-          (MediaQuery.maybeOf(ctx)?.disableAnimations ?? false)) {
-        return FadeTransition(opacity: anim, child: child);
-      }
-      final slide = CurvedAnimation(
-        parent: anim,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      );
-      final settle = CurvedAnimation(parent: anim, curve: Curves.easeOutQuint);
-      return AnimatedBuilder(
-        animation: anim,
-        builder: (ctx, inner) {
-          final tilt = Matrix4.identity()
-            ..setEntry(3, 2, 0.001)
-            ..rotateX((1 - settle.value) * 0.09);
-          return FractionalTranslation(
-            translation: Offset(0, 1 - slide.value),
-            child: Transform(
-              alignment: Alignment.bottomCenter,
-              transform: tilt,
-              child: inner,
-            ),
-          );
-        },
-        child: child,
-      );
-    },
+    );
+  }
+}
+
+/// The receipt rise-and-settle of a ledger sheet, owning its curved
+/// animations (see [_LedgerPageTurn] for why they must not be rebuilt).
+class _LedgerSheetTransition extends StatefulWidget {
+  const _LedgerSheetTransition({required this.animation, this.child});
+
+  final Animation<double> animation;
+  final Widget? child;
+
+  @override
+  State<_LedgerSheetTransition> createState() => _LedgerSheetTransitionState();
+}
+
+class _LedgerSheetTransitionState extends State<_LedgerSheetTransition> {
+  late final CurvedAnimation _slide = CurvedAnimation(
+    parent: widget.animation,
+    curve: Curves.easeOutCubic,
+    reverseCurve: Curves.easeInCubic,
   );
+  late final CurvedAnimation _settle = CurvedAnimation(
+    parent: widget.animation,
+    curve: Curves.easeOutQuint,
+  );
+
+  @override
+  void dispose() {
+    _slide.dispose();
+    _settle.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Motion.motionEnabled || Motion.reduced(context)) {
+      return FadeTransition(opacity: widget.animation, child: widget.child);
+    }
+    return AnimatedBuilder(
+      animation: widget.animation,
+      builder: (ctx, inner) {
+        final tilt =
+            Matrix4.identity()
+              ..setEntry(3, 2, 0.001)
+              ..rotateX((1 - _settle.value) * 0.09);
+        return FractionalTranslation(
+          translation: Offset(0, 1 - _slide.value),
+          child: Transform(
+            alignment: Alignment.bottomCenter,
+            transform: tilt,
+            child: inner,
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
 }
 
 /// Odometer money: amounts roll digit-by-digit to their new value.
@@ -796,23 +931,86 @@ class _CoinFacePainter extends CustomPainter {
 
 /// Drag-to-dismiss for ledger sheets.
 ///
-/// A translucent strip along the top edge (where every sheet has its grab
-/// handle) follows the finger down, tilting the sheet like soft paper. Past a
-/// threshold — or on a fling — the sheet pops; otherwise it springs back.
-/// Taps still fall through to the content underneath.
-class _SheetDragDismiss extends StatefulWidget {
-  const _SheetDragDismiss({required this.child});
+/// Two paths feed the same pull:
+///  * a translucent strip along the top edge, where every sheet has its grab
+///    handle, and
+///  * the sheet's own scrollable reporting that it was pulled past its top
+///    ([_SheetPullDismiss]).
+///
+/// Whichever one is in use, the sheet follows the finger down and tilts like
+/// soft paper. Past [_dismissPull], or on a downward fling, the route pops;
+/// otherwise the sheet springs back. Taps still fall through to the content
+/// underneath, and a route that refuses to pop is put back rather than left
+/// hanging off the bottom of the screen.
+class _SheetDismiss extends StatefulWidget {
+  const _SheetDismiss({required this.enabled, required this.child});
+
+  /// False for sheets opened with `isDismissible: false`: such a sheet has no
+  /// gesture-driven way out at all.
+  final bool enabled;
 
   final Widget child;
 
   @override
-  State<_SheetDragDismiss> createState() => _SheetDragDismissState();
+  State<_SheetDismiss> createState() => _SheetDismissState();
 }
 
-class _SheetDragDismissState extends State<_SheetDragDismiss>
+/// Hands [_SheetDismissState] to the pull detector living inside the sheet.
+class _SheetDismissScope extends InheritedWidget {
+  const _SheetDismissScope({required this.controller, required super.child});
+
+  final _SheetDismissState controller;
+
+  static _SheetDismissState? maybeOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<_SheetDismissScope>()
+          ?.controller;
+
+  @override
+  bool updateShouldNotify(_SheetDismissScope old) =>
+      controller != old.controller;
+}
+
+class _SheetDismissState extends State<_SheetDismiss>
     with SingleTickerProviderStateMixin {
-  double _dy = 0;
+  /// Height of the grab strip along the top edge of the sheet.
+  static const double _grabHeight = 34;
+
+  /// How far the sheet must be pulled down before letting go dismisses it.
+  ///
+  /// Deliberately more than a touch slop: the sheet has to visibly leave its
+  /// resting place, so grazing the top of a list cannot close it while a
+  /// deliberate pull always does.
+  static const double _dismissPull = 110;
+
+  /// A downward fling dismisses from here, without needing the full pull.
+  static const double _flingVelocity = 900;
+
+  /// A fling only counts once the sheet has actually started to move, so a
+  /// fast tap can never be mistaken for one.
+  static const double _minFlingPull = 8;
+
+  /// Fallback for [_maxPull] before the sheet has been laid out once.
+  static const double _fallbackMaxPull = 480;
+
+  double _pull = 0;
   double _springFrom = 0;
+  bool _ticked = false;
+  bool _decided = false;
+  bool _closing = false;
+
+  /// True only while a pointer that went down on this sheet is still down.
+  ///
+  /// Pull input is gated on it: a mouse wheel, or the ballistic tail of a
+  /// fling that has already been released, can report overscroll too, and
+  /// neither has a pointer-up that would ever put the sheet back.
+  bool _pointerDown = false;
+  VelocityTracker? _tracker;
+
+  /// Cached in [build]: the gesture handlers run outside the build phase and
+  /// must not register a `MediaQuery` dependency from there.
+  bool _animated = true;
+
   late final AnimationController _spring = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 220),
@@ -824,67 +1022,183 @@ class _SheetDragDismissState extends State<_SheetDragDismiss>
     super.dispose();
   }
 
-  double get _current {
-    if (!_spring.isAnimating) return _dy;
+  /// The sheet's own height: as far as it can usefully be pulled.
+  double get _maxPull {
+    final h = context.size?.height ?? 0;
+    return h > 0 ? h : _fallbackMaxPull;
+  }
+
+  /// Where the sheet is right now — the live pull while a finger is on it,
+  /// the spring's value while it settles back.
+  double get pull {
+    if (!_spring.isAnimating) return _pull;
     return _springFrom * (1 - Curves.easeOutCubic.transform(_spring.value));
   }
 
-  void _onUpdate(DragUpdateDetails d) {
+  // ---------------- pull input ----------------
+
+  /// Grows the pull by [delta]. Clamping scroll physics pin the offset at the
+  /// top and report every extra pixel as overscroll, so the pull accumulates.
+  void addPull(double delta) {
+    if (!widget.enabled || _closing || _decided || !_pointerDown) return;
     _spring.stop();
-    setState(() => _dy = (_dy + d.delta.dy).clamp(0.0, 480.0));
+    _setPull(_pull + delta);
   }
 
-  void _onEnd(DragEndDetails d) {
-    final v = d.primaryVelocity ?? 0;
-    if (_dy > 110 || v > 900) {
-      Navigator.maybePop(context);
+  /// Sets the pull outright. Bouncing scroll physics let the offset itself go
+  /// past the top instead of reporting overscroll, so the pull is absolute.
+  void setPull(double value) {
+    if (!widget.enabled || _closing || _decided || !_pointerDown) return;
+    _spring.stop();
+    _setPull(value);
+  }
+
+  /// Shrinks the pull when the content scrolls back up under the finger.
+  void reducePull(double delta) {
+    if (!widget.enabled || _closing || _pull <= 0) return;
+    _spring.stop();
+    _setPull(_pull - delta);
+  }
+
+  void _setPull(double value) {
+    final next = value.clamp(0.0, _maxPull);
+    if (next == _pull) return;
+    setState(() => _pull = next);
+    // One tick as the release threshold is crossed, so the gesture can be
+    // felt without looking at the screen.
+    if (!_ticked && _pull >= _dismissPull) {
+      _ticked = true;
+      Haptics.selection();
+    } else if (_ticked && _pull < _dismissPull * 0.9) {
+      _ticked = false;
+    }
+  }
+
+  // ---------------- release ----------------
+
+  /// The finger left the sheet. The grab strip's drag end and the sheet-wide
+  /// pointer-up both arrive here for the same gesture, so the first decides.
+  void release({double velocity = 0}) {
+    if (!widget.enabled || _closing || _decided) return;
+    _decided = true;
+    _tracker = null;
+    final p = pull;
+    final flung = p > _minFlingPull && velocity >= _flingVelocity;
+    if (p >= _dismissPull || flung) {
+      _dismiss();
+    } else {
+      _snapBack();
+    }
+  }
+
+  void _dismiss() {
+    _closing = true;
+    Haptics.tap();
+    final route = ModalRoute.of(context);
+    if (route != null &&
+        route.popDisposition == RoutePopDisposition.doNotPop) {
+      // A `PopScope` inside the sheet refused the close. Mirroring what
+      // `Navigator.maybePop` does in that case keeps the vetoing widget
+      // informed, and the sheet goes back instead of staying translated.
+      route.onPopInvokedWithResult(false, null);
+      _closing = false;
+      _snapBack();
       return;
     }
-    _springFrom = _dy;
-    _dy = 0;
-    _spring.forward(from: 0);
+    Navigator.maybePop(context);
   }
+
+  /// Returns the sheet to its resting place, animating only where motion is
+  /// wanted. A no-op when the sheet never moved, so ordinary taps inside a
+  /// sheet do not rebuild it.
+  void _snapBack() {
+    if (!mounted) return;
+    _ticked = false;
+    final from = pull;
+    _pull = 0;
+    if (from == 0 && !_spring.isAnimating) return;
+    _springFrom = _animated ? from : 0;
+    _spring.stop();
+    setState(() {});
+    if (_springFrom > 0) _spring.forward(from: 0);
+  }
+
+  // ---------------- build ----------------
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _spring,
-      builder: (context, child) {
-        final now = _current;
-        final tilt = Matrix4.identity()
-          ..setEntry(3, 2, 0.001)
-          ..rotateX(math.min(now / 3200, 0.05));
-        return Transform.translate(
-          offset: Offset(0, now),
-          child: Transform(
-            alignment: Alignment.topCenter,
-            transform: tilt,
-            child: child,
-          ),
-        );
-      },
-      child: Stack(
-        children: [
-          widget.child,
+    _animated = Motion.motionEnabled && !Motion.reduced(context);
+    final content = Stack(
+      children: [
+        // `translucent` keeps the pointer bookkeeping alive over the whole
+        // sheet while still returning false from `hitTest`, so nothing below
+        // the sheet — the barrier included — loses the event.
+        Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (e) {
+            _pointerDown = true;
+            _decided = false;
+            _tracker = VelocityTracker(e.kind);
+          },
+          onPointerMove: (e) => _tracker?.addPosition(e.timeStamp, e.position),
+          onPointerUp: (e) {
+            _pointerDown = false;
+            release(velocity: _tracker?.getVelocity().pixelsPerSecond.dy ?? 0);
+          },
+          onPointerCancel: (_) {
+            _pointerDown = false;
+            _decided = true;
+            _tracker = null;
+            if (_pull > 0) _snapBack();
+          },
+          child: widget.child,
+        ),
+        if (widget.enabled)
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            height: 34,
+            height: _grabHeight,
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onVerticalDragUpdate: _onUpdate,
-              onVerticalDragEnd: _onEnd,
+              dragStartBehavior: DragStartBehavior.start,
+              onVerticalDragStart: (_) => _spring.stop(),
+              onVerticalDragUpdate: (d) => addPull(d.delta.dy),
+              onVerticalDragEnd: (d) =>
+                  release(velocity: d.primaryVelocity ?? 0),
               onVerticalDragCancel: () {
-                _springFrom = _dy;
-                _dy = 0;
-                _spring.forward(from: 0);
+                // The drag lost the arena; the pointer is still down, so the
+                // sheet-wide pointer-up gets to make the decision instead.
+                _decided = false;
+                if (_pull > 0) _snapBack();
               },
               child: const SizedBox.expand(),
             ),
           ),
-        ],
-      ),
+      ],
+    );
+
+    Widget sheet = _SheetDismissScope(controller: this, child: content);
+    if (!widget.enabled) return sheet;
+
+    return AnimatedBuilder(
+      animation: _spring,
+      builder: (context, child) {
+        final now = pull;
+        if (now == 0) return child!;
+        final tilted = _animated
+            ? Transform(
+                alignment: Alignment.topCenter,
+                transform:
+                    Matrix4.identity()
+                      ..setEntry(3, 2, 0.001)
+                      ..rotateX(math.min(now / 3200, 0.05)),
+                child: child,
+              )
+            : child!;
+        return Transform.translate(offset: Offset(0, now), child: tilted);
+      },
+      child: sheet,
     );
   }
 }
@@ -1007,33 +1321,66 @@ class _AmbientAuroraState extends State<AmbientAurora>
   }
 }
 
-/// Closes the enclosing route when the content is pulled *vertically* down
-/// while it cannot scroll up any further (list at top, sheet at its
-/// minimum). Horizontal scrollers inside the sheet are ignored.
-class _OverscrollDismiss extends StatefulWidget {
-  const _OverscrollDismiss({required this.child});
+/// Turns "the content is already at its top and the finger keeps going down"
+/// into a pull on the sheet around it.
+///
+/// Both families of scroll physics are covered, because they report the very
+/// same gesture differently:
+///  * clamping (Android, web, desktop) pins the offset at the top and
+///    dispatches an [OverscrollNotification] for every extra pixel;
+///  * bouncing (iOS, macOS) lets the offset itself go negative and only ever
+///    dispatches [ScrollUpdateNotification] — never an overscroll one.
+///
+/// Listening for overscroll alone therefore silently disabled the gesture on
+/// every bouncing-physics platform.
+///
+/// Horizontal scrollers and scrollables nested inside another scrollable are
+/// ignored: only the sheet's own content may close the sheet.
+class _SheetPullDismiss extends StatefulWidget {
+  const _SheetPullDismiss({required this.enabled, required this.child});
 
+  final bool enabled;
   final Widget child;
 
   @override
-  State<_OverscrollDismiss> createState() => _OverscrollDismissState();
+  State<_SheetPullDismiss> createState() => _SheetPullDismissState();
 }
 
-class _OverscrollDismissState extends State<_OverscrollDismiss> {
-  bool _closing = false;
+class _SheetPullDismissState extends State<_SheetPullDismiss> {
+  _SheetDismissState? _sheet;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sheet = _SheetDismissScope.maybeOf(context);
+  }
 
   bool _onNotification(ScrollNotification n) {
-    if (_closing) return false;
-    // Vertical pulls only: a horizontal chip row dragged past its start
-    // edge also reports negative overscroll and must never dismiss the
-    // sheet sideways.
-    if (n is OverscrollNotification &&
-        n.metrics.axis == Axis.vertical &&
-        n.overscroll < 0 &&
-        n.metrics.pixels <= n.metrics.minScrollExtent + 0.5) {
-      _closing = true;
-      Navigator.pop(context);
-      return true;
+    final sheet = _sheet;
+    if (!widget.enabled || sheet == null) return false;
+    // Only the sheet's own scrollable. A vertical list nested inside another
+    // one reports a depth above zero, and that inner list being at its own
+    // top says nothing about where the sheet should go. A horizontal chip row
+    // dragged past its start edge reports the same negative overscroll and
+    // must never dismiss the sheet sideways.
+    if (n.depth != 0 || n.metrics.axis != Axis.vertical) return false;
+
+    if (n is OverscrollNotification) {
+      if (n.overscroll < 0 &&
+          n.metrics.pixels <= n.metrics.minScrollExtent + 0.5) {
+        sheet.addPull(-n.overscroll);
+      }
+      return false;
+    }
+    if (n is ScrollUpdateNotification) {
+      if (n.metrics.outOfRange &&
+          n.metrics.pixels < n.metrics.minScrollExtent) {
+        sheet.setPull(n.metrics.minScrollExtent - n.metrics.pixels);
+      } else {
+        // Scrolling back up gives the pull back, pixel for pixel.
+        final delta = n.scrollDelta ?? 0;
+        if (delta > 0) sheet.reducePull(delta);
+      }
     }
     return false;
   }

@@ -927,12 +927,8 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
         color: Theme.of(context).cardColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
       ),
-      padding: EdgeInsets.fromLTRB(
-        16,
-        14,
-        16,
-        16 + MediaQuery.of(context).viewInsets.bottom,
-      ),
+      // The ledger-sheet route keeps the sheet clear of the soft keyboard.
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
