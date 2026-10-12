@@ -280,12 +280,21 @@ void main() {
       await tester.pumpWidget(wrap(const TransactionEditPage()));
       await tester.pumpAndSettle();
       // TEMP diagnostics
+      final segEl = find
+          .byType(SegmentedButton<TxnScope>, skipOffstage: false)
+          .evaluate();
       debugPrint(
         'DIAG lists=${find.byType(ListView).evaluate().length} '
         'wraps=${find.byType(Wrap).evaluate().length} '
         'seg=${find.byType(SegmentedButton<TxnScope>).evaluate().length} '
-        'segAll=${find.byType(SegmentedButton<TxnScope>, skipOffstage: false).evaluate().length} '
+        'segAll=${segEl.length} '
         'err=${tester.takeException()}',
+      );
+      if (segEl.isNotEmpty) {
+        debugPrint('DIAG chain ${segEl.single.debugGetCreatorChain(14)}');
+      }
+      debugPrint(
+        'DIAG offstages=${find.byType(Offstage, skipOffstage: false).evaluate().length}',
       );
 
       final size = tester.getSize(find.byType(SegmentedButton<TxnScope>));
