@@ -27,6 +27,6 @@ jobs:
         run: |
           set +e
           flutter test --concurrency=1 --reporter expanded test/phase3_gestures_test.dart > testout.txt 2>&1
-          grep -B5 -A60 "scope selector in the entry form" testout.txt | head -90 | cut -c1-160 | awk '{print "::error file=test/ctx,line=" NR "::" $0}'
+          awk 'seen==0 && /scope selector in the entry form/{show=80; seen=1} show>0{print; show--}' testout.txt | cut -c1-170 | awk '{print "::error file=test/ctx,line=" NR "::" $0}'
           exit 0
       - run: flutter test --concurrency=1
