@@ -1032,6 +1032,16 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
               const SizedBox(height: 14),
 
               // Frequent categories for this section: one tap, no picker.
+              Text(
+                'Frequent picks'.tr,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.onSurface
+                      .withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(height: 6),
               if (categoryKind != null)
                 Wrap(
                 spacing: 8,

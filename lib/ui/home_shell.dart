@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../core/haptics.dart';
 import '../core/notifications/notify.dart';
+import '../core/sms/sms_models.dart';
 import '../core/sms/sms_service.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
@@ -182,19 +183,67 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     _openSmsReview({'route': route, 'date': date, 'address': address});
   }
 
-  /// Opens the SMS review page and, when the notification carried the
-  /// message identity, the review sheet of that exact message.
+  /// Notification tap: open the record sheet of that exact SMS right here,
+  /// over whatever page the user is on — never the review queue. Only when
+  /// the message cannot be found at all does the queue open as a fallback.
   Future<void> _openSmsReview(Map<String, Object?> pending) async {
     if (pending['route'] != 'sms_review') return;
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => SmsPage(
-          autoReviewDate: (pending['date'] as num?)?.toInt(),
-          autoReviewAddress: pending['address'] as String?,
-        ),
-      ),
-    );
+    final repo = context.read<AppRepository>();
+    final date = (pending['date'] as num?)?.toInt();
+    final address = pending['address'] as String?;
+
+    SmsSuggestion? exact() {
+      if (date == null) return null;
+      final hits = repo.smsSuggestions
+          .where(
+            (s) =>
+                s.message.date.millisecondsSinceEpoch == date &&
+                (address == null || s.message.address == address),
+          )
+          .toList();
+      return hits.isEmpty ? null : hits.first;
+    }
+
+    SmsSuggestion? bySender() {
+      if (address == null) return null;
+      final hits = repo.smsSuggestions
+          .where((s) => s.message.address == address)
+          .toList();
+      return hits.isEmpty ? null : hits.first;
+    }
+
+    var target = exact() ?? bySender();
+    if (target == null &&
+        repo.smsPermissionGranted &&
+        repo.settings.smsEnabled) {
+      // Incremental scan (only messages newer than the last sync), so the
+      // sheet appears quickly even when the queue did not have it yet.
+      try {
+        await repo.syncSms();
+      } catch (_) {
+        // A failed scan falls through to the queue fallback below.
+      }
+      if (!mounted) return;
+      target = exact() ?? bySender();
+    }
+    if (!mounted) return;
+
+    if (target == null) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const SmsPage()),
+      );
+    } else {
+      final chosen = target;
+      final matched = repo.matchCustomerForSms(chosen);
+      final ok = await showLedgerSheet<bool>(
+        context,
+        builder: (ctx) => SmsReviewSheet(sms: chosen, initialCustomer: matched),
+      );
+      if (ok == true && mounted) {
+        showSnack(context, 'Transaction recorded from SMS');
+      }
+    }
     // The native side keeps the tap request until it is consumed; consuming
     // here also clears a warm-start request so a later cold start does not
     // reopen an already reviewed message.
