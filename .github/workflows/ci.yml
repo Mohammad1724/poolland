@@ -16,17 +16,5 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - name: "Analyze (temporary: publish issues as annotations)"
-        run: |
-          set +e
-          flutter analyze > an.txt 2>&1
-          awk -F' • ' '/ • /{split($3,a,":"); print "::error file=" a[1] ",line=" a[2] ",col=" a[3] "::" $4 ": " $2}' an.txt | head -60
-          exit 0
       - run: flutter analyze
-      - name: "Test (temporary: publish exception context)"
-        run: |
-          set +e
-          flutter test --concurrency=1 --reporter expanded test/motion_test.dart > testout.txt 2>&1
-          awk '/EXCEPTION CAUGHT BY|Test failed/{n++; if(n<=2){show=1; c=0}} show&&c<60{print $0; c++; if(c>=60)show=0}' testout.txt | cut -c1-160 | awk '{print "::error file=test/ctx,line=" NR "::" $0}'
-          exit 0
       - run: flutter test --concurrency=1
