@@ -219,7 +219,10 @@ void main() {
     await tester.scrollUntilVisible(
       find.text('Customer shortcuts'.tr),
       150,
-      scrollable: find.byType(ListView),
+      scrollable: find.descendant(
+        of: find.byType(ListView),
+        matching: find.byType(Scrollable),
+      ),
     );
     await tester.pumpAndSettle();
     for (final key in [
