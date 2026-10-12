@@ -33,10 +33,10 @@ jobs:
         if: ${{ failure() }}
         run: |
           set +e
-          for f in test/format_utils_test.dart test/app_smoke_test.dart; do
-            flutter test "$f" > det.txt 2>&1
-            awk '/\[E\]/{found=1} found{print; c++} c>35{exit}' det.txt | while IFS= read -r l; do
-              l="${l//'%'/'%25'}"
-              echo "::error file=${f},line=1::${l}"
-            done
+          f=test/app_smoke_test.dart
+          flutter test "$f" --reporter expanded --plain-name 'Switching the direction' > det.txt 2>&1
+          echo "solo exit: $?" >> det.txt
+          tail -60 det.txt | while IFS= read -r l; do
+            l="${l//'%'/'%25'}"
+            echo "::error file=${f},line=1::${l}"
           done
