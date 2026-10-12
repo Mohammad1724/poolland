@@ -77,6 +77,26 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
       ? 'Duplicate transaction'
       : 'New transaction';
 
+  /// [TxnKind.icon] and [TxnKind.shortLabel] only cover the kinds a bank
+  /// SMS or a quick pick can produce; the recent-entries chips can meet any
+  /// kind (subscription sales included), so they use these safe mappings.
+  IconData _safeKindIcon(TxnKind k) => switch (k) {
+    TxnKind.income => Icons.trending_up_rounded,
+    TxnKind.expense => Icons.trending_down_rounded,
+    TxnKind.receive => Icons.call_received_rounded,
+    TxnKind.refund => Icons.currency_exchange_rounded,
+    _ => Icons.receipt_long_rounded,
+  };
+
+  String _safeKindLabel(TxnKind k) => switch (k) {
+    TxnKind.income => 'Income',
+    TxnKind.expense => 'Expense',
+    TxnKind.receive => 'Receive',
+    TxnKind.refund => 'Refund',
+    TxnKind.payablePayment => 'Paid out',
+    _ => 'Transaction',
+  }.tr;
+
   bool get _needsCategory =>
       _kind == TxnKind.income || _kind == TxnKind.expense;
 
@@ -380,12 +400,12 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                   children: [
                     for (final t in repo.recentDistinctTxns(4))
                       ActionChip(
-                        avatar: Icon(t.kind.icon, size: 16),
+                        avatar: Icon(_safeKindIcon(t.kind), size: 16),
                         label: Text(
                           '${t.note.isNotEmpty
                               ? t.note
                               : repo.categoryById(t.categoryId)?.name ??
-                                    t.kind.shortLabel}'
+                                    _safeKindLabel(t.kind)}'
                           ' · ${Money.text(t.amount, withSymbol: false)}',
                         ),
                         onPressed: () => setState(() {

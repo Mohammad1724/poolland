@@ -41,6 +41,7 @@ class AppLocalization {
     'Copied': 'کپی شد',
     'Undo': 'بازگردانی',
     'Frequent picks': 'پرکاربردها',
+    'Transaction': 'تراکنش',
     'Gesture guide': 'راهنمای ژست‌ها',
     'See every swipe, hold and drag again': 'مرور همهٔ کشیدن‌ها، نگه‌داشتن‌ها و درگ‌ها',
     'Got it': 'گرفتم!',
