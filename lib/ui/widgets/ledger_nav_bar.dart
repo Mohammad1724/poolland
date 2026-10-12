@@ -182,6 +182,9 @@ class _LedgerNavBarState extends State<LedgerNavBar>
         child: Tooltip(
           message: dest.label,
           child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            splashColor: scheme.primary.withValues(alpha: 0.10),
+            highlightColor: scheme.primary.withValues(alpha: 0.06),
             onTap: () => widget.onDestinationSelected(i),
             child: SizedBox.expand(
               child: Column(

@@ -997,11 +997,21 @@ Future<bool> confirmDialog(
   return res ?? false;
 }
 
-void showSnack(BuildContext context, String message, {bool error = false}) {
+void showSnack(
+  BuildContext context,
+  String message, {
+  bool error = false,
+  String? actionLabel,
+  VoidCallback? onAction,
+  Duration duration = const Duration(seconds: 2),
+}) {
   showMessengerSnack(
     ScaffoldMessenger.of(context),
     message,
     error: error,
+    actionLabel: actionLabel,
+    onAction: onAction,
+    duration: duration,
   );
 }
 
@@ -1014,6 +1024,9 @@ void showMessengerSnack(
   ScaffoldMessengerState messenger,
   String message, {
   bool error = false,
+  String? actionLabel,
+  VoidCallback? onAction,
+  Duration duration = const Duration(seconds: 2),
 }) {
   messenger
     ..hideCurrentSnackBar()
@@ -1021,7 +1034,13 @@ void showMessengerSnack(
       SnackBar(
         content: Text(message.tr),
         backgroundColor: error ? const Color(0xFFB91C1C) : null,
-        duration: const Duration(seconds: 2),
+        duration: actionLabel == null ? duration : const Duration(seconds: 5),
+        action: actionLabel == null
+            ? null
+            : SnackBarAction(
+                label: actionLabel.tr,
+                onPressed: () => onAction?.call(),
+              ),
       ),
     );
 }

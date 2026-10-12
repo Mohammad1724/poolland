@@ -65,7 +65,19 @@ class DashboardPage extends StatelessWidget {
       },
     );
 
-    return ListView(
+    return Stack(
+      children: [
+        const Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 240,
+          child: AmbientAurora(),
+        ),
+        RefreshIndicator(
+          onRefresh: () => repo.refreshAll(),
+          color: Theme.of(context).colorScheme.primary,
+          child: return ListView(
       controller: controller,
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 100),
       children: [
@@ -667,6 +679,9 @@ class DashboardPage extends StatelessWidget {
               ],
             ),
           ),
+      ],
+    ),
+        ),
       ],
     );
   }

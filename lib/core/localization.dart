@@ -39,6 +39,7 @@ class AppLocalization {
     'Save': 'ذخیره',
     'Cancel': 'انصراف',
     'Copied': 'کپی شد',
+    'Undo': 'بازگردانی',
     'Gesture guide': 'راهنمای ژست‌ها',
     'See every swipe, hold and drag again': 'مرور همهٔ کشیدن‌ها، نگه‌داشتن‌ها و درگ‌ها',
     'Got it': 'گرفتم!',

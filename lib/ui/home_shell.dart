@@ -582,6 +582,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           ),
         );
         break;
+      case 'new_customer':
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ContactEditPage()),
+        );
+        break;
       case 'refund':
         await Navigator.push(
           context,
@@ -611,8 +617,46 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         Color(0xFF16A34A),
       ),
     ],
-    // These tabs' buttons are single direct actions; a dial adds nothing.
-    2 || 3 => const [],
+    2 => const [
+      _DialItem(
+        'new_customer',
+        Icons.person_add_alt_1_rounded,
+        'New customer',
+        Color(0xFF2563EB),
+      ),
+      _DialItem(
+        'receive',
+        Icons.call_received_rounded,
+        'Receive from customer',
+        Color(0xFF0F766E),
+      ),
+      _DialItem(
+        'expense',
+        Icons.trending_down_rounded,
+        'Record expense',
+        Color(0xFFE11D48),
+      ),
+    ],
+    3 => const [
+      _DialItem(
+        'sale_sub',
+        Icons.vpn_key_rounded,
+        'Sell a subscription',
+        Color(0xFF7C3AED),
+      ),
+      _DialItem(
+        'receive',
+        Icons.call_received_rounded,
+        'Receive from customer',
+        Color(0xFF0F766E),
+      ),
+      _DialItem(
+        'expense',
+        Icons.trending_down_rounded,
+        'Record expense',
+        Color(0xFFE11D48),
+      ),
+    ],
     _ => const [
       _DialItem(
         'income',

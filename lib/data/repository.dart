@@ -121,6 +121,19 @@ class AppRepository extends ChangeNotifier {
 
   void _syncGlobals() => Money.sync(settings);
 
+  /// Pull-to-refresh: re-read the ledger from disk and re-scan bank SMS,
+  /// so a manual pully always shows the freshest data.
+  Future<void> refreshAll() async {
+    await reload();
+    if (smsSupported && settings.smsEnabled) {
+      try {
+        await syncSms();
+      } catch (_) {
+        // A failed SMS scan must not break the refresh gesture.
+      }
+    }
+  }
+
   Future<void> reload() async {
     if (_store == null) return;
     _loadFrom(_store!);

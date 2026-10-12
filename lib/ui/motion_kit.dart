@@ -882,3 +882,121 @@ class _SheetDragDismissState extends State<_SheetDragDismiss>
     );
   }
 }
+
+/// A slow, always-moving aurora of soft colour blobs with a few twinkling
+/// sparks: the ambient "alive" layer behind the main pages' headers.
+///
+/// One repeating controller drives every blob and spark through transforms
+/// and opacities only, so the layer composites at 60fps inside its own
+/// [RepaintBoundary]. With motion disabled (reduced-motion setting, widget
+/// tests) it freezes into a static soft gradient instead of ticking.
+class AmbientAurora extends StatefulWidget {
+  const AmbientAurora({super.key, this.height = 240});
+
+  final double height;
+
+  @override
+  State<AmbientAurora> createState() => _AmbientAuroraState();
+}
+
+class _AmbientAuroraState extends State<AmbientAurora>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 16),
+    value: Motion.motionEnabled ? 0 : 0.31,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (Motion.motionEnabled) _c.repeat();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  /// color, angular speed, peak alpha.
+  static const List<(Color, double, double)> _blobs = [
+    (Color(0xFF0F766E), 0.9, 0.16),
+    (Color(0xFF16A34A), 0.7, 0.13),
+    (Color(0xFFD97706), 1.15, 0.10),
+  ];
+
+  /// x, y in Alignment units and a phase for each spark.
+  static const List<(double, double, double)> _sparks = [
+    (-0.62, -0.35, 0.0),
+    (0.55, -0.62, 1.7),
+    (-0.10, 0.15, 3.1),
+    (0.78, -0.05, 4.4),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: SizedBox(
+        height: widget.height,
+        child: RepaintBoundary(
+          child: AnimatedBuilder(
+            animation: _c,
+            builder: (context, _) {
+              final t = _c.value * 2 * math.pi;
+              return Stack(
+                children: [
+                  for (var i = 0; i < _blobs.length; i++) _blob(i, t),
+                  for (var i = 0; i < _sparks.length; i++) _spark(i, t),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _blob(int i, double t) {
+    final (color, speed, alpha) = _blobs[i];
+    final size = 150.0 + i * 46;
+    // Two sines per axis keep the path organic without any physics sim.
+    final x = math.sin(t * speed + i * 2.1) * 0.72;
+    final y = math.cos(t * speed * 0.8 + i * 1.3) * 0.55;
+    return Align(
+      alignment: Alignment(x, y),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              color.withValues(alpha: alpha),
+              color.withValues(alpha: 0),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _spark(int i, double t) {
+    final (x, y, phase) = _sparks[i];
+    final pulse = 0.5 + 0.5 * math.sin(t * 2.3 + phase);
+    return Align(
+      alignment: Alignment(x, y),
+      child: Opacity(
+        opacity: 0.12 + 0.42 * pulse,
+        child: Transform.scale(
+          scale: 0.8 + 0.35 * pulse,
+          child: Icon(
+            Icons.star_rounded,
+            size: 6.0 + (i % 2) * 3,
+            color: i.isEven ? const Color(0xFF0F766E) : const Color(0xFFD97706),
+          ),
+        ),
+      ),
+    );
+  }
+}

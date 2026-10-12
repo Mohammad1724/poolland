@@ -248,7 +248,10 @@ class _CustomersPageState extends State<CustomersPage> {
                         )
                       : _clearSearchAndFilters,
                 )
-              : ListView.separated(
+              : RefreshIndicator(
+                  onRefresh: () => repo.refreshAll(),
+                  color: Theme.of(context).colorScheme.primary,
+                  child: : ListView.separated(
                   controller: widget.controller,
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
                   // ignore: deprecated_member_use
@@ -405,23 +408,33 @@ class _CustomersPageState extends State<CustomersPage> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                Text(
-                                  balance.abs() < 1
-                                      ? 'Settled'.tr
-                                      : Money.text(
-                                          balance.abs(),
-                                          withSymbol: false,
+                                balance.abs() < 1
+                                    ? Text(
+                                        'Settled'.tr,
+                                        style: TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: onSurface.withValues(
+                                            alpha: 0.45,
+                                          ),
                                         ),
-                                  style: TextStyle(
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: balance.abs() < 1
-                                        ? onSurface.withValues(alpha: 0.45)
-                                        : balance > 0
-                                        ? const Color(0xFF0F766E)
-                                        : const Color(0xFF2563EB),
-                                  ),
-                                ),
+                                      )
+                                    : CopyMoney(
+                                        value: balance.abs(),
+                                        child: Text(
+                                          Money.text(
+                                            balance.abs(),
+                                            withSymbol: false,
+                                          ),
+                                          style: TextStyle(
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: balance > 0
+                                                ? const Color(0xFF0F766E)
+                                                : const Color(0xFF2563EB),
+                                          ),
+                                        ),
+                                      ),
                                 if (balance.abs() >= 1)
                                   Text(
                                     balance > 0 ? 'Debtor'.tr : 'Creditor'.tr,
@@ -438,6 +451,7 @@ class _CustomersPageState extends State<CustomersPage> {
                     ),
             );
                   },
+                ),
                 ),
         ),
       ],

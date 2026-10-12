@@ -60,7 +60,15 @@ List<SwipeAction> txnSwipeActions(
         if (!ok || !context.mounted) return;
         await repo.deleteTxn(txn.id);
         if (!context.mounted) return;
-        showSnack(context, 'Transaction deleted');
+        // The swipe delete is fast, so give it a safety net: five seconds
+        // to bring the transaction back.
+        showSnack(
+          context,
+          'Transaction deleted',
+          actionLabel: 'Undo',
+          onAction: () => repo.addTxn(txn),
+          duration: const Duration(seconds: 5),
+        );
       },
     ),
   ];

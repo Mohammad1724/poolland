@@ -170,6 +170,20 @@ void main() {
     expect(copied, '1250');
   });
 
+  testWidgets('AmbientAurora renders a frozen layer without motion', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(const SizedBox(height: 240, width: 400, child: AmbientAurora())),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(AmbientAurora), findsOneWidget);
+    // No ticking controller: the frame must not change on its own.
+    final before = tester.binding.currentSystemFrameTimeStamp;
+    await tester.pump(const Duration(seconds: 1));
+    expect(tester.binding.currentSystemFrameTimeStamp, isNot(before));
+  });
+
   testWidgets('SheetHandle stays centered inside stretch columns', (
     tester,
   ) async {

@@ -44,7 +44,19 @@ class PersonalPage extends StatelessWidget {
         .where((t) => t.scope == TxnScope.personal)
         .toList();
 
-    return ListView(
+    return Stack(
+      children: [
+        const Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 240,
+          child: AmbientAurora(),
+        ),
+        RefreshIndicator(
+          onRefresh: () => repo.refreshAll(),
+          color: Theme.of(context).colorScheme.primary,
+          child: return ListView(
       controller: controller,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
       children: [
@@ -344,6 +356,9 @@ class PersonalPage extends StatelessWidget {
             scope: TxnScope.personal,
           ),
           monthly: repo.series(months: 6, scope: TxnScope.personal),
+        ),
+      ],
+    ),
         ),
       ],
     );
