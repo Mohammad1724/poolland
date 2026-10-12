@@ -159,7 +159,9 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
     await repo.sellSubscription(
       customer: _contact!,
       plan: _plan,
-      title: _title.text.trim().isEmpty ? 'Subscription' : _title.text.trim(),
+      title: _title.text.trim().isEmpty
+          ? 'Subscription'.tr
+          : _title.text.trim(),
       price: price,
       currencyCode: _currency,
       start: _start,
@@ -338,7 +340,7 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                         Expanded(
                           child: Center(
                             child: Text(
-                              '$_durationValue ${_unitIsMonth ? 'month' : 'day'}',
+                              '$_durationValue ${(_unitIsMonth ? 'month' : 'day').tr}',
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
@@ -435,7 +437,7 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                       const SizedBox(width: 6),
                       Text(
                         remaining <= 0
-                            ? 'Paid in full'
+                            ? 'Paid in full'.tr
                             : 'The remaining balance will be recorded as customer debt: {amount}'
                                   .trArgs({
                                     'amount': Money.text(

@@ -201,6 +201,49 @@ void main() {
     expect(find.text('row 0'), findsNothing);
   });
 
+  testWidgets('ledger sheet ignores a horizontal pull at the row start', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(
+        Builder(
+          builder: (c) => FilledButton(
+            onPressed: () => showLedgerSheet<void>(
+              c,
+              builder: (ctx) => SizedBox(
+                height: 300,
+                child: Column(
+                  children: [
+                    SizedBox(
+                      height: 60,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          for (var i = 0; i < 30; i++)
+                            SizedBox(width: 120, child: Text('h $i')),
+                        ],
+                      ),
+                    ),
+                    const Expanded(child: Center(child: Text('sheet body'))),
+                  ],
+                ),
+              ),
+            ),
+            child: const Text('go'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(find.text('sheet body'), findsOneWidget);
+    // Dragging a horizontal chip row to (and past) its start edge reports
+    // the same negative overscroll; it must never close the sheet sideways.
+    await tester.drag(find.text('h 0'), const Offset(300, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('sheet body'), findsOneWidget);
+  });
+
   testWidgets('AmbientAurora renders a frozen layer without motion', (
     tester,
   ) async {

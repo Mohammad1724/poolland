@@ -157,10 +157,10 @@ class CustomerDetailPage extends StatelessWidget {
                         children: [
                           Text(
                             balance.abs() < 1
-                                ? 'Settled'
+                                ? 'Settled'.tr
                                 : balance > 0
-                                ? 'Owes you'
-                                : 'You owe them',
+                                ? 'Owes you'.tr
+                                : 'You owe them'.tr,
                             style: TextStyle(
                               fontSize: 12,
                               color: onSurface.withValues(alpha: 0.65),
@@ -376,7 +376,7 @@ class CustomerDetailPage extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              s.planName,
+                              s.planName.tr,
                               style: const TextStyle(
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w700,

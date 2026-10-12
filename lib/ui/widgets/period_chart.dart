@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../design.dart';
 import '../motion_kit.dart';
 
+import '../../core/format_utils.dart';
 import '../../core/money.dart';
 import '../../data/ledger.dart';
 
@@ -200,11 +201,20 @@ class _PeriodBarChartState extends State<PeriodBarChart>
   }
 
   String _short(double v) {
+    final String s;
     if (v >= 1000000000) {
-      return '${(v / 1000000000).toStringAsFixed(1)}B';
+      s = '${(v / 1000000000).toStringAsFixed(1)}B';
+    } else if (v >= 1000000) {
+      s = '${(v / 1000000).toStringAsFixed(1)}M';
+    } else if (v >= 1000) {
+      s = '${(v / 1000).toStringAsFixed(0)}K';
+    } else {
+      s = v.toStringAsFixed(0);
     }
-    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
-    if (v >= 1000) return '${(v / 1000).toStringAsFixed(0)}K';
-    return v.toStringAsFixed(0);
+    // Axis labels follow the Persian-digits preference like every other
+    // number the app shows.
+    return Fmt.persianDigits
+        ? Fmt.toFaDigits(s).replaceAll('.', '٫')
+        : s;
   }
 }

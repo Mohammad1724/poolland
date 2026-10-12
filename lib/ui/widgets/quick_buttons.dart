@@ -99,7 +99,7 @@ class QuickButtonsRow extends StatelessWidget {
     if (items.isEmpty && trailing == null) {
       if (hideWhenEmpty) return const SizedBox.shrink();
       return Text(
-        emptyHint ?? 'No quick buttons configured.',
+        emptyHint ?? 'No quick buttons configured.'.tr,
         style: TextStyle(
           fontSize: 12,
           height: 1.7,
@@ -189,15 +189,19 @@ class QuickChip extends StatelessWidget {
 Future<void> recordQuickExpense(BuildContext context, QuickExpense q) async {
   final repo = context.read<AppRepository>();
   var amount = q.amount;
+  DateTime? date;
   if (!q.hasFixedAmount) {
-    final res = await showLedgerSheet<double>(
+    final res = await showLedgerSheet<QuickAmountResult>(
       context,
       builder: (_) => QuickAmountSheet(quick: q),
     );
-    if (res == null || res <= 0) return;
-    amount = res;
+    if (res == null || res.amount <= 0) return;
+    amount = res.amount;
+    // The sheet has a date picker; honour the day the user picked instead
+    // of silently recording everything as "today".
+    date = res.date;
   }
-  final txn = await repo.addQuickExpense(q, amount: amount);
+  final txn = await repo.addQuickExpense(q, amount: amount, date: date);
   if (!context.mounted) return;
   MoneyCelebration.recorded(context);
   ScaffoldMessenger.of(context)
@@ -217,6 +221,15 @@ Future<void> recordQuickExpense(BuildContext context, QuickExpense q) async {
         ),
       ),
     );
+}
+
+/// What [QuickAmountSheet] hands back: the entered amount plus the day it
+/// belongs to.
+class QuickAmountResult {
+  const QuickAmountResult({required this.amount, required this.date});
+
+  final double amount;
+  final DateTime date;
 }
 
 /// Sheet for entering an amount (and date) for buttons without a fixed amount.
@@ -291,7 +304,7 @@ class _QuickAmountSheetState extends State<QuickAmountSheet> {
               onPressed: () {
                 final v = parseAmount(_ctrl.text);
                 if (v <= 0) return;
-                Navigator.pop(context, v);
+                Navigator.pop(context, QuickAmountResult(amount: v, date: _date));
               },
               child: Text('Record'.tr),
             ),

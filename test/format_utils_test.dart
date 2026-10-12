@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:poolland/core/format_utils.dart';
+import 'package:poolland/core/jalali_utils.dart';
 import 'package:poolland/core/localization.dart';
 
 /// Formatting must stay byte-for-byte identical to the pre-cache behaviour;
@@ -94,6 +95,43 @@ void main() {
       expect(parseAmount('۱٬۵۰۰٬۰۰۰'), 1500000);
       expect(parseAmount('20.5'), 20.5);
       expect(parseAmount(''), 0);
+    });
+  });
+
+
+  group('Fmt.persianDigits preference', () {
+    tearDown(() => Fmt.persianDigits = false);
+
+    test('display helpers follow the global preference', () {
+      final dt = DateTime(2026, 3, 4, 5, 6);
+      // Default: Latin digits everywhere.
+      expect(Fmt.date(1404, 12, 13), '1404/12/13');
+      expect(Fmt.clock(dt), '05:06');
+      expect(Fmt.percent(0.25), '25%');
+      expect(Fmt.number(1500), '1,500');
+
+      // Flipping the setting (as Money.sync does) localizes every display
+      // helper that does not pin persian explicitly.
+      Fmt.persianDigits = true;
+      expect(Fmt.date(1404, 12, 13), '۱۴۰۴/۱۲/۱۳');
+      expect(Fmt.clock(dt), '۰۵:۰۶');
+      expect(Fmt.percent(0.25), '۲۵٪');
+      expect(Fmt.number(1500), '۱,۵۰۰');
+
+      // Explicit overrides still win (CSV/export paths stay Latin).
+      expect(Fmt.date(1404, 12, 13, persian: false), '1404/12/13');
+      expect(Fmt.number(1500, persian: false), '1,500');
+    });
+
+    test('Jalali display helpers follow the same preference', () {
+      Fmt.persianDigits = true;
+      final j = J.of(DateTime(2026, 3, 21));
+      expect(J.d(DateTime(2026, 3, 21)), Fmt.toFaDigits(
+        '${j.year}/${'${j.month}'.padLeft(2, '0')}/${'${j.day}'.padLeft(2, '0')}',
+      ));
+      expect(RegExp(r'[۰-۹]').hasMatch(J.dLong(DateTime(2026, 3, 21))), isTrue);
+      Fmt.persianDigits = false;
+      expect(RegExp(r'[۰-۹]').hasMatch(J.d(DateTime(2026, 3, 21))), isFalse);
     });
   });
 }

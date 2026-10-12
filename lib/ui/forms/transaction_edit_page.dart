@@ -86,7 +86,8 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
     final name = t.note.isNotEmpty
         ? t.note
         : repo.categoryById(t.categoryId)?.name ?? _safeKindLabel(t.kind);
-    return '$name · ${t.amount.round()}';
+    return '${name.tr} · '
+        '${Fmt.number(t.amount, decimals: Money.decimals(t.currency))}';
   }
 
   IconData _safeKindIcon(TxnKind k) => switch (k) {
@@ -107,6 +108,28 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
 
   bool get _needsCategory =>
       _kind == TxnKind.income || _kind == TxnKind.expense;
+
+  /// Re-validates the selected category after the kind or the section
+  /// changes. Without this the form silently saves a category that belongs
+  /// to the *other* kind or scope (an income category on an expense, a
+  /// personal one on a business entry), which corrupts the per-category
+  /// reports. Falls back to the default category of the new list.
+  void _syncCategory(AppRepository repo) {
+    final kindForCats = switch (_kind) {
+      TxnKind.income || TxnKind.receive => TxnKind.income,
+      TxnKind.expense => TxnKind.expense,
+      _ => null,
+    };
+    if (kindForCats == null) {
+      _category = null;
+      return;
+    }
+    final list = repo.categoriesOf(kindForCats, scope: _scope);
+    if (_category != null && list.any((c) => c.id == _category!.id)) return;
+    _category = repo.categoryById(
+      repo.defaultCategoryId(kindForCats, scope: _scope),
+    );
+  }
 
   @override
   void initState() {
@@ -186,6 +209,9 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
       if (q.categoryId != null) {
         _category = repo.categoryById(q.categoryId);
       }
+      // The button may have moved the form to another section or direction;
+      // the category must belong to the new combination.
+      _syncCategory(repo);
       if (q.hasFixedAmount) {
         _amount.text = groupedNumber(
           q.amount,
@@ -340,7 +366,10 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                   for (final k in TxnKind.values)
                     ChoiceChip(
                       selected: _kind == k,
-                      onSelected: (_) => setState(() => _kind = k),
+                      onSelected: (_) => setState(() {
+                        _kind = k;
+                        _syncCategory(repo);
+                      }),
                       avatar: Icon(k.icon, size: 16),
                       label: Text(k.label),
                     ),
@@ -361,16 +390,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                     _subscription = null;
                     _credit = false;
                   }
-                  final list = repo.categoriesOf(_kind, scope: _scope);
-                  if (_category != null &&
-                      !list.any((c) => c.id == _category!.id)) {
-                    _category =
-                        repo.defaultCategoryId(_kind, scope: _scope) == null
-                        ? null
-                        : repo.categoryById(
-                            repo.defaultCategoryId(_kind, scope: _scope),
-                          );
-                  }
+                  _syncCategory(repo);
                 }),
                 style: SegmentedButton.styleFrom(
                   // Compact density would shave this down to ~32dp, which is
@@ -438,7 +458,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                         ChoiceChip(
                           selected: _category?.id == c.id,
                           showCheckmark: false,
-                          label: Text(c.name),
+                          label: Text(c.name.tr),
                           onSelected: (_) => setState(() => _category = c),
                         ),
                   ],
@@ -572,8 +592,8 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                     onChanged: (v) => setState(() => _credit = v),
                     title: Text(
                       _kind == TxnKind.income
-                          ? 'Credit (customer balance)'
-                          : 'Credit (our payable)',
+                          ? 'Credit (customer balance)'.tr
+                          : 'Credit (our payable)'.tr,
                       style: const TextStyle(fontSize: 13.5),
                     ),
                     subtitle: Text(

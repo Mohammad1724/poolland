@@ -18,40 +18,40 @@ class J {
   static DateTime dateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
 
   /// Format a Jalali date, e.g. 1405/07/12.
-  static String d(DateTime dt, {bool persian = false, String sep = '/'}) {
+  static String d(DateTime dt, {bool? persian, String sep = '/'}) {
     final j = of(dt);
     return Fmt.date(j.year, j.month, j.day, persian: persian, sep: sep);
   }
 
   /// Format a long Jalali date, e.g. 12 Mehr 1405.
-  static String dLong(DateTime dt, {bool persian = false}) {
+  static String dLong(DateTime dt, {bool? persian}) {
     final j = of(dt);
     return Fmt.dateLong(j.year, j.month, j.day, persian: persian);
   }
 
   /// Format a full Jalali date with weekday, e.g. Wednesday 12 Mehr 1405.
-  static String dFull(DateTime dt, {bool persian = false}) {
+  static String dFull(DateTime dt, {bool? persian}) {
     final j = of(dt);
     final s =
         '${Fmt.weekDayName(j.weekDay)} ${j.day} ${Fmt.monthName(j.month)} ${j.year}';
-    return persian ? Fmt.toFaDigits(s) : s;
+    return (persian ?? Fmt.persianDigits) ? Fmt.toFaDigits(s) : s;
   }
 
   /// Format a Jalali month and year, e.g. Mehr 1405.
-  static String mLabel(DateTime dt, {bool persian = false}) {
+  static String mLabel(DateTime dt, {bool? persian}) {
     final j = of(dt);
     return Fmt.monthLabel(j.year, j.month, persian: persian);
   }
 
   /// Format a short Jalali date, e.g. 12 Mehr.
-  static String dShort(DateTime dt, {bool persian = false}) {
+  static String dShort(DateTime dt, {bool? persian}) {
     final j = of(dt);
     final s = '${j.day} ${Fmt.monthName(j.month)}';
-    return persian ? Fmt.toFaDigits(s) : s;
+    return (persian ?? Fmt.persianDigits) ? Fmt.toFaDigits(s) : s;
   }
 
   /// Format a Jalali date and time.
-  static String dTime(DateTime dt, {bool persian = false}) =>
+  static String dTime(DateTime dt, {bool? persian}) =>
       '${d(dt, persian: persian)} - ${Fmt.clock(dt, persian: persian)}';
 
   static int jalaliYear(DateTime dt) => of(dt).year;

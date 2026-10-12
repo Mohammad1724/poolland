@@ -26,6 +26,13 @@ class Fmt {
 
   static const _faDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
 
+  /// Global Persian-digits preference, synced from `AppSettings` by
+  /// `Money.sync`. Display helpers that take an optional `persian` flag
+  /// follow this when the caller does not override it, so the setting
+  /// applies to dates, clocks, and percentages too — not only to money.
+  /// Input/export paths keep passing `persian: false` explicitly.
+  static bool persianDigits = false;
+
   /// Convert Latin digits to Persian digits.
   static String toFaDigits(String input) {
     final sb = StringBuffer();
@@ -63,11 +70,11 @@ class Fmt {
   }
 
   /// Format a number without a currency unit.
-  static String number(num value, {int decimals = 0, bool persian = false}) {
+  static String number(num value, {int decimals = 0, bool? persian}) {
     final s = decimals > 0
         ? _fixed(decimals).format(value)
         : _grouped.format(value.round());
-    return _localize(s, persian);
+    return _localize(s, persian ?? persianDigits);
   }
 
   /// Format an amount with an optional currency symbol or code.
@@ -75,7 +82,7 @@ class Fmt {
     num value, {
     String symbol = 'Toman',
     int decimals = 0,
-    bool persian = false,
+    bool? persian,
     bool withSymbol = true,
     bool sign = false,
   }) {
@@ -85,7 +92,7 @@ class Fmt {
     } else {
       s = _grouped.format(value.abs().round());
     }
-    s = _localize(s, persian);
+    s = _localize(s, persian ?? persianDigits);
     final prefix = sign ? (value < 0 ? '−' : '+') : (value < 0 ? '−' : '');
     return withSymbol ? '$prefix$s $symbol' : '$prefix$s';
   }
@@ -94,8 +101,9 @@ class Fmt {
   static String compactMoney(
     num value, {
     String symbol = 'Toman',
-    bool persian = false,
+    bool? persian,
   }) {
+    final fa = persian ?? persianDigits;
     final v = value.abs();
     String out;
     if (v >= 1000000000) {
@@ -108,7 +116,7 @@ class Fmt {
       out = _plainDecimal.format(v);
     }
     final sign = value < 0 ? '−' : '';
-    return '$sign${_localize(out, persian)} $symbol';
+    return '$sign${_localize(out, fa)} $symbol';
   }
 
   /// Format a decimal input value without grouping separators.
@@ -124,28 +132,28 @@ class Fmt {
     int y,
     int m,
     int d, {
-    bool persian = false,
+    bool? persian,
     String sep = '/',
   }) {
     final s = '$y$sep${_two(m)}$sep${_two(d)}';
-    return persian ? toFaDigits(s) : s;
+    return (persian ?? persianDigits) ? toFaDigits(s) : s;
   }
 
   /// Format a long Jalali date, e.g. 12 Mehr 1405.
-  static String dateLong(int y, int m, int d, {bool persian = false}) {
+  static String dateLong(int y, int m, int d, {bool? persian}) {
     final s = '$d ${monthName(m)} $y';
-    return persian ? toFaDigits(s) : s;
+    return (persian ?? persianDigits) ? toFaDigits(s) : s;
   }
 
   /// Format a Jalali month and year, e.g. Mehr 1405.
-  static String monthLabel(int y, int m, {bool persian = false}) {
+  static String monthLabel(int y, int m, {bool? persian}) {
     final s = '${monthName(m)} $y';
-    return persian ? toFaDigits(s) : s;
+    return (persian ?? persianDigits) ? toFaDigits(s) : s;
   }
 
-  static String ordinal(int day, {bool persian = false}) {
+  static String ordinal(int day, {bool? persian}) {
     final s = '$day';
-    return persian ? toFaDigits(s) : s;
+    return (persian ?? persianDigits) ? toFaDigits(s) : s;
   }
 
   static const jalaliMonths = <String>[
@@ -214,8 +222,9 @@ class Fmt {
   }
 
   /// Describe the remaining or elapsed days until expiry.
-  static String expiryLabel(int days, {bool persian = false}) {
-    String count(int value) => persian ? toFaDigits('$value') : '$value';
+  static String expiryLabel(int days, {bool? persian}) {
+    final fa = persian ?? persianDigits;
+    String count(int value) => fa ? toFaDigits('$value') : '$value';
 
     if (days == 0) return 'Today'.tr;
     if (days == 1) return 'Tomorrow'.tr;
@@ -228,13 +237,15 @@ class Fmt {
     });
   }
 
-  static String percent(double ratio, {bool persian = false}) =>
-      '${_localize(_percent.format(ratio * 100), persian)}${persian ? '٪' : '%'}';
+  static String percent(double ratio, {bool? persian}) {
+    final fa = persian ?? persianDigits;
+    return '${_localize(_percent.format(ratio * 100), fa)}${fa ? '٪' : '%'}';
+  }
 
   /// Format a clock time, e.g. 14:30.
-  static String clock(DateTime dt, {bool persian = false}) {
+  static String clock(DateTime dt, {bool? persian}) {
     final s = '${_two(dt.hour)}:${_two(dt.minute)}';
-    return persian ? toFaDigits(s) : s;
+    return (persian ?? persianDigits) ? toFaDigits(s) : s;
   }
 }
 

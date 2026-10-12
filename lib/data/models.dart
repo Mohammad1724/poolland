@@ -562,9 +562,15 @@ class Plan {
   int get durationDays =>
       durationUnit == PlanDurationUnit.day ? durationValue : durationValue * 30;
 
-  String get durationLabel =>
-      '$durationValue ${durationUnit == PlanDurationUnit.month ? (durationValue == 1 ? 'month' : 'months') : (durationValue == 1 ? 'day' : 'days')}'
-          .tr;
+  /// The unit word is translated on its own: the assembled phrase
+  /// ("3 months") can never be a key, so translating the whole string
+  /// used to silently render in English.
+  String get durationLabel {
+    final unit = durationUnit == PlanDurationUnit.month
+        ? (durationValue == 1 ? 'month' : 'months')
+        : (durationValue == 1 ? 'day' : 'days');
+    return '$durationValue ${unit.tr}';
+  }
 
   /// Calculate the end date from the start date (months follow the Jalali calendar).
   DateTime endFrom(DateTime start) {

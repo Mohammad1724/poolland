@@ -1054,7 +1054,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                     ChoiceChip(
                       selected: _categoryId == c.id,
                       showCheckmark: false,
-                      label: Text(c.name),
+                      label: Text(c.name.tr),
                       onSelected: (_) => setState(() => _categoryId = c.id),
                     ),
                 ],

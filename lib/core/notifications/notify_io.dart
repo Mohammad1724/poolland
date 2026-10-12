@@ -7,6 +7,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../localization.dart';
+
 /// Whether notifications are supported on this platform.
 const bool notifyIsSupported = true;
 
@@ -58,16 +60,17 @@ class ReminderService {
         ? 'daily_reminder_$soundHash'
         : 'daily_reminder';
     final channelName = hasCustomSound && soundName != null
-        ? 'Daily reminder — $soundName'
-        : 'Daily reminder';
+        ? '${'Daily reminder'.tr} — $soundName'
+        : 'Daily reminder'.tr;
 
     return AndroidNotificationDetails(
       channelId,
       channelName,
-      channelDescription: 'Reminder to record daily expenses and income',
+      channelDescription:
+          'Reminder to record daily expenses and income'.tr,
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
-      ticker: 'Poolland reminder',
+      ticker: 'Poolland reminder'.tr,
       playSound: true,
       sound: customSound,
     );

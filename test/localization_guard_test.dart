@@ -41,6 +41,61 @@ void main() {
     );
   });
 
+  test('strings passed to self-translating parameters have keys', () {
+    // Several widgets translate their own string parameters (Tile,
+    // confirmDialog, showSnack, SearchField, SelectField, SwipeAction,
+    // SectionTitle, AmountField, ...). Callers hand them the English source
+    // *without* `.tr`, so the literal scanner above never sees them — a
+    // missing key still renders English silently. This pass checks those
+    // named arguments (and the snack message position) directly.
+    final localization = File('lib/core/localization.dart');
+    final keys = faKeys(localization.readAsStringSync());
+
+    final scanners = <RegExp>[
+      RegExp(
+        r"\b(message|title|subtitle|label|hint|okLabel|cancelLabel|"
+        r"extraActionLabel|action):\s*'((?:[^'\\]|\\.)*)'",
+      ),
+      // The positional message of the snack helpers is also `.tr`-ed inside.
+      RegExp(
+        r"\bshow(?:Messenger)?Snack\(\s*(?:context|messenger)\s*,\s*"
+        r"'((?:[^'\\]|\\.)*)'",
+      ),
+    ];
+
+    // Known receivers that are not self-translating UI widgets.
+    const allow = {
+      'lib/data/ledger.dart:Week', // dead weekly-chart aggregation
+    };
+
+    final missing = <String>[];
+    for (final file in _dartFiles(Directory('lib'))) {
+      if (file.path.endsWith('localization.dart')) continue;
+      final source = file.readAsStringSync();
+      for (final param in scanners) {
+        for (final m in param.allMatches(source)) {
+          final use = _joinedLiteral(source, m, m.groupCount);
+          if (use == null) continue;
+          if (allow.contains('${file.path}:${use.text}')) continue;
+          if (!keys.contains(use.text)) {
+            final line =
+                '\n'.allMatches(source.substring(0, m.start)).length + 1;
+            missing.add('${file.path}:$line  ${use.text}');
+          }
+        }
+      }
+    }
+
+    expect(
+      missing,
+      isEmpty,
+      reason:
+          'These strings go to widgets that translate them internally, but '
+          'have no Persian entry in AppLocalization._fa:\n'
+          '${missing.join('\n')}',
+    );
+  });
+
   test('the guard itself sees the map and the known keys', () {
     final source = File('lib/core/localization.dart').readAsStringSync();
     final keys = faKeys(source);
@@ -124,6 +179,43 @@ List<_Use> _translatedLiterals(String source) {
 }
 
 bool _isSpace(String ch) => ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r';
+
+/// The literal in the last capture group of [m], joined with any adjacent
+/// literals that follow it. Returns null when the value is assembled at
+/// runtime (contains `$`) or already carries an explicit `.tr` (the first
+/// test covers those).
+_Use? _joinedLiteral(String source, RegExpMatch m, int lastGroup) {
+  var text = m.group(lastGroup)!;
+  var end = m.end;
+  if (text.contains(r'$')) return null;
+  while (true) {
+    var j = end;
+    while (j < source.length && _isSpace(source[j])) {
+      j++;
+    }
+    if (j >= source.length || source[j] != "'") break;
+    final close = _closingQuote(source, j);
+    if (close < 0) break;
+    final part = source.substring(j + 1, close);
+    if (part.contains(r'$')) return null;
+    text += part;
+    end = close + 1;
+  }
+  var k = end;
+  while (k < source.length && _isSpace(source[k])) {
+    k++;
+  }
+  if (source.startsWith('.tr', k)) return null;
+  return _Use(text, m.start);
+}
+
+/// Index of the quote closing the literal that opens at [open], or -1.
+int _closingQuote(String s, int open) {
+  for (var i = open + 1; i < s.length; i++) {
+    if (s[i] == "'" && !_isEscaped(s, i)) return i;
+  }
+  return -1;
+}
 
 /// True when the quote at [i] is escaped by an odd run of backslashes.
 bool _isEscaped(String s, int i) {

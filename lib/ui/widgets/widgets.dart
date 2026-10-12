@@ -1124,7 +1124,10 @@ class TxnTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
     final compactAmounts = MediaQuery.sizeOf(context).width < 360;
-    final title = txn.note.isNotEmpty ? txn.note : categoryName.tr;
+    // Notes written by the app itself ('Payment received', 'Imported from
+    // SMS', ...) are localization keys; free-typed user notes simply miss
+    // the map and render as-is.
+    final title = txn.note.isNotEmpty ? txn.note.tr : categoryName.tr;
     final sub = <String>[
       J.d(txn.date),
       if (showCustomer && customerName != null) customerName!,

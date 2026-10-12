@@ -320,6 +320,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       return false;
     }
     if (notification is ScrollUpdateNotification) {
+      // Only vertical list scrolling hides the button; dragging a
+      // horizontal chip row or a chart sideways must not touch it.
+      if (notification.metrics.axis != Axis.vertical) return false;
       final delta = notification.scrollDelta ?? 0;
       if (delta > 4 && _fabVisible.value) {
         _fabVisible.value = false;

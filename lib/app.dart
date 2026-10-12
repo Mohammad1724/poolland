@@ -100,7 +100,7 @@ class _VpnLedgerAppState extends State<VpnLedgerApp> {
   }) {
     AppLocalization.languageCode = locale.languageCode;
     return MaterialApp(
-      title: 'Poolland — VPN Seller Ledger',
+      title: 'Poolland — VPN Seller Ledger'.tr,
       debugShowCheckedModeBanner: false,
       locale: locale,
       supportedLocales: const [Locale('fa'), Locale('en')],

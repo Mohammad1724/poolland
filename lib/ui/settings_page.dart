@@ -205,7 +205,7 @@ class SettingsPage extends StatelessWidget {
                   subtitle: s.currencies
                       .map(
                         (c) =>
-                            '${c.code} ${Fmt.number(c.rateToBase, persian: false)}',
+                            '${c.code} ${Fmt.number(c.rateToBase)}',
                       )
                       .join(' • '),
                   page: const RatesPage(),
@@ -1016,7 +1016,11 @@ class SettingsPage extends StatelessWidget {
       if (context.mounted) {
         showSnack(
           context,
-          'Invalid file: {error}'.trArgs({'error': '$e'}),
+          'Invalid file: {error}'.trArgs({
+            // The store throws localized-key FormatExceptions; anything
+            // else is shown as-is for support.
+            'error': e is FormatException ? '${e.message}'.tr : '$e',
+          }),
           error: true,
         );
       }
@@ -1102,7 +1106,7 @@ class RatesPage extends StatelessWidget {
                         const SizedBox(height: 3),
                         Text(
                           c.code == s.baseCurrency
-                              ? 'Base currency'
+                              ? 'Base currency'.tr
                               : '1 ${c.name.tr} = ${Money.text(c.rateToBase)}',
                           style: TextStyle(
                             fontSize: 11.5,
@@ -1192,25 +1196,25 @@ class RatesPage extends StatelessWidget {
               TextField(
                 controller: code,
                 textDirection: TextDirection.ltr,
-                decoration: const InputDecoration(labelText: 'Code (e.g. AED)'),
+                decoration: InputDecoration(labelText: 'Code (e.g. AED)'.tr),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: name,
-                decoration: const InputDecoration(labelText: 'Name'),
+                decoration: InputDecoration(labelText: 'Name'.tr),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: symbol,
-                decoration: const InputDecoration(labelText: 'Symbol'),
+                decoration: InputDecoration(labelText: 'Symbol'.tr),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: rate,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Rate in Toman',
-                  suffixText: 'Toman',
+                decoration: InputDecoration(
+                  labelText: 'Rate in Toman'.tr,
+                  suffixText: 'Toman'.tr,
                 ),
               ),
             ],
@@ -1383,14 +1387,14 @@ class _CategoriesPageState extends State<CategoriesPage> {
               builder: (ctx) => AlertDialog(
                 title: Text(
                   kind == TxnKind.income
-                      ? 'New income category'
-                      : 'New expense category',
+                      ? 'New income category'.tr
+                      : 'New expense category'.tr,
                 ),
                 content: TextField(
                   controller: ctrl,
                   autofocus: true,
-                  decoration: const InputDecoration(
-                    hintText: 'e.g. Server purchase',
+                  decoration: InputDecoration(
+                    hintText: 'e.g. Server purchase'.tr,
                   ),
                 ),
                 actions: [

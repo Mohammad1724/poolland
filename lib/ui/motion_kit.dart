@@ -1007,8 +1007,9 @@ class _AmbientAuroraState extends State<AmbientAurora>
   }
 }
 
-/// Closes the enclosing route when the content is pulled down while it
-/// cannot scroll up any further (list at top, sheet at its minimum).
+/// Closes the enclosing route when the content is pulled *vertically* down
+/// while it cannot scroll up any further (list at top, sheet at its
+/// minimum). Horizontal scrollers inside the sheet are ignored.
 class _OverscrollDismiss extends StatefulWidget {
   const _OverscrollDismiss({required this.child});
 
@@ -1023,9 +1024,13 @@ class _OverscrollDismissState extends State<_OverscrollDismiss> {
 
   bool _onNotification(ScrollNotification n) {
     if (_closing) return false;
+    // Vertical pulls only: a horizontal chip row dragged past its start
+    // edge also reports negative overscroll and must never dismiss the
+    // sheet sideways.
     if (n is OverscrollNotification &&
+        n.metrics.axis == Axis.vertical &&
         n.overscroll < 0 &&
-        n.metrics.pixels <= 0.5) {
+        n.metrics.pixels <= n.metrics.minScrollExtent + 0.5) {
       _closing = true;
       Navigator.pop(context);
       return true;

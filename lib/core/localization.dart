@@ -794,6 +794,85 @@ class AppLocalization {
         'برای اعلان پیامک بانکی، اجازهٔ اعلان لازم است',
     'New bank SMS — review and record it':
         'پیامک بانکی جدید رسیده — بررسی و ثبت کن',
+
+    // ---- Round-13 audit: strings that were shown without a Persian entry ----
+    'Name, contact, and balance': 'نام، راه ارتباطی و مانده',
+    'Clear the review history and scan SMS messages again?':
+        'تاریخچهٔ بررسی پاک شود و پیامک‌ها دوباره بررسی شوند؟',
+    'Clear': 'پاک‌کردن',
+    'Restore': 'بازیابی',
+    'New income category': 'دستهٔ درآمد جدید',
+    'New expense category': 'دستهٔ هزینه جدید',
+    'Code (e.g. AED)': 'کد (مثلاً AED)',
+    'Symbol': 'نماد',
+    'Rate in Toman': 'نرخ به تومان',
+    'e.g. Server purchase': 'مثلاً خرید سرور',
+    'Base currency': 'ارز پایه',
+    'Ask for an amount when recording': 'هنگام ثبت، مبلغ پرسیده شود',
+    'No quick buttons configured.': 'هنوز دکمهٔ سریعی تنظیم نشده است.',
+    'Credit (customer balance)': 'نسیه (ماندهٔ مشتری)',
+    'Credit (our payable)': 'نسیه (بدهی ما)',
+    'Paid in full': 'پرداخت کامل',
+    'Partial payment': 'پرداخت جزئی',
+    'Payment received': 'پرداخت دریافت شد',
+    'Payment made': 'پرداخت انجام شد',
+    'Owes you': 'به شما بدهکار است',
+    'You owe them': 'شما به او بدهکارید',
+    'Imported from SMS': 'واردشده از پیامک',
+    'Amount converted from Rials to Tomans': 'مبلغ از ریال به تومان تبدیل شد',
+    'Amount assumed to be in Rials (bank rule)':
+        'مبلغ بر اساس قانون بانک ریال فرض شد',
+    'Transaction direction could not be determined':
+        'جهت تراکنش قابل تشخیص نبود',
+    'Non-transaction message (password, code, or notification)':
+        'پیام غیرتراکنشی (رمز، کد یا اعلان)',
+    'Have you recorded today’s expenses and income?':
+        'هزینه‌ها و درآمدهای امروزت را ثبت کرده‌ای؟',
+    'Reminder to record daily expenses and income':
+        'یادآور ثبت هزینه‌ها و درآمدهای روزانه',
+    'Poolland reminder': 'یادآور پول‌لند',
+    'Poolland — VPN Seller Ledger': 'پول‌لند — دفتر حسابداری فروش VPN',
+    'This file is not a Poolland backup.': 'این فایل پشتیبان پول‌لند نیست.',
+    'Invalid settings data.': 'دادهٔ تنظیمات نامعتبر است.',
+    'A subscription references a missing customer.':
+        'یک اشتراک به مشتری ناموجود ارجاع دارد.',
+    'PDF report created': 'گزارش PDF ساخته شد',
+    'CSV file created': 'فایل CSV ساخته شد',
+    'All data erased': 'همهٔ داده‌ها پاک شد',
+    'Backup file created': 'فایل پشتیبان ساخته شد',
+    'Backup save cancelled': 'ذخیرهٔ پشتیبان لغو شد',
+    'Contact deleted': 'مخاطب حذف شد',
+    'Delete this contact?': 'این مخاطب حذف شود؟',
+    'This contact has {count} transactions. Deleting them will also delete all of those transactions. Continue?':
+        'این مخاطب {count} تراکنش دارد. با حذف او همهٔ آن تراکنش‌ها هم حذف می‌شوند. ادامه می‌دهید؟',
+    'Plan updated': 'طرح به‌روزرسانی شد',
+    'Plan added': 'طرح اضافه شد',
+    'Select a customer first.': 'ابتدا یک مشتری انتخاب کنید.',
+    'Subscription renewed': 'اشتراک تمدید شد',
+    'Sale recorded': 'فروش ثبت شد',
+    'Transaction updated': 'تراکنش به‌روزرسانی شد',
+    'Transaction deleted': 'تراکنش حذف شد',
+    'Select a contact for this payment':
+        'برای این پرداخت یک مخاطب انتخاب کنید',
+    'Manage plans': 'مدیریت طرح‌ها',
+    'Export JSON to a messaging app or save it on your phone':
+        'ارسال JSON به یک پیام‌رسان یا ذخیرهٔ آن روی گوشی',
+    'Choose where to save the JSON file':
+        'محل ذخیرهٔ فایل JSON را انتخاب کنید',
+    'All current data will be replaced with the selected file':
+        'همهٔ دادهٔ فعلی با فایل انتخاب‌شده جایگزین می‌شود',
+    'For a quick app demo (current data will be erased)':
+        'برای دمو سریع برنامه (دادهٔ فعلی پاک می‌شود)',
+    'Reset the app (cannot be undone)': 'بازنشانی برنامه (قابل بازگشت نیست)',
+    'Income {income} • Expense {expense}': 'درآمد {income} • هزینه {expense}',
+    'Payment for {plan}': 'پرداخت برای {plan}',
+    'Renewal: {plan}': 'تمدید: {plan}',
+    'Sale: {plan}': 'فروش: {plan}',
+    'Configuration sale (paid in {currency})':
+        'فروش کانفیگ (پرداخت با {currency})',
+    'Monthly salary': 'حقوق ماهانه',
+    'Home rent': 'اجارهٔ خانه',
+    'Subscription': 'اشتراک',
   };
 
   static String text(String source, {String? languageCode}) =>

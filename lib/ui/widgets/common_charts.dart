@@ -181,10 +181,21 @@ class _MonthlyBarChartState extends State<MonthlyBarChart>
   }
 
   String _short(double v) {
-    if (v >= 1000000000) return '${(v / 1000000000).toStringAsFixed(1)}B';
-    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
-    if (v >= 1000) return '${(v / 1000).toStringAsFixed(0)}K';
-    return v.toStringAsFixed(0);
+    final String s;
+    if (v >= 1000000000) {
+      s = '${(v / 1000000000).toStringAsFixed(1)}B';
+    } else if (v >= 1000000) {
+      s = '${(v / 1000000).toStringAsFixed(1)}M';
+    } else if (v >= 1000) {
+      s = '${(v / 1000).toStringAsFixed(0)}K';
+    } else {
+      s = v.toStringAsFixed(0);
+    }
+    // Axis labels follow the Persian-digits preference like every other
+    // number the app shows.
+    return Fmt.persianDigits
+        ? Fmt.toFaDigits(s).replaceAll('.', '٫')
+        : s;
   }
 }
 
@@ -267,10 +278,7 @@ class _CategoryPieChartState extends State<CategoryPieChart>
                     color: _palette[i % _palette.length],
                     radius: size * 0.2 * (0.55 + 0.45 * t),
                     showTitle: entries[i].value / total > 0.08,
-                    title: Fmt.percent(
-                      entries[i].value / total,
-                      persian: false,
-                    ),
+                    title: Fmt.percent(entries[i].value / total),
                     titleStyle: const TextStyle(
                       fontFamily: 'Vazirmatn',
                       fontSize: 10,

@@ -152,7 +152,10 @@ class _TransactionsPageState extends State<TransactionsPage> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Income ${Money.text(summary.income, compact: true)} • Expense ${Money.text(summary.expense, compact: true)}',
+                        'Income {income} • Expense {expense}'.trArgs({
+                          'income': Money.text(summary.income, compact: true),
+                          'expense': Money.text(summary.expense, compact: true),
+                        }),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,

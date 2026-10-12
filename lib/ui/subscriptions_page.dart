@@ -251,7 +251,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                                     ),
                                     const SizedBox(height: 3),
                                     Text(
-                                      s.planName,
+                                      s.planName.tr,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(

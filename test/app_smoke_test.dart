@@ -17,6 +17,7 @@ import 'package:poolland/ui/forms/plan_edit_page.dart';
 import 'package:poolland/ui/forms/sell_subscription_page.dart';
 import 'package:poolland/ui/forms/transaction_edit_page.dart';
 import 'package:poolland/ui/home_shell.dart';
+import 'package:poolland/ui/motion_kit.dart';
 import 'package:poolland/ui/onboarding.dart';
 import 'package:poolland/ui/permissions_intro_page.dart';
 import 'package:poolland/ui/personal_page.dart';
@@ -28,6 +29,7 @@ import 'package:poolland/ui/subscriptions_page.dart';
 import 'package:poolland/ui/unrecognized_sms_page.dart';
 import 'package:poolland/ui/theme.dart';
 import 'package:poolland/ui/transactions_page.dart';
+import 'package:poolland/ui/widgets/quick_buttons.dart';
 import 'package:poolland/ui/widgets/widgets.dart';
 import 'package:poolland/ui/widgets/ledger_nav_bar.dart';
 
@@ -381,6 +383,88 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Opening balance'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Switching the direction swaps the category to the new kind', (
+    tester,
+  ) async {
+    final beforeIds = repo.transactions.map((t) => t.id).toSet();
+    await tester.pumpWidget(
+      wrap(const TransactionEditPage(initialKind: TxnKind.income)),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.widgetWithText(TextField, 'Amount'),
+      200,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Amount'),
+      '1000',
+    );
+
+    // Flip income -> expense: the selected category must be re-derived for
+    // the new direction instead of silently keeping the income category.
+    await tester.ensureVisible(find.text('Expense').last);
+    await tester.tap(find.text('Expense').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Record'));
+    await tester.pumpAndSettle();
+
+    final saved = repo.transactions
+        .where((t) => !beforeIds.contains(t.id))
+        .toList();
+    expect(saved, hasLength(1));
+    expect(saved.single.kind, TxnKind.expense);
+    final category = repo.categoryById(saved.single.categoryId);
+    expect(category, isNotNull);
+    expect(category!.kind, TxnKind.expense);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Quick amount sheet returns the picked day with the amount', (
+    tester,
+  ) async {
+    QuickAmountResult? result;
+    await tester.pumpWidget(
+      wrap(
+        Builder(
+          builder: (c) => FilledButton(
+            onPressed: () async => result =
+                await showLedgerSheet<QuickAmountResult>(
+                  c,
+                  builder: (_) => const QuickAmountSheet(
+                    quick: QuickExpense(id: 'q1', label: 'Snack'),
+                  ),
+                ),
+            child: const Text('go'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Amount'),
+      '2500',
+    );
+    await tester.tap(find.text('Record'));
+    await tester.pumpAndSettle();
+
+    expect(result, isNotNull);
+    expect(result!.amount, 2500);
+    // The sheet offers a date picker; the chosen day must travel back with
+    // the amount so recordQuickExpense can post entries that are not today.
+    final now = DateTime.now();
+    expect(result!.date.year, now.year);
+    expect(result!.date.month, now.month);
+    expect(result!.date.day, now.day);
   });
 
   testWidgets('Permissions intro renders', (tester) async {

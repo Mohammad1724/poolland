@@ -326,14 +326,18 @@ class _CopyDemo extends StatelessWidget {
                     color: Theme.of(context).colorScheme.inverseSurface,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.check_rounded, size: 10, color: Colors.white),
-                      SizedBox(width: 3),
+                      const Icon(
+                        Icons.check_rounded,
+                        size: 10,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 3),
                       Text(
-                        'Copied',
-                        style: TextStyle(
+                        'Copied'.tr,
+                        style: const TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,

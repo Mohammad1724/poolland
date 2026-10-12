@@ -488,7 +488,7 @@ class _BudgetTile extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          usage.categoryName,
+                          usage.categoryName.tr,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -519,7 +519,7 @@ class _BudgetTile extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      usage.categoryName,
+                      usage.categoryName.tr,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -576,7 +576,7 @@ class _BudgetTile extends StatelessWidget {
                     })
                   : '{amount} remaining • {percent}'.trArgs({
                       'amount': Money.text(usage.remaining, compact: true),
-                      'percent': Fmt.percent(usage.ratio, persian: false),
+                      'percent': Fmt.percent(usage.ratio),
                     }),
               style: TextStyle(
                 fontSize: 11,
@@ -984,11 +984,27 @@ class _RecurringSheetState extends State<_RecurringSheet> {
                   ),
                 ],
                 selected: {_kind},
-                onSelectionChanged: (s) => setState(
-                  () => _kind = s.first == TxnKind.income
+                // Flipping the direction must not keep a category of the
+                // other direction on the saved rule.
+                onSelectionChanged: (s) => setState(() {
+                  _kind = s.first == TxnKind.income
                       ? TxnKind.income
-                      : TxnKind.expense,
-                ),
+                      : TxnKind.expense;
+                  final list = repo.categories
+                      .where(
+                        (c) =>
+                            c.scope == TxnScope.personal &&
+                            c.kind ==
+                                (_kind == TxnKind.income
+                                    ? TxnKind.income
+                                    : TxnKind.expense),
+                      )
+                      .toList();
+                  if (_categoryId != null &&
+                      !list.any((c) => c.id == _categoryId)) {
+                    _categoryId = null;
+                  }
+                }),
               ),
               const SizedBox(height: 12),
               SelectField<Category>(
@@ -1016,7 +1032,7 @@ class _RecurringSheetState extends State<_RecurringSheet> {
                     DropdownButton<int>(
                       value: _dayOfMonth,
                       items: [
-                        for (var d = 1; d <= 30; d++)
+                        for (var d = 1; d <= 31; d++)
                           DropdownMenuItem(value: d, child: Text('$d')),
                       ],
                       onChanged: (v) => setState(() => _dayOfMonth = v ?? 1),
@@ -1150,7 +1166,7 @@ class _QuickManagerSheet extends StatelessWidget {
                       subtitle: Text(
                         q.hasFixedAmount
                             ? Money.text(q.amount)
-                            : 'Ask for an amount when recording',
+                            : 'Ask for an amount when recording'.tr,
                       ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1359,11 +1375,26 @@ class _QuickEditPageState extends State<_QuickEditPage> {
             ButtonSegment(value: TxnKind.income, label: Text('Income'.tr)),
           ],
           selected: {_kind},
-          onSelectionChanged: (s) => setState(
-            () => _kind = s.first == TxnKind.income
+          // Flipping the direction must not keep a category of the other
+          // direction on the saved button.
+          onSelectionChanged: (s) => setState(() {
+            _kind = s.first == TxnKind.income
                 ? TxnKind.income
-                : TxnKind.expense,
-          ),
+                : TxnKind.expense;
+            final list = repo.categories
+                .where(
+                  (c) =>
+                      c.scope == _scope &&
+                      c.kind ==
+                          (_kind == TxnKind.income
+                              ? TxnKind.income
+                              : TxnKind.expense),
+                )
+                .toList();
+            if (_categoryId != null && !list.any((c) => c.id == _categoryId)) {
+              _categoryId = null;
+            }
+          }),
         ),
         const SizedBox(height: 14),
         SelectField<Category>(

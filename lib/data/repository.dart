@@ -428,7 +428,7 @@ class AppRepository extends ChangeNotifier {
     for (final t in transactions.where(
       (t) =>
           t.customerId == id ||
-          (withData && subscriptionIds.contains(t.subscriptionId)),
+          subscriptionIds.contains(t.subscriptionId),
     )) {
       if (withData) {
         await store.deleteTxn(t.id);
@@ -530,7 +530,7 @@ class AppRepository extends ChangeNotifier {
           categoryId: saleCategoryId,
           customerId: customer.id,
           subscriptionId: s.id,
-          note: 'Payment for $title',
+          note: 'Payment for {plan}'.trArgs({'plan': title.tr}),
           createdAt: DateTime.now(),
         ),
       );
@@ -568,7 +568,7 @@ class AppRepository extends ChangeNotifier {
       received: received ?? 0,
       receiveCurrency: currencyCode ?? old.currency,
       autoRenew: old.autoRenew,
-      note: 'Renewal: ${old.planName}',
+      note: 'Renewal: {plan}'.trArgs({'plan': old.planName.tr}),
       categoryId: categoryId,
       deviceCount: old.deviceCount,
     );
@@ -911,7 +911,10 @@ class AppRepository extends ChangeNotifier {
         s.dailyReminder != settings.dailyReminder ||
         s.reminderHour != settings.reminderHour ||
         s.reminderMinute != settings.reminderMinute ||
-        s.notificationSoundUri != settings.notificationSoundUri;
+        s.notificationSoundUri != settings.notificationSoundUri ||
+        // The reminder text is baked into the scheduled notification, so a
+        // language switch must reschedule it in the new language.
+        s.languageCode != settings.languageCode;
     final wasEnabled = settings.dailyReminder;
     settings = s;
     _syncGlobals();
@@ -936,6 +939,17 @@ class AppRepository extends ChangeNotifier {
       await reminder.scheduleDaily(
         hour: settings.reminderHour,
         minute: settings.reminderMinute,
+        // Baked into the scheduled notification: translate with the saved
+        // settings language explicitly — the global language code only
+        // catches up when MaterialApp rebuilds, which can be later.
+        title: AppLocalization.text(
+          'Expense reminder',
+          languageCode: settings.languageCode,
+        ),
+        body: AppLocalization.text(
+          'Have you recorded today’s expenses and income?',
+          languageCode: settings.languageCode,
+        ),
         soundUri: settings.notificationSoundUri,
         soundName: settings.notificationSoundName,
       );
@@ -1173,7 +1187,9 @@ class AppRepository extends ChangeNotifier {
     smsPermissionGranted = ok;
     if (ok) {
       await updateSettings(settings.copyWith(smsEnabled: true));
-      unawaited(syncSms());
+      // Fire-and-forget, but an inbox read failure must not surface as an
+      // unhandled async error; the review page offers a manual retry.
+      unawaited(syncSms().catchError((_) => 0));
     }
     notifyListeners();
     return ok;
@@ -1507,12 +1523,12 @@ class AppRepository extends ChangeNotifier {
       parts.add(sms.bankName!.tr);
     }
     if (sms.cardMask != null && sms.cardMask!.isNotEmpty) {
-      parts.add('Card ${sms.cardMask}');
+      parts.add('Card {card}'.trArgs({'card': sms.cardMask}));
     }
     if (sms.reference != null && sms.reference!.isNotEmpty) {
-      parts.add('Reference ${sms.reference}');
+      parts.add('Reference {reference}'.trArgs({'reference': sms.reference}));
     }
-    if (parts.isEmpty) parts.add('Imported from SMS');
+    if (parts.isEmpty) parts.add('Imported from SMS'.tr);
     return parts.join(' · ');
   }
 
@@ -1611,7 +1627,7 @@ class AppRepository extends ChangeNotifier {
             customerId: c.id,
             subscriptionId: sub.id,
             credit: true,
-            note: 'Sale: ${plan.name}',
+            note: 'Sale: {plan}'.trArgs({'plan': plan.name.tr}),
             createdAt: start,
           ),
         );
@@ -1684,7 +1700,9 @@ class AppRepository extends ChangeNotifier {
             categoryId: defaultIncomeCategoryId,
             customerId: c.id,
             credit: false,
-            note: 'Configuration sale (paid in $cur)',
+            note: 'Configuration sale (paid in {currency})'.trArgs({
+              'currency': cur,
+            }),
             createdAt: now,
           ),
         );
@@ -1743,7 +1761,7 @@ class AppRepository extends ChangeNotifier {
             28,
           ),
           categoryId: salaryCat.isEmpty ? null : salaryCat.first.id,
-          note: 'Monthly salary',
+          note: 'Monthly salary'.tr,
           scope: TxnScope.personal,
           createdAt: now,
         ),
@@ -1775,7 +1793,7 @@ class AppRepository extends ChangeNotifier {
     await store.putRecurring(
       RecurringRule(
         id: LocalStore.newId(),
-        title: 'Home rent',
+        title: 'Home rent'.tr,
         amount: 8000000,
         categoryId: rentCat.isEmpty ? null : rentCat.first.id,
         period: RecurringPeriod.monthly,
