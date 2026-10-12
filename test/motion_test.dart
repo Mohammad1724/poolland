@@ -211,10 +211,13 @@ void main() {
     );
     await tester.tap(find.text('go'));
     await tester.pumpAndSettle();
+    for (final key in ['Gesture guide', 'Swipe actions', 'Copy money']) {
+      expect(find.text(key.tr), findsOneWidget, reason: key);
+    }
+    // The card list scrolls: reveal the rest before asserting on it.
+    await tester.drag(find.byType(ListView), const Offset(0, -400));
+    await tester.pumpAndSettle();
     for (final key in [
-      'Gesture guide',
-      'Swipe actions',
-      'Copy money',
       'Quick menu',
       'Dismiss sheets',
       'Customer shortcuts',
