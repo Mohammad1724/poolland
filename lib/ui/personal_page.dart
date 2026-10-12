@@ -1288,10 +1288,12 @@ class _QuickEditPageState extends State<_QuickEditPage> {
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
+    // The category list follows the section segmented control: a business
+    // button must offer business categories, a personal one personal.
     final cats = repo.categories
         .where(
           (c) =>
-              c.scope == TxnScope.personal &&
+              c.scope == _scope &&
               c.kind ==
                   (_kind == TxnKind.income ? TxnKind.income : TxnKind.expense),
         )
@@ -1414,9 +1416,9 @@ class _QuickEditPageState extends State<_QuickEditPage> {
               label: _label.text.trim(),
               amount: parseAmount(_amount.text),
               kind: _kind,
-              // Keep the stored scope: this sheet edits personal buttons, but
-              // a button created elsewhere must not flip scopes on edit.
-              scope: initial?.scope ?? TxnScope.personal,
+              // Editing keeps the stored scope; a brand-new button lands in
+              // whichever section the sheet is currently set to.
+              scope: initial?.scope ?? _scope,
               categoryId: _categoryId,
               iconCodePoint: _iconCodePoint,
               sortOrder:

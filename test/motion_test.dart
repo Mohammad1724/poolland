@@ -170,6 +170,37 @@ void main() {
     expect(copied, '1250');
   });
 
+  testWidgets('ledger sheet closes on a pull-down at the top', (tester) async {
+    await tester.pumpWidget(
+      wrap(
+        Builder(
+          builder: (c) => FilledButton(
+            onPressed: () => showLedgerSheet<void>(
+              c,
+              builder: (ctx) => SizedBox(
+                height: 300,
+                child: ListView(
+                  children: [
+                    for (var i = 0; i < 30; i++)
+                      SizedBox(height: 40, child: Text('row $i')),
+                  ],
+                ),
+              ),
+            ),
+            child: const Text('go'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(find.text('row 0'), findsOneWidget);
+    // Pull down while the list is already at its top: overscroll closes.
+    await tester.drag(find.byType(ListView), const Offset(0, 260));
+    await tester.pumpAndSettle();
+    expect(find.text('row 0'), findsNothing);
+  });
+
   testWidgets('AmbientAurora renders a frozen layer without motion', (
     tester,
   ) async {

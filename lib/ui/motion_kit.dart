@@ -111,7 +111,13 @@ Future<T?> showLedgerSheet<T>(
           maxHeight: MediaQuery.sizeOf(ctx).height * 0.92,
         ),
         child: _SheetDragDismiss(
-          child: Material(color: Colors.transparent, child: builder(ctx)),
+          child: Material(
+            color: Colors.transparent,
+            // A sheet whose list is at the top closes on a further
+            // pull-down, the way people expect any bottom sheet to
+            // behave — no back button needed.
+            child: _OverscrollDismiss(child: builder(ctx)),
+          ),
         ),
       ),
     ),
@@ -999,4 +1005,38 @@ class _AmbientAuroraState extends State<AmbientAurora>
       ),
     );
   }
+}
+
+/// Closes the enclosing route when the content is pulled down while it
+/// cannot scroll up any further (list at top, sheet at its minimum).
+class _OverscrollDismiss extends StatefulWidget {
+  const _OverscrollDismiss({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_OverscrollDismiss> createState() => _OverscrollDismissState();
+}
+
+class _OverscrollDismissState extends State<_OverscrollDismiss> {
+  bool _closing = false;
+
+  bool _onNotification(ScrollNotification n) {
+    if (_closing) return false;
+    if (n is OverscrollNotification &&
+        n.overscroll < 0 &&
+        n.metrics.pixels <= 0.5) {
+      _closing = true;
+      Navigator.pop(context);
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      NotificationListener<ScrollNotification>(
+        onNotification: _onNotification,
+        child: widget.child,
+      );
 }
