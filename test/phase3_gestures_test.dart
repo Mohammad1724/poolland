@@ -279,6 +279,14 @@ void main() {
     ) async {
       await tester.pumpWidget(wrap(const TransactionEditPage()));
       await tester.pumpAndSettle();
+      // TEMP diagnostics
+      debugPrint(
+        'DIAG lists=${find.byType(ListView).evaluate().length} '
+        'wraps=${find.byType(Wrap).evaluate().length} '
+        'seg=${find.byType(SegmentedButton<TxnScope>).evaluate().length} '
+        'segAll=${find.byType(SegmentedButton<TxnScope>, skipOffstage: false).evaluate().length} '
+        'err=${tester.takeException()}',
+      );
 
       final size = tester.getSize(find.byType(SegmentedButton<TxnScope>));
       expect(size.height, greaterThanOrEqualTo(44));
