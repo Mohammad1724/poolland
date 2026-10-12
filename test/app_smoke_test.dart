@@ -362,7 +362,14 @@ void main() {
     );
     await tester.pumpAndSettle();
     // The form is a lazy ListView: scroll so below-the-fold fields build.
-    await tester.drag(find.byType(ListView), const Offset(0, -400));
+    await tester.scrollUntilVisible(
+      find.text('Category'),
+      200,
+      scrollable: find.descendant(
+        of: find.byType(ListView),
+        matching: find.byType(Scrollable),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Category'), findsOneWidget);
     expect(find.byType(FormActionBar), findsOneWidget);
