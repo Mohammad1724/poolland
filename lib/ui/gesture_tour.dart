@@ -37,10 +37,8 @@ Future<void> maybeShowGestureTour(BuildContext context) async {
 /// teaches "drag any sheet down to close it" can itself be dragged down to
 /// close — and picks up the same keyboard/safe-area handling instead of
 /// padding for the soft keyboard on its own.
-Future<void> showGestureTour(BuildContext context) => showLedgerSheet<void>(
-  context: context,
-  builder: (ctx) => const _TourSheet(),
-);
+Future<void> showGestureTour(BuildContext context) =>
+    showLedgerSheet<void>(context, builder: (ctx) => const _TourSheet());
 
 class _TourSheet extends StatelessWidget {
   const _TourSheet();

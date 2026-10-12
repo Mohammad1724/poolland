@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/gestures.dart' show VelocityTracker;
+import 'package:flutter/gestures.dart' show DragStartBehavior, VelocityTracker;
 import 'package:flutter/material.dart';
 
 import '../core/haptics.dart';
@@ -1138,7 +1138,7 @@ class _SheetDismissState extends State<_SheetDismiss>
           onPointerDown: (e) {
             _pointerDown = true;
             _decided = false;
-            _tracker = VelocityTracker(e.kind);
+            _tracker = VelocityTracker.withKind(e.kind);
           },
           onPointerMove: (e) => _tracker?.addPosition(e.timeStamp, e.position),
           onPointerUp: (e) {
