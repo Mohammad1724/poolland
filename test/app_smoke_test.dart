@@ -400,6 +400,16 @@ void main() {
         )
         .first;
 
+    // TEMP DEBUG: dump every built Text and the scrollable structure.
+    debugPrint(
+      'DBG TEXTS: ${tester.widgetList<Text>(find.byType(Text)).map((t) => t.data).toList()}',
+    );
+    debugPrint(
+      'DBG SCROLLABLES: ${find.byType(Scrollable).evaluate().length} '
+      'LISTVIEWS: ${find.byType(ListView).evaluate().length} '
+      'VIEW: ${formScrollable.evaluate().length} '
+      'CHIPS: ${find.byType(ChoiceChip).evaluate().length}',
+    );
     // Flip income -> expense first, while the kind chips are still built:
     // the form is a lazy ListView and items scrolled far out of view are
     // disposed, so a finder for them must run before scrolling past.
