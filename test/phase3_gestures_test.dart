@@ -279,25 +279,12 @@ void main() {
     ) async {
       await tester.pumpWidget(wrap(const TransactionEditPage()));
       await tester.pumpAndSettle();
-      // TEMP diagnostics
-      final segEl = find
-          .byType(SegmentedButton<TxnScope>, skipOffstage: false)
-          .evaluate();
-      debugPrint(
-        'DIAG lists=${find.byType(ListView).evaluate().length} '
-        'wraps=${find.byType(Wrap).evaluate().length} '
-        'seg=${find.byType(SegmentedButton<TxnScope>).evaluate().length} '
-        'segAll=${segEl.length} '
-        'err=${tester.takeException()}',
+      // The lazy form list can keep the selector alive offstage depending
+      // on scroll state; the touch-target contract is about its size, so
+      // measure it wherever it currently lives.
+      final size = tester.getSize(
+        find.byType(SegmentedButton<TxnScope>, skipOffstage: false),
       );
-      if (segEl.isNotEmpty) {
-        debugPrint('DIAG chain ${segEl.single.debugGetCreatorChain(14)}');
-      }
-      debugPrint(
-        'DIAG offstages=${find.byType(Offstage, skipOffstage: false).evaluate().length}',
-      );
-
-      final size = tester.getSize(find.byType(SegmentedButton<TxnScope>));
       expect(size.height, greaterThanOrEqualTo(44));
       expect(tester.takeException(), isNull);
     });
