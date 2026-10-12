@@ -9,6 +9,7 @@ import '../core/sms/sms_service.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 import 'customers_page.dart';
+import 'widgets/widgets.dart';
 import 'gesture_tour.dart';
 import 'dashboard_page.dart';
 import 'design.dart';

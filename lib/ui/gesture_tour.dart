@@ -196,10 +196,9 @@ class _TourCard extends StatelessWidget {
 /// A tiny looping animation. With motion disabled (reduced-motion setting
 /// or widget tests) it freezes on a representative mid-frame instead.
 class _Loop extends StatefulWidget {
-  const _Loop({required this.builder, this.ms = 1800});
+  const _Loop({required this.builder});
 
   final Widget Function(double t) builder;
-  final int ms;
 
   @override
   State<_Loop> createState() => _LoopState();
@@ -208,7 +207,7 @@ class _Loop extends StatefulWidget {
 class _LoopState extends State<_Loop> with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: Duration(milliseconds: widget.ms),
+    duration: const Duration(milliseconds: 1800),
     value: Motion.motionEnabled ? 0 : 0.55,
   )..repeat();
 
@@ -220,7 +219,7 @@ class _LoopState extends State<_Loop> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) =>
-      AnimatedBuilder(animation: _c, builder: (_, __) => widget.builder(_c.value));
+      AnimatedBuilder(animation: _c, builder: (context, _) => widget.builder(_c.value));
 }
 
 /// Ping-pong 0→1→0 so demos sweep back and forth.
