@@ -393,27 +393,37 @@ void main() {
       wrap(const TransactionEditPage(initialKind: TxnKind.income)),
     );
     await tester.pumpAndSettle();
+    final formScrollable = find
+        .descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+
+    // Flip income -> expense first, while the kind chips are still built:
+    // the form is a lazy ListView and items scrolled far out of view are
+    // disposed, so a finder for them must run before scrolling past.
+    // The selected category must be re-derived for the new direction
+    // instead of silently keeping the income category.
+    await tester.scrollUntilVisible(
+      find.text('Expense'),
+      100,
+      scrollable: formScrollable,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Expense').last);
+    await tester.pumpAndSettle();
+
     await tester.scrollUntilVisible(
       find.widgetWithText(TextField, 'Amount'),
-      200,
-      scrollable: find
-          .descendant(
-            of: find.byType(ListView),
-            matching: find.byType(Scrollable),
-          )
-          .first,
+      100,
+      scrollable: formScrollable,
     );
     await tester.pumpAndSettle();
     await tester.enterText(
       find.widgetWithText(TextField, 'Amount'),
       '1000',
     );
-
-    // Flip income -> expense: the selected category must be re-derived for
-    // the new direction instead of silently keeping the income category.
-    await tester.ensureVisible(find.text('Expense').last);
-    await tester.tap(find.text('Expense').last);
-    await tester.pumpAndSettle();
     await tester.tap(find.text('Record'));
     // The save performs a real Hive write; widget tests must give the real
     // event loop a window to finish it before the fake-async pumps resume.
