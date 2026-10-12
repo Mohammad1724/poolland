@@ -63,7 +63,7 @@ class _SmsPageState extends State<SmsPage> {
       // Arrived from an arrival notification: open the review sheet of that
       // exact message, the way a banking app opens the matching receipt.
       if (widget.autoReviewDate == null || !mounted) return;
-      final target = repo.smsSuggestions
+      var target = repo.smsSuggestions
           .where(
             (s) =>
                 s.message.date.millisecondsSinceEpoch ==
