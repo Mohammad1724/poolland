@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
 
+# Superseded runs (new pushes to the same branch/PR) are cancelled instead of
+# piling up in the Actions tab.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: Analyze and test
