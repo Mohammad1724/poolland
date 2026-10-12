@@ -17,10 +17,4 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter analyze
-      - name: "Test (temporary: repository_test dump)"
-        run: |
-          set +e
-          flutter test --concurrency=1 --reporter expanded test/repository_test.dart > testout.txt 2>&1
-          tail -n 60 testout.txt | cut -c1-160 | awk '{print "::error file=test/ctx,line=" NR "::" $0}'
-          exit 0
       - run: flutter test --concurrency=1
