@@ -80,6 +80,15 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
   /// [TxnKind.icon] and [TxnKind.shortLabel] only cover the kinds a bank
   /// SMS or a quick pick can produce; the recent-entries chips can meet any
   /// kind (subscription sales included), so they use these safe mappings.
+  /// Chip text for "repeat this recent entry": the note when there is one,
+  /// otherwise the category or a safe kind name, plus the plain amount.
+  String _presetLabel(Txn t, AppRepository repo) {
+    final name = t.note.isNotEmpty
+        ? t.note
+        : repo.categoryById(t.categoryId)?.name ?? _safeKindLabel(t.kind);
+    return '$name · ${t.amount.round()}';
+  }
+
   IconData _safeKindIcon(TxnKind k) => switch (k) {
     TxnKind.income => Icons.trending_up_rounded,
     TxnKind.expense => Icons.trending_down_rounded,
@@ -401,13 +410,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                     for (final t in repo.recentDistinctTxns(4))
                       ActionChip(
                         avatar: Icon(_safeKindIcon(t.kind), size: 16),
-                        label: Text(
-                          '${t.note.isNotEmpty
-                              ? t.note
-                              : repo.categoryById(t.categoryId)?.name ??
-                                    _safeKindLabel(t.kind)}'
-                          ' · ${Money.text(t.amount, withSymbol: false)}',
-                        ),
+                        label: Text(_presetLabel(t, repo)),
                         onPressed: () => setState(() {
                           _amount.text = groupedNumber(
                             t.amount,
