@@ -16,5 +16,16 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter analyze
-      - run: flutter test --concurrency=1
+      - name: flutter analyze (annotated)
+        run: |
+          set +e
+          dart analyze --format=machine lib test > analyze.txt
+          code=$?
+          while IFS='|' read -r sev typ cod file line col len msg; do
+            echo "::error file=${file},line=${line},col=${col}::${sev} ${cod}: ${msg}"
+          done < analyze.txt
+          cat analyze.txt
+          exit $code
+      - name: flutter test
+        if: ${{ !cancelled() }}
+        run: flutter test --concurrency=1

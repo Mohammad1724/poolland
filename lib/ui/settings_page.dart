@@ -1019,7 +1019,7 @@ class SettingsPage extends StatelessWidget {
           'Invalid file: {error}'.trArgs({
             // The store throws localized-key FormatExceptions; anything
             // else is shown as-is for support.
-            'error': e is FormatException ? '${e.message}'.tr : '$e',
+            'error': e is FormatException ? e.message.tr : '$e',
           }),
           error: true,
         );
