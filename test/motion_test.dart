@@ -214,8 +214,13 @@ void main() {
     for (final key in ['Gesture guide', 'Swipe actions', 'Copy money']) {
       expect(find.text(key.tr), findsOneWidget, reason: key);
     }
-    // The card list scrolls: reveal the rest before asserting on it.
-    await tester.drag(find.byType(ListView), const Offset(0, -400));
+    // The card list scrolls (and the sheet absorbs part of any drag), so
+    // drive the scrollable until the last card is really on screen.
+    await tester.scrollUntilVisible(
+      find.text('Customer shortcuts'.tr),
+      150,
+      scrollable: find.byType(ListView),
+    );
     await tester.pumpAndSettle();
     for (final key in [
       'Quick menu',
