@@ -325,7 +325,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
               : RefreshIndicator(
                   onRefresh: () => repo.refreshAll(),
                   color: Theme.of(context).colorScheme.primary,
-                  child: : ListView.builder(
+                  child: ListView.builder(
                   controller: widget.controller,
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
                   // Build a bit beyond the viewport so fast flings over long

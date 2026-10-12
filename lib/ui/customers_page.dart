@@ -251,7 +251,7 @@ class _CustomersPageState extends State<CustomersPage> {
               : RefreshIndicator(
                   onRefresh: () => repo.refreshAll(),
                   color: Theme.of(context).colorScheme.primary,
-                  child: : ListView.separated(
+                  child: ListView.separated(
                   controller: widget.controller,
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
                   // ignore: deprecated_member_use

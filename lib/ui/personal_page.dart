@@ -56,7 +56,7 @@ class PersonalPage extends StatelessWidget {
         RefreshIndicator(
           onRefresh: () => repo.refreshAll(),
           color: Theme.of(context).colorScheme.primary,
-          child: return ListView(
+          child: ListView(
       controller: controller,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
       children: [

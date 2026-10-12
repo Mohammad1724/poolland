@@ -211,7 +211,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
               : RefreshIndicator(
                   onRefresh: () => repo.refreshAll(),
                   color: Theme.of(context).colorScheme.primary,
-                  child: : ListView.separated(
+                  child: ListView.separated(
                   controller: widget.controller,
                   padding: const EdgeInsets.fromLTRB(16, 6, 16, 100),
                   itemCount: list.length,
