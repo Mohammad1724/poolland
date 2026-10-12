@@ -390,7 +390,14 @@ void main() {
   ) async {
     final beforeIds = repo.transactions.map((t) => t.id).toSet();
     await tester.pumpWidget(
-      wrap(const TransactionEditPage(initialKind: TxnKind.income)),
+      wrap(
+        const TransactionEditPage(
+          initialKind: TxnKind.income,
+          // Autofocus would scroll the lazy form past the kind chips on the
+          // very first frame and dispose them before the test can tap one.
+          autofocusAmount: false,
+        ),
+      ),
     );
     await tester.pumpAndSettle();
     final formScrollable = find
@@ -400,33 +407,14 @@ void main() {
         )
         .first;
 
-    // TEMP DEBUG: dump every built Text and the scrollable structure.
-    debugPrint(
-      'DBG TEXTS: ${tester.widgetList<Text>(find.byType(Text)).map((t) => t.data).toList()}',
-    );
-    debugPrint(
-      'DBG SCROLLABLES: ${find.byType(Scrollable).evaluate().length} '
-      'LISTVIEWS: ${find.byType(ListView).evaluate().length} '
-      'VIEW: ${formScrollable.evaluate().length} '
-      'CHIPS: ${find.byType(ChoiceChip).evaluate().length}',
-    );
-    // Flip income -> expense first, while the kind chips are still built:
-    // the form is a lazy ListView and items scrolled far out of view are
-    // disposed, so a finder for them must run before scrolling past.
-    // The selected category must be re-derived for the new direction
-    // instead of silently keeping the income category.
-    await tester.scrollUntilVisible(
-      find.text('Expense'),
-      100,
-      scrollable: formScrollable,
-    );
-    await tester.pumpAndSettle();
+    // Flip income -> expense: the selected category must be re-derived for
+    // the new direction instead of silently keeping the income category.
     await tester.tap(find.text('Expense').last);
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
       find.widgetWithText(TextField, 'Amount'),
-      100,
+      200,
       scrollable: formScrollable,
     );
     await tester.pumpAndSettle();
@@ -436,7 +424,7 @@ void main() {
     );
     await tester.tap(find.text('Record'));
     // The save performs a real Hive write; widget tests must give the real
-    // event loop a window to finish it before the fake-async pumps resume.
+    // event loop a window to finish it before asserting on the ledger.
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 400)),
     );
