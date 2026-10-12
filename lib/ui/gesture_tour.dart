@@ -209,7 +209,14 @@ class _LoopState extends State<_Loop> with SingleTickerProviderStateMixin {
     vsync: this,
     duration: const Duration(milliseconds: 1800),
     value: Motion.motionEnabled ? 0 : 0.55,
-  )..repeat();
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    // Reduced motion / tests: freeze on the mid-frame, never tick.
+    if (Motion.motionEnabled) _c.repeat();
+  }
 
   @override
   void dispose() {
