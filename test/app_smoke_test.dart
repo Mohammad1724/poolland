@@ -365,10 +365,12 @@ void main() {
     await tester.scrollUntilVisible(
       find.text('Category'),
       200,
-      scrollable: find.descendant(
-        of: find.byType(ListView),
-        matching: find.byType(Scrollable),
-      ),
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
     );
     await tester.pumpAndSettle();
     expect(find.text('Category'), findsOneWidget);
