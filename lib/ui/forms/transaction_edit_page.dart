@@ -469,6 +469,67 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                     ),
                   ],
                 ),
+              if (!isEdit) ...[
+                const SizedBox(height: 14),
+                // Repeat a recent entry: one tap fills amount, note,
+                // category and contact from a past transaction.
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final t in repo.recentDistinctTxns(4))
+                      ActionChip(
+                        avatar: Icon(t.kind.icon, size: 16),
+                        label: Text(
+                          '${t.note.isNotEmpty
+                              ? t.note
+                              : repo.categoryById(t.categoryId)?.name ??
+                                    t.kind.shortLabel}'
+                          ' · ${Money.text(t.amount, withSymbol: false)}',
+                        ),
+                        onPressed: () => setState(() {
+                          _amount.text = groupedNumber(
+                            t.amount,
+                            decimals: Money.decimals(_currency),
+                          );
+                          _note.text = t.note;
+                          final c = repo.categoryById(t.categoryId);
+                          if (c != null &&
+                              repo
+                                  .categoriesOf(_kind, scope: _scope)
+                                  .any((x) => x.id == c.id)) {
+                            _category = c;
+                          }
+                          if (t.customerId != null) {
+                            _customer = repo.customerById(t.customerId);
+                          }
+                        }),
+                      ),
+                  ],
+                ),
+              ],
+              if (!isEdit && _needsCategory) ...[
+                const SizedBox(height: 10),
+                // Most-used categories in this kind + section.
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final c in repo.topCategories(
+                      _kind == TxnKind.income || _kind == TxnKind.receive
+                          ? TxnKind.income
+                          : TxnKind.expense,
+                      scope: _scope,
+                    ))
+                      ChoiceChip(
+                        selected: _category?.id == c.id,
+                        showCheckmark: false,
+                        label: Text(c.name),
+                        onSelected: (_) => setState(() => _category = c),
+                      ),
+                  ],
+                ),
+              ],
               if (_needsCategory) ...[
                 const SizedBox(height: 14),
                 SelectField<Category>(

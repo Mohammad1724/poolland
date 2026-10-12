@@ -234,6 +234,59 @@ class AppRepository extends ChangeNotifier {
   String categoryName(String? id) =>
       categoryById(id)?.name.tr ?? 'Uncategorized'.tr;
 
+  /// Categories used the most in real transactions, for preset chips:
+  /// usage counts beat any hand-picked default because they follow the
+  /// actual bookkeeping of this ledger.
+  List<Category> topCategories(
+    TxnKind categoryKind, {
+    TxnScope? scope,
+    int limit = 6,
+  }) {
+    final counts = <String, int>{};
+    for (final t in transactions) {
+      final id = t.categoryId;
+      if (id == null) continue;
+      if (scope != null && t.scope != scope) continue;
+      final ck = t.kind == TxnKind.income || t.kind == TxnKind.receive
+          ? TxnKind.income
+          : TxnKind.expense;
+      if (ck != categoryKind) continue;
+      counts[id] = (counts[id] ?? 0) + 1;
+    }
+    final pool = categoriesOf(categoryKind, scope: scope);
+    pool.sort((a, b) => (counts[b.id] ?? 0).compareTo(counts[a.id] ?? 0));
+    return pool.take(limit).toList();
+  }
+
+  /// Customers with the most transactions: the likely pick whenever a form
+  /// or the SMS sheet asks "which contact?".
+  List<Customer> topCustomers({int limit = 4}) {
+    final counts = <String, int>{};
+    for (final t in transactions) {
+      final id = t.customerId;
+      if (id == null) continue;
+      counts[id] = (counts[id] ?? 0) + 1;
+    }
+    final list = customers.where((c) => (counts[c.id] ?? 0) > 0).toList();
+    list.sort((a, b) => (counts[b.id] ?? 0).compareTo(counts[a.id] ?? 0));
+    return list.take(limit).toList();
+  }
+
+  /// Newest distinct entries (same kind+category+contact+note+amount counts
+  /// once), for "repeat a recent transaction" chips.
+  List<Txn> recentDistinctTxns(int limit) {
+    final seen = <String>{};
+    final out = <Txn>[];
+    for (final t in transactions) {
+      final key =
+          '${t.kind.name}|${t.scope.name}|${t.categoryId}|${t.customerId}|'
+          '${t.note}|${t.amount.round()}';
+      if (seen.add(key)) out.add(t);
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
   List<Category> categoriesOf(TxnKind kind, {TxnScope? scope}) => categories
       .where((c) => c.kind == kind && c.scope == (scope ?? TxnScope.business))
       .toList();

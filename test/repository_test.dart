@@ -29,6 +29,30 @@ void main() {
     await tmp.delete(recursive: true);
   });
 
+  test('Preset helpers follow real usage', () async {
+    final cats = repo.categoriesOf(TxnKind.expense);
+    final a = cats[0];
+    final b = cats[1];
+    Txn mk(Category c, int day, [String note = '']) => Txn(
+      id: 't$day${c.id}',
+      kind: TxnKind.expense,
+      amount: 1000,
+      date: DateTime(2026, 1, day),
+      createdAt: DateTime(2026, 1, day),
+      categoryId: c.id,
+      note: note,
+    );
+    await repo.addTxn(mk(a, 3));
+    await repo.addTxn(mk(a, 2, 'x'));
+    await repo.addTxn(mk(b, 1));
+
+    expect(repo.topCategories(TxnKind.expense).first.id, a.id);
+    final recent = repo.recentDistinctTxns(4);
+    expect(recent, hasLength(3));
+    expect(recent.first.date, DateTime(2026, 1, 3));
+    expect(repo.topCustomers(), isEmpty);
+  });
+
   test('Initial data is seeded', () {
     expect(repo.categoriesOf(TxnKind.income), isNotEmpty);
     expect(repo.categoriesOf(TxnKind.expense), isNotEmpty);

@@ -72,6 +72,17 @@ class _SmsPageState extends State<SmsPage> {
                     s.message.address == widget.autoReviewAddress),
           )
           .firstOrNull;
+      // Notification taps must always land on a sheet: fall back to the
+      // sender, then to the newest suggestion, instead of showing a bare
+      // queue when the exact identity no longer matches.
+      target ??= repo.smsSuggestions
+          .where(
+            (s) =>
+                widget.autoReviewAddress != null &&
+                s.message.address == widget.autoReviewAddress,
+          )
+          .firstOrNull;
+      target ??= repo.smsSuggestions.firstOrNull;
       if (target == null || !mounted) return;
       final matched = repo.matchCustomerForSms(target);
       final ok = await showLedgerSheet<bool>(
@@ -783,6 +794,27 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   TxnKind _kind = TxnKind.income;
   TxnScope? _scope;
   String? _categoryId;
+  bool _presetDone = false;
+
+  /// The sheet opens ready to save: the section follows the matched
+  /// customer (or the ledger's most recent scope), and kind + category
+  /// follow the section, so the record button is enabled immediately.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_presetDone) return;
+    _presetDone = true;
+    final repo = context.read<AppRepository>();
+    final prefer = widget.initialCustomer != null
+        ? TxnScope.business
+        : repo.transactions.isEmpty
+        ? TxnScope.business
+        : repo.transactions.first.scope;
+    _scope = prefer;
+    _customer = prefer == TxnScope.business ? widget.initialCustomer : null;
+    _kind = _suggestedKind(repo, prefer);
+    _categoryId = _suggestedCategoryId(repo, prefer);
+  }
 
   @override
   void initState() {
@@ -994,6 +1026,48 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                   onPressed: () => _openQuickEdit(scope),
                 ),
               ),
+              const SizedBox(height: 14),
+
+              // Frequent categories for this section: one tap, no picker.
+              if (categoryKind != null)
+                Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final c in repo.topCategories(
+                    categoryKind,
+                    scope: scope,
+                  ))
+                    ChoiceChip(
+                      selected: _categoryId == c.id,
+                      showCheckmark: false,
+                      label: Text(c.name),
+                      onSelected: (_) => setState(() => _categoryId = c.id),
+                    ),
+                ],
+              ),
+              if (scope == TxnScope.business) ...[
+                const SizedBox(height: 8),
+                // Regular contacts, most-recorded first.
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final c in repo.topCustomers(limit: 3))
+                      ActionChip(
+                        avatar: Icon(
+                          _customer?.id == c.id
+                              ? Icons.check_rounded
+                              : Icons.person_outline_rounded,
+                          size: 16,
+                        ),
+                        label: Text(c.name),
+                        onPressed: () => setState(() =>
+                            _customer = _customer?.id == c.id ? null : c),
+                      ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 14),
 
               AmountField(
