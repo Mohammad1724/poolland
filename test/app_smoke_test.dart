@@ -406,21 +406,20 @@ void main() {
     await tester.pumpWidget(wrap(SmsReviewSheet(sms: sms)));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('Choose where this transaction belongs before recording'),
-      findsOneWidget,
-    );
-    expect(find.text('Amount'), findsNothing);
+    // New contract: the sheet opens ready to save — section, kind and
+    // category come pre-picked from the ledger's own habits, and frequent
+    // categories / regular contacts are offered as one-tap chips.
     final buttonFinder = find.widgetWithText(
       FilledButton,
       'Record transaction',
     );
-    expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNull);
-
-    await tester.tap(find.text('VPN business'));
-    await tester.pumpAndSettle();
-
+    expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
     expect(find.text('Amount'), findsOneWidget);
+    expect(find.byType(ChoiceChip), findsWidgets);
+
+    // Switching the section still re-derives kind and category.
+    await tester.tap(find.text('Personal'));
+    await tester.pumpAndSettle();
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
   });
 
