@@ -415,6 +415,11 @@ void main() {
     await tester.tap(find.text('Expense').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Record'));
+    // The save performs a real Hive write; widget tests must give the real
+    // event loop a window to finish it before the fake-async pumps resume.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 400)),
+    );
     await tester.pumpAndSettle();
 
     final saved = repo.transactions
