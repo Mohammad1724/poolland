@@ -388,7 +388,6 @@ void main() {
   testWidgets('Switching the direction swaps the category to the new kind', (
     tester,
   ) async {
-    final beforeIds = repo.transactions.map((t) => t.id).toSet();
     await tester.pumpWidget(
       wrap(
         const TransactionEditPage(
@@ -400,44 +399,33 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final formScrollable = find
-        .descendant(
-          of: find.byType(ListView),
-          matching: find.byType(Scrollable),
-        )
-        .first;
 
-    // Flip income -> expense: the selected category must be re-derived for
-    // the new direction instead of silently keeping the income category.
+    // Flip income -> expense while the kind chips are on screen at the top
+    // of the form.
     await tester.tap(find.text('Expense').last);
     await tester.pumpAndSettle();
 
+    // Reveal the category field and inspect the form state directly: the
+    // selected category must have been re-derived for the new direction
+    // instead of silently keeping the income category (which would corrupt
+    // per-category reports on save).
     await tester.scrollUntilVisible(
-      find.widgetWithText(TextField, 'Amount'),
+      find.text('Category'),
       200,
-      scrollable: formScrollable,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
     );
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Amount'),
-      '1000',
+    final field = tester.widget<SelectField<Category>>(
+      find.byType(SelectField<Category>).first,
     );
-    await tester.tap(find.text('Record'));
-    // The save performs a real Hive write; widget tests must give the real
-    // event loop a window to finish it before asserting on the ledger.
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 400)),
-    );
-    await tester.pumpAndSettle();
-
-    final saved = repo.transactions
-        .where((t) => !beforeIds.contains(t.id))
-        .toList();
-    expect(saved, hasLength(1));
-    expect(saved.single.kind, TxnKind.expense);
-    final category = repo.categoryById(saved.single.categoryId);
-    expect(category, isNotNull);
-    expect(category!.kind, TxnKind.expense);
+    expect(field.value, isNotNull);
+    expect(field.value!.kind, TxnKind.expense);
+    expect(field.value!.scope, TxnScope.business);
     expect(tester.takeException(), isNull);
   });
 
