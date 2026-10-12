@@ -103,7 +103,6 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
     TxnKind.receive => 'Receive',
     TxnKind.refund => 'Refund',
     TxnKind.payablePayment => 'Paid out',
-    _ => 'Transaction',
   }.tr;
 
   bool get _needsCategory =>
