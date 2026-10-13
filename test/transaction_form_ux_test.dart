@@ -303,10 +303,11 @@ void main() {
     try {
       final hf = find.text('Cash goes into the box.', skipOffstage: false);
       final df = find.text('Description', skipOffstage: false);
-      raw(
-        'tailRects hint=\${hf.evaluate().length == 1 ? tester.getRect(hf) : 'none'} '
-        'desc=\${df.evaluate().length == 1 ? tester.getRect(df) : 'none'}',
-      );
+      final hintRect =
+          hf.evaluate().length == 1 ? tester.getRect(hf).toString() : 'none';
+      final descRect =
+          df.evaluate().length == 1 ? tester.getRect(df).toString() : 'none';
+      raw('tailRects hint=$hintRect desc=$descRect');
     } catch (e) {
       raw('tailRects threw: $e');
     }
