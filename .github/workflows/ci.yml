@@ -22,7 +22,10 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      # TEMP (diagnostics): re-emit analyzer diagnostics as annotations.
+      # TEMP (diagnostics): the runner's log file is not readable from
+      # outside, so the analyzer's diagnostics are re-emitted as check
+      # annotations; the step still fails exactly when `flutter analyze`
+      # would have failed.
       - name: Analyze
         run: |
           set +e
@@ -40,11 +43,22 @@ jobs:
               counts[level] += 1
               msg = msg.replace('%', '%25')
               print(f'::{level} file={path},line={line},col={col}::{msg} [{code}]')
+          print(f'flutter analyze exit={ec} -> {counts["error"]} errors, {counts["warning"]} warnings, {counts["info"]} infos')
           if ec != 0 or counts['error'] or counts['warning']:
+              if not (counts['error'] or counts['warning']):
+                  lines = [l.strip() for l in out.splitlines() if l.strip()]
+                  head = ' / '.join(lines)[:800]
+                  tail = ' / '.join(lines[-12:])
+                  print(f'::error file=.github/workflows/ci.yml,line=29::head: {head.replace("%", "%25")}')
+                  print(f'::error file=.github/workflows/ci.yml,line=30::tail: {tail.replace("%", "%25")}')
               print('::error::flutter analyze failed')
               sys.exit(1)
           PY
-      # TEMP (diagnostics): re-emit the failed-test marker.
+      # TEMP (diagnostics): the runner's log file is not readable from
+      # outside, so the test output is captured to a file and the DIAGRAW
+      # lines the tests emit are re-surfaced as check annotations (in-test
+      # workflow commands are unreliable). The step still fails exactly
+      # when `flutter test` would have failed.
       - name: Test
         run: |
           set +e
@@ -64,5 +78,21 @@ jobs:
             esac
           done || true
           if [ "$EC" -ne 0 ]; then
-            exit 1
+            EC="$EC" python3 - <<'PY'
+          import os, re, sys
+          ec = int(os.environ.get('EC', '0') or '0')
+          out = open('test_output.txt', encoding='utf-8', errors='replace').read()
+          lines = [re.sub(r'\x1b\[[0-9;]*m', '', l).rstrip() for l in out.splitlines()]
+          idx = None
+          for i, l in enumerate(lines):
+              if '[E]' in l or '\u274c' in l:
+                  idx = i
+                  break
+          start = idx if idx is not None else max(0, len(lines) - 45)
+          for l in lines[start:start + 45]:
+              msg = l.strip().replace('%', '%25')
+              if msg:
+                  print(f'::notice file=test/output.txt,line=1::FAILLOG {msg}')
+          sys.exit(ec)
+          PY
           fi
