@@ -272,7 +272,11 @@ void main() {
         .evaluate()
         .map((e) => (e.widget as Text).data ?? '<rich>')
         .toList();
-    diag('treeTexts(${texts.length})=${texts.join(' | ').substring(0, 500)}');
+    final joined = texts.join(' | ');
+    diag(
+      'treeTexts(${texts.length})='
+      '${joined.substring(0, joined.length.clamp(0, 500))}',
+    );
 
     // Cash is the default and says where the money lands.
     expect(find.text('Cash goes into the box.'), findsOneWidget);
