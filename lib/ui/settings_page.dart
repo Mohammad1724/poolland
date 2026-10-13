@@ -1514,9 +1514,10 @@ class _CategoriesPageState extends State<CategoriesPage> {
       },
     );
     if (draft == null) return;
-    final parentId = draft.parentId == null || draft.parentId.isEmpty
+    final rawParent = draft.parentId;
+    final parentId = (rawParent == null || rawParent.isEmpty)
         ? null
-        : draft.parentId;
+        : rawParent;
     if (existing == null) {
       await repo.addCategory(draft.name, kind, scope: _scope, parentId: parentId);
     } else {

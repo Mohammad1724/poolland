@@ -857,6 +857,7 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isChild = widget.isChild;
     final items = widget.items
         .where(
           (e) =>
@@ -931,8 +932,7 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
                       leading: widget.iconOf == null
                           ? null
                           : Icon(widget.iconOf!(item), size: 20),
-                      title: widget.isChild != null &&
-                              widget.isChild(item)
+                      title: isChild != null && isChild(item)
                           ? Padding(
                               padding:
                                   const EdgeInsetsDirectional.only(
