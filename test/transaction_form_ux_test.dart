@@ -264,6 +264,15 @@ void main() {
       'afterDrag credit=${find.text('Credit').evaluate().length} '
       'hint=${find.text('Cash goes into the box.').evaluate().length}',
     );
+    if (find.text('Credit').evaluate().length == 1) {
+      diag('creditRect=${tester.getRect(find.text('Credit'))}');
+    }
+    final texts = find
+        .byType(Text)
+        .evaluate()
+        .map((e) => (e.widget as Text).data ?? '<rich>')
+        .toList();
+    diag('treeTexts(${texts.length})=${texts.join(' | ').substring(0, 500)}');
 
     // Cash is the default and says where the money lands.
     expect(find.text('Cash goes into the box.'), findsOneWidget);
