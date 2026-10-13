@@ -76,10 +76,6 @@ void main() {
       )
       .first;
 
-  // TEMP diagnostics for CI (stdout is re-emitted by the workflow step).
-  // ignore: avoid_print
-  void raw(String s) => print('DIAGRAW $s');
-
   testWidgets('all five kind tiles render in one line', (tester) async {
     await tester.pumpWidget(
       wrap(const TransactionEditPage(autofocusAmount: false)),
@@ -252,13 +248,6 @@ void main() {
     );
     await tester.tap(nameFinder.first);
     await tester.pumpAndSettle();
-    final posA = tester.state<ScrollableState>(formScrollable()).position;
-    raw(
-      'S1 px=${posA.pixels} max=${posA.maxScrollExtent} '
-      'credit=${find.text('Credit').evaluate().length} '
-      'hint=${find.text('Cash goes into the box.').evaluate().length} '
-      'exc=${tester.takeException()}',
-    );
 
     // Selecting a contact inserts the cash/credit section mid-list; the
     // form scrolls it into view, so it is reachable here.
@@ -267,24 +256,11 @@ void main() {
       200,
       scrollable: formScrollable(),
     );
-    final posB = tester.state<ScrollableState>(formScrollable()).position;
-    raw(
-      'S2 px=${posB.pixels} max=${posB.maxScrollExtent} '
-      'credit=${find.text('Credit').evaluate().length} '
-      'hint=${find.text('Cash goes into the box.').evaluate().length}',
-    );
     // Cash is the default and says where the money lands.
     expect(find.text('Cash goes into the box.'), findsOneWidget);
 
     await tester.tap(find.text('Credit'));
     await tester.pumpAndSettle();
-    final posC = tester.state<ScrollableState>(formScrollable()).position;
-    raw(
-      'S3 px=${posC.pixels} max=${posC.maxScrollExtent} '
-      'settle=${find.widgetWithText(TextField, 'Cash received now').evaluate().length} '
-      'debt=${find.textContaining('customer debt').evaluate().length} '
-      'exc=${tester.takeException()}',
-    );
     // The settled-now field appears with the amount still outstanding.
     expect(
       find.widgetWithText(TextField, 'Cash received now'),
@@ -302,14 +278,8 @@ void main() {
       '2000000',
     );
     await tester.pumpAndSettle();
-    raw(
-      'S4 paidInFull=${find.text('Paid in full').evaluate().length} '
-      'hintAll=${find.byType(Text).evaluate().where((e) => ((e.widget as Text).data ?? '').contains('box') || ((e.widget as Text).data ?? '').contains('debt') || ((e.widget as Text).data ?? '').contains('full')).map((e) => e.widget as Text).map((t) => t.data!).toList()} '
-      'exc=${tester.takeException()}',
-    );
     expect(find.text('Paid in full'), findsOneWidget);
     expect(tester.takeException(), isNull);
-    raw('S5 done');
   });
 
   testWidgets('category chips switch the selected category', (tester) async {
