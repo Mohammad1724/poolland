@@ -193,14 +193,21 @@ void main() {
     await tester.pumpAndSettle();
     final home = tester.getTopLeft(find.text('row'));
 
-    // A flick that never reaches the halfway point still opens the row.
-    await tester.fling(find.text('row'), const Offset(-40, 0), 2000);
+    // 70 px is under half the 150 px panel, so the distance rule alone would
+    // have closed the row; only the velocity can open it.
+    //
+    // The distance has to be this large for a second reason: `tester.fling`
+    // spreads the travel over 51 moves and the velocity tracker keeps only the
+    // last 20 of them, so the estimate it measures covers ~26 px. Anything
+    // under ~46 px of total travel leaves that window inside the 18 px slop,
+    // `isFlingGesture` says no, and `primaryVelocity` comes back as zero.
+    await tester.fling(find.text('row'), const Offset(-70, 0), 2000);
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(find.text('row')).dx, home.dx - 150);
 
-    // And a flick back shuts it. Without it the drag had not travelled past
-    // the halfway point yet, so the old threshold check re-opened the row.
-    await tester.fling(find.text('row'), const Offset(40, 0), 2000);
+    // The same flick back still leaves the row past its halfway point, so the
+    // old threshold check re-opened it. Only the velocity shuts it.
+    await tester.fling(find.text('row'), const Offset(70, 0), 2000);
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(find.text('row')), home);
   });
