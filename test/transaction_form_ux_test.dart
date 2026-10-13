@@ -149,10 +149,8 @@ void main() {
       200,
       scrollable: formScrollable(),
     );
-    final note = tester.widget<AppTextField>(
-      find.byType(AppTextField).single,
-    );
-    expect(note.controller!.text, target.note);
+    final note = tester.widget<AppTextField>(find.byType(AppTextField));
+    expect(note.controller.text, target.note);
 
     // A business entry with a contact brings the live balance card, and a
     // category kind brings the cash/credit control with it.
