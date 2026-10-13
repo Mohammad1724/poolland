@@ -330,9 +330,18 @@ void main() {
       final s = types.join(' > ');
       return s.substring(0, s.length.clamp(0, 800));
     }
-    final offFinder = find.byType(EditableText, skipOffstage: false).at(1);
-    diag('offAncestors=${ancestorChain(offFinder)}');
-    diag('zeroAncestors=${ancestorChain(find.text('0'))}');
+    try {
+      final offFinder =
+          find.byType(EditableText, skipOffstage: false).at(1);
+      diag('offAncestors=${ancestorChain(offFinder)}');
+    } catch (e) {
+      diag('offAncestors threw: $e');
+    }
+    try {
+      diag('zeroAncestors=${ancestorChain(find.text('0'))}');
+    } catch (e) {
+      diag('zeroAncestors threw: $e');
+    }
     final richtexts = find.byType(RichText).evaluate().map((e) {
       final box = e.renderObject;
       final y =
