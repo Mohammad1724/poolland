@@ -317,6 +317,21 @@ void main() {
     } catch (e) {
       diag('H2b threw: $e');
     }
+    try {
+      await tester.scrollUntilVisible(
+        find.text('Description'),
+        100,
+        scrollable: formScrollable(),
+      );
+      final pos3 = tester.state<ScrollableState>(formScrollable()).position;
+      diag(
+        'descScroll px=${pos3.pixels} max=${pos3.maxScrollExtent} '
+        'descOn=${find.text('Description').evaluate().length} '
+        'hintOn=${find.text('Cash goes into the box.').evaluate().length}',
+      );
+    } catch (e) {
+      diag('descScroll threw: $e');
+    }
 
     // The cash/credit control sits below the fold; drag until it is
     // actually visible (not just built in the list's cache).
