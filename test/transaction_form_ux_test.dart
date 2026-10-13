@@ -217,12 +217,11 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  // TEMP diagnostics: the runner log is unreadable outside, so the test
-  // reports its own progress as check annotations.
+  // TEMP diagnostics: with the Test step's stdout captured to a file, only
+  // plain DIAGRAW lines reach the re-emitting workflow step, so everything
+  // funnels through that channel.
   // ignore: avoid_print
-  void diag(String s) => print(
-    '::notice file=test/transaction_form_ux_test.dart,line=1::DIAG $s',
-  );
+  void diag(String s) => print('DIAGRAW DIAG $s');
 
   // Long payloads are printed as plain lines; the CI workflow greps them
   // and re-emits them as annotations (the in-test commands get lost).
