@@ -48,4 +48,22 @@ jobs:
               print('::error::flutter analyze failed')
               sys.exit(1)
           PY
-      - run: flutter test --concurrency=1
+      # TEMP (diagnostics): the runner's log file is not readable from
+      # outside, so the test output is captured to a file and the DIAGRAW
+      # lines the tests emit are re-surfaced as check annotations (in-test
+      # workflow commands are unreliable). The step still fails exactly
+      # when `flutter test` would have failed.
+      - name: Test
+        run: |
+          set +e
+          flutter test --concurrency=1 > test_output.txt 2>&1
+          EC=$?
+          set -e
+          grep -a '^DIAGRAW ' test_output.txt 2>/dev/null | head -20 | while IFS= read -r line; do
+            msg="${line#DIAGRAW }"
+            msg="${msg//\%/%25}"
+            printf '::notice file=test/diag.txt,line=1::%s\n' "$msg"
+          done || true
+          if [ "$EC" -ne 0 ]; then
+            exit 1
+          fi

@@ -224,6 +224,11 @@ void main() {
     '::notice file=test/transaction_form_ux_test.dart,line=1::DIAG $s',
   );
 
+  // Long payloads are printed as plain lines; the CI workflow greps them
+  // and re-emits them as annotations (the in-test commands get lost).
+  // ignore: avoid_print
+  void raw(String s) => print('DIAGRAW $s');
+
   testWidgets('cash and credit explain themselves as the amount changes', (
     tester,
   ) async {
@@ -333,14 +338,14 @@ void main() {
     try {
       final offFinder =
           find.byType(EditableText, skipOffstage: false).at(1);
-      diag('offAncestors=${ancestorChain(offFinder)}');
+      raw('off=${ancestorChain(offFinder)}');
     } catch (e) {
-      diag('offAncestors threw: $e');
+      raw('off threw: $e');
     }
     try {
-      diag('zeroAncestors=${ancestorChain(find.text('0'))}');
+      raw('zero=${ancestorChain(find.text('0'))}');
     } catch (e) {
-      diag('zeroAncestors threw: $e');
+      raw('zero threw: $e');
     }
     final richtexts = find.byType(RichText).evaluate().map((e) {
       final box = e.renderObject;
