@@ -311,7 +311,7 @@ void main() {
     // long catalog a search box appears on top of it.
     expect(find.text('Select category'), findsOneWidget);
     expect(find.text('Category name...'), findsOneWidget);
-    expect(find.byType(ListTile), findsNWidgets(greaterThan(3)));
+    expect(find.byType(ListTile).evaluate().length, greaterThan(3));
 
     // Searching narrows the list to the one category the name matches.
     final searchField = find.ancestor(
