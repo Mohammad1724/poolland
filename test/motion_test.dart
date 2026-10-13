@@ -143,6 +143,68 @@ void main() {
     expect(fired, isTrue);
   });
 
+  /// One swipeable row above an unrelated tappable, both centred in the
+  /// 800x600 test surface, so a row's travel can be measured exactly.
+  Widget swipeHarness() => Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 320,
+          child: SwipeActions(
+            actions: [
+              SwipeAction(
+                icon: Icons.edit_rounded,
+                label: 'Act',
+                color: const Color(0xFF0F766E),
+                onTap: () {},
+              ),
+            ],
+            child: Container(
+              height: 64,
+              color: const Color(0xFFEEEEEE),
+              child: const Center(child: Text('row')),
+            ),
+          ),
+        ),
+        const SizedBox(height: 60),
+        const Text('elsewhere'),
+      ],
+    ),
+  );
+
+  testWidgets('SwipeActions folds away when anything else is touched', (
+    tester,
+  ) async {
+    await tester.pumpWidget(wrap(swipeHarness()));
+    await tester.pumpAndSettle();
+    final home = tester.getTopLeft(find.text('row'));
+    await tester.drag(find.text('row'), const Offset(-160, 0));
+    await tester.pumpAndSettle();
+    // Open: the row travelled exactly one panel width to the left.
+    expect(tester.getTopLeft(find.text('row')).dx, home.dx - 150);
+    await tester.tap(find.text('elsewhere'));
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.text('row')), home);
+  });
+
+  testWidgets('SwipeActions takes a flick as the decision', (tester) async {
+    await tester.pumpWidget(wrap(swipeHarness()));
+    await tester.pumpAndSettle();
+    final home = tester.getTopLeft(find.text('row'));
+
+    // A flick that never reaches the halfway point still opens the row.
+    await tester.fling(find.text('row'), const Offset(-40, 0), 2000);
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.text('row')).dx, home.dx - 150);
+
+    // And a flick back shuts it. Without it the drag had not travelled past
+    // the halfway point yet, so the old threshold check re-opened the row.
+    await tester.fling(find.text('row'), const Offset(40, 0), 2000);
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.text('row')), home);
+  });
+
   testWidgets('CopyMoney copies the plain number on long-press', (
     tester,
   ) async {

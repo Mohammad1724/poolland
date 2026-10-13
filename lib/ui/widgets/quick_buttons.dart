@@ -302,16 +302,23 @@ class _QuickAmountSheetState extends State<QuickAmountSheet> {
               onChanged: (d) => setState(() => _date = d),
             ),
             const SizedBox(height: 16),
-            FilledButton(
-              onPressed: () {
-                final v = parseAmount(_ctrl.text);
-                if (v <= 0) return;
-                Navigator.pop(
-                  context,
-                  QuickAmountResult(amount: v, date: _date),
+            // Disabled until there is something to record. The button used to
+            // stay live and silently do nothing on an empty or zero amount, so
+            // the sheet simply refused to close and gave no clue why.
+            AnimatedBuilder(
+              animation: _ctrl,
+              builder: (context, _) {
+                final amount = parseAmount(_ctrl.text);
+                return FilledButton(
+                  onPressed: amount <= 0
+                      ? null
+                      : () => Navigator.pop(
+                          context,
+                          QuickAmountResult(amount: amount, date: _date),
+                        ),
+                  child: Text('Record'.tr),
                 );
               },
-              child: Text('Record'.tr),
             ),
           ],
         ),

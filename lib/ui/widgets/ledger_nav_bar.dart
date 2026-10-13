@@ -166,53 +166,57 @@ class _LedgerNavBarState extends State<LedgerNavBar>
     final labelColor = selected ? scheme.primary : scheme.onSurfaceVariant;
     final labelSize = cellW < 68 ? 10.0 : 12.0;
 
-    // The selected icon bounces once while the pill travels.
-    return AnimatedBuilder(
-      animation: _pill,
-      builder: (context, child) {
-        final bounce = selected && _pill.value < 1
-            ? math.sin(math.min(_pill.value / 0.65, 1.0) * math.pi)
-            : 0.0;
-        return Transform.scale(scale: 1 + 0.22 * bounce, child: child);
-      },
-      child: Semantics(
-        button: true,
-        selected: selected,
-        label: dest.label,
-        child: Tooltip(
-          message: dest.label,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(20),
-            splashColor: scheme.primary.withValues(alpha: 0.10),
-            highlightColor: scheme.primary.withValues(alpha: 0.06),
-            onTap: () => widget.onDestinationSelected(i),
-            child: SizedBox.expand(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    selected ? dest.selectedIcon : dest.icon,
-                    size: 23,
-                    color: selected ? scheme.primary : scheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 4),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: Text(
-                      dest.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'Vazirmatn',
-                        fontSize: labelSize,
-                        height: 1.1,
-                        fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                        color: labelColor,
-                      ),
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: dest.label,
+      // No `Tooltip`: the destination's name is already printed under its icon
+      // and repeated in the semantics label, so all the tooltip added was a
+      // long-press recognizer competing in the gesture arena on every cell of
+      // the bar — and a bubble repeating the text the user is looking at.
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        splashColor: scheme.primary.withValues(alpha: 0.10),
+        highlightColor: scheme.primary.withValues(alpha: 0.06),
+        onTap: () => widget.onDestinationSelected(i),
+        child: SizedBox.expand(
+          // The selected icon bounces once while the pill travels. Scaling the
+          // content instead of the cell keeps the tap target exactly one cell
+          // wide: an InkWell scaled up 22% reaches into its neighbours, so a
+          // quick second tap can land on the tab that just bounced.
+          child: AnimatedBuilder(
+            animation: _pill,
+            builder: (context, child) {
+              final bounce = selected && _pill.value < 1
+                  ? math.sin(math.min(_pill.value / 0.65, 1.0) * math.pi)
+                  : 0.0;
+              return Transform.scale(scale: 1 + 0.22 * bounce, child: child);
+            },
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  selected ? dest.selectedIcon : dest.icon,
+                  size: 23,
+                  color: selected ? scheme.primary : scheme.onSurfaceVariant,
+                ),
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Text(
+                    dest.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Vazirmatn',
+                      fontSize: labelSize,
+                      height: 1.1,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                      color: labelColor,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

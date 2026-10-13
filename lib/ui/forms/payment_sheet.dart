@@ -126,16 +126,9 @@ class _PaymentSheetState extends State<_PaymentSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(
-                child: Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: theme.dividerColor,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
+              // The shared handle: one widget, one size, one colour, in every
+              // sheet of the app.
+              const SheetHandle(),
               const SizedBox(height: 14),
               Text(
                 '{who} {customer}'.trArgs({

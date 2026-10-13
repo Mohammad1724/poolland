@@ -1,6 +1,13 @@
 import 'dart:math' as math;
 
-import 'package:flutter/gestures.dart' show DragStartBehavior, VelocityTracker;
+import 'package:flutter/gestures.dart'
+    show
+        DragStartBehavior,
+        GestureDisposition,
+        GestureRecognizerFactoryWithHandlers,
+        VerticalDragGestureRecognizer,
+        VelocityTracker,
+        kTouchSlop;
 import 'package:flutter/material.dart';
 
 import '../core/haptics.dart';
@@ -1037,27 +1044,36 @@ class _SheetDismissState extends State<_SheetDismiss>
 
   // ---------------- pull input ----------------
 
-  /// Grows the pull by [delta]. Clamping scroll physics pin the offset at the
-  /// top and report every extra pixel as overscroll, so the pull accumulates.
-  void addPull(double delta) {
-    if (!widget.enabled || _closing || _decided || !_pointerDown) return;
+  /// Stops the spring and returns wherever the sheet visibly is.
+  ///
+  /// [_pull] holds the *target* while [pull] is the value the spring is
+  /// currently showing. Every handler that stops the spring has to adopt that
+  /// value first: re-grabbing a sheet that is on its way back would otherwise
+  /// teleport it to where it was heading.
+  double _adopt() {
+    final now = pull;
     _spring.stop();
-    _setPull(_pull + delta);
+    _pull = now;
+    return now;
   }
 
-  /// Sets the pull outright. Bouncing scroll physics let the offset itself go
-  /// past the top instead of reporting overscroll, so the pull is absolute.
-  void setPull(double value) {
+  /// Grows the pull by [delta].
+  ///
+  /// Both scroll physics feed this one path. Clamping physics pin the offset at
+  /// the top and report every extra pixel as an overscroll; bouncing physics
+  /// let the offset itself travel past the top and report it as a negative
+  /// scroll delta instead. Accumulating deltas rather than adopting an absolute
+  /// offset is what keeps the sheet from jumping when a finger comes back while
+  /// it is still settling.
+  void addPull(double delta) {
     if (!widget.enabled || _closing || _decided || !_pointerDown) return;
-    _spring.stop();
-    _setPull(value);
+    _setPull(_adopt() + delta);
   }
 
   /// Shrinks the pull when the content scrolls back up under the finger.
   void reducePull(double delta) {
     if (!widget.enabled || _closing || _pull <= 0) return;
-    _spring.stop();
-    _setPull(_pull - delta);
+    _setPull(_adopt() - delta);
   }
 
   void _setPull(double value) {
@@ -1159,18 +1175,30 @@ class _SheetDismissState extends State<_SheetDismiss>
             left: 0,
             right: 0,
             height: _grabHeight,
-            child: GestureDetector(
+            child: RawGestureDetector(
               behavior: HitTestBehavior.translucent,
-              dragStartBehavior: DragStartBehavior.start,
-              onVerticalDragStart: (_) => _spring.stop(),
-              onVerticalDragUpdate: (d) => addPull(d.delta.dy),
-              onVerticalDragEnd: (d) =>
-                  release(velocity: d.primaryVelocity ?? 0),
-              onVerticalDragCancel: () {
-                // The drag lost the arena; the pointer is still down, so the
-                // sheet-wide pointer-up gets to make the decision instead.
-                _decided = false;
-                if (_pull > 0) _snapBack();
+              gestures: {
+                _DownOnlyDrag:
+                    GestureRecognizerFactoryWithHandlers<_DownOnlyDrag>(
+                      _DownOnlyDrag.new,
+                      (_DownOnlyDrag instance) {
+                        instance
+                          ..dragStartBehavior = DragStartBehavior.start
+                          ..onStart = (_) {
+                            _adopt();
+                          }
+                          ..onUpdate = (d) => addPull(d.delta.dy)
+                          ..onEnd = (d) =>
+                              release(velocity: d.primaryVelocity ?? 0)
+                          ..onCancel = () {
+                            // The drag lost the arena; the pointer is still
+                            // down, so the sheet-wide pointer-up gets to make
+                            // the decision instead.
+                            _decided = false;
+                            if (_pull > 0) _snapBack();
+                          };
+                      },
+                    ),
               },
               child: const SizedBox.expand(),
             ),
@@ -1336,6 +1364,50 @@ class _AmbientAuroraState extends State<AmbientAurora>
 ///
 /// Horizontal scrollers and scrollables nested inside another scrollable are
 /// ignored: only the sheet's own content may close the sheet.
+/// A vertical drag that only ever claims *downward* movement.
+///
+/// The grab strip is painted on top of the sheet's content, so it reaches the
+/// gesture arena before the list underneath. Claiming upward drags as well
+/// would mean a flick that starts on the handle can never scroll that list: the
+/// strip wins the arena and then has nothing to do with it. Giving the gesture
+/// up as soon as the pointer travels more than a slop upwards hands it back to
+/// whatever is underneath — the one thing a plain
+/// [VerticalDragGestureRecognizer] cannot be asked to do.
+class _DownOnlyDrag extends VerticalDragGestureRecognizer {
+  _DownOnlyDrag({super.debugOwner});
+
+  Offset _down = Offset.zero;
+
+  /// Set once this recognizer has won or lost the arena, so the decision is
+  /// made exactly once per pointer.
+  bool _settled = false;
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    super.addAllowedPointer(event);
+    _down = event.position;
+    _settled = false;
+  }
+
+  @override
+  void acceptGesture(int pointer) {
+    _settled = true;
+    super.acceptGesture(pointer);
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    if (!_settled &&
+        event is PointerMoveEvent &&
+        event.position.dy - _down.dy < -kTouchSlop) {
+      _settled = true;
+      resolve(GestureDisposition.rejected);
+      return;
+    }
+    super.handleEvent(event);
+  }
+}
+
 class _SheetPullDismiss extends StatefulWidget {
   const _SheetPullDismiss({required this.enabled, required this.child});
 
@@ -1373,13 +1445,15 @@ class _SheetPullDismissState extends State<_SheetPullDismiss> {
       return false;
     }
     if (n is ScrollUpdateNotification) {
-      if (n.metrics.outOfRange &&
-          n.metrics.pixels < n.metrics.minScrollExtent) {
-        sheet.setPull(n.metrics.minScrollExtent - n.metrics.pixels);
-      } else {
+      final delta = n.scrollDelta ?? 0;
+      if (delta == 0) return false;
+      if (n.metrics.outOfRange && n.metrics.pixels < n.metrics.minScrollExtent) {
+        // Bouncing physics: the offset itself travelled past the top, so the
+        // movement arrives as a negative delta rather than as an overscroll.
+        sheet.addPull(-delta);
+      } else if (delta > 0) {
         // Scrolling back up gives the pull back, pixel for pixel.
-        final delta = n.scrollDelta ?? 0;
-        if (delta > 0) sheet.reducePull(delta);
+        sheet.reducePull(delta);
       }
     }
     return false;
