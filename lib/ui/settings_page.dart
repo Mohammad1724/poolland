@@ -1320,8 +1320,9 @@ class _CategoriesPageState extends State<CategoriesPage> {
         (childrenOf[parent.id] ??= <Category>[]).add(c);
       }
     }
-    childrenOf.values
-        .forEach((ks) => ks.sort((a, b) => a.sortOrder.compareTo(b.sortOrder)));
+    for (final ks in childrenOf.values) {
+      ks.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    }
     final rows = <_CatRow>[];
     for (final t in tops) {
       rows.add(_CatRow(t, child: false));

@@ -33,7 +33,7 @@ jobs:
           import os, re, sys
           ec = int(os.environ.get('ANALYZE_EXIT', '0') or '0')
           out = open('analyze_output.txt', encoding='utf-8', errors='replace').read()
-          out = re.sub(r'\x1b\[[0-9;]*m', '', out)
+          out = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', out)
           pat = re.compile(r'^\s*(error|warning|info)\s*\u2022\s*(.*?)\s*\u2022\s*([^\u2022:]+):(\d+):(\d+)\s*\u2022\s*(\S+)\s*$', re.M)
           counts = {'error': 0, 'warning': 0, 'info': 0}
           for m in pat.finditer(out):
