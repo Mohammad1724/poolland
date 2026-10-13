@@ -7,6 +7,7 @@ import '../../core/jalali_utils.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
+import '../../data/store.dart';
 import '../design.dart';
 import '../motion_kit.dart';
 import '../personal_page.dart';
@@ -307,11 +308,70 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
     );
   }
 
+  /// The "+ quick button" chip: pinning a button means choosing one of the
+  /// existing categories in the same searchable list — no typing a name.
+  /// The chip then records that category in one tap.
   Widget _addQuickChip() => ActionChip(
     avatar: const Icon(Icons.add_rounded, size: 16),
     label: Text('Quick button'.tr),
-    onPressed: () => _openQuickEdit(),
+    onPressed: () => _addQuickFromCategory(),
   );
+
+  Future<void> _addQuickFromCategory() async {
+    final repo = context.read<AppRepository>();
+    final categoryKind = switch (_kind) {
+      TxnKind.income || TxnKind.receive => TxnKind.income,
+      TxnKind.expense => TxnKind.expense,
+      _ => null,
+    };
+    final all = categoryKind == null
+        ? const <Category>[]
+        : repo.categoriesOf(categoryKind, scope: _scope);
+    if (all.isEmpty) {
+      // No categories to pin (e.g. a transfer): fall back to the editor.
+      await _openQuickEdit();
+      return;
+    }
+    final res = await showPickSheet<Category>(
+      context,
+      title: 'Choose a category for the button',
+      items: _orderedCategories(repo, all),
+      labelOf: (c) => c.name,
+      searchHint: 'Category name...',
+    );
+    if (res == null || res.value == null) return;
+    final c = res.value!;
+    if (repo.quickExpenses.any((q) => q.categoryId == c.id)) {
+      showSnack(context, 'This category is already a quick button');
+      return;
+    }
+    Haptics.selection();
+    await repo.addQuickButton(QuickExpense(
+      id: LocalStore.newId(),
+      label: c.name,
+      kind: c.kind,
+      scope: _scope,
+      categoryId: c.id,
+      iconCodePoint: 0,
+      sortOrder: repo.quickExpenses.isEmpty
+          ? 0
+          : repo.quickExpenses.last.sortOrder + 1,
+    ));
+  }
+
+  /// Frequent categories first, then the rest: the top of the picker is
+  /// where the thumb lands, the search box covers the long tail.
+  List<Category> _orderedCategories(AppRepository repo, List<Category> all) {
+    final kindForCats = switch (_kind) {
+      TxnKind.income || TxnKind.receive => TxnKind.income,
+      TxnKind.expense => TxnKind.expense,
+      _ => null,
+    };
+    if (kindForCats == null) return all;
+    final top = repo.topCategories(kindForCats, scope: _scope);
+    final topIds = top.map((c) => c.id).toSet();
+    return [...top, ...all.where((c) => !topIds.contains(c.id))];
+  }
 
   /// Opens the contact form and selects the saved result in the form.
   Future<void> _newContact() async {
@@ -670,37 +730,28 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
               ],
               if (_needsCategory) ...[
                 const SizedBox(height: 16),
-                SectionCaption('Category'),
-                const SizedBox(height: 6),
-                ChipStrip(chips: [
-                  for (final c in categories)
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 190),
-                      child: ChoiceChip(
-                        label: Text(
-                          c.name.tr,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        selected: _category?.id == c.id,
-                        showCheckmark: false,
-                        onSelected: (_) {
-                          Haptics.selection();
-                          setState(() => _category = c);
-                        },
-                      ),
-                    ),
-                  PresetChip(
-                    icon: Icons.tune_rounded,
-                    label: 'Manage'.tr,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const CategoriesPage(),
-                      ),
+                // Every category lives in one searchable list — frequent
+                // ones lead, so a long catalog is never a scrolling hunt.
+                SelectField<Category>(
+                  label: 'Category',
+                  icon: Icons.category_outlined,
+                  value: _category,
+                  items: _orderedCategories(repo, categories),
+                  labelOf: (c) => c.name,
+                  searchHint: 'Category name...',
+                  sheetTitle: 'Select category',
+                  extraActionLabel: 'Manage',
+                  onExtraAction: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CategoriesPage(),
                     ),
                   ),
-                ]),
+                  onChanged: (c) {
+                    Haptics.selection();
+                    setState(() => _category = c);
+                  },
+                ),
               ],
               if (_needsCategory && _customer != null) ...[
                 // Anchor: the list re-mounts when this section is inserted

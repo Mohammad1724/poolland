@@ -282,7 +282,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('category chips switch the selected category', (tester) async {
+  testWidgets('the category field opens a searchable list', (tester) async {
     await tester.pumpWidget(
       wrap(
         const TransactionEditPage(
@@ -294,23 +294,27 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.text('Domain and SSL'),
+      find.text('Category'),
       200,
       scrollable: formScrollable(),
     );
     await tester.pumpAndSettle();
 
-    Finder chip() => find
-        .ancestor(
-          of: find.text('Domain and SSL'),
-          matching: find.byType(ChoiceChip),
-        )
-        .first;
-    expect(tester.widget<ChoiceChip>(chip()).selected, isFalse);
+    // The re-derived default sits in the row.
+    expect(find.text('Domain and SSL'), findsOneWidget);
 
-    await tester.tap(chip());
+    // Open the picker.
+    await tester.tap(find.byType(SelectField<Category>));
     await tester.pumpAndSettle();
-    expect(tester.widget<ChoiceChip>(chip()).selected, isTrue);
+
+    // Frequent categories lead; the rest are one tap (or one search) away.
+    expect(find.text('Server / VPS purchase'), findsOneWidget);
+    expect(find.text('Advertising and marketing'), findsOneWidget);
+
+    // Pick a different category.
+    await tester.tap(find.text('Advertising and marketing'));
+    await tester.pumpAndSettle();
+    expect(find.text('Advertising and marketing'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

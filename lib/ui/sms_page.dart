@@ -8,6 +8,7 @@ import '../core/money.dart';
 import '../core/sms/sms_models.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
+import '../data/store.dart';
 import 'design.dart';
 import 'motion_kit.dart';
 import 'forms/contact_edit_page.dart';
@@ -960,6 +961,58 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     }
   }
 
+  /// "+ quick button" means pinning one of the existing categories: the
+  /// choice happens in the same searchable list, no name typing.
+  Future<void> _addQuickFromCategory(TxnScope scope) async {
+    final repo = context.read<AppRepository>();
+    final categoryKind = _categoryKind(_kind);
+    final all = categoryKind == null
+        ? const <Category>[]
+        : repo.categoriesOf(categoryKind, scope: scope);
+    if (all.isEmpty) {
+      await _openQuickEdit(scope);
+      return;
+    }
+    final res = await showPickSheet<Category>(
+      context,
+      title: 'Choose a category for the button',
+      items: _orderedCategories(repo, categoryKind, scope),
+      labelOf: (c) => c.name,
+      searchHint: 'Category name...',
+    );
+    if (res == null || res.value == null) return;
+    final c = res.value!;
+    if (repo.quickExpenses.any((q) => q.categoryId == c.id)) {
+      showSnack(context, 'This category is already a quick button');
+      return;
+    }
+    Haptics.selection();
+    await repo.addQuickButton(QuickExpense(
+      id: LocalStore.newId(),
+      label: c.name,
+      kind: c.kind,
+      scope: scope,
+      categoryId: c.id,
+      iconCodePoint: 0,
+      sortOrder: repo.quickExpenses.isEmpty
+          ? 0
+          : repo.quickExpenses.last.sortOrder + 1,
+    ));
+  }
+
+  /// Frequent categories first, then the rest — the top of the picker is
+  /// where the thumb lands, the search box covers the long tail.
+  List<Category> _orderedCategories(
+    AppRepository repo,
+    TxnKind categoryKind,
+    TxnScope scope,
+  ) {
+    final all = repo.categoriesOf(categoryKind, scope: scope);
+    final top = repo.topCategories(categoryKind, scope: scope);
+    final topIds = top.map((c) => c.id).toSet();
+    return [...top, ...all.where((c) => !topIds.contains(c.id))];
+  }
+
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
@@ -967,8 +1020,8 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     final scope = _scope;
     final categoryKind = _categoryKind(_kind);
     final categories = categoryKind == null
-        ? <Category>[]
-        : repo.categoriesOf(categoryKind, scope: scope);
+        ? const <Category>[]
+        : _orderedCategories(repo, categoryKind, scope);
     final availableKinds = _availableKinds(repo, scope);
 
     return Container(
@@ -1030,7 +1083,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
               trailing: ActionChip(
                 avatar: const Icon(Icons.add_rounded, size: 16),
                 label: Text('Quick button'.tr),
-                onPressed: () => _openQuickEdit(scope),
+                onPressed: () => _addQuickFromCategory(scope),
               ),
             ),
             const SizedBox(height: 14),
@@ -1064,37 +1117,29 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
             ],
             if (categoryKind != null) ...[
               const SizedBox(height: 16),
-              SectionCaption('Category'),
-              const SizedBox(height: 6),
-              ChipStrip(chips: [
-                for (final c in categories)
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 190),
-                    child: ChoiceChip(
-                      label: Text(
-                        c.name.tr,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      selected: _categoryId == c.id,
-                      showCheckmark: false,
-                      onSelected: (_) {
-                        Haptics.selection();
-                        setState(() => _categoryId = c.id);
-                      },
-                    ),
-                  ),
-                PresetChip(
-                  icon: Icons.tune_rounded,
-                  label: 'Manage'.tr,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const CategoriesPage(),
-                    ),
+              // Every category lives in one searchable list — frequent ones
+              // lead, so a long catalog is never a scrolling hunt.
+              SelectField<Category>(
+                label: 'Category',
+                icon: Icons.category_outlined,
+                value:
+                    categories.where((c) => c.id == _categoryId).firstOrNull,
+                items: categories,
+                labelOf: (c) => c.name,
+                searchHint: 'Category name...',
+                sheetTitle: 'Select category',
+                extraActionLabel: 'Manage',
+                onExtraAction: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CategoriesPage(),
                   ),
                 ),
-              ]),
+                onChanged: (c) {
+                  Haptics.selection();
+                  setState(() => _categoryId = c?.id);
+                },
+              ),
             ],
             const SizedBox(height: 18),
             Row(

@@ -452,13 +452,8 @@ void main() {
       repo.defaultCategoryId(TxnKind.expense, scope: TxnScope.business),
     );
     expect(expected, isNotNull);
-    final chip = tester.widget<ChoiceChip>(
-      find.ancestor(
-        of: find.text(expected!.name),
-        matching: find.byType(ChoiceChip),
-      ).first,
-    );
-    expect(chip.selected, isTrue);
+    // The category row now carries the re-derived default for the new kind.
+    expect(find.text(expected!.name), findsOneWidget);
     expect(expected.kind, TxnKind.expense);
     expect(expected.scope, TxnScope.business);
     expect(tester.takeException(), isNull);
