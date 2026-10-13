@@ -242,6 +242,12 @@ void main() {
       return s.position.maxScrollExtent + s.position.viewportDimension;
     }
 
+    int childCount() {
+      final lv = tester.widget<ListView>(find.byType(ListView).first);
+      final d = lv.children;
+      return d is SliverChildListDelegate ? d.getChildCount() : -1;
+    }
+
     int listKidCount() => find
         .descendant(
           of: find.byType(SliverList).first,
@@ -251,11 +257,11 @@ void main() {
         .length;
 
     await tester.pumpAndSettle();
-    diag('H0=${listContentH()} kids=${listKidCount()}');
+    diag('H0=${listContentH()} kids=${listKidCount()} cc=${childCount()}');
 
     await tester.enterText(amountField(), '2000000');
     await tester.pump();
-    diag('H1=${listContentH()} kids=${listKidCount()}');
+    diag('H1=${listContentH()} kids=${listKidCount()} cc=${childCount()}');
 
     // The chip strip can sit right at the bottom of the viewport; make sure
     // the chip is in view before tapping it.
@@ -272,7 +278,7 @@ void main() {
     await tester.tap(nameFinder.first);
     await tester.pumpAndSettle();
     diag('afterTap moneyTexts=${find.byType(MoneyText).evaluate().length}');
-    diag('H2=${listContentH()} kids=${listKidCount()}');
+    diag('H2=${listContentH()} kids=${listKidCount()} cc=${childCount()}');
 
     // The cash/credit control sits below the fold; drag until it is
     // actually visible (not just built in the list's cache).
@@ -284,7 +290,7 @@ void main() {
     diag(
       'afterDrag credit=${find.text('Credit').evaluate().length} '
       'hint=${find.text('Cash goes into the box.').evaluate().length} '
-      'H3=${listContentH()} kids=${listKidCount()}',
+      'H3=${listContentH()} kids=${listKidCount()} cc=${childCount()}',
     );
     if (find.text('Credit').evaluate().length == 1) {
       diag('creditRect=${tester.getRect(find.text('Credit'))}');
