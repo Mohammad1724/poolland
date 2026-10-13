@@ -267,15 +267,32 @@ void main() {
     if (find.text('Credit').evaluate().length == 1) {
       diag('creditRect=${tester.getRect(find.text('Credit'))}');
     }
+    final scrollableState = tester.state<ScrollableState>(formScrollable());
+    diag(
+      'scroll pixels=${scrollableState.position.pixels} '
+      'max=${scrollableState.position.maxScrollExtent} '
+      'viewportDim=${scrollableState.position.viewportDimension} '
+      'minScrollExtent=${scrollableState.position.minScrollExtent}',
+    );
+    final exc = tester.takeException();
+    diag('exception=${exc == null ? 'none' : exc.runtimeType}');
     final texts = find
         .byType(Text)
         .evaluate()
-        .map((e) => (e.widget as Text).data ?? '<rich>')
+        .map((e) {
+          final data = (e.widget as Text).data ?? '<rich>';
+          final box = e.renderObject;
+          final y =
+              box is RenderBox && box.hasSize
+                  ? box.localToGlobal(Offset.zero).dy
+                  : -1;
+          return '$data@${y.toStringAsFixed(0)}';
+        })
         .toList();
     final joined = texts.join(' | ');
     diag(
       'treeTexts(${texts.length})='
-      '${joined.substring(0, joined.length.clamp(0, 500))}',
+      '${joined.substring(0, joined.length.clamp(0, 600))}',
     );
 
     // Cash is the default and says where the money lands.
