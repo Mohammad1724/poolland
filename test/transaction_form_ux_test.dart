@@ -190,7 +190,11 @@ void main() {
 
     expect(find.byType(MoneyText), findsNothing);
 
-    await tester.tap(find.text(first.name).first);
+    // The chip strip can sit right at the bottom of the viewport; make sure
+    // the chip is in view before tapping it.
+    final nameFinder = find.text(first.name);
+    await tester.scrollUntilVisible(nameFinder, 200, scrollable: formScrollable());
+    await tester.tap(nameFinder.first);
     await tester.pumpAndSettle();
 
     // The live balance appears next to the selected contact.
@@ -201,8 +205,13 @@ void main() {
     );
     expect(find.byType(MoneyText), findsOneWidget);
 
-    // The chip itself is just above the card, so it is in view now as well.
-    await tester.tap(find.text(first.name).first);
+    // Tapping the selected chip again clears it. The card now carries the
+    // same name, so address the chip through its InkWell ancestor.
+    final chipFinder = find
+        .ancestor(of: nameFinder, matching: find.byType(InkWell))
+        .first;
+    await tester.scrollUntilVisible(chipFinder, 200, scrollable: formScrollable());
+    await tester.tap(chipFinder);
     await tester.pumpAndSettle();
     expect(find.byType(MoneyText), findsNothing);
     expect(tester.takeException(), isNull);
@@ -220,7 +229,12 @@ void main() {
 
     await tester.enterText(amountField(), '2000000');
     await tester.pump();
-    await tester.tap(find.text(first.name).first);
+
+    // The chip strip can sit right at the bottom of the viewport; make sure
+    // the chip is in view before tapping it.
+    final nameFinder = find.text(first.name);
+    await tester.scrollUntilVisible(nameFinder, 200, scrollable: formScrollable());
+    await tester.tap(nameFinder.first);
     await tester.pumpAndSettle();
 
     // The cash/credit control sits below the fold; drag until it is
@@ -240,6 +254,11 @@ void main() {
     expect(find.widgetWithText(TextField, 'Cash received now'), findsOneWidget);
     expect(find.textContaining('customer debt'), findsOneWidget);
 
+    await tester.scrollUntilVisible(
+      find.widgetWithText(TextField, 'Cash received now'),
+      200,
+      scrollable: formScrollable(),
+    );
     await tester.enterText(
       find.widgetWithText(TextField, 'Cash received now'),
       '2000000',
