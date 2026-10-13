@@ -22,5 +22,47 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter analyze
-      - run: flutter test --concurrency=1
+      # TEMP (diagnostics): re-emit analyzer diagnostics as annotations.
+      - name: Analyze
+        run: |
+          set +e
+          flutter analyze > analyze_output.txt 2>&1
+          EC=$?
+          set -e
+          ANALYZE_EXIT="$EC" python3 - <<'PY'
+          import os, re, sys
+          ec = int(os.environ.get('ANALYZE_EXIT', '0') or '0')
+          out = open('analyze_output.txt', encoding='utf-8', errors='replace').read()
+          pat = re.compile(r'^\s*(error|warning|info)\s*\u2022\s*(.*?)\s*\u2022\s*([^\u2022:]+):(\d+):(\d+)\s*\u2022\s*(\S+)\s*$', re.M)
+          counts = {'error': 0, 'warning': 0, 'info': 0}
+          for m in pat.finditer(out):
+              level, msg, path, line, col, code = m.groups()
+              counts[level] += 1
+              msg = msg.replace('%', '%25')
+              print(f'::{level} file={path},line={line},col={col}::{msg} [{code}]')
+          if ec != 0 or counts['error'] or counts['warning']:
+              print('::error::flutter analyze failed')
+              sys.exit(1)
+          PY
+      # TEMP (diagnostics): re-emit the failed-test marker.
+      - name: Test
+        run: |
+          set +e
+          flutter test --concurrency=1 > test_output.txt 2>&1
+          EC=$?
+          set -e
+          grep -aE '^(DIAGRAW |::error::FAILED_TEST)' test_output.txt 2>/dev/null | head -10 | while IFS= read -r line; do
+            case "$line" in
+              DIAGRAW*)
+                msg="${line#DIAGRAW }"
+                msg="${msg//\%/%25}"
+                printf '::notice file=test/diag.txt,line=1::%s\n' "$msg"
+                ;;
+              *)
+                printf '%s\n' "$line"
+                ;;
+            esac
+          done || true
+          if [ "$EC" -ne 0 ]; then
+            exit 1
+          fi
