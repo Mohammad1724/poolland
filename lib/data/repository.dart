@@ -836,8 +836,10 @@ class AppRepository extends ChangeNotifier {
     String name,
     TxnKind kind, {
     TxnScope scope = TxnScope.business,
+    String? parentId,
   }) async {
     final list = categoriesOf(kind, scope: scope);
+    final parent = _validParent(parentId, kind, scope);
     await store.putCategory(
       Category(
         id: LocalStore.newId(),
@@ -845,9 +847,113 @@ class AppRepository extends ChangeNotifier {
         kind: kind,
         sortOrder: list.isEmpty ? 0 : list.last.sortOrder + 1,
         scope: scope,
+        parentId: parent?.id,
       ),
     );
     await reload();
+  }
+
+  /// A parent must exist, share the child's kind and scope, and be
+  /// top-level itself (the nesting is exactly one level deep).
+  Category? _validParent(String? parentId, TxnKind kind, TxnScope scope) {
+    final parent = categoryById(parentId);
+    if (parent == null || parent.parentId != null) return null;
+    if (parent.kind != kind || parent.scope != scope) return null;
+    return parent;
+  }
+
+  /// Moves [id] under [parentId] (or to the top level with null). Keeping
+  /// the nesting one level deep: any children of [id] are flattened back
+  /// to the top level when it becomes a child itself.
+  Future<void> setCategoryParent(
+    String id,
+    String? parentId,
+  ) async {
+    final c = categoryById(id);
+    if (c == null) return;
+    if (parentId == c.parentId) return;
+    final parent = _validParent(parentId, c.kind, c.scope);
+    if (parent == null && parentId != null) return;
+    await store.putCategory(
+      Category(
+        id: c.id,
+        name: c.name,
+        kind: c.kind,
+        sortOrder: c.sortOrder,
+        scope: c.scope,
+        parentId: parent?.id,
+      ),
+    );
+    final flattened = <String, String?>{};
+    for (final child in categories) {
+      if (child.parentId == id) flattened[child.id] = null;
+    }
+    for (final entry in flattened.entries) {
+      final child = categoryById(entry.key)!;
+      await store.putCategory(
+        Category(
+          id: child.id,
+          name: child.name,
+          kind: child.kind,
+          sortOrder: child.sortOrder,
+          scope: child.scope,
+          parentId: entry.value,
+        ),
+      );
+    }
+    await reload();
+  }
+
+  /// The picker order for a kind and scope: parents ranked by group usage
+  /// (their own transactions plus the transactions of their children),
+  /// each child directly under its parent, the rest following creation
+  /// order. A frequently used child keeps its parent near the top too.
+  List<Category> pickOrderCategories(
+    TxnKind kind, {
+    TxnScope scope = TxnScope.business,
+  }) {
+    final all = categoriesOf(kind, scope: scope);
+    final counts = <String, int>{};
+    for (final t in transactions) {
+      final id = t.categoryId;
+      if (id == null || t.scope != scope) continue;
+      final ck = t.kind == TxnKind.income || t.kind == TxnKind.receive
+          ? TxnKind.income
+          : TxnKind.expense;
+      if (ck != kind) continue;
+      counts[id] = (counts[id] ?? 0) + 1;
+    }
+    final byId = {for (final c in all) c.id: c};
+    final childrenOf = <String, List<Category>>{};
+    final tops = <Category>[];
+    for (final c in all) {
+      final parent = c.parentId == null ? null : byId[c.parentId];
+      if (parent == null) {
+        tops.add(c);
+      } else {
+        (childrenOf[parent.id] ??= []).add(c);
+      }
+    }
+    int weight(Category c) =>
+        (counts[c.id] ?? 0) +
+        (childrenOf[c.id] ?? const <Category>[])
+            .fold<int>(0, (s, k) => s + (counts[k.id] ?? 0));
+    for (final kids in childrenOf.values) {
+      kids.sort((a, b) {
+        final d = (counts[b.id] ?? 0).compareTo(counts[a.id] ?? 0);
+        return d != 0 ? d : a.sortOrder.compareTo(b.sortOrder);
+      });
+    }
+    tops.sort((a, b) {
+      final d = weight(b).compareTo(weight(a));
+      return d != 0 ? d : a.sortOrder.compareTo(b.sortOrder);
+    });
+    final out = <Category>[];
+    for (final p in tops) {
+      out.add(p);
+      out.addAll(childrenOf[p.id] ?? const <Category>[]);
+    }
+    return out;
   }
 
   Future<void> renameCategory(Category c, String newName) async {
@@ -858,6 +964,7 @@ class AppRepository extends ChangeNotifier {
         kind: c.kind,
         sortOrder: c.sortOrder,
         scope: c.scope,
+        parentId: c.parentId,
       ),
     );
     await reload();
@@ -866,6 +973,19 @@ class AppRepository extends ChangeNotifier {
   Future<void> deleteCategory(String id) async {
     for (final t in transactions.where((t) => t.categoryId == id).toList()) {
       await store.putTxn(t.copyWith(clearCategory: true));
+    }
+    // Orphan any children: they keep their data and move to the top level
+    // instead of keeping a dangling parent reference.
+    for (final child in categories.where((c) => c.parentId == id).toList()) {
+      await store.putCategory(
+        Category(
+          id: child.id,
+          name: child.name,
+          kind: child.kind,
+          sortOrder: child.sortOrder,
+          scope: child.scope,
+        ),
+      );
     }
     await store.deleteCategory(id);
     await reload();

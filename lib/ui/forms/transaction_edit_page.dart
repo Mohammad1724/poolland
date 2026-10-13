@@ -324,21 +324,24 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
       TxnKind.expense => TxnKind.expense,
       _ => null,
     };
-    final all = categoryKind == null
-        ? const <Category>[]
-        : repo.categoriesOf(categoryKind, scope: _scope);
-    if (all.isEmpty) {
+    if (categoryKind == null) {
       // No categories to pin (e.g. a transfer): fall back to the editor.
+      await _openQuickEdit();
+      return;
+    }
+    final all = repo.categoriesOf(categoryKind, scope: _scope);
+    if (all.isEmpty) {
       await _openQuickEdit();
       return;
     }
     final res = await showPickSheet<Category>(
       context,
       title: 'Choose a category for the button',
-      items: _orderedCategories(repo, all),
+      items: repo.pickOrderCategories(categoryKind, scope: _scope),
       current: null,
       labelOf: (c) => c.name,
       searchHint: 'Category name...',
+      isChild: (c) => c.parentId != null,
     );
     if (res == null || res.value == null) return;
     final c = res.value!;
@@ -359,20 +362,6 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
           ? 0
           : repo.quickExpenses.last.sortOrder + 1,
     ));
-  }
-
-  /// Frequent categories first, then the rest: the top of the picker is
-  /// where the thumb lands, the search box covers the long tail.
-  List<Category> _orderedCategories(AppRepository repo, List<Category> all) {
-    final kindForCats = switch (_kind) {
-      TxnKind.income || TxnKind.receive => TxnKind.income,
-      TxnKind.expense => TxnKind.expense,
-      _ => null,
-    };
-    if (kindForCats == null) return all;
-    final top = repo.topCategories(kindForCats, scope: _scope);
-    final topIds = top.map((c) => c.id).toSet();
-    return [...top, ...all.where((c) => !topIds.contains(c.id))];
   }
 
   /// Opens the contact form and selects the saved result in the form.
@@ -508,9 +497,6 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
     final showSettle =
         !isEdit && _needsCategory && _customer != null && _credit;
     final recents = isEdit ? const <Txn>[] : repo.recentDistinctTxns(4);
-    final categories = _needsCategory
-        ? repo.categoriesOf(_kind, scope: _scope)
-        : const <Category>[];
     final topContacts = repo.topCustomers(limit: 4);
     final contactChips = topContacts.isNotEmpty
         ? topContacts
@@ -738,10 +724,11 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                   label: 'Category',
                   icon: Icons.category_outlined,
                   value: _category,
-                  items: _orderedCategories(repo, categories),
+                  items: repo.pickOrderCategories(_kind, scope: _scope),
                   labelOf: (c) => c.name,
                   searchHint: 'Category name...',
                   sheetTitle: 'Select category',
+                  isChild: (c) => c.parentId != null,
                   extraActionLabel: 'Manage',
                   onExtraAction: () => Navigator.push(
                     context,

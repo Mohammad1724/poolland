@@ -331,7 +331,17 @@ class Ledger {
     TxnScope? scope,
     bool? personalOnly,
   }) {
-    final names = {for (final c in categories) c.id: c.name};
+    // Subcategories roll up into their parent, so a report shows the
+    // total spent on "car" including the "fuel" child, not two rows.
+    final byId = {for (final c in categories) c.id: c};
+    String nameOf(String? id) {
+      if (id == null) return 'Uncategorized';
+      var c = byId[id];
+      if (c == null) return 'Uncategorized';
+      final parent = c.parentId == null ? null : byId[c.parentId];
+      return (parent ?? c).name;
+    }
+
     final out = <String, double>{};
     for (final t in filter(txns, from: from, to: to, scope: scope)) {
       final recognizedIncome =
@@ -345,9 +355,7 @@ class Ledger {
         _ => false,
       };
       if (!include) continue;
-      final name = t.categoryId == null
-          ? 'Uncategorized'
-          : (names[t.categoryId] ?? 'Uncategorized');
+      final name = nameOf(t.categoryId);
       out[name] = (out[name] ?? 0) + base(t);
     }
     return out;

@@ -978,10 +978,11 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     final res = await showPickSheet<Category>(
       context,
       title: 'Choose a category for the button',
-      items: _orderedCategories(repo, categoryKind, scope),
+      items: repo.pickOrderCategories(categoryKind, scope: scope),
       current: null,
       labelOf: (c) => c.name,
       searchHint: 'Category name...',
+      isChild: (c) => c.parentId != null,
     );
     if (res == null || res.value == null) return;
     final c = res.value!;
@@ -1004,19 +1005,6 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     ));
   }
 
-  /// Frequent categories first, then the rest — the top of the picker is
-  /// where the thumb lands, the search box covers the long tail.
-  List<Category> _orderedCategories(
-    AppRepository repo,
-    TxnKind categoryKind,
-    TxnScope scope,
-  ) {
-    final all = repo.categoriesOf(categoryKind, scope: scope);
-    final top = repo.topCategories(categoryKind, scope: scope);
-    final topIds = top.map((c) => c.id).toSet();
-    return [...top, ...all.where((c) => !topIds.contains(c.id))];
-  }
-
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
@@ -1025,7 +1013,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     final categoryKind = _categoryKind(_kind);
     final categories = categoryKind == null
         ? const <Category>[]
-        : _orderedCategories(repo, categoryKind, scope);
+        : repo.pickOrderCategories(categoryKind, scope: scope);
     final availableKinds = _availableKinds(repo, scope);
 
     return Container(
@@ -1132,6 +1120,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                 labelOf: (c) => c.name,
                 searchHint: 'Category name...',
                 sheetTitle: 'Select category',
+                isChild: (c) => c.parentId != null,
                 extraActionLabel: 'Manage',
                 onExtraAction: () => Navigator.push(
                   context,

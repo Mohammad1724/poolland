@@ -1302,123 +1302,245 @@ class _CategoriesPageState extends State<CategoriesPage> {
     );
   }
 
+  /// The category list: a parent and, right under it, its subcategories
+  /// (indented). Orphans — whose parent was deleted — sit at the top.
   Widget _list(BuildContext context, TxnKind kind) {
     final repo = context.watch<AppRepository>();
-    final list = repo.categoriesOf(kind, scope: _scope);
+    final all = repo.categoriesOf(kind, scope: _scope)
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    final byId = {for (final c in all) c.id: c};
+    // Pass one: who is under whom. Pass two: parents, then their children.
+    final childrenOf = <String, List<Category>>{};
+    final tops = <Category>[];
+    for (final c in all) {
+      final parent = c.parentId == null ? null : byId[c.parentId];
+      if (parent == null) {
+        tops.add(c);
+      } else {
+        (childrenOf[parent.id] ??= <Category>[]).add(c);
+      }
+    }
+    childrenOf.values
+        .forEach((ks) => ks.sort((a, b) => a.sortOrder.compareTo(b.sortOrder)));
+    final rows = <_CatRow>[];
+    for (final t in tops) {
+      rows.add(_CatRow(t, child: false));
+      rows.addAll(
+        (childrenOf[t.id] ?? const <Category>[])
+            .map((k) => _CatRow(k, child: true)),
+      );
+    }
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
       children: [
-        for (final c in list)
+        for (final row in rows)
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: CardBox(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              child: Row(
-                children: [
-                  Icon(
-                    kind == TxnKind.income
-                        ? Icons.trending_up_rounded
-                        : Icons.trending_down_rounded,
-                    size: 18,
-                    color: kind == TxnKind.income
-                        ? const Color(0xFF16A34A)
-                        : const Color(0xFFE11D48),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      c.name.tr,
-                      style: const TextStyle(fontSize: 13.5),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Edit'.tr,
-                    icon: const Icon(Icons.edit_outlined, size: 18),
-                    onPressed: () async {
-                      final ctrl = TextEditingController(text: c.name);
-                      final res = await showDialog<String>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: Text('Edit category'.tr),
-                          content: TextField(controller: ctrl, autofocus: true),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              child: Text('Cancel'.tr),
-                            ),
-                            FilledButton(
-                              onPressed: () =>
-                                  Navigator.pop(ctx, ctrl.text.trim()),
-                              child: Text('Save'.tr),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (res != null && res.isNotEmpty) {
-                        await repo.renameCategory(c, res);
-                      }
-                    },
-                  ),
-                  IconButton(
-                    tooltip: 'Delete'.tr,
-                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                    onPressed: () async {
-                      final ok = await confirmDialog(
-                        context,
-                        title: 'Delete category'.tr,
-                        message: 'Delete category “{name}”? Its transactions will become uncategorized.'
-                            .trArgs({'name': c.name.tr}),
-                        okLabel: 'Delete'.tr,
-                        danger: true,
-                      );
-                      if (ok) await repo.deleteCategory(c.id);
-                    },
-                  ),
-                ],
-              ),
+            padding: EdgeInsetsDirectional.only(
+              bottom: 8,
+              start: row.child ? 24 : 0,
             ),
+            child: _categoryCard(context, kind, row.category, row.child),
           ),
         const SizedBox(height: 8),
         FilledButton.tonalIcon(
-          onPressed: () async {
-            final ctrl = TextEditingController();
-            final res = await showDialog<String>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: Text(
-                  kind == TxnKind.income
-                      ? 'New income category'.tr
-                      : 'New expense category'.tr,
-                ),
-                content: TextField(
-                  controller: ctrl,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    hintText: 'e.g. Server purchase'.tr,
-                  ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: Text('Cancel'.tr),
-                  ),
-                  FilledButton(
-                    onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-                    child: Text('Add'.tr),
-                  ),
-                ],
-              ),
-            );
-            if (res != null && res.isNotEmpty) {
-              await repo.addCategory(res, kind, scope: _scope);
-            }
-          },
+          onPressed: () => _categoryDialog(context, kind),
           icon: const Icon(Icons.add_rounded, size: 18),
           label: Text('Add category'.tr),
         ),
       ],
     );
   }
+
+  Widget _categoryCard(
+    BuildContext context,
+    TxnKind kind,
+    Category c,
+    bool child,
+  ) {
+    final repo = context.watch<AppRepository>();
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return CardBox(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      child: Row(
+        children: [
+          Icon(
+            kind == TxnKind.income
+                ? Icons.trending_up_rounded
+                : Icons.trending_down_rounded,
+            size: 18,
+            color: kind == TxnKind.income
+                ? const Color(0xFF16A34A)
+                : const Color(0xFFE11D48),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              c.name.tr,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: child ? 13 : 13.5,
+                color: child ? onSurface.withValues(alpha: 0.8) : null,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Edit'.tr,
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            onPressed: () => _categoryDialog(context, kind, existing: c),
+          ),
+          IconButton(
+            tooltip: 'Delete'.tr,
+            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+            onPressed: () async {
+              final hasChildren = repo.categoriesOf(
+                kind,
+                scope: c.scope,
+              ).any((k) => k.parentId == c.id);
+              final message = hasChildren
+                  ? 'Delete category "{name}"? Its transactions will become uncategorized. Its subcategories move to the top level.'
+                          .trArgs({'name': c.name.tr})
+                  : 'Delete category "{name}"? Its transactions will become uncategorized.'
+                          .trArgs({'name': c.name.tr});
+              final ok = await confirmDialog(
+                context,
+                title: 'Delete category'.tr,
+                message: message,
+                okLabel: 'Delete'.tr,
+                danger: true,
+              );
+              if (ok) await repo.deleteCategory(c.id);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The one dialog for creating and editing a category: its name and,
+  /// optionally, the top-level category it lives under.
+  Future<void> _categoryDialog(
+    BuildContext context,
+    TxnKind kind, {
+    Category? existing,
+  }) async {
+    final repo = context.read<AppRepository>();
+    final tops = repo
+        .categoriesOf(kind, scope: _scope)
+        .where((c) => c.parentId == null && c.id != existing?.id)
+        .toList();
+    final initialParent = existing?.parentId;
+    final draft = await showDialog<_CategoryDraft>(
+      context: context,
+      builder: (ctx) {
+        final nameCtrl = TextEditingController(text: existing?.name ?? '');
+        String? parentValue = (initialParent == null ||
+                !tops.any((t) => t.id == initialParent))
+            ? ''
+            : initialParent;
+        return StatefulBuilder(
+          builder: (ctx, setDialog) => AlertDialog(
+            title: Text(
+              existing == null
+                  ? (kind == TxnKind.income
+                      ? 'New income category'.tr
+                      : 'New expense category'.tr)
+                  : 'Edit category'.tr,
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameCtrl,
+                    autofocus: existing == null,
+                    decoration: InputDecoration(
+                      hintText: 'e.g. Server purchase'.tr,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Parent category'.tr,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  DropdownButtonFormField<String?>(
+                    initialValue: parentValue,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                    items: [
+                      DropdownMenuItem<String?>(
+                        value: '',
+                        child: Text('Top-level category'.tr),
+                      ),
+                      for (final t in tops)
+                        DropdownMenuItem<String?>(
+                          value: t.id,
+                          child: Text(t.name.tr),
+                        ),
+                    ],
+                    onChanged: (v) => setDialog(() => parentValue = v ?? ''),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Cancel'.tr),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final name = nameCtrl.text.trim();
+                  if (name.isEmpty) return;
+                  Navigator.pop(
+                    ctx,
+                    _CategoryDraft(name: name, parentId: parentValue),
+                  );
+                },
+                child: Text(
+                  existing == null ? 'Add'.tr : 'Save'.tr,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (draft == null) return;
+    final parentId = draft.parentId == null || draft.parentId.isEmpty
+        ? null
+        : draft.parentId;
+    if (existing == null) {
+      await repo.addCategory(draft.name, kind, scope: _scope, parentId: parentId);
+    } else {
+      // Rename first, then move: each write reloads the in-memory list, so
+      // the second write must not carry the first write's stale parent.
+      await repo.renameCategory(existing, draft.name);
+      await repo.setCategoryParent(existing.id, parentId);
+    }
+  }
+}
+
+/// One row of the category list (a category and whether it is indented
+/// under a parent).
+class _CatRow {
+  const _CatRow(this.category, {required this.child});
+  final Category category;
+  final bool child;
+}
+
+/// The result of the category create/edit dialog.
+class _CategoryDraft {
+  const _CategoryDraft({required this.name, required this.parentId});
+  final String name;
+  final String? parentId;
 }
 
 /// Fingerprint switch, shown only when the phone can actually do it.

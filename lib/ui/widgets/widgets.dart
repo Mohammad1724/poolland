@@ -704,6 +704,7 @@ class SelectField<T> extends StatelessWidget {
     this.extraActionLabel,
     this.onExtraAction,
     this.validator,
+    this.isChild,
   });
 
   final String label;
@@ -721,6 +722,10 @@ class SelectField<T> extends StatelessWidget {
   final String? extraActionLabel;
   final VoidCallback? onExtraAction;
   final String? Function(T?)? validator;
+
+  /// When provided, matching items render indented in the pick sheet
+  /// (one level of nesting, e.g. subcategories under their category).
+  final bool Function(T)? isChild;
 
   @override
   Widget build(BuildContext context) {
@@ -740,6 +745,7 @@ class SelectField<T> extends StatelessWidget {
           clearable: clearable,
           searchHint: searchHint,
           extraActionLabel: extraActionLabel,
+          isChild: isChild,
         );
         if (res == null) return;
         if (res.cleared) {
@@ -794,6 +800,7 @@ Future<PickResult<T>?> showPickSheet<T>(
   bool clearable = false,
   String searchHint = 'Search...',
   String? extraActionLabel,
+  bool Function(T)? isChild,
 }) {
   return showLedgerSheet<PickResult<T>>(
     context,
@@ -802,6 +809,7 @@ Future<PickResult<T>?> showPickSheet<T>(
       items: items,
       current: current,
       labelOf: labelOf,
+      isChild: isChild,
       subOf: subOf,
       iconOf: iconOf,
       clearable: clearable,
@@ -822,6 +830,7 @@ class _PickSheet<T> extends StatefulWidget {
     this.clearable = false,
     this.searchHint = 'Search...',
     this.extraActionLabel,
+    this.isChild,
   });
 
   final String title;
@@ -833,6 +842,10 @@ class _PickSheet<T> extends StatefulWidget {
   final bool clearable;
   final String searchHint;
   final String? extraActionLabel;
+
+  /// When provided, items for which it returns true render indented
+  /// (one level of nesting, e.g. subcategories under their category).
+  final bool Function(T)? isChild;
 
   @override
   State<_PickSheet<T>> createState() => _PickSheetState<T>();
@@ -918,7 +931,16 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
                       leading: widget.iconOf == null
                           ? null
                           : Icon(widget.iconOf!(item), size: 20),
-                      title: Text(widget.labelOf(item).tr),
+                      title: widget.isChild != null &&
+                              widget.isChild(item)
+                          ? Padding(
+                              padding:
+                                  const EdgeInsetsDirectional.only(
+                                    start: 24,
+                                  ),
+                              child: Text(widget.labelOf(item).tr),
+                            )
+                          : Text(widget.labelOf(item).tr),
                       subtitle: widget.subOf == null
                           ? null
                           : Text(widget.subOf!(item)),

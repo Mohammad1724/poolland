@@ -403,6 +403,25 @@ void main() {
       );
       expect(byCat['VPN sales'], 300000);
     });
+
+    test('Subcategories roll up into their parent', () {
+      const cats = [
+        Category(id: 'car', name: 'Car', kind: TxnKind.expense),
+        Category(
+          id: 'fuel',
+          name: 'Fuel',
+          kind: TxnKind.expense,
+          parentId: 'car',
+        ),
+      ];
+      final txns = [
+        txn(kind: TxnKind.expense, amount: 100000).copyWith(categoryId: 'car'),
+        txn(kind: TxnKind.expense, amount: 50000).copyWith(categoryId: 'fuel'),
+      ];
+      final byCat = Ledger.byCategory(txns, cats, kind: TxnKind.expense);
+      expect(byCat['Car'], 150000);
+      expect(byCat.containsKey('Fuel'), isFalse);
+    });
   });
 
   group('Search', () {
