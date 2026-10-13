@@ -1182,21 +1182,23 @@ class _SheetDismissState extends State<_SheetDismiss>
                     GestureRecognizerFactoryWithHandlers<_DownOnlyDrag>(
                       _DownOnlyDrag.new,
                       (_DownOnlyDrag instance) {
-                        instance
-                          ..dragStartBehavior = DragStartBehavior.start
-                          ..onStart = (_) {
-                            _adopt();
-                          }
-                          ..onUpdate = (d) => addPull(d.delta.dy)
-                          ..onEnd = (d) =>
-                              release(velocity: d.primaryVelocity ?? 0)
-                          ..onCancel = () {
-                            // The drag lost the arena; the pointer is still
-                            // down, so the sheet-wide pointer-up gets to make
-                            // the decision instead.
-                            _decided = false;
-                            if (_pull > 0) _snapBack();
-                          };
+                        instance.dragStartBehavior = DragStartBehavior.start;
+                        instance.onStart = (_) {
+                          _adopt();
+                        };
+                        instance.onUpdate = (d) {
+                          addPull(d.delta.dy);
+                        };
+                        instance.onEnd = (d) {
+                          release(velocity: d.primaryVelocity ?? 0);
+                        };
+                        instance.onCancel = () {
+                          // The drag lost the arena; the pointer is still down,
+                          // so the sheet-wide pointer-up gets to make the
+                          // decision instead.
+                          _decided = false;
+                          if (_pull > 0) _snapBack();
+                        };
                       },
                     ),
               },
@@ -1349,21 +1351,6 @@ class _AmbientAuroraState extends State<AmbientAurora>
   }
 }
 
-/// Turns "the content is already at its top and the finger keeps going down"
-/// into a pull on the sheet around it.
-///
-/// Both families of scroll physics are covered, because they report the very
-/// same gesture differently:
-///  * clamping (Android, web, desktop) pins the offset at the top and
-///    dispatches an [OverscrollNotification] for every extra pixel;
-///  * bouncing (iOS, macOS) lets the offset itself go negative and only ever
-///    dispatches [ScrollUpdateNotification] — never an overscroll one.
-///
-/// Listening for overscroll alone therefore silently disabled the gesture on
-/// every bouncing-physics platform.
-///
-/// Horizontal scrollers and scrollables nested inside another scrollable are
-/// ignored: only the sheet's own content may close the sheet.
 /// A vertical drag that only ever claims *downward* movement.
 ///
 /// The grab strip is painted on top of the sheet's content, so it reaches the
@@ -1408,6 +1395,21 @@ class _DownOnlyDrag extends VerticalDragGestureRecognizer {
   }
 }
 
+/// Turns "the content is already at its top and the finger keeps going down"
+/// into a pull on the sheet around it.
+///
+/// Both families of scroll physics are covered, because they report the very
+/// same gesture differently:
+///  * clamping (Android, web, desktop) pins the offset at the top and
+///    dispatches an [OverscrollNotification] for every extra pixel;
+///  * bouncing (iOS, macOS) lets the offset itself go negative and only ever
+///    dispatches [ScrollUpdateNotification] — never an overscroll one.
+///
+/// Listening for overscroll alone therefore silently disabled the gesture on
+/// every bouncing-physics platform.
+///
+/// Horizontal scrollers and scrollables nested inside another scrollable are
+/// ignored: only the sheet's own content may close the sheet.
 class _SheetPullDismiss extends StatefulWidget {
   const _SheetPullDismiss({required this.enabled, required this.child});
 
