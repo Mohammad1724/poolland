@@ -305,6 +305,14 @@ void main() {
       'hintOffstage=${find.text('Cash goes into the box.', skipOffstage: false).evaluate().length} '
       'px=${tester.state<ScrollableState>(formScrollable()).position.pixels}',
     );
+    tester.drag(formScrollable(), const Offset(0, -80));
+    await tester.pumpAndSettle();
+    final pos2 = tester.state<ScrollableState>(formScrollable()).position;
+    diag(
+      'H2b px=${pos2.pixels} max=${pos2.maxScrollExtent} '
+      'hintOn=${find.text('Cash goes into the box.').evaluate().length} '
+      'descOn=${find.text('Description').evaluate().length}',
+    );
 
     // The cash/credit control sits below the fold; drag until it is
     // actually visible (not just built in the list's cache).
