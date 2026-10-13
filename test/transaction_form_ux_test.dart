@@ -336,10 +336,13 @@ void main() {
       ];
       return '$label ${parts.join(' ')}';
     }
-    final editableWidgets =
-        find.byType(EditableText, skipOffstage: false).mapWidgets().toList();
-    for (var i = 0; i < editableWidgets.length; i++) {
-      raw('probe#${i} ${probes(find.byWidget(editableWidgets[i]), 'edit')}');
+    final edCount =
+        find.byType(EditableText, skipOffstage: false).evaluate().length;
+    for (var i = 0; i < edCount; i++) {
+      raw(
+        'probe#${i} '
+        '${probes(find.byType(EditableText, skipOffstage: false).at(i), 'edit')}',
+      );
     }
     raw('zero ${probes(find.text('0'), 'zero')}');
     final richtexts = find.byType(RichText).evaluate().map((e) {
