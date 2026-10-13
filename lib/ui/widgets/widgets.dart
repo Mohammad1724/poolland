@@ -1558,6 +1558,32 @@ class SwipeHint extends StatelessWidget {
   }
 }
 
+/// Runs [action] on the frame after a swipe has been let go, so a swiped row
+/// is already on its way home before anything opens over it.
+///
+/// `Dismissible` slides its row a full row-width off-screen *before* it calls
+/// `confirmDismiss`, and it leaves the row there until that future resolves.
+/// Awaiting a sheet or a page inside the callback therefore parks the row off
+/// screen for the whole time the sheet is open — visible as a coloured gap in
+/// the list through the sheet's translucent barrier. Returning `false`
+/// straight away and opening on the next frame lets the row spring home and
+/// the sheet rise at the same time.
+///
+/// Use it like this:
+///
+/// ```dart
+/// confirmDismiss: (direction) {
+///   afterSwipeSnapBack(context, () => showPaymentSheet(context, ...));
+///   return Future.value(false);
+/// },
+/// ```
+void afterSwipeSnapBack(BuildContext context, Future<void> Function() action) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!context.mounted) return;
+    action();
+  });
+}
+
 /// ---------------- Status dot ----------------
 /// Tiny colored dot for a status that would otherwise need a full chip.
 ///
@@ -1627,12 +1653,6 @@ class _DashLinePainter extends CustomPainter {
       old.t != t || old.line != line || old.tip != tip;
 }
 
-/// ---------------- Copy on long-press ----------------
-/// Long-press any money amount to copy the plain number to the clipboard.
-///
-/// Feedback: a haptic tick, the number pops, and a small "Copied" chip
-/// floats up and fades. No dialogs, no menus — the fastest possible path
-/// from "I see this number" to "it is in the clipboard".
 /// The little grab handle at the top of every bottom sheet.
 ///
 /// One shared widget instead of ten hand-rolled containers: always
@@ -1659,6 +1679,12 @@ class SheetHandle extends StatelessWidget {
   }
 }
 
+/// ---------------- Copy on long-press ----------------
+/// Long-press any money amount to copy the plain number to the clipboard.
+///
+/// Feedback: a haptic tick, the number pops, and a small "Copied" chip
+/// floats up and fades. No dialogs, no menus — the fastest possible path
+/// from "I see this number" to "it is in the clipboard".
 class CopyMoney extends StatefulWidget {
   const CopyMoney({super.key, required this.value, required this.child});
 
@@ -1846,10 +1872,14 @@ class SwipeActions extends StatefulWidget {
 
 class _SwipeActionsState extends State<SwipeActions>
     with SingleTickerProviderStateMixin {
+  /// A flick decides on its own, in either direction.
+  static const double _flingVelocity = 600;
+
   double _open = 0;
   double _snapFrom = 0;
   double _snapTarget = 0;
   bool _ticked = false;
+  bool _watchingOutside = false;
   late final AnimationController _snap = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 200),
@@ -1857,6 +1887,7 @@ class _SwipeActionsState extends State<SwipeActions>
 
   @override
   void dispose() {
+    _watchOutside(false);
     _snap.dispose();
     super.dispose();
   }
@@ -1867,20 +1898,70 @@ class _SwipeActionsState extends State<SwipeActions>
                 Curves.easeOutCubic.transform(_snap.value)
       : _open;
 
+  /// Reads the animated value *before* the spring is stopped. `_open` holds the
+  /// target, so re-grabbing a row that is still settling would otherwise
+  /// teleport it to where it was heading.
+  double _adopt() {
+    final now = _current;
+    _snap.stop();
+    return now;
+  }
+
   void _animateTo(double target) {
-    _snapFrom = _current;
-    _snapTarget = target;
-    _open = target;
+    final from = _current;
+    // Watching for outside touches is also what keeps two rows from being open
+    // at once: the pointer-down that starts a swipe on another row lands
+    // outside this one and closes it first.
+    _watchOutside(target > 0);
+    // Nothing to animate. Starting the controller anyway would rebuild the row
+    // for 200 ms and keep `pumpAndSettle` busy for no reason.
+    if (from == target && !_snap.isAnimating && _open == target) return;
+    // `_open` is read by the PopScope above and by the buttons' `enabled`, and
+    // neither of them sits under the AnimatedBuilder that rebuilds on every
+    // tick. Without setState the row would close visually while `canPop` stayed
+    // false — and the page could then never be popped again.
+    setState(() {
+      _snapFrom = from;
+      _snapTarget = target;
+      _open = target;
+    });
     _snap.forward(from: 0);
+  }
+
+  void _watchOutside(bool on) {
+    if (on == _watchingOutside) return;
+    _watchingOutside = on;
+    final router = WidgetsBinding.instance.pointerRouter;
+    if (on) {
+      router.addGlobalRoute(_onGlobalPointerDown);
+    } else {
+      router.removeGlobalRoute(_onGlobalPointerDown);
+    }
+  }
+
+  /// Closes the row when anything else in the app is touched — another row, the
+  /// list behind it, the navigation bar. Without this an opened row stayed open
+  /// until it was touched again, and several rows could be open at once.
+  void _onGlobalPointerDown(PointerEvent e) {
+    if (e is! PointerDownEvent || !mounted) return;
+    final box = context.findRenderObject();
+    if (box is RenderBox &&
+        box.hasSize &&
+        box.paintBounds.contains(box.globalToLocal(e.position))) {
+      // Inside this row: tapping its content already closes it, and the action
+      // buttons must stay tappable, so this pointer is the row's own business.
+      return;
+    }
+    _animateTo(0);
   }
 
   double _sign(BuildContext context) =>
       Directionality.of(context) == TextDirection.rtl ? 1 : -1;
 
   void _onUpdate(DragUpdateDetails d) {
-    _snap.stop();
+    final now = _adopt();
     final delta = (d.delta.dx * _sign(context)) / widget.panelWidth;
-    setState(() => _open = (_open + delta).clamp(-0.02, 1.25));
+    setState(() => _open = (now + delta).clamp(-0.02, 1.25));
     if (!_ticked && _open >= 0.5) {
       _ticked = true;
       Haptics.selection();
@@ -1891,7 +1972,11 @@ class _SwipeActionsState extends State<SwipeActions>
 
   void _onEnd(DragEndDetails d) {
     final v = (d.primaryVelocity ?? 0) * _sign(context);
-    if (_open > 0.5 || v > 600) {
+    if (v < -_flingVelocity) {
+      // Flicking an open row shut has to close it, even though the drag had not
+      // travelled back past the halfway point yet — the old check re-opened it.
+      _animateTo(0);
+    } else if (_open > 0.5 || v > _flingVelocity) {
       _animateTo(1);
     } else {
       _animateTo(0);
@@ -1901,6 +1986,23 @@ class _SwipeActionsState extends State<SwipeActions>
   @override
   Widget build(BuildContext context) {
     if (widget.actions.isEmpty) return widget.child;
+    // An open row is a mode of its own, so the system back button — and
+    // Android's predictive back — folds the row instead of leaving the page.
+    // Touching anywhere else already closes it, which is also what keeps a
+    // single row open at a time, so at most one row ever refuses to pop.
+    //
+    // The scope stays in the tree whether or not it refuses: swapping it in
+    // and out would remount the row underneath and replay its enter motion.
+    return PopScope(
+      canPop: _open < 0.99,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _animateTo(0);
+      },
+      child: _row(context),
+    );
+  }
+
+  Widget _row(BuildContext context) {
     return GestureDetector(
       onHorizontalDragUpdate: _onUpdate,
       onHorizontalDragEnd: _onEnd,
@@ -1926,7 +2028,12 @@ class _SwipeActionsState extends State<SwipeActions>
                               action: widget.actions[i],
                               appear: ((t * widget.actions.length) - i)
                                   .clamp(0.0, 1.0),
-                              enabled: raw >= 0.99,
+                              // Gated on the target rather than on the
+                              // animated value: waiting for the 200 ms settle
+                              // to reach 0.99 left the buttons dead for ~160 ms
+                              // after the row had visibly opened, so a quick
+                              // swipe-then-tap did nothing at all.
+                              enabled: _open >= 0.99,
                               onUsed: () => _animateTo(0),
                             ),
                           ),

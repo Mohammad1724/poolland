@@ -385,6 +385,34 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('the entry form refuses to record without an amount', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(const TransactionEditPage(initialKind: TxnKind.expense)),
+    );
+    await tester.pumpAndSettle();
+
+    Finder button() => find.descendant(
+      of: find.byType(FormActionBar),
+      matching: find.byType(FilledButton),
+    );
+
+    // An empty amount used to leave the action live and silently refusing:
+    // validate() failed on a field that is scrolled out of view by then, so
+    // the tap looked swallowed. Now the button says so.
+    expect(tester.widget<FilledButton>(button()).onPressed, isNull);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Amount'), '1500');
+    await tester.pump();
+    expect(tester.widget<FilledButton>(button()).onPressed, isNotNull);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Amount'), '');
+    await tester.pump();
+    expect(tester.widget<FilledButton>(button()).onPressed, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Switching the direction swaps the category to the new kind', (
     tester,
   ) async {
@@ -454,6 +482,15 @@ void main() {
     await tester.enterText(
       find.widgetWithText(TextField, 'Amount'),
       '2500',
+    );
+    await tester.pump();
+    // Record only lives once there is an amount to record; an empty sheet used
+    // to sit there ignoring the tap with no explanation.
+    expect(
+      tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Record'),
+      ).onPressed,
+      isNotNull,
     );
     await tester.tap(find.text('Record'));
     await tester.pumpAndSettle();

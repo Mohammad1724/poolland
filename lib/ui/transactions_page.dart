@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/debounce.dart';
-import '../core/haptics.dart';
 import '../core/jalali_utils.dart';
 import '../core/money.dart';
 import '../data/ledger.dart';
@@ -10,6 +9,7 @@ import '../data/models.dart';
 import '../data/repository.dart';
 import 'design.dart';
 import 'forms/transaction_edit_page.dart';
+import 'widgets/txn_actions.dart';
 import 'widgets/widgets.dart';
 
 import '../core/localization.dart';
@@ -400,58 +400,21 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                 i < entry.value.length;
                                 i++
                               ) ...[
-                                // Swiping is a shortcut for the two things done
-                                // most often with an old entry: fixing it, or
-                                // recording the same thing again. The row snaps
-                                // back (nothing is dismissed), and the hint
-                                // behind it names the action being performed.
-                                Dismissible(
+                                // The same swipe-reveal actions as the
+                                // dashboard, the personal page and the customer
+                                // statement: edit, duplicate, delete. One
+                                // gesture vocabulary for every transaction row
+                                // in the app, which is also what the gesture
+                                // tour promises.
+                                SwipeActions(
                                   key: ValueKey(
                                     'txn-swipe-${entry.value[i].id}',
                                   ),
-                                  direction: DismissDirection.horizontal,
-                                  dismissThresholds: const {
-                                    // Resolved directions, not
-                                    // [DismissDirection.horizontal].
-                                    DismissDirection.startToEnd: 0.25,
-                                    DismissDirection.endToStart: 0.25,
-                                  },
-                                  background: SwipeHint(
-                                    icon: Icons.edit_rounded,
-                                    label: 'Edit',
-                                    color: Theme.of(context).colorScheme.primary,
-                                    alignment: AlignmentDirectional.centerStart,
+                                  actions: txnSwipeActions(
+                                    context,
+                                    entry.value[i],
+                                    repo,
                                   ),
-                                  secondaryBackground: SwipeHint(
-                                    icon: Icons.copy_all_rounded,
-                                    label: 'Duplicate',
-                                    color: const Color(0xFF2563EB),
-                                    alignment: AlignmentDirectional.centerEnd,
-                                  ),
-                                  confirmDismiss: (direction) async {
-                                    Haptics.tap();
-                                    final txn = entry.value[i];
-                                    if (direction ==
-                                        DismissDirection.startToEnd) {
-                                      await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              TransactionEditPage(existing: txn),
-                                        ),
-                                      );
-                                    } else {
-                                      await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => TransactionEditPage(
-                                            duplicateOf: txn,
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                    return false;
-                                  },
                                   child: TxnTile(
                                     txn: entry.value[i],
                                     categoryName: repo.categoryName(

@@ -103,15 +103,27 @@ class Motion {
   /// shimmer sweeps, spinning coins) may play: the kit must be enabled and
   /// the user must not have asked for reduced motion.
   static bool ambientOn(BuildContext context) =>
-      motionEnabled &&
-      !(MediaQuery.maybeOf(context)?.disableAnimations ?? false);
+      motionEnabled && !reduced(context);
+
+  /// Whether the operating system asked for reduced motion.
+  ///
+  /// Aspect-scoped (`MediaQuery.maybeDisableAnimationsOf`) rather than a whole
+  /// `MediaQuery` dependency: a transition that reads this must not rebuild
+  /// every time the keyboard opens or the device rotates. Safe without a
+  /// `MediaQuery` ancestor, which the `maybe` variant guarantees.
+  static bool reduced(BuildContext context) =>
+      MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+
+  /// Whether any of the kit's motion may play at all.
+  static bool on(BuildContext context) => motionEnabled && !reduced(context);
 
   /// Respect the operating system's reduced-motion preference.
-  static Duration adaptive(BuildContext context, Duration duration) {
-    final reduceMotion =
-        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    return reduceMotion ? Duration.zero : duration;
-  }
+  ///
+  /// Aspect-scoped like [reduced], so the hundreds of call sites do not each
+  /// register a whole-`MediaQuery` dependency and rebuild when the keyboard
+  /// opens, the device rotates, or the system UI insets change.
+  static Duration adaptive(BuildContext context, Duration duration) =>
+      reduced(context) ? Duration.zero : duration;
 }
 
 /// Staggered entrance: fade + rise, with an index-based delay.

@@ -173,7 +173,10 @@ void main() {
   });
 
   group('swiping a transaction row', () {
-    testWidgets('right opens it for editing', (tester) async {
+    /// Opens the transactions page on the probe row and reveals its actions
+    /// with a trailing swipe — the one direction every transaction row in the
+    /// app uses (dashboard, personal page, customer statement and here).
+    Future<Finder> revealProbe(WidgetTester tester) async {
       await tester.pumpWidget(wrap(const TransactionsPage()));
       await tester.pumpAndSettle();
 
@@ -182,7 +185,35 @@ void main() {
       await tester.ensureVisible(probe);
       await tester.pumpAndSettle();
 
-      await tester.drag(probe, const Offset(260, 0));
+      await tester.drag(probe, const Offset(-160, 0));
+      await tester.pumpAndSettle();
+
+      // Scoped to the swiped row: every other row carries the same three
+      // action buttons, folded behind an opacity of zero.
+      return find.ancestor(
+        of: find.text('Swipe probe'),
+        matching: find.byType(SwipeActions),
+      );
+    }
+
+    Finder inRow(Finder row, String label) =>
+        find.descendant(of: row, matching: find.text(label.tr));
+
+    testWidgets('a trailing swipe offers edit, duplicate and delete', (
+      tester,
+    ) async {
+      final row = await revealProbe(tester);
+      // Tapping the row still opens it for editing, so nothing is lost by the
+      // leading swipe no longer being a shortcut of its own.
+      expect(inRow(row, 'Edit'), findsOneWidget);
+      expect(inRow(row, 'Duplicate'), findsOneWidget);
+      expect(inRow(row, 'Delete'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('edit opens the original entry', (tester) async {
+      final row = await revealProbe(tester);
+      await tester.tap(inRow(row, 'Edit'));
       await tester.pumpAndSettle();
 
       expect(find.text('Edit transaction'), findsOneWidget);
@@ -191,17 +222,11 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('left opens a copy pre-filled with the same entry', (
+    testWidgets('duplicate opens a copy pre-filled with the same entry', (
       tester,
     ) async {
-      await tester.pumpWidget(wrap(const TransactionsPage()));
-      await tester.pumpAndSettle();
-
-      final probe = find.text('Swipe probe');
-      await tester.ensureVisible(probe);
-      await tester.pumpAndSettle();
-
-      await tester.drag(probe, const Offset(-260, 0));
+      final row = await revealProbe(tester);
+      await tester.tap(inRow(row, 'Duplicate'));
       await tester.pumpAndSettle();
 
       expect(find.text('Duplicate transaction'), findsOneWidget);
