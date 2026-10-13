@@ -548,10 +548,15 @@ void main() {
     );
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
     expect(find.text('Amount'), findsOneWidget);
-    expect(find.byType(PresetChip), findsWidgets);
     // The sheet speaks the same visual language as the entry form: a
-    // full-width scope segment and one-line chip strips.
+    // full-width scope segment.
     expect(find.byType(SegmentedButton<TxnScope>), findsOneWidget);
+
+    // The section follows the ledger's habits; point it at the business
+    // side, where regular contacts are one-tap chips.
+    await tester.tap(find.text('Business'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PresetChip), findsWidgets);
     expect(find.byType(ChipStrip), findsWidgets);
 
     // Switching the section still re-derives kind and category.
