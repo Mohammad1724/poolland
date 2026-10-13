@@ -385,6 +385,98 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('the entry form refuses to record without an amount', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(const TransactionEditPage(initialKind: TxnKind.expense)),
+    );
+    await tester.pumpAndSettle();
+
+    Finder button() => find.descendant(
+      of: find.byType(FormActionBar),
+      matching: find.byType(FilledButton),
+    );
+
+    // An empty amount used to leave the action live and silently refusing:
+    // validate() failed on a field that is scrolled out of view by then, so
+    // the tap looked swallowed. Now the button says so.
+    expect(tester.widget<FilledButton>(button()).onPressed, isNull);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Amount'), '1500');
+    await tester.pump();
+    expect(tester.widget<FilledButton>(button()).onPressed, isNotNull);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Amount'), '');
+    await tester.pump();
+    expect(tester.widget<FilledButton>(button()).onPressed, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('closing the entry form mid-save does not take the caller', (
+    tester,
+  ) async {
+    // Two levels under the form, so a second pop shows up as a missing page
+    // instead of as an empty navigator.
+    Widget level(
+      BuildContext context,
+      String label,
+      Widget Function(BuildContext) next,
+    ) => Scaffold(
+      body: Center(
+        child: FilledButton(
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(builder: next),
+          ),
+          child: Text(label),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      wrap(
+        Builder(
+          builder: (context) => level(
+            context,
+            'open list',
+            (mid) => level(
+              mid,
+              'open form',
+              (_) => const TransactionEditPage(initialKind: TxnKind.expense),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open list'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('open form'));
+    await tester.pumpAndSettle();
+    expect(find.text('New transaction'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Amount'), '1500');
+    await tester.pump();
+    await tester.tap(find.text('Record'));
+    await tester.pump(); // the write is in flight, awaiting real file I/O
+
+    // Leave while it is still running, and let the write land before the exit
+    // transition finishes: that is the window where `mounted` is still true
+    // but this page is no longer the one on top.
+    tester.state<NavigatorState>(find.byType(Navigator)).pop();
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
+    await tester.pumpAndSettle();
+
+    // The entry was written and exactly one route was popped.
+    expect(repo.transactions.any((t) => t.amount == 1500), isTrue);
+    expect(find.text('open form'), findsOneWidget);
+    expect(find.text('open list'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Switching the direction swaps the category to the new kind', (
     tester,
   ) async {

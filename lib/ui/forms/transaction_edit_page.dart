@@ -242,6 +242,14 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
 
   Future<void> _save() async {
     final repo = context.read<AppRepository>();
+    // Resolved before the first await. Writing an entry takes real time, and
+    // the page can be closed while it is in flight (back button, predictive
+    // back, a system gesture). Popping again after that would not pop *this*
+    // page — it is already on its way out — it would take the page underneath
+    // it with it, and `mounted` stays true for the whole exit transition.
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final route = ModalRoute.of(context);
     if (_formKey.currentState?.validate() != true) return;
     if (_kind == TxnKind.payablePayment && _customer == null) {
       showSnack(context, 'Select a contact for this payment', error: true);
@@ -307,12 +315,19 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
       }
     }
     if (!mounted) return;
+    // The entry is written either way, and the messenger belongs to the app
+    // rather than to this page, so the confirmation is shown even when the
+    // page is already leaving.
+    showMessengerSnack(
+      messenger,
+      isEdit ? 'Transaction updated' : 'Transaction recorded',
+    );
+    if (route != null && !route.isCurrent) return;
     if (!isEdit) {
       // A new record gets the coin + stamp moment; edits stay quiet.
       MoneyCelebration.recorded(context);
     }
-    showSnack(context, isEdit ? 'Transaction updated' : 'Transaction recorded');
-    Navigator.pop(context);
+    navigator.pop();
   }
 
   @override
@@ -331,6 +346,13 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
               tooltip: 'Delete'.tr,
               icon: const Icon(Icons.delete_outline_rounded),
               onPressed: () async {
+                // Resolved before the first await, for the same reason as in
+                // _save: this handler awaits twice (the confirmation dialog
+                // and the write), and either window is long enough for the
+                // page to be closed from under it.
+                final navigator = Navigator.of(context);
+                final messenger = ScaffoldMessenger.of(context);
+                final route = ModalRoute.of(context);
                 final ok = await confirmDialog(
                   context,
                   title: 'Delete transaction'.tr,
@@ -340,16 +362,25 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                 );
                 if (!ok) return;
                 await repo.deleteTxn(widget.existing!.id);
-                if (!context.mounted) return;
-                Navigator.pop(context);
-                showSnack(context, 'Transaction deleted');
+                if (!mounted) return;
+                showMessengerSnack(messenger, 'Transaction deleted');
+                if (route != null && !route.isCurrent) return;
+                navigator.pop();
               },
             ),
         ],
       ),
-      bottomNavigationBar: FormActionBar(
-        label: isEdit ? 'Save changes' : 'Record',
-        onPressed: _save,
+      bottomNavigationBar: AnimatedBuilder(
+        animation: _amount,
+        builder: (context, _) => FormActionBar(
+          label: isEdit ? 'Save changes' : 'Record',
+          // Disabled until there is an amount. `validate()` refuses the very
+          // same empty amount, but its message renders next to a field that is
+          // usually scrolled out of view by then — so the tap looked ignored
+          // and the page just refused to close, with nothing on screen to say
+          // why.
+          onPressed: parseAmount(_amount.text) > 0 ? _save : null,
+        ),
       ),
       body: Form(
         key: _formKey,
@@ -563,6 +594,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                             builder: (_) => const ContactEditPage(),
                           ),
                         );
+                        if (!mounted) return;
                         if (created != null) {
                           setState(() => _customer = created);
                         }
