@@ -65,7 +65,7 @@ jobs:
           flutter test --concurrency=1 > test_output.txt 2>&1
           EC=$?
           set -e
-          grep -aE '^(DIAGRAW |::error::FAILED_TEST)' test_output.txt 2>/dev/null | head -40 | while IFS= read -r line; do
+          grep -aE '^(DIAGRAW |::error::FAILED_TEST)' test_output.txt 2>/dev/null | head -10 | while IFS= read -r line; do
             case "$line" in
               DIAGRAW*)
                 msg="${line#DIAGRAW }"
@@ -78,5 +78,9 @@ jobs:
             esac
           done || true
           if [ "$EC" -ne 0 ]; then
+            tail -n 35 test_output.txt | while IFS= read -r line; do
+              msg="${line//\%/%25}"
+              printf '::notice file=test/output.txt,line=1::FAILLOG %s\n' "$msg"
+            done || true
             exit 1
           fi
