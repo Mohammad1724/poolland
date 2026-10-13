@@ -521,7 +521,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
             // _revealPayModeSection for the framework quirk this works
             // around).
             key: ValueKey('form-${_customer?.id ?? 'none'}-${_scope.name}-'
-                '${_kind.name}-${_credit}'),
+                '${_kind.name}-$_credit'),
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
             children: [
               // ---------------- 1. Intent ----------------
