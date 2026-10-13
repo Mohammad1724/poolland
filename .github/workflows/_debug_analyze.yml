@@ -13,20 +13,15 @@ jobs:
       - run: flutter pub get
       - name: analyze
         run: |
+          enc() { awk '{gsub(/%/,"%25"); printf "%s%s", (NR>1?"%0A":""), $0}' | cut -c1-3000; }
           flutter analyze --no-pub > /tmp/a.txt 2>&1 || true
-          while IFS= read -r line; do
-            case "$line" in
-              *" error - "*|*" warning - "*|*" info - "*)
-                printf '::error title=X::%s\n' "$line" ;;
-            esac
-          done < /tmp/a.txt
+          printf '::error title=ANALYZE::%s\n' "$(grep -E "error|warning" /tmp/a.txt | head -25 | enc)"
+          printf '::notice title=ANALYZE_TAIL::%s\n' "$(tail -3 /tmp/a.txt | enc)"
       - name: test
         if: always()
         run: |
-          flutter test --concurrency=1 > /tmp/t.txt 2>&1 || true
-          grep -E "^\s*(Some tests failed|All tests passed)|\[E\]|Failed to load|Error:" /tmp/t.txt | head -40 | while IFS= read -r line; do
-            printf '::error title=T::%s\n' "$line"
-          done
-          tail -60 /tmp/t.txt | while IFS= read -r line; do
-            printf '::error title=Z::%s\n' "$line"
-          done
+          enc() { awk '{gsub(/%/,"%25"); printf "%s%s", (NR>1?"%0A":""), $0}' | cut -c1-3000; }
+          flutter test --concurrency=1 --reporter expanded > /tmp/t.txt 2>&1 || true
+          printf '::error title=FAILED::%s\n' "$(grep "FAILED_TEST" /tmp/t.txt | head -8 | enc)"
+          printf '::error title=BLOCK1::%s\n' "$(awk '/\[E\]/{c++} c>=1 && c<2' /tmp/t.txt | head -30 | enc)"
+          printf '::error title=LOAD::%s\n' "$(grep -E "Failed to load|Compilation failed|Some tests failed|All tests passed" /tmp/t.txt | head -12 | enc)"
