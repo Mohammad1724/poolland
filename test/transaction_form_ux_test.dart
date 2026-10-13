@@ -318,12 +318,21 @@ void main() {
     diag(
       'editables=${eJoined.substring(0, eJoined.length.clamp(0, 400))}',
     );
-    final offEl = find.byType(EditableText, skipOffstage: false).evaluate().last;
-    final offChain = offEl.debugGetCreatorChain(12);
-    diag('offEditableChain=${offChain.substring(0, 700)}');
-    final zeroEl = find.text('0').evaluate().first;
-    final zeroChain = zeroEl.debugGetCreatorChain(12);
-    diag('zeroTextChain=${zeroChain.substring(0, 700)}');
+    String ancestorChain(Finder f) {
+      final ancestors = find
+          .ancestor(
+            of: f,
+            matching: find.byWidgetPredicate((_) => true),
+          )
+          .evaluate();
+      final types =
+          ancestors.map((e) => e.widget.runtimeType.toString()).toList();
+      final s = types.join(' > ');
+      return s.substring(0, s.length.clamp(0, 800));
+    }
+    final offFinder = find.byType(EditableText, skipOffstage: false).at(1);
+    diag('offAncestors=${ancestorChain(offFinder)}');
+    diag('zeroAncestors=${ancestorChain(find.text('0'))}');
     final richtexts = find.byType(RichText).evaluate().map((e) {
       final box = e.renderObject;
       final y =
