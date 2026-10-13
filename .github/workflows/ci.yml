@@ -46,9 +46,11 @@ jobs:
           print(f'flutter analyze exit={ec} -> {counts["error"]} errors, {counts["warning"]} warnings, {counts["info"]} infos')
           if ec != 0 or counts['error'] or counts['warning']:
               if not (counts['error'] or counts['warning']):
-                  head = ' / '.join(l.strip() for l in out.splitlines() if l.strip())
-                  head = head.replace('%', '%25')[:1500]
-                  print(f'::error file=.github/workflows/ci.yml,line=29::no parseable diagnostics; raw output: {head}')
+                  lines = [l.strip() for l in out.splitlines() if l.strip()]
+                  head = ' / '.join(lines)[:800]
+                  tail = ' / '.join(lines[-12:])
+                  print(f'::error file=.github/workflows/ci.yml,line=29::head: {head.replace("%", "%25")}')
+                  print(f'::error file=.github/workflows/ci.yml,line=30::tail: {tail.replace("%", "%25")}')
               print('::error::flutter analyze failed')
               sys.exit(1)
           PY
