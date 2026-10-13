@@ -23,5 +23,8 @@ jobs:
           enc() { awk '{gsub(/%/,"%25"); printf "%s%s", (NR>1?"%0A":""), $0}' | cut -c1-3000; }
           flutter test --concurrency=1 --reporter expanded > /tmp/t.txt 2>&1 || true
           printf '::error title=FAILED::%s\n' "$(grep "FAILED_TEST" /tmp/t.txt | head -8 | enc)"
-          printf '::error title=BLOCK1::%s\n' "$(awk '/\[E\]/{c++} c>=1 && c<2' /tmp/t.txt | head -30 | enc)"
+          # The expanded reporter prints the exception block *before* its [E]
+          # summary line, so reach back for it.
+          printf '::error title=BLOCK1::%s\n' "$(grep -B 26 -A 2 -m 1 "\[E\]" /tmp/t.txt | enc)"
+          printf '::error title=BLOCK2::%s\n' "$(grep -B 26 -A 2 -m 2 "\[E\]" /tmp/t.txt | tail -30 | enc)"
           printf '::error title=LOAD::%s\n' "$(grep -E "Failed to load|Compilation failed|Some tests failed|All tests passed" /tmp/t.txt | head -12 | enc)"

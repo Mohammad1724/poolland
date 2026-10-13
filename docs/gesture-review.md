@@ -1,6 +1,6 @@
 # بررسی تخصصی: باز و بسته شدن پنجره‌ها و شیت‌ها با ژست
 
-تاریخ: ۲۰۲۶-۱۰-۱۲ · نسخه بررسی‌شده: `1.3.0+4` · پایه: `da095fb` (main)
+تاریخ: ۲۰۲۶-۱۰-۱۳ · نسخه بررسی‌شده: `1.3.0+4` · پایه: `da095fb` (main)
 
 وضعیت: `flutter analyze` بدون خطا و هر **۲۵۱ آزمون** سبز (CI روی PR شماره ۷).
 
@@ -20,10 +20,12 @@ revision ای که `.metadata` پروژه ثبت کرده
 · `widgets/draggable_scrollable_sheet.dart` · `material/bottom_sheet.dart`
 · `material/page_transitions_theme.dart` · `widgets/dismissible.dart`
 · `gestures/velocity_tracker.dart` · `gestures/lsq_solver.dart` · `widgets/pop_scope.dart`
+· `gestures/monodrag.dart` · `gestures/recognizer.dart` · `gestures/pointer_router.dart`
+· `gestures/constants.dart` · `widgets/gesture_detector.dart` · `material/dialog.dart`
 
 نقشه فراخوانی ژست‌ها در کد برنامه هم کامل استخراج شد: ۱۴ فراخوانی
 `showLedgerSheet`، ۹ فراخوانی `showDialog`، ۳ `DraggableScrollableSheet`،
-۲ `Dismissible`، ۳ مصرف‌کننده `SwipeActions` و یک منوی شعاعی.
+۱ `Dismissible`، ۴ مصرف‌کننده `SwipeActions` و یک منوی شعاعی.
 
 ## باگ‌های پیدا شده
 
@@ -180,6 +182,116 @@ padding می‌داد. به `showLedgerSheet` مهاجرت کرد (با `Contain
 `SingleChildScrollView` دارند (`_BudgetSheet`، `_RecurringSheet`،
 `SmsReviewSheet` و `_QuickEditPage` از قبل داشتند).
 
+## دور دوم: باگ‌های سطح ویجت
+
+پس از یکسان‌سازی مسیرهای شیت، همان نگاه ریشه‌ای روی خود ویجت‌های ژست
+(`_SheetDismiss`، `_SheetPullDismiss`، `SwipeActions`، نوار ناوبری و شیت‌های
+کوچک) تکرار شد. نتیجه:
+
+### ۱۲. گرفتن مجدد شیت وسط انیمیشن، آن را جابه‌جا می‌کرد (بحرانی)
+
+`_pull` مقدار **هدف** است و `pull` مقداری که فنر همین لحظه نشان می‌دهد.
+`addPull` و `reducePull` فنر را `stop()` می‌کردند و بعد `_pull ± delta` را
+می‌نوشتند — یعنی اگر کاربر شیتی را که در حال برگشت بود دوباره بگیرد، شیت
+به جای ادامه از همان‌جا که دیده می‌شد، به مقصدی که داشت به آن می‌رفت
+پرتاب می‌شد. حالا `_adopt()` اول مقدار جاری فنر را می‌خواند، فنر را
+نگه می‌دارد و همان را در `_pull` می‌گذارد.
+
+### ۱۳. مسیر bouncing مقدار مطلق می‌گذاشت، نه delta (بحرانی)
+
+`_SheetPullDismiss` برای فیزیک bouncing از `n.metrics.minScrollExtent -
+n.metrics.pixels` استفاده می‌کرد. اگر انگشت وسط برگشت فنر دوباره پایین
+بیاید، آن تفاضل ناگهان عددی بی‌ربط به وضعیت قبلی می‌شود و شیت پرش می‌کند؛
+ضمن اینکه هر بار محتوای بالای لیست به بالای خودش برگردد، شیت به سقف
+پرتاب می‌شد. هر دو فیزیک حالا یک مسیر دارند: تجمع delta
+(`setPull` کاملاً حذف شد).
+
+### ۱۴. نوار گرفتن، درگ رو به بالا را می‌دزدید (مهم)
+
+نوار ۳۴ پیکسلی در Stack بالاتر از محتوای شیت است، پس زودتر از لیست به
+میدان ژست می‌رسد. یک `VerticalDragGestureRecognizer` معمولی نمی‌تواند بگوید
+«فقط پایین»؛ میدان را می‌برد و بعد با حرکت رو به بالا هیچ کاری نمی‌کند —
+یعنی فلیکی که از روی دستگیره شروع شود هرگز لیست را اسکرول نمی‌کرد.
+`_DownOnlyDrag` (زیرکلاس همان recognizer) در `handleEvent` به محض اینکه
+نشانگر بیش از `kTouchSlop` رو به بالا رفته باشد `resolve(rejected)` صدا
+می‌کند تا ژست به لایه زیر برگردد. `_settled` تضمین می‌کند این تصمیم برای
+هر اشاره‌گر دقیقاً یک بار گرفته شود.
+
+### ۱۵. همان پرش در `SwipeActions` (مهم)
+
+`_onUpdate` هم `_snap.stop()` می‌کرد و بعد از `_open` (هدف) ادامه می‌داد.
+`_adopt()` معادلش اینجا اضافه شد.
+
+### ۱۶. فلیک برای بستن ردیف باز کار نمی‌کرد (مهم)
+
+شرط قدیمی `if (_open > 0.5 || v > 600)` بود. ردیفی که باز است `_open == 1`
+دارد، پس فلیک برگشتی هم آن را دوباره باز می‌کرد: تا وقتی درگ از نصف `panelWidth` نگذشته باشد، سرعت هیچ نقشی نداشت. حالا `v < -600` اول
+بررسی می‌شود و در هر دو جهت فلیک تصمیم‌گیرنده است.
+
+### ۱۷. دکمه‌های پنل ~۱۶۰ میلی‌ثانیه مرده بودند (مهم)
+
+`_SwipeButton` با `enabled: raw >= 0.99` ساخته می‌شد که `raw` مقدار
+**انیمیت‌شده** است. یعنی بعد از باز شدن ردیف، تا پایان انیمیشن ۲۰۰
+میلی‌ثانیه‌ای (با `easeOutCubic` حدود ۱۶۰ms) دکمه‌ها ضربه نمی‌گرفتند —
+سوایپ سریع و بلافاصله ضربه، هیچ کاری نمی‌کرد. حالا `enabled` از روی
+`_open` (هدف) خوانده می‌شود.
+
+### ۱۸. ردیف باز، باز می‌ماند؛ چند ردیف همزمان باز می‌شد (مهم)
+
+هیچ مکانیزمی برای بستن ردیف جز ضربه به خودش وجود نداشت. باز کردن ردیف دوم،
+ردیف اول را باز نگه می‌داشت. حالا یک `addGlobalRoute` روی
+`WidgetsBinding.instance.pointerRouter` فقط تا وقتی ردیف باز است ثبت می‌شود
+و هر `PointerDownEvent` بیرون از `paintBounds` خودش، ردیف را می‌بندد.
+ضربه‌های داخل خود ردیف (از جمله روی دکمه‌های پنل) نادیده گرفته می‌شوند.
+`PointerRouter.route` قبل از پخش، نقشه را کپی می‌کند
+(`pointer_router.dart:126-143`)، پس حذف route از داخل همان callback امن است.
+
+### ۱۹. دکمه back سیستم، صفحه را می‌بست نه ردیف را (مهم)
+
+`SwipeActions` حالا در `PopScope(canPop: _open < 0.99)` پیچیده شده و در
+`onPopInvokedWithResult` ردیف را می‌بندد. خود `PopScope` همیشه در درخت است:
+وارد و خارج کردن شرطی‌اش، ردیف زیرش را remount می‌کرد و `EnterMotion`
+دوباره اجرا می‌شد. چون در هر لحظه حداکثر یک ردیف باز است (باگ ۱۸)، حداکثر
+یک `PopScope` از pop جلوگیری می‌کند.
+
+### ۲۰. `transactions_page` تنها جای ناسازگار بود (مهم)
+
+این صفحه `Dismissible` داشت (راست = ویرایش، چپ = تکرار، بدون حذف) در حالی
+که dashboard و personal و customer-detail از `SwipeActions` +
+`txnSwipeActions` (ویرایش/تکرار/حذف) استفاده می‌کنند. یعنی جملهٔ تور ژست
+فقط در ۳ مورد از ۴ درست بود. حالا هر چهار جا یک ویجت و یک مجموعه اکشن
+دارند و جملهٔ تور همه‌جا صادق است. ضربه روی ردیف همچنان ویرایش را باز
+می‌کند، پس از دست رفتن سوایپ چپ‌به‌راست چیزی کم نمی‌کند. `phase3_gestures_test.dart`
+برای همین بازنویسی شد.
+
+### ۲۱. نوار ناوبری: Tooltip رقیب و ناحیه ضربه متورم (متوسط)
+
+هر سلول `Tooltip(message: dest.label)` داشت در حالی که همان label زیر
+آیکون چاپ می‌شود و در `Semantics(label:)` هم هست؛ تنها اثرش یک
+`LongPressGestureRecognizer` بود که در میدان ژست هر سلول رقابت می‌کرد.
+`Transform.scale(scale: 1 + 0.22 * bounce)` هم **بیرون** `InkWell` بود:
+برای ۲۷۳ میلی‌ثانیه‌ای که bounce جریان دارد، ناحیه ضربه سلول ۲۲٪ بزرگ
+می‌شود و داخل همسایه‌هایش می‌رود. حالا scale روی محتوای سلول اعمال
+می‌شود و ناحیه ضربه همیشه دقیقاً یک سلول است.
+
+### ۲۲. دکمه Record در `QuickAmountSheet` بی‌اثر بود (متوسط)
+
+`onPressed` همیشه متصل بود و داخلش `if (v <= 0) return;` — یعنی با مبلغ
+خالی، شیت فقط بسته نمی‌شد و هیچ توضیحی هم نمی‌داد. حالا دکمه تا وقتی مبلغ
+معتبر نباشد غیرفعال است (`AnimatedBuilder` روی خود کنترلر). اسنک‌بار
+«اول مبلغ وارد کنید» عمداً اضافه نشد: کلید localization جدید می‌خواست و
+`localization_guard_test.dart` را می‌شکست.
+
+### ۲۳. دستگیره دست‌ساز در `_PaymentSheet` (کم)
+
+یک `Container` ۴۲×۴ با `theme.dividerColor` جای `SheetHandle` (۴۴×۴،
+`onSurface@0.22`) را گرفته بود. حذف شد تا همه شیت‌ها یک دستگیره داشته باشند.
+
+### ۲۴. کامنت مستندات جابه‌جا نشسته بود (کم)
+
+بلوک «Copy on long-press» بالای `SheetHandle` بود و `CopyMoney` بدون
+توضیح می‌ماند. سر جایش برگشت.
+
 ## موارد بررسی‌شده که باگ نیستند
 
 * `theme.dart:49-56` واقعاً `LedgerPageTransitionsBuilder` را برای هر پنج
@@ -193,24 +305,32 @@ padding می‌داد. به `showLedgerSheet` مهاجرت کرد (با `Contain
   چون `MaterialApp.builder` دور `Navigator` می‌پیچد، صفحه قفل روی اورلی منو
   نقاشی می‌شود.
 * هر ۱۲ رشته تور ژست کلید localization دارند.
+* **۹ فراخوانی `showDialog` باگ نیستند.** سه دلیل، هر سه از سورس خوانده شد:
+  `theme.dart:222` از قبل `DialogThemeData` دارد (گوشه ۲۰، فونت وزیرمتن برای
+  عنوان و متن)؛ خود `Dialog` در `material/dialog.dart:268` مقدار
+  `MediaQuery.viewInsetsOf(context) + insetPadding` را جمع می‌کند پس کیبورد
+  دیالوگ را هل می‌دهد؛ و `_buildMaterialDialogTransitions` در stable فعلی فقط
+  `return child;` است — `CurvedAnimation` داخل state نگهداری و dispose
+  می‌شود، یعنی نشتی که در باگ ۱ پیدا شد اینجا وجود ندارد. بسته شدن با
+  barrier و دکمه back هم کار می‌کند. تبدیل دیالوگ‌های کوتاه ورودی/تأیید و
+  تقویم جلالی به شیت کشیدنی، پس‌رفت از زبان Material است نه اصلاح باگ.
 
 ## چیزی که عمداً تغییر نکرد
 
-`transactions_page` از `Dismissible` (ویرایش/تکرار، باز کردن صفحه کامل)
-استفاده می‌کند در حالی که dashboard، personal و customer-detail از
-`SwipeActions` + `txnSwipeActions` (ویرایش/تکرار/حذف). یعنی جمله
-«یک ردیف تراکنش را به پهلو بکشید تا ویرایش، تکرار یا حذف شود» فقط در ۳ مورد
-از ۴ درست است. یکسان‌سازی یعنی تغییر کلیدهای `lib/core/localization.dart` و
-شکستن `phase3_gestures_test.dart`؛ خارج از دامنه این دیباگ است.
-
-همچنین نوار گرفتن ۳۴ پیکسلی در Stack بالاترین است، پس درگ **رو به بالا**
-از همان نوار، لیست را اسکرول نمی‌کند. این همان رفتار شیت‌های iOS است
-(ناحیه دستگیره به شیت تعلق دارد نه به محتوا) و عمداً نگه داشته شد؛ نوار
-`HitTestBehavior.translucent` دارد، پس دکمه‌های زیرش همچنان ضربه می‌خورند.
+* دیالوگ‌ها (۹ مورد) شیت نشدند — دلایلش در بخش قبل آمد.
+* `TextEditingController`های ساخته‌شده داخل دیالوگ‌های `settings_page`
+  dispose نمی‌شوند. dispose در `then(...)` یعنی وسط گذار خروجی، و خطرش از
+  سودش بیشتر است؛ نشتی هم در حد یک کنترلر کوتاه‌عمر است.
+* منوی شعاعی FAB با دکمه back بسته نمی‌شود و با pause شدن برنامه هم نه.
+  هر دو نیاز به `PopScope` روی ریشه `HomeShell` دارند و رفتار back را برای
+  کل پوسته عوض می‌کنند؛ تصمیمش با صاحب محصول است.
+* نوار گرفتن ۳۴ پیکسلی همچنان `HitTestBehavior.translucent` دارد و بالاترین
+  لایه Stack است، پس دکمه‌های زیرش ضربه می‌خورند. آنچه عوض شد این است که
+  دیگر درگ رو به بالا را تصاحب نمی‌کند (باگ ۱۴).
 
 ## آزمون‌ها
 
-هفت آزمون رگرسیون در `test/motion_test.dart`:
+ده آزمون رگرسیون در `test/motion_test.dart`:
 
 | آزمون | چه باگی را قفل می‌کند |
 | --- | --- |
@@ -221,6 +341,10 @@ padding می‌داد. به `showLedgerSheet` مهاجرت کرد (با `Contain
 | `a non-dismissible sheet ignores drag and barrier` | ۶ |
 | `a draggable sheet closes at its minimum extent` | ۴ |
 | (موجود) `closes on a pull-down at the top` / `ignores a horizontal pull` | ۲ |
+| (موجود) `SwipeActions opens on a trailing drag and fires the action` | ۱۷ |
+| `SwipeActions folds away when anything else is touched` | ۱۸ |
+| `SwipeActions takes a flick as the decision` | ۱۶ |
+| `the system back button closes an open row first` | ۱۹ |
 
 `test/flutter_test_config.dart` مقدار `Motion.motionEnabled = false` را
 می‌گذارد، پس در آزمون‌ها فنر و گذار instant هستند و نتیجه قطعی است.

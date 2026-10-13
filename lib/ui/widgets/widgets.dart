@@ -1915,10 +1915,16 @@ class _SwipeActionsState extends State<SwipeActions>
     _watchOutside(target > 0);
     // Nothing to animate. Starting the controller anyway would rebuild the row
     // for 200 ms and keep `pumpAndSettle` busy for no reason.
-    if (from == target && !_snap.isAnimating) return;
-    _snapFrom = from;
-    _snapTarget = target;
-    _open = target;
+    if (from == target && !_snap.isAnimating && _open == target) return;
+    // `_open` is read by the PopScope above and by the buttons' `enabled`, and
+    // neither of them sits under the AnimatedBuilder that rebuilds on every
+    // tick. Without setState the row would close visually while `canPop` stayed
+    // false — and the page could then never be popped again.
+    setState(() {
+      _snapFrom = from;
+      _snapTarget = target;
+      _open = target;
+    });
     _snap.forward(from: 0);
   }
 

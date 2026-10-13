@@ -1,10 +1,11 @@
 import 'dart:math' as math;
 
+// GestureRecognizerFactoryWithHandlers comes with material: it is declared in
+// src/widgets/gesture_detector.dart, next to RawGestureDetector.
 import 'package:flutter/gestures.dart'
     show
         DragStartBehavior,
         GestureDisposition,
-        GestureRecognizerFactoryWithHandlers,
         VerticalDragGestureRecognizer,
         VelocityTracker,
         kTouchSlop;
