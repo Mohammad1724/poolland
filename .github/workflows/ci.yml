@@ -23,13 +23,23 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter analyze
-      # TEMP: isolate the new subcategory tests.
+      # TEMP: isolate the new subcategory tests, with live progress.
       - name: Test subcategory only
         run: |
+          ( timeout 1200 flutter test test/subcategory_test.dart --concurrency=1 > test_output.txt 2>&1; echo "EXIT=$?" > ec.txt ) &
+          FLPID=$!
+          for i in $(seq 1 60); do
+            sleep 20
+            LAST=$(tail -c 2000 test_output.txt 2>/dev/null | tr -d '\000-\037' | tail -n 1 | cut -c1-200)
+            if [ -n "$LAST" ]; then
+              LAST="${LAST//\%/%25}"
+              echo "::notice file=test/progress.txt,line=$i::PROG $LAST"
+            fi
+            if [ -f ec.txt ]; then break; fi
+          done
+          wait $FLPID
+          EC=$(cut -d= -f2 ec.txt)
           set +e
-          timeout 600 flutter test test/subcategory_test.dart --concurrency=1 > test_output.txt 2>&1
-          EC=$?
-          set -e
           EC="$EC" python3 - <<'PY'
           import os, re, sys
           ec = int(os.environ.get('EC', '0') or '0')
