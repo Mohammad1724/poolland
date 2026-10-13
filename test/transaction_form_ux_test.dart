@@ -217,6 +217,13 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  // TEMP diagnostics: the runner log is unreadable outside, so the test
+  // reports its own progress as check annotations.
+  // ignore: avoid_print
+  void diag(String s) => print(
+    '::notice file=test/transaction_form_ux_test.dart,line=1::DIAG $s',
+  );
+
   testWidgets('cash and credit explain themselves as the amount changes', (
     tester,
   ) async {
@@ -233,9 +240,18 @@ void main() {
     // The chip strip can sit right at the bottom of the viewport; make sure
     // the chip is in view before tapping it.
     final nameFinder = find.text(first.name);
+    diag('name=${first.name} matches=${nameFinder.evaluate().length}');
     await tester.scrollUntilVisible(nameFinder, 200, scrollable: formScrollable());
+    await tester.pump();
+    if (nameFinder.evaluate().length == 1) {
+      final r = tester.getRect(nameFinder.first);
+      diag('chipTextRect=$r (viewport 800x600)');
+    } else {
+      diag('chipText: ${nameFinder.evaluate().length} matches, cannot rect');
+    }
     await tester.tap(nameFinder.first);
     await tester.pumpAndSettle();
+    diag('afterTap moneyTexts=${find.byType(MoneyText).evaluate().length}');
 
     // The cash/credit control sits below the fold; drag until it is
     // actually visible (not just built in the list's cache).
@@ -244,6 +260,10 @@ void main() {
       formScrollable(),
       const Offset(0, -300),
     );
+    diag(
+      'afterDrag credit=${find.text('Credit').evaluate().length} '
+      'hint=${find.text('Cash goes into the box.').evaluate().length}',
+    );
 
     // Cash is the default and says where the money lands.
     expect(find.text('Cash goes into the box.'), findsOneWidget);
@@ -251,6 +271,11 @@ void main() {
     await tester.tap(find.text('Credit'));
     await tester.pumpAndSettle();
     // The settled-now field appears with the amount still outstanding.
+    diag(
+      'afterCreditTap settleField='
+      '${find.widgetWithText(TextField, 'Cash received now').evaluate().length} '
+      'debtHint=${find.textContaining('customer debt').evaluate().length}',
+    );
     expect(find.widgetWithText(TextField, 'Cash received now'), findsOneWidget);
     expect(find.textContaining('customer debt'), findsOneWidget);
 
@@ -264,6 +289,7 @@ void main() {
       '2000000',
     );
     await tester.pumpAndSettle();
+    diag('paidInFull=${find.text('Paid in full').evaluate().length}');
     expect(find.text('Paid in full'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
