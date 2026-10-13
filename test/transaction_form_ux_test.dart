@@ -300,21 +300,48 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // The re-derived default sits in the row.
-    expect(find.text('Domain and SSL'), findsOneWidget);
+    // The field shows the current selection.
+    expect(find.byType(SelectField<Category>), findsOneWidget);
 
     // Open the picker.
     await tester.tap(find.byType(SelectField<Category>));
     await tester.pumpAndSettle();
 
-    // Frequent categories lead; the rest are one tap (or one search) away.
-    expect(find.text('Server / VPS purchase'), findsOneWidget);
-    expect(find.text('Advertising and marketing'), findsOneWidget);
+    // The whole catalog is one list: frequent categories lead, and with a
+    // long catalog a search box appears on top of it.
+    expect(find.text('Select category'), findsOneWidget);
+    expect(find.text('Category name...'), findsOneWidget);
+    expect(find.byType(ListTile), findsNWidgets(greaterThan(3)));
 
-    // Pick a different category.
-    await tester.tap(find.text('Advertising and marketing'));
+    // Searching narrows the list to the one category the name matches.
+    final searchField = find.ancestor(
+      of: find.text('Category name...'),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(searchField, 'Advertising');
     await tester.pumpAndSettle();
-    expect(find.text('Advertising and marketing'), findsOneWidget);
+    final onlyTile = find.byType(ListTile);
+    expect(onlyTile, findsOneWidget);
+    expect(
+      find.descendant(
+        of: onlyTile,
+        matching: find.text('Advertising and marketing'),
+      ),
+      findsOneWidget,
+    );
+
+    // Pick it — the sheet closes and the field shows the new selection.
+    await tester.tap(onlyTile);
+    await tester.pumpAndSettle();
+    final field = find.byType(SelectField<Category>);
+    expect(field, findsOneWidget);
+    expect(
+      find.descendant(
+        of: field,
+        matching: find.text('Advertising and marketing'),
+      ),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
