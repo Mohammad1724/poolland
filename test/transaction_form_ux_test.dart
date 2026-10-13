@@ -318,6 +318,12 @@ void main() {
     diag(
       'editables=${eJoined.substring(0, eJoined.length.clamp(0, 400))}',
     );
+    final offEl = find.byType(EditableText, skipOffstage: false).evaluate().last;
+    final offChain = offEl.debugGetCreatorChain(maxDepth: 12).join(' << ');
+    diag('offEditableChain=${offChain.substring(0, 700)}');
+    final zeroEl = find.text('0').evaluate().first;
+    final zeroChain = zeroEl.debugGetCreatorChain(maxDepth: 12).join(' << ');
+    diag('zeroTextChain=${zeroChain.substring(0, 700)}');
     final richtexts = find.byType(RichText).evaluate().map((e) {
       final box = e.renderObject;
       final y =
