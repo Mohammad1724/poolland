@@ -245,7 +245,7 @@ void main() {
     int childCount() {
       final lv = tester.widget<ListView>(find.byType(ListView).first);
       final d = lv.childrenDelegate;
-      return d is SliverChildListDelegate ? d.getChildCount() : -1;
+      return d is SliverChildListDelegate ? d.children.length : -1;
     }
 
     int listKidCount() => find
@@ -282,7 +282,7 @@ void main() {
     try {
       final sliverEl =
           find.byType(SliverList).evaluate().first as MultiChildRenderObjectElement;
-      final kidTypes = sliverEl.children.keys
+      final kidTypes = sliverEl.children
           .map((e) {
             final w = e.widget;
             if (w is KeyedSubtree) return w.child.runtimeType.toString();
