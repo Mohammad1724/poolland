@@ -340,7 +340,7 @@ void main() {
         find.byType(EditableText, skipOffstage: false).evaluate().length;
     for (var i = 0; i < edCount; i++) {
       raw(
-        'probe#${i} '
+        'probe#$i '
         '${probes(find.byType(EditableText, skipOffstage: false).at(i), 'edit')}',
       );
     }
