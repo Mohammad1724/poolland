@@ -1,0 +1,32 @@
+name: Debug analyze
+on:
+  push:
+    branches: [arena/1d27b4fa-poolland]
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - name: analyze
+        run: |
+          flutter analyze --no-pub > /tmp/a.txt 2>&1 || true
+          while IFS= read -r line; do
+            case "$line" in
+              *" error - "*|*" warning - "*|*" info - "*)
+                printf '::error title=X::%s\n' "$line" ;;
+            esac
+          done < /tmp/a.txt
+      - name: test
+        if: always()
+        run: |
+          flutter test --concurrency=1 > /tmp/t.txt 2>&1 || true
+          grep -E "^\s*(Some tests failed|All tests passed)|\[E\]|Failed to load|Error:" /tmp/t.txt | head -40 | while IFS= read -r line; do
+            printf '::error title=T::%s\n' "$line"
+          done
+          tail -60 /tmp/t.txt | while IFS= read -r line; do
+            printf '::error title=Z::%s\n' "$line"
+          done
