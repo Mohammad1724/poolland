@@ -229,6 +229,19 @@ void main() {
   // ignore: avoid_print
   void raw(String s) => print('DIAGRAW $s');
 
+  double listContentH() {
+    final s = tester.state<ScrollableState>(formScrollable());
+    return s.position.maxScrollExtent + s.position.viewportDimension;
+  }
+
+  int listKidCount() => find
+      .descendant(
+        of: find.byType(SliverList).first,
+        matching: find.byType(KeyedSubtree),
+      )
+      .evaluate()
+      .length;
+
   testWidgets('cash and credit explain themselves as the amount changes', (
     tester,
   ) async {
@@ -238,9 +251,11 @@ void main() {
       wrap(const TransactionEditPage(autofocusAmount: false)),
     );
     await tester.pumpAndSettle();
+    diag('H0=${listContentH()} kids=${listKidCount()}');
 
     await tester.enterText(amountField(), '2000000');
     await tester.pump();
+    diag('H1=${listContentH()} kids=${listKidCount()}');
 
     // The chip strip can sit right at the bottom of the viewport; make sure
     // the chip is in view before tapping it.
@@ -257,6 +272,7 @@ void main() {
     await tester.tap(nameFinder.first);
     await tester.pumpAndSettle();
     diag('afterTap moneyTexts=${find.byType(MoneyText).evaluate().length}');
+    diag('H2=${listContentH()} kids=${listKidCount()}');
 
     // The cash/credit control sits below the fold; drag until it is
     // actually visible (not just built in the list's cache).
@@ -267,7 +283,8 @@ void main() {
     );
     diag(
       'afterDrag credit=${find.text('Credit').evaluate().length} '
-      'hint=${find.text('Cash goes into the box.').evaluate().length}',
+      'hint=${find.text('Cash goes into the box.').evaluate().length} '
+      'H3=${listContentH()} kids=${listKidCount()}',
     );
     if (find.text('Credit').evaluate().length == 1) {
       diag('creditRect=${tester.getRect(find.text('Credit'))}');
