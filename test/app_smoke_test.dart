@@ -455,6 +455,15 @@ void main() {
       find.widgetWithText(TextField, 'Amount'),
       '2500',
     );
+    await tester.pump();
+    // Record only lives once there is an amount to record; an empty sheet used
+    // to sit there ignoring the tap with no explanation.
+    expect(
+      tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Record'),
+      ).onPressed,
+      isNotNull,
+    );
     await tester.tap(find.text('Record'));
     await tester.pumpAndSettle();
 

@@ -205,6 +205,47 @@ void main() {
     expect(tester.getTopLeft(find.text('row')), home);
   });
 
+  testWidgets('the system back button closes an open row first', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(
+        Builder(
+          builder: (context) => Center(
+            child: ElevatedButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => Scaffold(body: swipeHarness()),
+                ),
+              ),
+              child: const Text('go'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+
+    final home = tester.getTopLeft(find.text('row'));
+    await tester.drag(find.text('row'), const Offset(-160, 0));
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.text('row')).dx, home.dx - 150);
+
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    await navigator.maybePop();
+    await tester.pumpAndSettle();
+    // Back folded the row and stayed on the page.
+    expect(tester.getTopLeft(find.text('row')), home);
+    expect(find.text('go'), findsNothing);
+
+    // Only the next one leaves.
+    await navigator.maybePop();
+    await tester.pumpAndSettle();
+    expect(find.text('go'), findsOneWidget);
+  });
+
   testWidgets('CopyMoney copies the plain number on long-press', (
     tester,
   ) async {

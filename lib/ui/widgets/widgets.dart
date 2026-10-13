@@ -1980,6 +1980,23 @@ class _SwipeActionsState extends State<SwipeActions>
   @override
   Widget build(BuildContext context) {
     if (widget.actions.isEmpty) return widget.child;
+    // An open row is a mode of its own, so the system back button — and
+    // Android's predictive back — folds the row instead of leaving the page.
+    // Touching anywhere else already closes it, which is also what keeps a
+    // single row open at a time, so at most one row ever refuses to pop.
+    //
+    // The scope stays in the tree whether or not it refuses: swapping it in
+    // and out would remount the row underneath and replay its enter motion.
+    return PopScope(
+      canPop: _open < 0.99,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _animateTo(0);
+      },
+      child: _row(context),
+    );
+  }
+
+  Widget _row(BuildContext context) {
     return GestureDetector(
       onHorizontalDragUpdate: _onUpdate,
       onHorizontalDragEnd: _onEnd,
