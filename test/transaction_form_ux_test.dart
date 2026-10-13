@@ -294,6 +294,32 @@ void main() {
       'treeTexts(${texts.length})='
       '${joined.substring(0, joined.length.clamp(0, 600))}',
     );
+    final editables = find.byType(EditableText).evaluate().map((e) {
+      final st = tester.state<EditableTextState>(e);
+      final box = e.renderObject;
+      final y =
+          box is RenderBox && box.hasSize
+              ? box.localToGlobal(Offset.zero).dy
+              : -1;
+      return 'edit[${y.toStringAsFixed(0)}]=[${st.editableText.text}]';
+    }).toList();
+    final eJoined = editables.join(' | ');
+    diag(
+      'editables=${eJoined.substring(0, eJoined.length.clamp(0, 400))}',
+    );
+    final richtexts = find.byType(RichText).evaluate().map((e) {
+      final box = e.renderObject;
+      final y =
+          box is RenderBox && box.hasSize
+              ? box.localToGlobal(Offset.zero).dy
+              : -1;
+      final s = (e.widget as RichText).text.toPlainText();
+      return 'rich[${y.toStringAsFixed(0)}]=[$s]';
+    }).toList();
+    final rJoined = richtexts.join(' | ');
+    diag(
+      'rich=${rJoined.substring(0, rJoined.length.clamp(0, 400))}',
+    );
 
     // Cash is the default and says where the money lands.
     expect(find.text('Cash goes into the box.'), findsOneWidget);
