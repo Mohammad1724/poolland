@@ -248,6 +248,26 @@ void main() {
       return d is SliverChildListDelegate ? d.children.length : -1;
     }
 
+    String childrenDump(String tag) {
+      final lv = tester.widget<ListView>(find.byType(ListView).first);
+      final d = lv.childrenDelegate;
+      if (d is SliverChildListDelegate) {
+        final parts = <String>[];
+        for (final w in d.children) {
+          if (w is SizedBox) {
+            parts.add('S${w.height}');
+          } else if (w is Text) {
+            final data = w.data ?? '';
+            parts.add('T[${data.substring(0, data.length.clamp(0, 14))}]');
+          } else {
+            parts.add(w.runtimeType.toString());
+          }
+        }
+        return '$tag(${parts.length}): ${parts.join(', ')}';
+      }
+      return '$tag: not-a-list-delegate';
+    }
+
     int listKidCount() => find
         .descendant(
           of: find.byType(SliverList).first,
@@ -279,6 +299,7 @@ void main() {
     await tester.pumpAndSettle();
     diag('afterTap moneyTexts=${find.byType(MoneyText).evaluate().length}');
     diag('H2=${listContentH()} kids=${listKidCount()} cc=${childCount()}');
+    raw('kids2=${childrenDump('H2')}');
     diag(
       'descOffstage=${find.text('Description', skipOffstage: false).evaluate().length} '
       'hintOffstage=${find.text('Cash goes into the box.', skipOffstage: false).evaluate().length} '
@@ -297,6 +318,7 @@ void main() {
       'hint=${find.text('Cash goes into the box.').evaluate().length} '
       'H3=${listContentH()} kids=${listKidCount()} cc=${childCount()}',
     );
+    raw('kids3=${childrenDump('H3')}');
     if (find.text('Credit').evaluate().length == 1) {
       diag('creditRect=${tester.getRect(find.text('Credit'))}');
     }
