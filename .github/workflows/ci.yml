@@ -85,7 +85,7 @@ jobs:
           lines = [re.sub(r'\x1b\[[0-9;]*m', '', l).rstrip() for l in out.splitlines()]
           idx = None
           for i, l in enumerate(lines):
-              if '[E]' in l:
+              if '[E]' in l or '\u274c' in l:
                   idx = i
                   break
           start = idx if idx is not None else max(0, len(lines) - 45)
