@@ -279,6 +279,25 @@ void main() {
     await tester.pumpAndSettle();
     diag('afterTap moneyTexts=${find.byType(MoneyText).evaluate().length}');
     diag('H2=${listContentH()} kids=${listKidCount()} cc=${childCount()}');
+    try {
+      final sliverEl =
+          find.byType(SliverList).evaluate().first as MultiChildRenderObjectElement;
+      final kidTypes = sliverEl.children.keys
+          .map((e) {
+            final w = e.widget;
+            if (w is KeyedSubtree) return w.child.runtimeType.toString();
+            return w.runtimeType.toString();
+          })
+          .toList();
+      raw('sliverKids(${kidTypes.length})=${kidTypes.join(' | ')}');
+    } catch (e) {
+      raw('sliverKids threw: $e');
+    }
+    diag(
+      'descOffstage=${find.text('Description', skipOffstage: false).evaluate().length} '
+      'hintOffstage=${find.text('Cash goes into the box.', skipOffstage: false).evaluate().length} '
+      'px=${tester.state<ScrollableState>(formScrollable()).position.pixels}',
+    );
 
     // The cash/credit control sits below the fold; drag until it is
     // actually visible (not just built in the list's cache).
