@@ -527,16 +527,19 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
               // Kind tiles: one line, color-coded like the ledger rows, so
               // the selection is confirmed at a glance while the keyboard is
               // open on the amount.
-              _kindRow(context),
+              TxnKindStrip(
+                kinds: TxnKind.values,
+                selected: _kind,
+                onSelect: (k) => setState(() {
+                  _kind = k;
+                  _syncCategory(repo);
+                }),
+              ),
               const SizedBox(height: 10),
-              SegmentedButton<TxnScope>(
-                segments: [
-                  for (final sc in TxnScope.values)
-                    ButtonSegment(value: sc, label: Text(sc.label)),
-                ],
-                selected: {_scope},
-                onSelectionChanged: (s) => setState(() {
-                  _scope = s.first;
+              ScopeSegment(
+                selected: _scope,
+                onSelect: (sc) => setState(() {
+                  _scope = sc;
                   if (_scope == TxnScope.personal) {
                     _customer = null;
                     _subscription = null;
@@ -544,31 +547,17 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                   }
                   _syncCategory(repo);
                 }),
-                style: SegmentedButton.styleFrom(
-                  // Compact density would shave this down to ~32dp, which is
-                  // too small to hit reliably; ask for a real 44dp instead.
-                  minimumSize: const Size(0, Taps.minHeight),
-                  textStyle: const TextStyle(fontSize: 12),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _scope.hint,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: onSurface.withValues(alpha: 0.55),
-                ),
               ),
               if (!isEdit) ...[
                 // Presets from the ledger's own habits: repeat a recent
                 // entry with one tap, right at the top of the form.
                 if (recents.isNotEmpty) ...[
                   const SizedBox(height: 14),
-                  _sectionCaption('Recent'),
+                  SectionCaption('Recent'),
                   const SizedBox(height: 6),
-                  _chipRow([
+                  ChipStrip(chips: [
                     for (final t in recents)
-                      _PresetChip(
+                      PresetChip(
                         icon: t.kind.icon,
                         label: _presetLabel(t, repo),
                         onTap: () => _applyRecent(t, repo),
@@ -658,28 +647,32 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
               // rest live in the searchable sheet behind "all contacts".
               if (_scope == TxnScope.business) ...[
                 const SizedBox(height: 16),
-                _sectionCaption('Contact (optional)'),
+                SectionCaption('Contact (optional)'),
                 const SizedBox(height: 6),
-                _chipRow([
+                ChipStrip(chips: [
                   for (final c in contactChips) _contactChip(c),
-                  _PresetChip(
+                  PresetChip(
                     icon: Icons.person_search_outlined,
                     label: 'All contacts'.tr,
                     onTap: _openContactSheet,
                   ),
-                  _PresetChip(
+                  PresetChip(
                     icon: Icons.person_add_alt_1_rounded,
                     label: 'New contact'.tr,
                     onTap: _newContact,
                   ),
                 ]),
-                if (_customer != null) _balanceCard(context, repo),
+                if (_customer != null)
+                  ContactBalanceCard(
+                    customer: _customer!,
+                    balance: repo.balanceOf(_customer!),
+                  ),
               ],
               if (_needsCategory) ...[
                 const SizedBox(height: 16),
-                _sectionCaption('Category'),
+                SectionCaption('Category'),
                 const SizedBox(height: 6),
-                _chipRow([
+                ChipStrip(chips: [
                   for (final c in categories)
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 190),
@@ -697,7 +690,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                         },
                       ),
                     ),
-                  _PresetChip(
+                  PresetChip(
                     icon: Icons.tune_rounded,
                     label: 'Manage'.tr,
                     onTap: () => Navigator.push(
@@ -810,121 +803,11 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
 
   // ---------------- Layout helpers ----------------
 
-  /// One line of kind tiles (single row, scrollable on narrow screens).
-  Widget _kindRow(BuildContext context) {
-    return SizedBox(
-      height: 50,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.zero,
-        children: [
-          for (final k in TxnKind.values)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(end: 8),
-              child: _kindTile(context, k),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _kindTile(BuildContext context, TxnKind k) {
-    final theme = Theme.of(context);
-    final onSurface = theme.colorScheme.onSurface;
-    final color = k.color;
-    final selected = _kind == k;
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: k.label,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(13),
-        onTap: () {
-          Haptics.selection();
-          final repo = context.read<AppRepository>();
-          setState(() {
-            _kind = k;
-            _syncCategory(repo);
-          });
-        },
-        child: AnimatedContainer(
-          duration: Motion.adaptive(context, Motion.quick),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: selected ? color.withValues(alpha: 0.12) : Colors.transparent,
-            borderRadius: BorderRadius.circular(13),
-            border: Border.all(
-              color: selected
-                  ? color.withValues(alpha: 0.5)
-                  : theme.dividerColor,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                k.icon,
-                size: 17,
-                color: selected ? color : onSurface.withValues(alpha: 0.6),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                k.shortLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: selected ? color : onSurface.withValues(alpha: 0.75),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// A small section caption; [key] is a localization key, translated here.
-  Widget _sectionCaption(String key) {
-    return Align(
-      alignment: AlignmentDirectional.centerStart,
-      child: Text(
-        key.tr,
-        style: TextStyle(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w700,
-          color: Theme.of(context).colorScheme.onSurface
-              .withValues(alpha: 0.7),
-        ),
-      ),
-    );
-  }
-
-  /// One horizontal strip of chips. A fixed height keeps the form from
-  /// jumping when a strip appears or disappears.
-  Widget _chipRow(List<Widget> chips) {
-    return SizedBox(
-      height: 46,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.zero,
-        children: [
-          for (final chip in chips)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(end: 8),
-              child: chip,
-            ),
-        ],
-      ),
-    );
-  }
-
   /// Contact chip: one tap selects the customer, a second tap clears the
   /// selection — faster than a sheet for the regulars.
   Widget _contactChip(Customer c) {
     final selected = _customer?.id == c.id;
-    return _PresetChip(
+    return PresetChip(
       icon: Icons.person_outline_rounded,
       label: c.name,
       selected: selected,
@@ -934,48 +817,6 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
         setState(() => _customer = selected ? null : c);
         if (selecting) _revealPayModeSection();
       },
-    );
-  }
-
-  /// Live balance of the selected contact, so "how much do they owe" is
-  /// answered without leaving the form.
-  Widget _balanceCard(BuildContext context, AppRepository repo) {
-    final c = _customer!;
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: scheme.primary.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: scheme.primary.withValues(alpha: 0.15)),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.account_balance_wallet_outlined,
-            size: 16,
-            color: scheme.primary,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              c.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          MoneyText(
-            repo.balanceOf(c),
-            signed: true,
-            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
-          ),
-        ],
-      ),
     );
   }
 
@@ -1030,80 +871,5 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
     }
     return 'The rest will be recorded as our debt to this contact: {amount}'
         .trArgs({'amount': Money.text(rest, currency: _currency)});
-  }
-}
-
-/// A tappable preset chip: recent-entry repeats, contacts, and the "see
-/// all" / "add" openers. Long labels ellipsize inside a fixed width so a
-/// strip always stays exactly one line.
-class _PresetChip extends StatelessWidget {
-  const _PresetChip({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.selected = false,
-  });
-
-  final IconData icon;
-
-  /// Plain display text: already translated for keys, or user data (a contact
-  /// name) that must not be translated.
-  final String label;
-  final VoidCallback onTap;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final onSurface = scheme.onSurface;
-    final accent = selected
-        ? scheme.primary
-        : onSurface.withValues(alpha: 0.6);
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: label,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(13),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: Motion.adaptive(context, Motion.quick),
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-          decoration: BoxDecoration(
-            color: selected
-                ? scheme.primary.withValues(alpha: 0.12)
-                : onSurface.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(13),
-            border: Border.all(
-              color: selected
-                  ? scheme.primary.withValues(alpha: 0.45)
-                  : onSurface.withValues(alpha: 0.14),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 15, color: accent),
-              const SizedBox(width: 6),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 160),
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: selected
-                        ? scheme.primary
-                        : onSurface.withValues(alpha: 0.8),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }

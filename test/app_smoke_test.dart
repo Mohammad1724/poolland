@@ -554,6 +554,10 @@ void main() {
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
     expect(find.text('Amount'), findsOneWidget);
     expect(find.byType(ChoiceChip), findsWidgets);
+    // The sheet speaks the same visual language as the entry form: a
+    // full-width scope segment and one-line chip strips.
+    expect(find.byType(SegmentedButton<TxnScope>), findsOneWidget);
+    expect(find.byType(ChipStrip), findsWidgets);
 
     // Switching the section still re-derives kind and category.
     await tester.tap(find.text('Personal'));

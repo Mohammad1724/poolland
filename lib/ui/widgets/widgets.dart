@@ -2155,3 +2155,335 @@ class _SwipeButton extends StatelessWidget {
     );
   }
 }
+
+// ---------------- Shared entry-form sections ----------------
+// The transaction entry page and the SMS review sheet share these pieces
+// so the two record flows look like one flow, wherever they appear.
+
+/// One line of kind tiles, color-coded exactly like the ledger rows, so a
+/// selection is confirmed at a glance while the keyboard is open on the
+/// amount.
+class TxnKindStrip extends StatelessWidget {
+  const TxnKindStrip({
+    super.key,
+    required this.kinds,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  final List<TxnKind> kinds;
+  final TxnKind selected;
+  final ValueChanged<TxnKind> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 50,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.zero,
+        children: [
+          for (final k in kinds)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: TxnKindTile(
+                kind: k,
+                selected: selected == k,
+                onSelect: () => onSelect(k),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One kind tile: the kind's accent color carries the selection.
+class TxnKindTile extends StatelessWidget {
+  const TxnKindTile({
+    super.key,
+    required this.kind,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  final TxnKind kind;
+  final bool selected;
+  final VoidCallback onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final onSurface = theme.colorScheme.onSurface;
+    final color = kind.color;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: kind.label,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(13),
+        onTap: () {
+          Haptics.selection();
+          onSelect();
+        },
+        child: AnimatedContainer(
+          duration: Motion.adaptive(context, Motion.quick),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: selected ? color.withValues(alpha: 0.12) : Colors.transparent,
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: selected
+                  ? color.withValues(alpha: 0.5)
+                  : theme.dividerColor,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                kind.icon,
+                size: 17,
+                color: selected ? color : onSurface.withValues(alpha: 0.6),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                kind.shortLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? color : onSurface.withValues(alpha: 0.75),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Business/personal scope: a full-width 44dp segment plus the one-line
+/// hint that says what the choice does to the books.
+class ScopeSegment extends StatelessWidget {
+  const ScopeSegment({
+    super.key,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  final TxnScope selected;
+  final ValueChanged<TxnScope> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SegmentedButton<TxnScope>(
+          segments: [
+            for (final sc in TxnScope.values)
+              ButtonSegment(value: sc, label: Text(sc.label)),
+          ],
+          selected: {selected},
+          onSelectionChanged: (s) => onSelect(s.first),
+          style: SegmentedButton.styleFrom(
+            // Compact density would shave this down to ~32dp, which is too
+            // small to hit reliably; ask for a real 44dp instead.
+            minimumSize: const Size(0, Taps.minHeight),
+            textStyle: const TextStyle(fontSize: 12),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          selected.hint,
+          style: TextStyle(
+            fontSize: 11,
+            color: onSurface.withValues(alpha: 0.55),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A small section caption; [label] is a localization key.
+class SectionCaption extends StatelessWidget {
+  const SectionCaption(this.label, {super.key});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Text(
+        label.tr,
+        style: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          color: Theme.of(context).colorScheme.onSurface
+              .withValues(alpha: 0.7),
+        ),
+      ),
+    );
+  }
+}
+
+/// One horizontal strip of chips. A fixed height keeps the layout from
+/// jumping when a strip appears or disappears.
+class ChipStrip extends StatelessWidget {
+  const ChipStrip({super.key, required this.chips});
+
+  final List<Widget> chips;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 46,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.zero,
+        children: [
+          for (final chip in chips)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: chip,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A tappable preset chip: recent-entry repeats, contacts, and the "see
+/// all" / "add" openers. Long labels ellipsize inside a fixed width so a
+/// strip always stays exactly one line.
+class PresetChip extends StatelessWidget {
+  const PresetChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+    super.key,
+  });
+
+  final IconData icon;
+
+  /// Plain display text: already translated for keys, or user data (a
+  /// contact name) that must not be translated.
+  final String label;
+  final VoidCallback onTap;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final onSurface = scheme.onSurface;
+    final accent = selected
+        ? scheme.primary
+        : onSurface.withValues(alpha: 0.6);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(13),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: Motion.adaptive(context, Motion.quick),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected
+                ? scheme.primary.withValues(alpha: 0.12)
+                : onSurface.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: selected
+                  ? scheme.primary.withValues(alpha: 0.45)
+                  : onSurface.withValues(alpha: 0.14),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: accent),
+              const SizedBox(width: 6),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 160),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: selected
+                        ? scheme.primary
+                        : onSurface.withValues(alpha: 0.8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Live balance of a selected contact, so "how much do they owe" is
+/// answered without leaving the form.
+class ContactBalanceCard extends StatelessWidget {
+  const ContactBalanceCard({
+    super.key,
+    required this.customer,
+    required this.balance,
+  });
+
+  final Customer customer;
+  final double balance;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: scheme.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: scheme.primary.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.account_balance_wallet_outlined,
+            size: 16,
+            color: scheme.primary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              customer.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          MoneyText(
+            balance,
+            signed: true,
+            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
