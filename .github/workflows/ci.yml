@@ -78,9 +78,21 @@ jobs:
             esac
           done || true
           if [ "$EC" -ne 0 ]; then
-            tail -n 35 test_output.txt | while IFS= read -r line; do
-              msg="${line//\%/%25}"
-              printf '::notice file=test/output.txt,line=1::FAILLOG %s\n' "$msg"
-            done || true
-            exit 1
+            EC="$EC" python3 - <<'PY'
+          import os, re, sys
+          ec = int(os.environ.get('EC', '0') or '0')
+          out = open('test_output.txt', encoding='utf-8', errors='replace').read()
+          lines = [re.sub(r'\x1b\[[0-9;]*m', '', l).rstrip() for l in out.splitlines()]
+          idx = None
+          for i, l in enumerate(lines):
+              if '[E]' in l:
+                  idx = i
+                  break
+          start = idx if idx is not None else max(0, len(lines) - 45)
+          for l in lines[start:start + 45]:
+              msg = l.strip().replace('%', '%25')
+              if msg:
+                  print(f'::notice file=test/output.txt,line=1::FAILLOG {msg}')
+          sys.exit(ec)
+          PY
           fi
