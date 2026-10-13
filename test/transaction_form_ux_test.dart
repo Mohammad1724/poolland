@@ -193,7 +193,11 @@ void main() {
     // The chip strip can sit right at the bottom of the viewport; make sure
     // the chip is in view before tapping it.
     final nameFinder = find.text(first.name);
-    await tester.scrollUntilVisible(nameFinder, 200, scrollable: formScrollable());
+    await tester.scrollUntilVisible(
+      nameFinder,
+      200,
+      scrollable: formScrollable(),
+    );
     await tester.tap(nameFinder.first);
     await tester.pumpAndSettle();
 
@@ -210,24 +214,16 @@ void main() {
     final chipFinder = find
         .ancestor(of: nameFinder, matching: find.byType(InkWell))
         .first;
-    await tester.scrollUntilVisible(chipFinder, 200, scrollable: formScrollable());
+    await tester.scrollUntilVisible(
+      chipFinder,
+      200,
+      scrollable: formScrollable(),
+    );
     await tester.tap(chipFinder);
     await tester.pumpAndSettle();
     expect(find.byType(MoneyText), findsNothing);
     expect(tester.takeException(), isNull);
   });
-
-  // TEMP diagnostics: with the Test step's stdout captured to a file, only
-  // plain DIAGRAW lines reach the re-emitting workflow step, so everything
-  // funnels through that channel.
-  // ignore: avoid_print
-  void diag(String s) => print('DIAGRAW DIAG $s');
-
-  // Long payloads are printed as plain lines; the CI workflow greps them
-  // and re-emits them as annotations (the in-test commands get lost).
-  // ignore: avoid_print
-  void raw(String s) => print('DIAGRAW $s');
-
 
   testWidgets('cash and credit explain themselves as the amount changes', (
     tester,
@@ -237,228 +233,39 @@ void main() {
     await tester.pumpWidget(
       wrap(const TransactionEditPage(autofocusAmount: false)),
     );
-    double listContentH() {
-      final s = tester.state<ScrollableState>(formScrollable());
-      return s.position.maxScrollExtent + s.position.viewportDimension;
-    }
-
-    int childCount() {
-      final lv = tester.widget<ListView>(find.byType(ListView).first);
-      final d = lv.childrenDelegate;
-      return d is SliverChildListDelegate ? d.children.length : -1;
-    }
-
-    String childrenDump(String tag) {
-      final lv = tester.widget<ListView>(find.byType(ListView).first);
-      final d = lv.childrenDelegate;
-      if (d is SliverChildListDelegate) {
-        final parts = <String>[];
-        for (final w in d.children) {
-          if (w is SizedBox) {
-            parts.add('S${w.height}');
-          } else if (w is Text) {
-            final data = w.data ?? '';
-            parts.add('T[${data.substring(0, data.length.clamp(0, 14))}]');
-          } else {
-            parts.add(w.runtimeType.toString());
-          }
-        }
-        return '$tag(${parts.length}): ${parts.join(', ')}';
-      }
-      return '$tag: not-a-list-delegate';
-    }
-
-    int listKidCount() => find
-        .descendant(
-          of: find.byType(SliverList).first,
-          matching: find.byType(KeyedSubtree),
-        )
-        .evaluate()
-        .length;
-
     await tester.pumpAndSettle();
-    diag('H0=${listContentH()} kids=${listKidCount()} cc=${childCount()}');
 
     await tester.enterText(amountField(), '2000000');
     await tester.pump();
-    diag('H1=${listContentH()} kids=${listKidCount()} cc=${childCount()}');
 
     // The chip strip can sit right at the bottom of the viewport; make sure
     // the chip is in view before tapping it.
     final nameFinder = find.text(first.name);
-    diag('name=${first.name} matches=${nameFinder.evaluate().length}');
-    await tester.scrollUntilVisible(nameFinder, 200, scrollable: formScrollable());
-    await tester.pump();
-    if (nameFinder.evaluate().length == 1) {
-      final r = tester.getRect(nameFinder.first);
-      diag('chipTextRect=$r (viewport 800x600)');
-    } else {
-      diag('chipText: ${nameFinder.evaluate().length} matches, cannot rect');
-    }
+    await tester.scrollUntilVisible(
+      nameFinder,
+      200,
+      scrollable: formScrollable(),
+    );
     await tester.tap(nameFinder.first);
     await tester.pumpAndSettle();
-    diag('afterTap moneyTexts=${find.byType(MoneyText).evaluate().length}');
-    diag('H2=${listContentH()} kids=${listKidCount()} cc=${childCount()}');
-    raw('kids2=${childrenDump('H2')}');
-    diag(
-      'descOffstage=${find.text('Description', skipOffstage: false).evaluate().length} '
-      'hintOffstage=${find.text('Cash goes into the box.', skipOffstage: false).evaluate().length} '
-      'px=${tester.state<ScrollableState>(formScrollable()).position.pixels}',
-    );
-    try {
-      await tester.drag(formScrollable(), const Offset(0, -80));
-      await tester.pumpAndSettle();
-      final pos2 = tester.state<ScrollableState>(formScrollable()).position;
-      diag(
-        'H2b px=${pos2.pixels} max=${pos2.maxScrollExtent} '
-        'hintOn=${find.text('Cash goes into the box.').evaluate().length} '
-        'descOn=${find.text('Description').evaluate().length}',
-      );
-    } catch (e) {
-      diag('H2b threw: $e');
-    }
-    try {
-      await tester.scrollUntilVisible(
-        find.text('Description'),
-        100,
-        scrollable: formScrollable(),
-      );
-      final pos3 = tester.state<ScrollableState>(formScrollable()).position;
-      diag(
-        'descScroll px=${pos3.pixels} max=${pos3.maxScrollExtent} '
-        'descOn=${find.text('Description').evaluate().length} '
-        'hintOn=${find.text('Cash goes into the box.').evaluate().length}',
-      );
-    } catch (e) {
-      diag('descScroll threw: $e');
-    }
 
-    // The cash/credit control sits below the fold; drag until it is
-    // actually visible (not just built in the list's cache).
-    await tester.dragUntilVisible(
+    // Selecting a contact inserts the cash/credit section mid-list; the
+    // form scrolls it into view, so it is reachable here.
+    await tester.scrollUntilVisible(
       find.text('Credit'),
-      formScrollable(),
-      const Offset(0, -300),
+      200,
+      scrollable: formScrollable(),
     );
-    diag(
-      'afterDrag credit=${find.text('Credit').evaluate().length} '
-      'hint=${find.text('Cash goes into the box.').evaluate().length} '
-      'H3=${listContentH()} kids=${listKidCount()} cc=${childCount()}',
-    );
-    raw('kids3=${childrenDump('H3')}');
-    if (find.text('Credit').evaluate().length == 1) {
-      diag('creditRect=${tester.getRect(find.text('Credit'))}');
-    }
-    try {
-      final hf = find.text('Cash goes into the box.', skipOffstage: false);
-      final df = find.text('Description', skipOffstage: false);
-      final hintRect =
-          hf.evaluate().length == 1 ? tester.getRect(hf).toString() : 'none';
-      final descRect =
-          df.evaluate().length == 1 ? tester.getRect(df).toString() : 'none';
-      raw('tailRects hint=$hintRect desc=$descRect');
-    } catch (e) {
-      raw('tailRects threw: $e');
-    }
-    final scrollableState = tester.state<ScrollableState>(formScrollable());
-    diag(
-      'scroll pixels=${scrollableState.position.pixels} '
-      'max=${scrollableState.position.maxScrollExtent} '
-      'viewportDim=${scrollableState.position.viewportDimension} '
-      'minScrollExtent=${scrollableState.position.minScrollExtent}',
-    );
-    final exc = tester.takeException();
-    diag('exception=${exc == null ? 'none' : exc.runtimeType}');
-    final texts = find
-        .byType(Text)
-        .evaluate()
-        .map((e) {
-          final data = (e.widget as Text).data ?? '<rich>';
-          final box = e.renderObject;
-          final y =
-              box is RenderBox && box.hasSize
-                  ? box.localToGlobal(Offset.zero).dy
-                  : -1;
-          return '$data@${y.toStringAsFixed(0)}';
-        })
-        .toList();
-    final joined = texts.join(' | ');
-    diag(
-      'treeTexts(${texts.length})='
-      '${joined.substring(0, joined.length.clamp(0, 600))}',
-    );
-    diag(
-      'counts scaffold=${find.byType(Scaffold).evaluate().length} '
-      'form=${find.byType(Form).evaluate().length} '
-      'textField=${find.byType(TextField).evaluate().length} '
-      'editableOn=${find.byType(EditableText).evaluate().length} '
-      'editableAll=${find.byType(EditableText, skipOffstage: false).evaluate().length} '
-      'formatted2m=${find.text('2,000,000', skipOffstage: false).evaluate().length}',
-    );
-    final editables = find
-        .byType(EditableText, skipOffstage: false)
-        .evaluate()
-        .map((e) {
-      final st = (e as StatefulElement).state as EditableTextState;
-      final box = e.renderObject;
-      final y =
-          box is RenderBox && box.hasSize
-              ? box.localToGlobal(Offset.zero).dy
-              : -1;
-      return 'edit[${y.toStringAsFixed(0)}]=[${st.textEditingValue.text}]';
-    }).toList();
-    final eJoined = editables.join(' | ');
-    diag(
-      'editables=${eJoined.substring(0, eJoined.length.clamp(0, 400))}',
-    );
-    String probes(Finder target, String label) {
-      final parts = <String>[
-        'tf=${find.ancestor(of: target, matching: find.byType(TextField)).evaluate().length}',
-        'tff=${find.ancestor(of: target, matching: find.byType(TextFormField)).evaluate().length}',
-        'amt=${find.ancestor(of: target, matching: find.byType(AmountField)).evaluate().length}',
-        'app=${find.ancestor(of: target, matching: find.byType(AppTextField)).evaluate().length}',
-        'sel=${find.ancestor(of: target, matching: find.byType(SelectField)).evaluate().length}',
-        'bar=${find.ancestor(of: target, matching: find.byType(FormActionBar)).evaluate().length}',
-        'sheet=${find.ancestor(of: target, matching: find.byType(BottomSheet)).evaluate().length}',
-        'page=${find.ancestor(of: target, matching: find.byType(TransactionEditPage)).evaluate().length}',
-      ];
-      return '$label ${parts.join(' ')}';
-    }
-    final edCount =
-        find.byType(EditableText, skipOffstage: false).evaluate().length;
-    for (var i = 0; i < edCount; i++) {
-      raw(
-        'probe#$i '
-        '${probes(find.byType(EditableText, skipOffstage: false).at(i), 'edit')}',
-      );
-    }
-    raw('zero ${probes(find.text('0'), 'zero')}');
-    final richtexts = find.byType(RichText).evaluate().map((e) {
-      final box = e.renderObject;
-      final y =
-          box is RenderBox && box.hasSize
-              ? box.localToGlobal(Offset.zero).dy
-              : -1;
-      final s = (e.widget as RichText).text.toPlainText();
-      return 'rich[${y.toStringAsFixed(0)}]=[$s]';
-    }).toList();
-    final rJoined = richtexts.join(' | ');
-    diag(
-      'rich=${rJoined.substring(0, rJoined.length.clamp(0, 400))}',
-    );
-
     // Cash is the default and says where the money lands.
     expect(find.text('Cash goes into the box.'), findsOneWidget);
 
     await tester.tap(find.text('Credit'));
     await tester.pumpAndSettle();
     // The settled-now field appears with the amount still outstanding.
-    diag(
-      'afterCreditTap settleField='
-      '${find.widgetWithText(TextField, 'Cash received now').evaluate().length} '
-      'debtHint=${find.textContaining('customer debt').evaluate().length}',
+    expect(
+      find.widgetWithText(TextField, 'Cash received now'),
+      findsOneWidget,
     );
-    expect(find.widgetWithText(TextField, 'Cash received now'), findsOneWidget);
     expect(find.textContaining('customer debt'), findsOneWidget);
 
     await tester.scrollUntilVisible(
@@ -471,7 +278,6 @@ void main() {
       '2000000',
     );
     await tester.pumpAndSettle();
-    diag('paidInFull=${find.text('Paid in full').evaluate().length}');
     expect(find.text('Paid in full'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

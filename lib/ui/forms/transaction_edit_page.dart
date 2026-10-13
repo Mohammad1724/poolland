@@ -78,6 +78,10 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
   final _settled = TextEditingController();
   final _note = TextEditingController();
 
+  /// Anchors the cash/credit section so the form can scroll it into view
+  /// after the section is inserted (see [_revealPayModeSection]).
+  final GlobalKey _payModeAnchor = GlobalKey();
+
   late TxnKind _kind;
   late TxnScope _scope;
   late String _currency;
@@ -87,6 +91,12 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
   Subscription? _subscription;
   Category? _category;
   bool _credit = false;
+
+  /// One-shot autofocus guard. The list re-mounts whenever its structure
+  /// changes (see the ListView key / _revealPayModeSection), and a plain
+  /// `autofocus` on the amount field would then steal focus back from the
+  /// user mid-entry.
+  bool _autofocusDone = false;
 
   bool get isEdit => widget.existing != null;
 
@@ -110,6 +120,31 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
 
   bool get _needsCategory =>
       _kind == TxnKind.income || _kind == TxnKind.expense;
+
+  /// Re-mounts the scrolling list with a fresh layout whenever the structure
+  /// changes (contact picked, scope/kind switched, credit toggled) and then
+  /// scrolls the newly inserted cash/credit section into view.
+  ///
+  /// Why a re-mount: when children are inserted in the middle of a sliver
+  /// list, the viewport keeps the *old* max scroll extent for the rest of
+  /// the list's life on Flutter 3.38 — the tail of the form (the pay-mode
+  /// hint, the settle field, the note) becomes unreachable, and scrolling
+  /// does not repair it. A freshly mounted list computes the correct
+  /// extent, and the follow-up scroll shows the user the new section right
+  /// where their thumb is.
+  void _revealPayModeSection() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _payModeAnchor.currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+        alignment: 0.35,
+      );
+    });
+  }
 
   /// Re-validates the selected category after the kind or the section
   /// changes. Without this the form silently saves a category that belongs
@@ -186,6 +221,11 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
               : repo.categoryById(
                   repo.defaultCategoryId(TxnKind.income, scope: _scope),
                 ));
+    }
+    if (widget.autofocusAmount && !isEdit) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _autofocusDone = true;
+      });
     }
   }
 
@@ -476,6 +516,12 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
         child: FormPageContent(
           maxWidth: 760,
           child: ListView(
+            // The key changes whenever the set of children changes, so the
+            // list re-mounts and re-computes its scroll extent (see
+            // _revealPayModeSection for the framework quirk this works
+            // around).
+            key: ValueKey('form-${_customer?.id ?? 'none'}-${_scope.name}-'
+                '${_kind.name}-${_credit}'),
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
             children: [
               // ---------------- 1. Intent ----------------
@@ -553,7 +599,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                 controller: _amount,
                 label: 'Amount'.tr,
                 currency: _currency,
-                autofocus: widget.autofocusAmount && !isEdit,
+                autofocus: widget.autofocusAmount && !isEdit && !_autofocusDone,
                 textInputAction: TextInputAction.next,
               ),
               if (_currency != baseCode && amount > 0)
@@ -654,7 +700,10 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                 ]),
               ],
               if (_needsCategory && _customer != null) ...[
-                const SizedBox(height: 16),
+                // Anchor: the list re-mounts when this section is inserted
+                // (see the ListView key), and the section is scrolled into
+                // view through this context.
+                SizedBox(key: _payModeAnchor, height: 16),
                 // Cash or credit: the one choice that changes where the money
                 // lands, so it is a labeled two-state control with the
                 // consequence spelled out right below it.
@@ -681,6 +730,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                   onSelectionChanged: (s) {
                     Haptics.selection();
                     setState(() => _credit = s.first);
+                    _revealPayModeSection();
                   },
                   style: SegmentedButton.styleFrom(
                     minimumSize: const Size(0, Taps.minHeight),
@@ -864,7 +914,9 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
       selected: selected,
       onTap: () {
         Haptics.selection();
+        final selecting = !selected;
         setState(() => _customer = selected ? null : c);
+        if (selecting) _revealPayModeSection();
       },
     );
   }
