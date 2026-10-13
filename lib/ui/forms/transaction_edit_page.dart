@@ -342,6 +342,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
     );
     if (res == null || res.value == null) return;
     final c = res.value!;
+    if (!mounted) return;
     if (repo.quickExpenses.any((q) => q.categoryId == c.id)) {
       showSnack(context, 'This category is already a quick button');
       return;
