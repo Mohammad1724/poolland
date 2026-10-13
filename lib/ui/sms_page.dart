@@ -966,9 +966,11 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   Future<void> _addQuickFromCategory(TxnScope scope) async {
     final repo = context.read<AppRepository>();
     final categoryKind = _categoryKind(_kind);
-    final all = categoryKind == null
-        ? const <Category>[]
-        : repo.categoriesOf(categoryKind, scope: scope);
+    if (categoryKind == null) {
+      await _openQuickEdit(scope);
+      return;
+    }
+    final all = repo.categoriesOf(categoryKind, scope: scope);
     if (all.isEmpty) {
       await _openQuickEdit(scope);
       return;
@@ -977,6 +979,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
       context,
       title: 'Choose a category for the button',
       items: _orderedCategories(repo, categoryKind, scope),
+      current: null,
       labelOf: (c) => c.name,
       searchHint: 'Category name...',
     );

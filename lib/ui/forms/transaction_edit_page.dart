@@ -336,6 +336,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
       context,
       title: 'Choose a category for the button',
       items: _orderedCategories(repo, all),
+      current: null,
       labelOf: (c) => c.name,
       searchHint: 'Category name...',
     );
