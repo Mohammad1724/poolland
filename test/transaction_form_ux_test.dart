@@ -229,18 +229,6 @@ void main() {
   // ignore: avoid_print
   void raw(String s) => print('DIAGRAW $s');
 
-  double listContentH() {
-    final s = tester.state<ScrollableState>(formScrollable());
-    return s.position.maxScrollExtent + s.position.viewportDimension;
-  }
-
-  int listKidCount() => find
-      .descendant(
-        of: find.byType(SliverList).first,
-        matching: find.byType(KeyedSubtree),
-      )
-      .evaluate()
-      .length;
 
   testWidgets('cash and credit explain themselves as the amount changes', (
     tester,
@@ -250,6 +238,19 @@ void main() {
     await tester.pumpWidget(
       wrap(const TransactionEditPage(autofocusAmount: false)),
     );
+    double listContentH() {
+      final s = tester.state<ScrollableState>(formScrollable());
+      return s.position.maxScrollExtent + s.position.viewportDimension;
+    }
+
+    int listKidCount() => find
+        .descendant(
+          of: find.byType(SliverList).first,
+          matching: find.byType(KeyedSubtree),
+        )
+        .evaluate()
+        .length;
+
     await tester.pumpAndSettle();
     diag('H0=${listContentH()} kids=${listKidCount()}');
 
