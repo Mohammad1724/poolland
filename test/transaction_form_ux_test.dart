@@ -323,30 +323,25 @@ void main() {
     diag(
       'editables=${eJoined.substring(0, eJoined.length.clamp(0, 400))}',
     );
-    String ancestorChain(Finder f) {
-      final ancestors = find
-          .ancestor(
-            of: f,
-            matching: find.byWidgetPredicate((_) => true),
-          )
-          .evaluate();
-      final types =
-          ancestors.map((e) => e.widget.runtimeType.toString()).toList();
-      final s = types.join(' > ');
-      return s.substring(0, s.length.clamp(0, 800));
+    String probes(Finder target, String label) {
+      final parts = <String>[
+        'tf=${find.ancestor(of: target, matching: find.byType(TextField)).evaluate().length}',
+        'tff=${find.ancestor(of: target, matching: find.byType(TextFormField)).evaluate().length}',
+        'amt=${find.ancestor(of: target, matching: find.byType(AmountField)).evaluate().length}',
+        'app=${find.ancestor(of: target, matching: find.byType(AppTextField)).evaluate().length}',
+        'sel=${find.ancestor(of: target, matching: find.byType(SelectField)).evaluate().length}',
+        'bar=${find.ancestor(of: target, matching: find.byType(FormActionBar)).evaluate().length}',
+        'sheet=${find.ancestor(of: target, matching: find.byType(BottomSheet)).evaluate().length}',
+        'page=${find.ancestor(of: target, matching: find.byType(TransactionEditPage)).evaluate().length}',
+      ];
+      return '$label ${parts.join(' ')}';
     }
-    try {
-      final offFinder =
-          find.byType(EditableText, skipOffstage: false).at(1);
-      raw('off=${ancestorChain(offFinder)}');
-    } catch (e) {
-      raw('off threw: $e');
+    final editablesAll =
+        find.byType(EditableText, skipOffstage: false).evaluate();
+    for (var i = 0; i < editablesAll.length; i++) {
+      raw('probe#${i} ${probes(find.byWidget(editablesAll[i].widget), 'edit')}');
     }
-    try {
-      raw('zero=${ancestorChain(find.text('0'))}');
-    } catch (e) {
-      raw('zero threw: $e');
-    }
+    raw('zero ${probes(find.text('0'), 'zero')}');
     final richtexts = find.byType(RichText).evaluate().map((e) {
       final box = e.renderObject;
       final y =
