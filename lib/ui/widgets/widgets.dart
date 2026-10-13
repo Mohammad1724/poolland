@@ -856,11 +856,12 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
       initialChildSize: 0.62,
       maxChildSize: 0.92,
       minChildSize: 0.35,
-      builder: (ctx, controller) => Container(
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-        ),
+      // The sheet's surface is a Material (not a decorated Container):
+      // ListTiles with a tap handler assert that no colored DecoratedBox
+      // sits between them and their nearest Material ancestor.
+      builder: (ctx, controller) => Material(
+        color: theme.cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
         child: Column(
           children: [
             const SizedBox(height: 10),
