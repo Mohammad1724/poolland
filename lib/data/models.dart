@@ -662,6 +662,16 @@ extension TxnKindX on TxnKind {
     TxnKind.payablePayment => Icons.payments_outlined,
   };
 
+  /// Accent color of the kind, shared by list rows, filter chips and the
+  /// entry-form kind tiles so a kind always looks the same everywhere.
+  Color get color => switch (this) {
+    TxnKind.income => const Color(0xFF16A34A),
+    TxnKind.expense => const Color(0xFFE11D48),
+    TxnKind.receive => const Color(0xFF0F766E),
+    TxnKind.refund => const Color(0xFFD97706),
+    TxnKind.payablePayment => const Color(0xFF7C3AED),
+  };
+
   bool get isProfitKind => this == TxnKind.income || this == TxnKind.expense;
 
   /// Cash direction: +1 inflow, −1 outflow, 0 no effect.

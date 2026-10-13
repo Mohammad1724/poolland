@@ -729,19 +729,17 @@ class SelectField<T> extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: () async {
-        final res = await showLedgerSheet<_PickResult<T>>(
+        final res = await showPickSheet<T>(
           context,
-          builder: (_) => _PickSheet<T>(
-            title: sheetTitle ?? label,
-            items: items,
-            current: value,
-            labelOf: labelOf,
-            subOf: subOf,
-            iconOf: iconOf,
-            clearable: clearable,
-            searchHint: searchHint,
-            extraActionLabel: extraActionLabel,
-          ),
+          title: sheetTitle ?? label,
+          items: items,
+          current: value,
+          labelOf: labelOf,
+          subOf: subOf,
+          iconOf: iconOf,
+          clearable: clearable,
+          searchHint: searchHint,
+          extraActionLabel: extraActionLabel,
         );
         if (res == null) return;
         if (res.cleared) {
@@ -771,11 +769,46 @@ class SelectField<T> extends StatelessWidget {
   }
 }
 
-class _PickResult<T> {
+/// The result of the shared pick sheet: a chosen item, an explicit "none"
+/// (clearable fields), or a request for the sheet's extra action.
+class PickResult<T> {
   final T? value;
   final bool cleared;
   final bool extra;
-  const _PickResult(this.value, {this.cleared = false, this.extra = false});
+  const PickResult(this.value, {this.cleared = false, this.extra = false});
+}
+
+/// Opens the shared selection sheet and returns what the user picked.
+///
+/// [SelectField] uses it internally, and forms that offer a compact chip row
+/// (top customers, categories) reuse it behind a "see all" chip, so the sheet
+/// stays one widget with one behavior everywhere.
+Future<PickResult<T>?> showPickSheet<T>(
+  BuildContext context, {
+  required String title,
+  required List<T> items,
+  required T? current,
+  required String Function(T) labelOf,
+  String Function(T)? subOf,
+  IconData Function(T)? iconOf,
+  bool clearable = false,
+  String searchHint = 'Search...',
+  String? extraActionLabel,
+}) {
+  return showLedgerSheet<PickResult<T>>(
+    context,
+    builder: (_) => _PickSheet<T>(
+      title: title,
+      items: items,
+      current: current,
+      labelOf: labelOf,
+      subOf: subOf,
+      iconOf: iconOf,
+      clearable: clearable,
+      searchHint: searchHint,
+      extraActionLabel: extraActionLabel,
+    ),
+  );
 }
 
 class _PickSheet<T> extends StatefulWidget {
@@ -876,7 +909,7 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
                       title: Text('None'.tr),
                       onTap: () => Navigator.pop(
                         context,
-                        const _PickResult(null, cleared: true),
+                        const PickResult(null, cleared: true),
                       ),
                     ),
                   for (final item in items)
@@ -895,7 +928,7 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
                               color: theme.colorScheme.primary,
                             )
                           : null,
-                      onTap: () => Navigator.pop(context, _PickResult(item)),
+                      onTap: () => Navigator.pop(context, PickResult(item)),
                     ),
                   if (widget.extraActionLabel != null)
                     Padding(
@@ -903,7 +936,7 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
                       child: FilledButton.tonalIcon(
                         onPressed: () => Navigator.pop(
                           context,
-                          const _PickResult(null, extra: true),
+                          const PickResult(null, extra: true),
                         ),
                         icon: const Icon(Icons.add_rounded, size: 18),
                         label: Text(widget.extraActionLabel!.tr),
@@ -1112,13 +1145,7 @@ class TxnTile extends StatelessWidget {
   final VoidCallback? onTap;
   final bool showCustomer;
 
-  Color get _color => switch (txn.kind) {
-    TxnKind.income => const Color(0xFF16A34A),
-    TxnKind.expense => const Color(0xFFE11D48),
-    TxnKind.receive => const Color(0xFF0F766E),
-    TxnKind.refund => const Color(0xFFD97706),
-    TxnKind.payablePayment => const Color(0xFF7C3AED),
-  };
+  Color get _color => txn.kind.color;
 
   @override
   Widget build(BuildContext context) {

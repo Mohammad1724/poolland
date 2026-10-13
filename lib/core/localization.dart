@@ -41,6 +41,17 @@ class AppLocalization {
     'Copied': 'کپی شد',
     'Undo': 'بازگردانی',
     'Frequent picks': 'پرکاربردها',
+    'Recent': 'تازگی‌ها',
+    'All contacts': 'همهٔ مخاطبان',
+    'Record {amount}': 'ثبت {amount}',
+    'Cash goes into the box.': 'نقدی به صندوق می‌رود.',
+    'Credit is added to this customer\'s balance.':
+        'نسیه به ماندهٔ حساب این مشتری افزوده می‌شود.',
+    'Cash leaves the box.': 'نقدی از صندوق خارج می‌شود.',
+    'Credit is recorded as our debt to this contact.':
+        'نسیه به‌عنوان بدهی ما به این مخاطب ثبت می‌شود.',
+    'The rest will be recorded as our debt to this contact: {amount}':
+        'بقیه به‌عنوان بدهی ما به این مخاطب ثبت می‌شود: {amount}',
     'Transaction': 'تراکنش',
     'Gesture guide': 'راهنمای ژست‌ها',
     'See every swipe, hold and drag again': 'مرور همهٔ کشیدن‌ها، نگه‌داشتن‌ها و درگ‌ها',

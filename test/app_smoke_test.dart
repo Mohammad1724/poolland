@@ -433,8 +433,8 @@ void main() {
     await tester.tap(find.text('Expense').last);
     await tester.pumpAndSettle();
 
-    // Reveal the category field and inspect the form state directly: the
-    // selected category must have been re-derived for the new direction
+    // Reveal the category row: the selected chip must be the default expense
+    // category for the business scope, re-derived after the direction switch
     // instead of silently keeping the income category (which would corrupt
     // per-category reports on save).
     await tester.scrollUntilVisible(
@@ -448,12 +448,19 @@ void main() {
           .first,
     );
     await tester.pumpAndSettle();
-    final field = tester.widget<SelectField<Category>>(
-      find.byType(SelectField<Category>).first,
+    final expected = repo.categoryById(
+      repo.defaultCategoryId(TxnKind.expense, scope: TxnScope.business),
     );
-    expect(field.value, isNotNull);
-    expect(field.value!.kind, TxnKind.expense);
-    expect(field.value!.scope, TxnScope.business);
+    expect(expected, isNotNull);
+    final chip = tester.widget<ChoiceChip>(
+      find.ancestor(
+        of: find.text(expected!.name),
+        matching: find.byType(ChoiceChip),
+      ).first,
+    );
+    expect(chip.selected, isTrue);
+    expect(expected.kind, TxnKind.expense);
+    expect(expected.scope, TxnScope.business);
     expect(tester.takeException(), isNull);
   });
 
