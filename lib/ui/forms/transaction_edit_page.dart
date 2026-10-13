@@ -443,7 +443,6 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final currencies = repo.settings.currencies;
     final baseCode = repo.settings.baseCurrency;
-    final amount = parseAmount(_amount.text);
     final showSettle =
         !isEdit && _needsCategory && _customer != null && _credit;
     final recents = isEdit ? const <Txn>[] : repo.recentDistinctTxns(4);
@@ -602,25 +601,36 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                 autofocus: widget.autofocusAmount && !isEdit && !_autofocusDone,
                 textInputAction: TextInputAction.next,
               ),
-              if (_currency != baseCode && amount > 0)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Base-currency equivalent at {rate} = {amount}'.trArgs({
-                      'rate': Money.text(
-                        repo.settings.currency(_currency).rateToBase,
+              // Typing the amount does not rebuild the page, so the
+              // equivalent is computed inside a listener; the spacer keeps
+              // the layout stable while it is hidden.
+              ListenableBuilder(
+                listenable: _amount,
+                builder: (context, _) {
+                  final amt = parseAmount(_amount.text);
+                  if (_currency == baseCode || amt <= 0) {
+                    return const SizedBox.shrink();
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Base-currency equivalent at {rate} = {amount}'.trArgs({
+                        'rate': Money.text(
+                          repo.settings.currency(_currency).rateToBase,
+                        ),
+                        'amount': Money.text(
+                          amt *
+                              repo.settings.currency(_currency).rateToBase,
+                        ),
+                      }),
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: onSurface.withValues(alpha: 0.6),
                       ),
-                      'amount': Money.text(
-                        amount *
-                            repo.settings.currency(_currency).rateToBase,
-                      ),
-                    }),
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: onSurface.withValues(alpha: 0.6),
                     ),
-                  ),
-                ),
+                  );
+                },
+              ),
               const SizedBox(height: 12),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -738,11 +748,17 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  _payModeHint,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: onSurface.withValues(alpha: 0.65),
+                // The consequence line depends on both the amount and the
+                // settled part, and neither edit rebuilds the page — listen
+                // to the controllers so it updates as the user types.
+                ListenableBuilder(
+                  listenable: Listenable.merge([_amount, _settled]),
+                  builder: (context, _) => Text(
+                    _payModeHint,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: onSurface.withValues(alpha: 0.65),
+                    ),
                   ),
                 ),
                 if (showSettle) ...[
