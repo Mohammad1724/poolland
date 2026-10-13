@@ -294,7 +294,18 @@ void main() {
       'treeTexts(${texts.length})='
       '${joined.substring(0, joined.length.clamp(0, 600))}',
     );
-    final editables = find.byType(EditableText).evaluate().map((e) {
+    diag(
+      'counts scaffold=${find.byType(Scaffold).evaluate().length} '
+      'form=${find.byType(Form).evaluate().length} '
+      'textField=${find.byType(TextField).evaluate().length} '
+      'editableOn=${find.byType(EditableText).evaluate().length} '
+      'editableAll=${find.byType(EditableText, skipOffstage: false).evaluate().length} '
+      'formatted2m=${find.text('2,000,000', skipOffstage: false).evaluate().length}',
+    );
+    final editables = find
+        .byType(EditableText, skipOffstage: false)
+        .evaluate()
+        .map((e) {
       final st = (e as StatefulElement).state as EditableTextState;
       final box = e.renderObject;
       final y =
