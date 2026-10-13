@@ -42,6 +42,12 @@ jobs:
               msg = msg.replace('%', '%25')
               print(f'::{level} file={path},line={line},col={col}::{msg} [{code}]')
           if ec != 0 or counts['error'] or counts['warning']:
+              if not (counts['error'] or counts['warning']):
+                  lines = [l.strip() for l in out.splitlines() if l.strip()]
+                  head = ' / '.join(lines)[:800]
+                  tail = ' / '.join(lines[-12:])
+                  print(f'::error file=.github/workflows/ci.yml,line=29::head: {head.replace("%", "%25")}')
+                  print(f'::error file=.github/workflows/ci.yml,line=30::tail: {tail.replace("%", "%25")}')
               print('::error::flutter analyze failed')
               sys.exit(1)
           PY
