@@ -122,11 +122,23 @@
 
 آخرین نسخه را از **[Releases](https://github.com/Mohammad1724/poolland/releases/latest)** دانلود کن:
 
-| فایل | مناسب برای |
-|---|---|
-| `poolland-vX.X.X-arm64-v8a.apk` | **۹۵٪ گوشی‌های امروزی** (سبک‌ترین و پیشنهادی) |
-| `poolland-vX.X.X-armeabi-v7a.apk` | گوشی‌های قدیمی‌تر ۳۲بیتی |
-| `poolland-vX.X.X-universal.apk` | همهٔ گوشی‌ها (حجم بیشتر) |
+هر ریلیز **دو نسخه** دارد: `safe` و `full`.
+
+| فایل | دسترسی پیامک | نصب با Play Protect روشن | مناسب برای |
+|---|---|---|---|
+| `poolland-vX.X.X-safe-arm64-v8a.apk` | ندارد | ✅ | **پیشنهادی** — ۹۵٪ گوشی‌های امروزی |
+| `poolland-vX.X.X-safe-armeabi-v7a.apk` | ندارد | ✅ | گوشی‌های قدیمی ۳۲بیتی |
+| `poolland-vX.X.X-safe-universal.apk` | ندارد | ✅ | همهٔ گوشی‌ها (حجم بیشتر) |
+| `poolland-vX.X.X-full-arm64-v8a.apk` | دارد | ❌ | خواندن خودکار پیامک بانکی |
+| `poolland-vX.X.X-full-armeabi-v7a.apk` | دارد | ❌ | خواندن خودکار پیامک، گوشی قدیمی |
+| `poolland-vX.X.X-full-universal.apk` | دارد | ❌ | خواندن خودکار پیامک، همهٔ گوشی‌ها |
+
+> **Google Play Protect نسخهٔ `full` را بلاک می‌کند.** دلیلش دسترسی
+> `READ_SMS`/`RECEIVE_SMS` است، نه امضا یا ویروس. اگر نمی‌خواهی Play Protect
+> را خاموش کنی، نسخهٔ **`safe`** را نصب کن و متن پیامک بانکی را در
+> «بررسی پیامک‌ها» بچسبان. برای نصب نسخهٔ `full` راهنمای کامل و امن اینجاست:
+> **[docs/android-install.md](docs/android-install.md)** (نصب با ADB یا
+> خاموش‌کردن موقت اسکن).
 
 هر ریلیز یک فایل `SHA256SUMS.txt` هم دارد؛ درستی دانلود را با `sha256sum -c SHA256SUMS.txt` بررسی کن.
 
@@ -145,9 +157,16 @@
 git clone https://github.com/Mohammad1724/poolland.git
 cd poolland
 flutter pub get
-flutter run                    # اجرا روی گوشی/شبیه‌ساز
-flutter build apk --release    # ساخت APK
+flutter run --flavor full              # اجرا با خواندن خودکار پیامک
+flutter run --flavor safe              # اجرا بدون دسترسی پیامک (Play Protect-safe)
+flutter build apk --release --flavor full
+flutter build apk --release --flavor safe
 ```
+
+پروژه دو flavor دارد: `full` (دسترسی پیامک، تشخیص خودکار) و `safe`
+(بدون هیچ دسترسی پیامک/Notification Listener/Accessibility؛ برای نصب با
+Play Protect روشن). نسخهٔ وب مستقل از flavor ساخته می‌شود
+(`flutter build web`).
 
 ---
 
@@ -245,15 +264,16 @@ python3 tool/generate_icons.py  # ساخت دوبارهٔ آیکون‌ها از
 ```
 
 بازبینی‌های عمیق پروژه در `docs/` نگه داشته می‌شوند:
-`gesture-review.md` (ژست‌ها و شیت‌های کشویی) و
-`ux-feedback-review.md` (بازخوردها و چینش دکمه‌ها).
+`gesture-review.md` (ژست‌ها و شیت‌های کشویی)،
+`ux-feedback-review.md` (بازخوردها و چینش دکمه‌ها) و
+`android-install.md` (نصب APK و Google Play Protect، تفاوت `safe` و `full`).
 
 سه workflow روی مخزن فعال است:
 
 | Workflow | کی اجرا می‌شود | چه کار می‌کند |
 |---|---|---|
-| **CI** | هر PR و push به `main` | `flutter analyze` + همهٔ تست‌ها |
-| **Release** | هر تگ `v*` (یا دستی) | analyze + تست + ساخت APKهای امضاشده + انتشار در Releases |
+| **CI** | هر PR و push به `main` | `flutter analyze` + همهٔ تست‌ها + ساخت flavor `safe` و بررسی نبود دسترسی پیامک در APK |
+| **Release** | هر تگ `v*` (یا دستی) | analyze + تست + ساخت APKهای `safe` و `full` با امضای واقعی + انتشار در Releases |
 | **Web (GitHub Pages)** | هر push به `main` | ساخت نسخهٔ وب و انتشار روی `gh-pages` |
 
 ---

@@ -14,6 +14,13 @@ import '../localization.dart';
 String smsKeyDigest(String rawKey) =>
     'v2:${sha256.convert(utf8.encode(rawKey))}';
 
+/// Outcome of handing a pasted bank message to the review queue.
+///
+/// The `safe` build cannot read the SMS inbox, so the review page lets the
+/// user paste a message instead. These three outcomes are the only ones the
+/// UI has to explain: queued, already there, or not a transaction at all.
+enum SmsImportResult { added, duplicate, notRecognized }
+
 // Direction of money movement in an SMS.
 enum SmsDirection {
   deposit, // Money credited to our account.
@@ -170,6 +177,12 @@ class ParsedSms {
   /// Short explanation of how the message was interpreted.
   final String note;
 
+  /// The user pasted this message instead of the app reading it from the
+  /// inbox. Unlike an inbox message, it may be recorded without a matched
+  /// bank rule: pasting it and pressing record is an explicit decision by
+  /// the user, not a guess by the parser.
+  final bool manual;
+
   const ParsedSms({
     required this.message,
     this.bankName,
@@ -182,7 +195,24 @@ class ParsedSms {
     this.reference,
     this.confident = false,
     this.note = '',
+    this.manual = false,
   });
+
+  /// The same result, marked as a message the user pasted.
+  ParsedSms asManual() => ParsedSms(
+    message: message,
+    bankName: bankName,
+    amount: amount,
+    currency: currency,
+    direction: direction,
+    cardMask: cardMask,
+    cardDigits: cardDigits,
+    balance: balance,
+    reference: reference,
+    confident: confident,
+    note: note,
+    manual: true,
+  );
 
   String get key => message.key;
 
