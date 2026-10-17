@@ -1,4 +1,3 @@
-// ignore_for_file: avoid_print
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -12,10 +11,23 @@ import 'package:poolland/data/store.dart';
 import 'package:poolland/ui/settings_page.dart';
 import 'package:poolland/ui/theme.dart';
 
-/// TEMP (run 10): observation-only diagnostics for the create-subcategory
-/// flow. Prints exactly one compact ::error:: line, then passes.
+/// TEMP (run 11): observation-only diagnostics for the create-subcategory
+/// flow. The analyze output (written to test/tmp_analyze_out.txt by the
+/// workflow) is read at main() time and embedded in the TEST NAME (the
+/// FAILED_TEST annotation is the one channel known to survive). The flow
+/// steps are carried in the failure reason (FAIL_DETAIL annotation).
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  String analyzeRaw = '(missing)';
+  try {
+    final f = File('test/tmp_analyze_out.txt');
+    if (f.existsSync()) analyzeRaw = f.readAsStringSync();
+  } catch (_) {}
+  final String analyzeCompact = analyzeRaw
+      .replaceAll('\r', ' ')
+      .replaceAll('\n', '~')
+      .substring(0, analyzeRaw.length > 650 ? 650 : analyzeRaw.length);
 
   late Directory tmp;
   late LocalStore store;
@@ -62,7 +74,7 @@ void main() {
       )
       .first;
 
-  testWidgets('create diag (observation only)', (tester) async {
+  testWidgets('CD $analyzeCompact', (tester) async {
     final r = <String>[];
     try {
       await tester.pumpWidget(wrap(const CategoriesPage()));
@@ -102,8 +114,10 @@ void main() {
       final all = find.text(firstParent.name);
       final rects = all
           .evaluate()
-          .map((e) => '${tester.getRect(e).top.toInt()},'
-              '${tester.getRect(e).bottom.toInt()}')
+          .map((e) {
+            final rc = tester.getRect(e);
+            return '${rc.top.toInt()}-${rc.bottom.toInt()}';
+          })
           .join('|');
       r.add('menu=${all.evaluate().length} rects=$rects');
 
@@ -138,12 +152,16 @@ void main() {
         r.add('scf=$found');
       }
     } catch (e) {
-      r.add('ERR ${e.runtimeType} $e');
+      r.add('ERR ${e.runtimeType} ${e.toString().substring(0, e.toString().length > 200 ? 200 : e.toString().length)}');
     }
     final ex = tester.takeException();
     if (ex != null) {
-      r.add('ex=${ex.runtimeType} ${'$ex'.substring(0, '$ex'.length > 90 ? 90 : '$ex'.length)}');
+      r.add('ex=${ex.runtimeType}');
     }
-    print('::error::CD ${r.join(' ')}');
+    expect(
+      false,
+      isTrue,
+      reason: 'CR>>> ${r.join(' ')} <<<AN>>> $analyzeCompact',
+    );
   });
 }

@@ -10,8 +10,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  analyze:
-    name: Analyze dump
+  diag:
+    name: Diagnostics
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -20,28 +20,11 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - name: flutter analyze (bare annotation dump)
+      - name: flutter analyze to file
         continue-on-error: true
         run: |
-          flutter analyze > /tmp/analyze.txt 2>&1
-          EC=$?
-          python3 - <<'PYEOF'
-          data = open('/tmp/analyze.txt').read()
-          total = len(data)
-          joined = " | ".join(l for l in data.splitlines() if l.strip())
-          print(f"::error::AN [ec=$EC totalchars=$total] {joined[:3500]}")
-          PYEOF
-
-  diag:
-    name: Create-flow diagnostics
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-      - run: flutter pub get
-      - name: run only the diagnostic test
+          flutter analyze > test/tmp_analyze_out.txt 2>&1
+          echo "AN_EC=$?" >> test/tmp_analyze_out.txt
+      - name: run diagnostic test
         continue-on-error: true
         run: flutter test test/tmp_create_diag_test.dart --concurrency=1
