@@ -347,7 +347,13 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
     final c = res.value!;
     if (!mounted) return;
     if (repo.quickExpenses.any((q) => q.categoryId == c.id)) {
-      showSnack(context, 'This category is already a quick button');
+      // A rejection, not a confirmation: it says the tap did nothing, so it
+      // has to look like a warning rather than a green tick.
+      showSnack(
+        context,
+        'This category is already a quick button',
+        error: true,
+      );
       return;
     }
     Haptics.selection();
@@ -553,7 +559,12 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
             // same empty amount, but its message renders next to a field that
             // is usually scrolled out of view by then — so the tap looked
             // ignored and the page just refused to close, with nothing on
-            // screen to say why.
+            // screen to say why. The hint says it where the question is
+            // asked: on the button that refused to act.
+            hint: amt > 0
+                ? null
+                : (isEdit ? 'Enter an amount' : 'Enter an amount to record')
+                      .tr,
             onPressed: amt > 0 ? _save : null,
           );
         },

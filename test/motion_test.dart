@@ -182,7 +182,10 @@ void main() {
     await tester.drag(find.text('row'), const Offset(-160, 0));
     await tester.pumpAndSettle();
     // Open: the row travelled exactly one panel width to the left.
-    expect(tester.getTopLeft(find.text('row')).dx, home.dx - 150);
+    expect(
+      tester.getTopLeft(find.text('row')).dx,
+      home.dx - SwipeActions.defaultPanelWidth,
+    );
     await tester.tap(find.text('elsewhere'));
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(find.text('row')), home);
@@ -193,8 +196,8 @@ void main() {
     await tester.pumpAndSettle();
     final home = tester.getTopLeft(find.text('row'));
 
-    // 70 px is under half the 150 px panel, so the distance rule alone would
-    // have closed the row; only the velocity can open it.
+    // 70 px is under half the panel, so the distance rule alone would have
+    // closed the row; only the velocity can open it.
     //
     // The distance has to be this large for a second reason: `tester.fling`
     // spreads the travel over 51 moves and the velocity tracker keeps only the
@@ -203,7 +206,10 @@ void main() {
     // `isFlingGesture` says no, and `primaryVelocity` comes back as zero.
     await tester.fling(find.text('row'), const Offset(-70, 0), 2000);
     await tester.pumpAndSettle();
-    expect(tester.getTopLeft(find.text('row')).dx, home.dx - 150);
+    expect(
+      tester.getTopLeft(find.text('row')).dx,
+      home.dx - SwipeActions.defaultPanelWidth,
+    );
 
     // The same flick back still leaves the row past its halfway point, so the
     // old threshold check re-opened it. Only the velocity shuts it.
@@ -238,7 +244,10 @@ void main() {
     final home = tester.getTopLeft(find.text('row'));
     await tester.drag(find.text('row'), const Offset(-160, 0));
     await tester.pumpAndSettle();
-    expect(tester.getTopLeft(find.text('row')).dx, home.dx - 150);
+    expect(
+      tester.getTopLeft(find.text('row')).dx,
+      home.dx - SwipeActions.defaultPanelWidth,
+    );
 
     final navigator = tester.state<NavigatorState>(find.byType(Navigator));
     await navigator.maybePop();

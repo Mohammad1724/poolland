@@ -169,14 +169,18 @@ class _PlanEditPageState extends State<PlanEditPage> {
       note: _note.text.trim(),
       archived: widget.existing?.archived ?? false,
     );
+    // Resolved before the write: the page pops itself right after it, and
+    // the confirmation has to outlive the page.
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
     if (isEdit) {
       await repo.updatePlan(base);
     } else {
       await repo.addPlan(base);
     }
     if (!mounted) return;
-    Navigator.pop(context);
-    showSnack(context, isEdit ? 'Plan updated' : 'Plan added');
+    navigator.pop();
+    showMessengerSnack(messenger, isEdit ? 'Plan updated' : 'Plan added');
   }
 
   @override

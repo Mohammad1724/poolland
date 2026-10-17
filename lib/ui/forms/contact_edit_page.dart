@@ -67,6 +67,10 @@ class _ContactEditPageState extends State<ContactEditPage> {
   Future<void> _save() async {
     if (_formKey.currentState?.validate() != true) return;
     final repo = context.read<AppRepository>();
+    // Resolved before the first await: the page pops itself as soon as the
+    // write finishes, and the confirmation has to outlive it.
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
     final opening = parseAmount(_opening.text) * (_openingIsDebt ? 1 : -1);
     final digits = _phone.text.replaceAll(RegExp(r'[^0-9+]'), '');
     final identifiers = _identifiers.text
@@ -87,7 +91,7 @@ class _ContactEditPageState extends State<ContactEditPage> {
       );
       await repo.updateCustomer(c);
       if (!mounted) return;
-      Navigator.pop(context, c);
+      navigator.pop(c);
     } else {
       final c = await repo.addCustomer(
         name: _name.text.trim(),
@@ -98,11 +102,15 @@ class _ContactEditPageState extends State<ContactEditPage> {
         bankIdentifiers: identifiers,
       );
       if (!mounted) return;
-      Navigator.pop(context, c);
+      navigator.pop(c);
     }
-    if (mounted) {
-      showSnack(context, isEdit ? 'Changes saved'.tr : 'Customer added'.tr);
-    }
+    // One message, one wording: the strings are localization keys and the
+    // helper translates them once (this used to translate them here *and*
+    // inside the helper).
+    showMessengerSnack(
+      messenger,
+      isEdit ? 'Changes saved' : 'Customer added',
+    );
   }
 
   @override
@@ -128,10 +136,15 @@ class _ContactEditPageState extends State<ContactEditPage> {
                   danger: true,
                 );
                 if (!ok) return;
+                if (!context.mounted) return;
+                final messenger = ScaffoldMessenger.of(context);
+                final navigator = Navigator.of(context);
                 await repo.deleteCustomer(widget.existing!.id);
                 if (!context.mounted) return;
-                Navigator.pop(context);
-                showSnack(context, 'Contact deleted');
+                // Pop first, then speak: the confirmation belongs to the list
+                // the user is going back to, not to the page going away.
+                navigator.pop();
+                showMessengerSnack(messenger, 'Contact deleted');
               },
               icon: const Icon(Icons.delete_outline_rounded),
             ),

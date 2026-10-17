@@ -26,6 +26,27 @@ import '../core/localization.dart';
 
 enum _NotificationSoundAction { systemDefault, phoneSound, audioFile }
 
+/// The "Save" action of a small input dialog, disabled while the field holds
+/// nothing usable.
+///
+/// These dialogs used to keep Save enabled and then quietly discard the
+/// dialog when the field was empty: the tap did nothing, the dialog closed,
+/// and nothing was saved or said. A disabled button that only wakes up when
+/// there is something to save is the same rule the entry forms follow.
+Widget _saveWhen(
+  TextEditingController controller,
+  bool Function(String) valid,
+  VoidCallback onSave,
+) {
+  return ValueListenableBuilder<TextEditingValue>(
+    valueListenable: controller,
+    builder: (context, value, _) => FilledButton(
+      onPressed: valid(value.text) ? onSave : null,
+      child: Text('Save'.tr),
+    ),
+  );
+}
+
 Future<void> _selectNotificationSound(
   BuildContext context,
   AppRepository repo,
@@ -888,9 +909,10 @@ class SettingsPage extends StatelessWidget {
             onPressed: () => Navigator.pop(ctx),
             child: Text('Cancel'.tr),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: Text('Save'.tr),
+          _saveWhen(
+            ctrl,
+            (v) => v.trim().isNotEmpty,
+            () => Navigator.pop(ctx, ctrl.text.trim()),
           ),
         ],
       ),
@@ -920,9 +942,12 @@ class SettingsPage extends StatelessWidget {
             onPressed: () => Navigator.pop(ctx),
             child: Text('Cancel'.tr),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, parseAmount(ctrl.text)),
-            child: Text('Save'.tr),
+          // A zero opening balance is a real value (start from nothing), so
+          // only an empty field is refused here.
+          _saveWhen(
+            ctrl,
+            (v) => v.trim().isNotEmpty,
+            () => Navigator.pop(ctx, parseAmount(ctrl.text)),
           ),
         ],
       ),
@@ -952,10 +977,13 @@ class SettingsPage extends StatelessWidget {
             onPressed: () => Navigator.pop(ctx),
             child: Text('Cancel'.tr),
           ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(ctx, parseAmount(ctrl.text).toInt().clamp(0, 60)),
-            child: Text('Save'.tr),
+          _saveWhen(
+            ctrl,
+            (v) => v.trim().isNotEmpty,
+            () => Navigator.pop(
+              ctx,
+              parseAmount(ctrl.text).toInt().clamp(0, 60),
+            ),
           ),
         ],
       ),
@@ -1168,9 +1196,10 @@ class RatesPage extends StatelessWidget {
             onPressed: () => Navigator.pop(ctx),
             child: Text('Cancel'.tr),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, parseAmount(ctrl.text)),
-            child: Text('Save'.tr),
+          _saveWhen(
+            ctrl,
+            (v) => parseAmount(v) > 0,
+            () => Navigator.pop(ctx, parseAmount(ctrl.text)),
           ),
         ],
       ),
@@ -1225,9 +1254,21 @@ class RatesPage extends StatelessWidget {
             onPressed: () => Navigator.pop(ctx, false),
             child: Text('Cancel'.tr),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Add'.tr),
+          // A currency needs a code, a name and a real exchange rate: with a
+          // rate of zero every amount in it converts to nothing. The dialog
+          // used to accept all three mistakes and then throw the result away
+          // without a word.
+          AnimatedBuilder(
+            animation: Listenable.merge([code, name, rate]),
+            builder: (context, child) {
+              final valid = code.text.trim().isNotEmpty &&
+                  name.text.trim().isNotEmpty &&
+                  parseAmount(rate.text) > 0;
+              return FilledButton(
+                onPressed: valid ? () => Navigator.pop(ctx, true) : null,
+                child: Text('Add'.tr),
+              );
+            },
           ),
         ],
       ),
@@ -1496,17 +1537,22 @@ class _CategoriesPageState extends State<CategoriesPage> {
                 onPressed: () => Navigator.pop(ctx),
                 child: Text('Cancel'.tr),
               ),
-              FilledButton(
-                onPressed: () {
-                  final name = nameCtrl.text.trim();
-                  if (name.isEmpty) return;
-                  Navigator.pop(
-                    ctx,
-                    _CategoryDraft(name: name, parentId: parentValue),
-                  );
-                },
-                child: Text(
-                  existing == null ? 'Add'.tr : 'Save'.tr,
+              // A category with no name has nothing to show in the picker.
+              // Save used to stay live and silently refuse; it now wakes up
+              // as soon as there is a name to save.
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: nameCtrl,
+                builder: (context, value, child) => FilledButton(
+                  onPressed: value.text.trim().isEmpty
+                      ? null
+                      : () => Navigator.pop(
+                          ctx,
+                          _CategoryDraft(
+                            name: nameCtrl.text.trim(),
+                            parentId: parentValue,
+                          ),
+                        ),
+                  child: Text(existing == null ? 'Add'.tr : 'Save'.tr),
                 ),
               ),
             ],

@@ -154,4 +154,120 @@ void main() {
       expect(find.textContaining('='), findsNothing);
     });
   });
+
+  /// The snack bar is the app's only channel for "that worked" and "that did
+  /// not", so its contract is tested like any other user-facing behaviour:
+  /// a status icon, a readable window, and an action that can be pressed.
+  group('Snack feedback', () {
+    Future<ScaffoldMessengerState> pumpMessenger(WidgetTester tester) async {
+      late ScaffoldMessengerState messenger;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) {
+                messenger = ScaffoldMessenger.of(context);
+                return const SizedBox();
+              },
+            ),
+          ),
+        ),
+      );
+      return messenger;
+    }
+
+    testWidgets('a confirmation shows a tick and stays four seconds', (
+      tester,
+    ) async {
+      final messenger = await pumpMessenger(tester);
+      showMessengerSnack(messenger, 'Changes saved');
+      await tester.pump();
+
+      expect(find.text('Changes saved'), findsOneWidget);
+      expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+      final bar = tester.widget<SnackBar>(find.byType(SnackBar));
+      expect(bar.duration, kSnackDuration);
+      // Four seconds, not Material's default: enough to read a Persian
+      // sentence without reaching for the screen.
+      expect(bar.duration, const Duration(seconds: 4));
+    });
+
+    testWidgets('an error shows a warning and stays longer', (tester) async {
+      final messenger = await pumpMessenger(tester);
+      showMessengerSnack(messenger, 'Saving failed', error: true);
+      await tester.pump();
+
+      expect(find.text('Saving failed'), findsOneWidget);
+      expect(find.byIcon(Icons.error_outline_rounded), findsOneWidget);
+      final bar = tester.widget<SnackBar>(find.byType(SnackBar));
+      expect(bar.duration, kSnackErrorDuration);
+      expect(bar.backgroundColor, const Color(0xFFB91C1C));
+    });
+
+    testWidgets('an action keeps the bar long enough to be used', (
+      tester,
+    ) async {
+      final messenger = await pumpMessenger(tester);
+      var undone = false;
+      showMessengerSnack(
+        messenger,
+        'Transaction deleted',
+        actionLabel: 'Undo',
+        onAction: () => undone = true,
+      );
+      await tester.pump();
+
+      final bar = tester.widget<SnackBar>(find.byType(SnackBar));
+      expect(bar.duration, const Duration(seconds: 5));
+      expect(bar.action, isNotNull);
+
+      // Let the bar finish sliding in, otherwise the action is still off
+      // screen and cannot be hit.
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text('Undo'));
+      await tester.pump();
+      expect(undone, isTrue);
+    });
+  });
+
+  group('ActionHint', () {
+    testWidgets('the save bar says what is missing', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: const SizedBox(),
+            bottomNavigationBar: const FormActionBar(
+              label: 'Record',
+              onPressed: null,
+              hint: 'Enter an amount',
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Enter an amount'), findsOneWidget);
+      expect(find.byIcon(Icons.info_outline_rounded), findsOneWidget);
+      // Still refused, but no longer silent about why.
+      final button = tester.widget<FilledButton>(find.byType(FilledButton));
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('no hint is left behind once the form is complete', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: const SizedBox(),
+            bottomNavigationBar: FormActionBar(
+              label: 'Record',
+              onPressed: () async {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.info_outline_rounded), findsNothing);
+    });
+  });
 }

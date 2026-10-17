@@ -244,6 +244,10 @@ flutter test --concurrency=1    # همهٔ تست‌ها (حسابداری، پ�
 python3 tool/generate_icons.py  # ساخت دوبارهٔ آیکون‌ها از design/icon-source.png
 ```
 
+بازبینی‌های عمیق پروژه در `docs/` نگه داشته می‌شوند:
+`gesture-review.md` (ژست‌ها و شیت‌های کشویی) و
+`ux-feedback-review.md` (بازخوردها و چینش دکمه‌ها).
+
 سه workflow روی مخزن فعال است:
 
 | Workflow | کی اجرا می‌شود | چه کار می‌کند |
