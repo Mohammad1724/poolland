@@ -315,6 +315,13 @@ void main() {
         TxnKind.expense, parentId: firstParent.id));
     await tester.pumpAndSettle();
 
+    // The list is still scrolled down to the button; the new child row
+    // sits at the top, right under its parent. Jump back to the top.
+    tester.state<ScrollableState>(find.byType(Scrollable))
+        .position
+        .jumpTo(0);
+    await tester.pumpAndSettle();
+
     expect(find.text('Fuel and oil'), findsOneWidget);
     final created = repo
         .categoriesOf(TxnKind.expense, scope: TxnScope.business)

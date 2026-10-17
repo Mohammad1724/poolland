@@ -5,16 +5,15 @@ on:
     branches: [main]
   pull_request:
 
+# Superseded runs (new pushes to the same branch/PR) are cancelled instead of
+# piling up in the Actions tab.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  pull-requests: write
-
 jobs:
-  diag:
-    name: Diagnostics
+  test:
+    name: Analyze and test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -23,49 +22,5 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - name: flutter analyze to file
-        continue-on-error: true
-        run: |
-          flutter analyze > test/tmp_analyze_out.txt 2>&1
-          echo "AN_EC=$?" >> test/tmp_analyze_out.txt
-      - name: run diagnostic test
-        continue-on-error: true
-        run: flutter test test/tmp_create_diag_test.dart --concurrency=1
-      - name: post diagnostics as PR comment
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          python3 - <<'PYEOF'
-          import json, os, urllib.request
-          parts = []
-          for name in ('test/tmp_analyze_out.txt', 'test/tmp_diag_steps.txt'):
-              try:
-                  data = open(name).read()
-              except Exception as e:
-                  data = '(read error: %s)' % e
-              parts.append('=== %s ===\n```\n%s\n```' % (name, data[:8000]))
-          body = '\n\n'.join(parts)[:60000]
-          payload = json.dumps({'body': body}).encode()
-          url = 'https://api.github.com/repos/Mohammad1724/poolland/issues/8/comments'
-          token = os.environ.get('GH_TOKEN', '')
-          req = urllib.request.Request(
-              url, data=payload, method='POST',
-              headers={
-                  'Authorization': 'token ' + token,
-                  'Accept': 'application/vnd.github+json',
-                  'Content-Type': 'application/json',
-              })
-          try:
-              resp = urllib.request.urlopen(req, timeout=30)
-              out = 'HTTP %s' % resp.status
-          except Exception as e:
-              raw = b''
-              try:
-                  raw = e.read()[:300]
-              except Exception:
-                  pass
-              out = 'POST FAILED: %s %s' % (e, raw.decode('utf-8', 'replace'))
-          open('test/tmp_post_result.txt', 'w').write(out + '\n')
-          print(out)
-          PYEOF
+      - run: flutter analyze
+      - run: flutter test --concurrency=1
