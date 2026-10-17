@@ -48,18 +48,17 @@ jobs:
       # service — by permission, not by signature.)
       - name: Build the APK
         run: |
-          set -uo pipefail
-          flutter build apk --debug > /tmp/build.log 2>&1
-          status=$?
-          if [ "$status" -ne 0 ]; then
+          # `if ! cmd` is used on purpose: the runner runs the script with
+          # `bash -e`, so a plain failing command would abort the step
+          # before the error could be captured.
+          if ! flutter build apk --debug > /tmp/build.log 2>&1; then
             # The raw job log lives in a blob store, so the important lines
             # are re-emitted as annotations: they show up on the pull
             # request and can be read through the API.
-            grep -E "(^e: |FAILURE:|What went wrong|Execution failed|Caused by:|error:|Error:)" /tmp/build.log \
-              | head -10 \
-              | while IFS= read -r line; do
-                  echo "::error::$line"
-                done
+            {
+              echo "::error::APK build failed"
+              tail -12 /tmp/build.log | sed 's/^/::error::/'
+            }
             tail -40 /tmp/build.log >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
