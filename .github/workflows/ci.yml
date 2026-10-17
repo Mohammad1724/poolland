@@ -28,3 +28,29 @@ jobs:
       - name: run diagnostic test
         continue-on-error: true
         run: flutter test test/tmp_create_diag_test.dart --concurrency=1
+      - name: post diagnostics as PR comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, subprocess
+          parts = []
+          for name in ('test/tmp_analyze_out.txt', 'test/tmp_diag_steps.txt'):
+              try:
+                  data = open(name).read()
+              except Exception as e:
+                  data = '(read error: %s)' % e
+              parts.append('=== %s ===\n```\n%s\n```' % (name, data[:8000]))
+          payload = json.dumps({'body': '\n\n'.join(parts)[:60000]})
+          open('/tmp/comment.json', 'w').write(payload)
+          token = os.environ.get('GH_TOKEN', '')
+          subprocess.run([
+              'curl', '-s', '-X', 'POST',
+              '-H', 'Authorization: token ' + token,
+              '-H', 'Accept: application/vnd.github+json',
+              '-H', 'Content-Type: application/json',
+              '-d', '@/tmp/comment.json',
+              'https://api.github.com/repos/Mohammad1724/poolland/issues/8/comments',
+          ], check=False)
+          PYEOF

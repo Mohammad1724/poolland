@@ -153,15 +153,17 @@ void main() {
       }
     } catch (e) {
       r.add('ERR ${e.runtimeType} ${e.toString().substring(0, e.toString().length > 200 ? 200 : e.toString().length)}');
+    } finally {
+      final ex = tester.takeException();
+      if (ex != null) {
+        r.add('ex=${ex.runtimeType}');
+      }
+      // The workflow posts this file as a PR comment (the annotation
+      // channel caps out at five entries).
+      try {
+        File('test/tmp_diag_steps.txt')
+            .writeAsStringSync('CR>>> ${r.join(' ')} <<<END\n');
+      } catch (_) {}
     }
-    final ex = tester.takeException();
-    if (ex != null) {
-      r.add('ex=${ex.runtimeType}');
-    }
-    expect(
-      false,
-      isTrue,
-      reason: 'CR>>> ${r.join(' ')} <<<AN>>> $analyzeCompact',
-    );
   });
 }
