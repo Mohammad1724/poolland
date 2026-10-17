@@ -22,5 +22,16 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter analyze
-      - run: flutter test --concurrency=1
+      - name: flutter analyze (TEMP annotated dump)
+        continue-on-error: true
+        run: |
+          flutter analyze > /tmp/analyze.txt 2>&1
+          EC=$?
+          python3 - <<'PYEOF'
+          lines = open('/tmp/analyze.txt').read().splitlines()
+          for i, ln in enumerate(lines[:35]):
+              print(f"::error file=.github,line=100{i}::AN {ln[:220]}")
+          print(f"::error file=.github,line=900::AN DONE ec=$EC total_lines={len(lines)}")
+          PYEOF
+      - name: flutter test
+        run: flutter test --concurrency=1
