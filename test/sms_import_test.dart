@@ -6,9 +6,8 @@ import 'package:poolland/data/models.dart';
 import 'package:poolland/data/repository.dart';
 import 'package:poolland/data/store.dart';
 
-/// The `safe` Android build cannot read the inbox, so the review queue is fed
-/// by pasted messages instead. These tests cover the parser hand-off and the
-/// three outcomes the UI explains.
+/// These tests cover both the permission-gated inbox hand-off and the pasted
+/// message fallback, along with the outcomes the review UI explains.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -49,6 +48,43 @@ void main() {
     expect(repo.importSmsText(bankSms), SmsImportResult.duplicate);
     expect(repo.smsSuggestions, hasLength(1));
   });
+
+  test(
+    'inbox sync queues recognized messages once and ignores other SMS',
+    () async {
+      final bankMessage = SmsMessage(
+        id: 'inbox-1',
+        address: 'BANKMELAT',
+        body: bankSms,
+        date: DateTime(2026, 10, 17, 12),
+      );
+      final otp = SmsMessage(
+        id: 'inbox-2',
+        address: 'BANKMELAT',
+        body: 'رمز پویا: 123456',
+        date: DateTime(2026, 10, 17, 12, 1),
+      );
+      final unknownBank = SmsMessage(
+        id: 'inbox-3',
+        address: 'UNKNOWN',
+        body: 'واریز مبلغ 250,000 ریال',
+        date: DateTime(2026, 10, 17, 12, 2),
+      );
+
+      expect(repo.importInboxSms([bankMessage, otp, unknownBank]), 1);
+      expect(repo.smsSuggestions, hasLength(1));
+      expect(repo.smsSuggestions.single.message.id, 'inbox-1');
+      expect(repo.smsSuggestions.single.manual, isFalse);
+      expect(repo.importInboxSms([bankMessage]), 0);
+
+      await repo.rejectSms(repo.smsSuggestions.single);
+      expect(
+        repo.importInboxSms([bankMessage]),
+        0,
+        reason: 'a reviewed inbox message must not reappear on the next sync',
+      );
+    },
+  );
 
   test('a message without a matching bank rule is still queued and recordable',
       () async {

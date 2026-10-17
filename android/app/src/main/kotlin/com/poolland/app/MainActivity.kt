@@ -24,21 +24,24 @@ import io.flutter.plugin.common.MethodChannel
  * authenticate() call fails with "The current Activity must be a
  * FragmentActivity".
  *
- * The app deliberately has no SMS bridge: it declares neither READ_SMS nor
- * RECEIVE_SMS, so Google Play Protect installs it from a browser or a file
- * manager without a block. Bank messages reach the ledger only when the
- * user pastes their text into the review page.
+ * Bank inbox access is explicitly permission-gated. The app requests only
+ * READ_SMS (not RECEIVE_SMS), and reads recent messages only when the user
+ * syncs the SMS review page. Message text stays on-device and no transaction
+ * is recorded until the user approves it.
  */
 class MainActivity : FlutterFragmentActivity() {
 
     companion object {
         private const val PERMISSION_REQUEST_SOUND_STORAGE = 1018
         private const val REQUEST_PICK_NOTIFICATION_SOUND = 1019
+        private const val PERMISSION_REQUEST_READ_SMS = 1020
         private const val SOUND_CHANNEL_NAME = "poolland/notification_sound"
+        private const val SMS_CHANNEL_NAME = "poolland/sms"
     }
 
     private var pendingSystemSoundResult: MethodChannel.Result? = null
     private var pendingSoundImport: PendingSoundImport? = null
+    private var pendingSmsPermissionResult: MethodChannel.Result? = null
 
     private data class PendingSoundImport(
         val name: String,
@@ -59,6 +62,139 @@ class MainActivity : FlutterFragmentActivity() {
                 "importNotificationSound" -> importNotificationSound(call, result)
                 else -> result.notImplemented()
             }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            SMS_CHANNEL_NAME,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "hasReadPermission" -> result.success(hasReadSmsPermission())
+                "requestReadPermission" -> requestReadSmsPermission(result)
+                "readInbox" -> readSmsInbox(call, result)
+                "openAppSettings" -> openAppSettings(result)
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun hasReadSmsPermission(): Boolean =
+        checkSelfPermission(Manifest.permission.READ_SMS) ==
+            PackageManager.PERMISSION_GRANTED
+
+    private fun requestReadSmsPermission(result: MethodChannel.Result) {
+        if (hasReadSmsPermission()) {
+            result.success(true)
+            return
+        }
+        if (pendingSmsPermissionResult != null) {
+            result.error(
+                "sms_permission_busy",
+                "An SMS permission request is already in progress.",
+                null,
+            )
+            return
+        }
+
+        pendingSmsPermissionResult = result
+        try {
+            requestPermissions(
+                arrayOf(Manifest.permission.READ_SMS),
+                PERMISSION_REQUEST_READ_SMS,
+            )
+        } catch (error: Exception) {
+            pendingSmsPermissionResult = null
+            result.error(
+                "sms_permission_request_failed",
+                error.message ?: "Could not request SMS access.",
+                null,
+            )
+        }
+    }
+
+    private fun readSmsInbox(
+        call: MethodCall,
+        result: MethodChannel.Result,
+    ) {
+        if (!hasReadSmsPermission()) {
+            result.error(
+                "sms_permission_denied",
+                "READ_SMS permission has not been granted.",
+                null,
+            )
+            return
+        }
+
+        val requestedLimit = call.argument<Int>("limit") ?: 500
+        val limit = requestedLimit.coerceIn(1, 1000)
+        val sinceMillis = call.argument<Long>("sinceMillis")
+            ?: System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
+
+        // Inbox queries can touch hundreds of provider rows; keep that work
+        // off the UI thread. Only the bounded recent window is returned to Dart.
+        Thread {
+            try {
+                val messages = mutableListOf<Map<String, Any>>()
+                val cursor = contentResolver.query(
+                    Uri.parse("content://sms/inbox"),
+                    arrayOf("_id", "address", "body", "date"),
+                    "date >= ?",
+                    arrayOf(sinceMillis.toString()),
+                    "date DESC",
+                )
+                cursor?.use { rows ->
+                    val idColumn = rows.getColumnIndexOrThrow("_id")
+                    val addressColumn = rows.getColumnIndexOrThrow("address")
+                    val bodyColumn = rows.getColumnIndexOrThrow("body")
+                    val dateColumn = rows.getColumnIndexOrThrow("date")
+                    while (messages.size < limit && rows.moveToNext()) {
+                        val body = rows.getString(bodyColumn).orEmpty()
+                        if (body.isBlank()) continue
+                        messages.add(
+                            mapOf(
+                                "id" to rows.getLong(idColumn).toString(),
+                                "address" to rows.getString(addressColumn).orEmpty(),
+                                "body" to body,
+                                "date" to rows.getLong(dateColumn),
+                            ),
+                        )
+                    }
+                }
+                runOnUiThread { result.success(messages) }
+            } catch (_: SecurityException) {
+                runOnUiThread {
+                    result.error(
+                        "sms_permission_denied",
+                        "Android did not allow access to the SMS inbox.",
+                        null,
+                    )
+                }
+            } catch (_: Exception) {
+                runOnUiThread {
+                    result.error(
+                        "sms_read_failed",
+                        "Could not read recent SMS messages.",
+                        null,
+                    )
+                }
+            }
+        }.start()
+    }
+
+    private fun openAppSettings(result: MethodChannel.Result) {
+        try {
+            val intent = Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", packageName, null),
+            )
+            startActivity(intent)
+            result.success(null)
+        } catch (error: Exception) {
+            result.error(
+                "app_settings_unavailable",
+                error.message ?: "Could not open app settings.",
+                null,
+            )
         }
     }
 
@@ -273,6 +409,14 @@ class MainActivity : FlutterFragmentActivity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSION_REQUEST_READ_SMS) {
+            val pending = pendingSmsPermissionResult
+            pendingSmsPermissionResult = null
+            pending?.success(
+                grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED,
+            )
+            return
+        }
         if (requestCode != PERMISSION_REQUEST_SOUND_STORAGE) return
 
         val pending = pendingSoundImport

@@ -11,11 +11,12 @@ flutter pub get
 flutter run            # runs on a phone or emulator
 ```
 
-The project has a single Android build. It declares **no SMS permission**:
-Google Play Protect blocks the sideload of any APK that asks for
-`READ_SMS`/`RECEIVE_SMS`, and the block is by permission, not by signature.
-A bank message reaches the ledger by pasting its text on the review page.
-See `docs/android-install.md`.
+The project has a single Android build. It declares `READ_SMS` for an
+explicitly user-triggered sync of recent bank messages; it deliberately omits
+`RECEIVE_SMS` and does not monitor messages in the background. Sideloaded APKs
+requesting `READ_SMS` may trigger a Google Play Protect warning or block, and
+Google Play restricts this permission. Users who decline it can still paste a
+message on the review page. See `docs/android-install.md`.
 
 ## Before submitting changes
 
@@ -31,6 +32,6 @@ flutter test      # All tests should pass
 - Keep interface copy clear, concise, and friendly.
 - Do not add server or cloud-service dependencies; the app must remain 100% offline.
 - Reuse widgets from `lib/ui/widgets/` when adding repeated UI patterns.
-- Never add `READ_SMS`, `RECEIVE_SMS`, a notification listener, or an
-  accessibility service: CI and the release workflow fail if the built APK
-  declares any of them.
+- Keep SMS access least-privilege: `READ_SMS` is used only for an explicit
+  recent-inbox sync; do not add `RECEIVE_SMS`, a notification listener, or an
+  accessibility service. CI checks the merged APK permissions and receiver.

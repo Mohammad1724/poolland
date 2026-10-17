@@ -237,10 +237,8 @@ class SettingsPage extends StatelessWidget {
 
           // ---------- Bank SMS ----------
           //
-          // The app declares no SMS permission, so Google Play Protect
-          // installs it everywhere. A bank message is added by pasting its
-          // text on the review page, where the same parser detects bank,
-          // amount, direction, and card.
+          // Inbox access is permission-gated and synced on demand; users can
+          // still paste a message if they do not grant READ_SMS.
           if (isAndroidPlatform) ...[
             const SectionTitle('Bank SMS', icon: Icons.sms_rounded),
             CardBox(
@@ -250,11 +248,11 @@ class SettingsPage extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.shield_outlined, size: 20),
                     title: Text(
-                      'Poolland never reads your SMS'.tr,
+                      'On-device SMS access'.tr,
                       style: TextStyle(fontSize: 13.5),
                     ),
                     subtitle: Text(
-                      'The app has no SMS permission, so it installs without a Google Play Protect block. Paste a bank SMS on the review page to record it.'
+                      'Recent bank messages are read on this device only when you sync. Nothing is recorded until you approve it.'
                           .tr,
                       style: TextStyle(fontSize: 11.5),
                     ),
@@ -268,7 +266,7 @@ class SettingsPage extends StatelessWidget {
                         ? '{count} transactions awaiting review'.trArgs({
                             'count': repo.smsPendingCount,
                           })
-                        : 'Paste a bank SMS to review it'.tr,
+                        : 'Sync bank SMS to review transactions'.tr,
                     page: const SmsPage(),
                   ),
                   Divider(color: Theme.of(context).dividerColor),
@@ -277,7 +275,7 @@ class SettingsPage extends StatelessWidget {
                     icon: Icons.tune_rounded,
                     title: 'Recognition rules'.tr,
                     subtitle:
-                        'Choose which banks and phrases a pasted SMS can match.'
+                        'Choose which banks and phrases a bank SMS can match.'
                             .tr,
                     page: const SmsRulesPage(),
                   ),

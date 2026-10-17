@@ -508,7 +508,7 @@ void main() {
   testWidgets('Permissions intro renders', (tester) async {
     await tester.pumpWidget(wrap(const PermissionsIntroPage()));
     await tester.pumpAndSettle();
-    expect(find.text('Required permissions'), findsOneWidget);
+    expect(find.text('Permissions'), findsOneWidget);
     expect(find.text('Skip for now'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

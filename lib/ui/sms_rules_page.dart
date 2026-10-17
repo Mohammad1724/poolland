@@ -51,7 +51,7 @@ class SmsRulesPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Only messages matched by an enabled rule can enter the review queue. No transaction is recorded until you review it and explicitly choose Personal or VPN business.'
+                  'Inbox messages enter the review queue only when matched by an enabled rule. Pasted messages can be added manually. No transaction is recorded until you review it and explicitly choose Personal or VPN business.'
                       .tr,
                   style: TextStyle(
                     fontSize: 12,
