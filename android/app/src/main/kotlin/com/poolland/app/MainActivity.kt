@@ -24,10 +24,10 @@ import io.flutter.plugin.common.MethodChannel
  * authenticate() call fails with "The current Activity must be a
  * FragmentActivity".
  *
- * Bank inbox access is explicitly permission-gated. The app requests only
- * READ_SMS (not RECEIVE_SMS), and reads recent messages only when the user
- * syncs the SMS review page. Message text stays on-device and no transaction
- * is recorded until the user approves it.
+ * Bank SMS features are explicitly permission-gated. Inbox sync uses READ_SMS
+ * only when the user requests a sync. Optional arrival alerts use RECEIVE_SMS
+ * only after the user enables them; candidate matching stays on-device, and a
+ * notification opens review without recording a transaction automatically.
  */
 class MainActivity : FlutterFragmentActivity() {
 
@@ -35,6 +35,7 @@ class MainActivity : FlutterFragmentActivity() {
         private const val PERMISSION_REQUEST_SOUND_STORAGE = 1018
         private const val REQUEST_PICK_NOTIFICATION_SOUND = 1019
         private const val PERMISSION_REQUEST_READ_SMS = 1020
+        private const val PERMISSION_REQUEST_RECEIVE_SMS = 1021
         private const val SOUND_CHANNEL_NAME = "poolland/notification_sound"
         private const val SMS_CHANNEL_NAME = "poolland/sms"
     }
@@ -42,6 +43,8 @@ class MainActivity : FlutterFragmentActivity() {
     private var pendingSystemSoundResult: MethodChannel.Result? = null
     private var pendingSoundImport: PendingSoundImport? = null
     private var pendingSmsPermissionResult: MethodChannel.Result? = null
+    private var pendingReceiveSmsPermissionResult: MethodChannel.Result? = null
+    private var smsMethodChannel: MethodChannel? = null
 
     private data class PendingSoundImport(
         val name: String,
@@ -64,23 +67,167 @@ class MainActivity : FlutterFragmentActivity() {
             }
         }
 
-        MethodChannel(
+        val smsChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             SMS_CHANNEL_NAME,
-        ).setMethodCallHandler { call, result ->
+        )
+        smsMethodChannel = smsChannel
+        smsChannel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "hasReadPermission" -> result.success(hasReadSmsPermission())
                 "requestReadPermission" -> requestReadSmsPermission(result)
+                "hasReceivePermission" -> result.success(hasReceiveSmsPermission())
+                "requestReceivePermission" -> requestReceiveSmsPermission(result)
                 "readInbox" -> readSmsInbox(call, result)
+                "arrivalNotificationsEnabled" ->
+                    result.success(SmsArrivalPreferences.isEnabled(this))
+                "setArrivalNotificationsEnabled" ->
+                    setArrivalNotificationsEnabled(call, result)
+                "syncArrivalRules" -> syncArrivalRules(call, result)
+                SmsArrivalContract.METHOD_TAKE_PENDING -> {
+                    val payload = pendingSmsNotification(intent)
+                    if (payload != null) clearPendingSmsNotification()
+                    result.success(payload)
+                }
+                SmsArrivalContract.METHOD_ACK_PENDING ->
+                    result.success(acknowledgePendingSmsNotification(call))
                 "openAppSettings" -> openAppSettings(result)
                 else -> result.notImplemented()
             }
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val payload = pendingSmsNotification(intent) ?: return
+        smsMethodChannel?.invokeMethod(
+            SmsArrivalContract.METHOD_NOTIFICATION_TAPPED,
+            payload,
+        )
+    }
+
     private fun hasReadSmsPermission(): Boolean =
-        checkSelfPermission(Manifest.permission.READ_SMS) ==
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+            checkSelfPermission(Manifest.permission.READ_SMS) ==
             PackageManager.PERMISSION_GRANTED
+
+    private fun hasReceiveSmsPermission(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+            checkSelfPermission(Manifest.permission.RECEIVE_SMS) ==
+            PackageManager.PERMISSION_GRANTED
+
+    private fun requestReceiveSmsPermission(result: MethodChannel.Result) {
+        if (hasReceiveSmsPermission()) {
+            result.success(true)
+            return
+        }
+        if (pendingReceiveSmsPermissionResult != null) {
+            result.error(
+                "receive_sms_permission_busy",
+                "An incoming SMS permission request is already in progress.",
+                null,
+            )
+            return
+        }
+
+        pendingReceiveSmsPermissionResult = result
+        try {
+            requestPermissions(
+                arrayOf(Manifest.permission.RECEIVE_SMS),
+                PERMISSION_REQUEST_RECEIVE_SMS,
+            )
+        } catch (error: Exception) {
+            pendingReceiveSmsPermissionResult = null
+            result.error(
+                "receive_sms_permission_request_failed",
+                error.message ?: "Could not request incoming SMS access.",
+                null,
+            )
+        }
+    }
+
+    private fun setArrivalNotificationsEnabled(
+        call: MethodCall,
+        result: MethodChannel.Result,
+    ) {
+        val enabled = call.argument<Boolean>("enabled") ?: false
+        if (enabled && !hasReceiveSmsPermission()) {
+            result.error(
+                "receive_sms_permission_denied",
+                "RECEIVE_SMS permission has not been granted.",
+                null,
+            )
+            return
+        }
+        if (enabled && Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            result.error(
+                "notification_permission_denied",
+                "Notification permission has not been granted.",
+                null,
+            )
+            return
+        }
+        SmsArrivalPreferences.setEnabled(this, enabled)
+        result.success(true)
+    }
+
+    private fun syncArrivalRules(
+        call: MethodCall,
+        result: MethodChannel.Result,
+    ) {
+        val senderHints = call.argument<List<String>>("senderHints")
+            .orEmpty()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+        val bodyHints = call.argument<List<String>>("bodyHints")
+            .orEmpty()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+        SmsArrivalPreferences.updateRules(this, senderHints, bodyHints)
+        result.success(null)
+    }
+
+    private fun pendingSmsNotification(source: Intent?): Map<String, Any>? {
+        if (source?.action != SmsArrivalContract.ACTION_OPEN_REVIEW) return null
+        val address = source.getStringExtra(SmsArrivalContract.EXTRA_ADDRESS).orEmpty()
+        val body = source.getStringExtra(SmsArrivalContract.EXTRA_BODY).orEmpty()
+        val date = source.getLongExtra(SmsArrivalContract.EXTRA_DATE, 0L)
+        if (body.isBlank() || date <= 0L) return null
+        return mapOf(
+            "id" to "arrival-$date-${body.hashCode()}",
+            "address" to address,
+            "body" to body,
+            "date" to date,
+        )
+    }
+
+    private fun clearPendingSmsNotification() {
+        val current = intent ?: return
+        if (current.action != SmsArrivalContract.ACTION_OPEN_REVIEW) return
+        current.action = null
+        current.removeExtra(SmsArrivalContract.EXTRA_ADDRESS)
+        current.removeExtra(SmsArrivalContract.EXTRA_BODY)
+        current.removeExtra(SmsArrivalContract.EXTRA_DATE)
+    }
+
+    private fun acknowledgePendingSmsNotification(call: MethodCall): Boolean {
+        val expectedAddress = call.argument<String>("address") ?: return false
+        val expectedBody = call.argument<String>("body") ?: return false
+        val expectedDate = call.argument<Number>("date")?.toLong() ?: return false
+        val current = pendingSmsNotification(intent) ?: return false
+        if (current["address"] != expectedAddress ||
+            current["body"] != expectedBody ||
+            current["date"] != expectedDate
+        ) {
+            return false
+        }
+        clearPendingSmsNotification()
+        return true
+    }
 
     private fun requestReadSmsPermission(result: MethodChannel.Result) {
         if (hasReadSmsPermission()) {
@@ -412,6 +559,14 @@ class MainActivity : FlutterFragmentActivity() {
         if (requestCode == PERMISSION_REQUEST_READ_SMS) {
             val pending = pendingSmsPermissionResult
             pendingSmsPermissionResult = null
+            pending?.success(
+                grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED,
+            )
+            return
+        }
+        if (requestCode == PERMISSION_REQUEST_RECEIVE_SMS) {
+            val pending = pendingReceiveSmsPermissionResult
+            pendingReceiveSmsPermissionResult = null
             pending?.success(
                 grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED,
             )

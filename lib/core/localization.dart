@@ -301,8 +301,22 @@ class AppLocalization {
     'Review SMS': 'بررسی پیامک‌ها',
     'Read bank SMS': 'خواندن پیامک بانکی',
     'On-device SMS access': 'دسترسی پیامک روی دستگاه',
-    'Recent bank messages are read on this device only when you sync. Nothing is recorded until you approve it.':
-        'پیامک‌های بانکی اخیر فقط هنگام همگام‌سازی روی همین دستگاه خوانده می‌شوند. تا زمانی که تأیید نکنید چیزی ثبت نمی‌شود.',
+    'Recent bank messages are read on this device when you sync. New messages are checked only if you enable arrival alerts. Nothing is recorded until you approve it.':
+        'پیامک‌های بانکی اخیر هنگام همگام‌سازی روی همین دستگاه خوانده می‌شوند. پیامک‌های تازه فقط با فعال‌کردن اعلان ورودی بررسی می‌شوند. تا زمانی که تأیید نکنید چیزی ثبت نمی‌شود.',
+    'Notify me about new bank SMS': 'برای پیامک بانکی تازه اعلان بده',
+    'New messages are checked on this device against enabled bank rules. Matching transaction messages send a private notification; nothing is recorded until you approve it.':
+        'پیامک‌های تازه روی همین دستگاه با قواعد فعال بانک بررسی می‌شوند. برای پیامک تراکنشی منطبق اعلان خصوصی می‌آید؛ تا تأیید نکنید چیزی ثبت نمی‌شود.',
+    'Incoming SMS permission denied. Enable it in Android settings.':
+        'دسترسی پیامک ورودی داده نشد. آن را در تنظیمات اندروید فعال کنید.',
+    'Could not enable bank SMS notifications.':
+        'فعال‌کردن اعلان پیامک بانکی ناموفق بود.',
+    'No matching bank transaction was found for this SMS.':
+        'برای این پیامک تراکنش بانکی منطبقی پیدا نشد.',
+    'This SMS is no longer waiting for review.':
+        'این پیامک دیگر در انتظار بررسی نیست.',
+    'Bank SMS notifications enabled.': 'اعلان پیامک بانکی فعال شد.',
+    'Bank SMS notifications turned off.': 'اعلان پیامک بانکی خاموش شد.',
+
     'Add from SMS text': 'افزودن از متن پیامک',
     'Grant SMS access': 'اعطای دسترسی پیامک',
     'Sync bank SMS': 'همگام‌سازی پیامک‌های بانکی',
@@ -558,8 +572,8 @@ class AppLocalization {
     'Permissions': 'دسترسی‌ها',
     'SMS stays on this device. Review each matched message before recording it.':
         'پیامک‌ها روی همین دستگاه می‌مانند. هر پیامک منطبق را پیش از ثبت بررسی کنید.',
-    'Notifications and SMS access are optional. SMS is read only on this device when you sync; matching messages enter a review queue, and no transaction is recorded until you approve it.':
-        'دسترسی اعلان و پیامک اختیاری است. پیامک‌ها فقط هنگام همگام‌سازی و روی همین دستگاه خوانده می‌شوند؛ پیامک‌های منطبق به صف بررسی می‌روند و تا تأیید شما هیچ تراکنشی ثبت نمی‌شود.',
+    'Notifications and SMS access are optional. You can sync recent messages or enable on-device alerts for new bank SMS. Matching messages enter review; no transaction is recorded until you approve it.':
+        'دسترسی اعلان و پیامک اختیاری است. می‌توانید پیامک‌های اخیر را همگام‌سازی کنید یا اعلان پیامک بانکی تازه را روی همین دستگاه فعال کنید. پیامک‌های منطبق به صف بررسی می‌روند و تا تأیید شما هیچ تراکنشی ثبت نمی‌شود.',
     'Show notifications': 'نمایش اعلان‌ها',
     'For the daily expense reminder': 'برای یادآور روزانهٔ هزینه‌ها',
     'For syncing recent bank messages into review': 'برای همگام‌سازی پیامک‌های بانکی اخیر و بررسی آن‌ها',

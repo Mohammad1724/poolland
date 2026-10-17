@@ -59,9 +59,9 @@ jobs:
             echo "::warning::ANDROID_KEYSTORE_BASE64 is not set — signing with the debug key."
           fi
 
-      # One build, one app id, one version. READ_SMS is used for inbox sync
-      # initiated by the user; RECEIVE_SMS and background SMS monitoring are
-      # not included. Sideloading may trigger a Play Protect warning/block.
+      # One build, one app id, one version. READ_SMS supports user-triggered
+      # inbox sync; RECEIVE_SMS is used only after the user enables bank-SMS
+      # arrival alerts. Sideloading may trigger a Play Protect warning/block.
       - name: Build APKs
         env:
           POOLLAND_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -71,7 +71,7 @@ jobs:
           flutter build apk --release --split-per-abi
           flutter build apk --release
 
-      - name: Assert release SMS permission uses least privilege
+      - name: Assert release SMS permissions and receiver
         run: |
           set -euo pipefail
           APK="build/app/outputs/flutter-apk/app-release.apk"
@@ -82,13 +82,25 @@ jobs:
             echo "::error::The release APK is missing READ_SMS, which inbox sync requires."
             exit 1
           fi
-          if grep -qE 'RECEIVE_SMS|BIND_NOTIFICATION_LISTENER_SERVICE|BIND_ACCESSIBILITY_SERVICE' /tmp/release-permissions.txt; then
+          if ! grep -q 'RECEIVE_SMS' /tmp/release-permissions.txt; then
+            echo "::error::The release APK is missing RECEIVE_SMS, which opt-in arrival alerts require."
+            exit 1
+          fi
+          if grep -qE 'BIND_NOTIFICATION_LISTENER_SERVICE|BIND_ACCESSIBILITY_SERVICE' /tmp/release-permissions.txt; then
             echo "::error::The release APK declares an unused high-risk permission."
             exit 1
           fi
           "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" > /tmp/release-manifest.txt
-          if grep -q 'SmsReceiver' /tmp/release-manifest.txt; then
-            echo "::error::The release APK must not register a background SmsReceiver."
+          if ! grep -q 'SmsReceivedReceiver' /tmp/release-manifest.txt; then
+            echo "::error::The release APK must register the opt-in SmsReceivedReceiver."
+            exit 1
+          fi
+          if ! grep -B5 -A8 'SmsReceivedReceiver' /tmp/release-manifest.txt | grep 'android:enabled.*false' > /dev/null; then
+            echo "::error::The release SMS receiver must be disabled by default until opt-in."
+            exit 1
+          fi
+          if ! grep -B5 -A8 'SmsReceivedReceiver' /tmp/release-manifest.txt | grep 'BROADCAST_SMS' > /dev/null; then
+            echo "::error::The release SMS receiver must restrict broadcasts to the system."
             exit 1
           fi
 
@@ -138,15 +150,15 @@ jobs:
 
             | File | SMS access | Play Protect | Best for |
             |---|---|---|---|
-            | `poolland-*-arm64-v8a.apk` | `READ_SMS` after opt-in | may warn or block sideloading | **recommended** — ~95% of modern phones |
-            | `poolland-*-armeabi-v7a.apk` | `READ_SMS` after opt-in | may warn or block sideloading | older 32-bit phones |
-            | `poolland-*-universal.apk` | `READ_SMS` after opt-in | may warn or block sideloading | every phone (larger) |
+            | `poolland-*-arm64-v8a.apk` | `READ_SMS` for sync; optional `RECEIVE_SMS` alerts | may warn or block sideloading | **recommended** — ~95% of modern phones |
+            | `poolland-*-armeabi-v7a.apk` | `READ_SMS` for sync; optional `RECEIVE_SMS` alerts | may warn or block sideloading | older 32-bit phones |
+            | `poolland-*-universal.apk` | `READ_SMS` for sync; optional `RECEIVE_SMS` alerts | may warn or block sideloading | every phone (larger) |
 
-            Poolland requests `READ_SMS` to sync recent inbox messages on-device
-            after the user grants permission and taps Sync. It does not request
-            `RECEIVE_SMS` or monitor incoming messages in the background. Every
-            match must be reviewed and approved before a transaction is recorded.
-            Users may paste a message instead. Sideloaded APKs requesting READ_SMS
-            may trigger Google Play Protect and Google Play restricts this permission.
+            Poolland uses `READ_SMS` for on-device inbox sync. New-message alerts
+            are optional and require a separate `RECEIVE_SMS` opt-in in the SMS
+            review page; only enabled bank-rule transaction candidates produce
+            private notifications. Tapping opens review, and every transaction
+            still requires approval. Sideloaded APKs requesting SMS permissions
+            may trigger Google Play Protect; Google Play restricts SMS permissions.
 
             Verify downloads with `sha256sum -c SHA256SUMS.txt`.

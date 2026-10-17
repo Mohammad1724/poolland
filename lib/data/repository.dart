@@ -52,10 +52,10 @@ class AppRepository extends ChangeNotifier {
 
   // ---- Bank SMS ----
   //
-  // On Android, inbox messages enter the review queue only after the user
-  // grants READ_SMS and explicitly syncs. Parsing and review stay on-device;
-  // the app never records a transaction without user approval. Pasting a
-  // message remains available when permission is declined.
+  // On Android, inbox sync and optional arrival alerts are permission-gated.
+  // Parsing and review stay on-device; the app never records a transaction
+  // without user approval. Pasting a message remains available if SMS access
+  // is declined.
   List<ParsedSms> smsSuggestions = [];
   List<SmsHistoryEntry> smsHistory = [];
   List<BankRule> smsRules = [];
@@ -1235,9 +1235,11 @@ class AppRepository extends ChangeNotifier {
     return SmsImportResult.added;
   }
 
-  /// Adds recognized messages from a permission-gated Android inbox sync.
+  /// Adds recognized messages from a permission-gated Android inbox read or
+  /// an explicitly enabled incoming-SMS notification.
   ///
-  /// Unlike pasted text, inbox messages must match an enabled bank rule.
+  /// Unlike pasted text, received inbox messages must match an enabled bank
+  /// rule.
   /// Unknown senders, OTPs, and other non-transaction messages are ignored.
   /// Duplicates already queued or reviewed are not resurrected.
   int importInboxSms(Iterable<SmsMessage> messages) {

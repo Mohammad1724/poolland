@@ -3,12 +3,21 @@ import 'package:provider/provider.dart';
 
 import '../core/localization.dart';
 import '../core/money.dart';
+import '../core/sms/sms_access.dart';
 import '../core/sms/bank_rules.dart';
 import '../core/sms/sms_models.dart';
 import '../core/sms/sms_parser.dart';
 import '../data/repository.dart';
 import '../data/store.dart';
 import 'widgets/widgets.dart';
+
+Future<void> _syncArrivalRuleHints(AppRepository repo) {
+  final rules = repo.activeSmsRules;
+  return smsAccess.syncArrivalRules(
+    senderHints: rules.expand((rule) => rule.senderHints).toList(),
+    bodyHints: rules.expand((rule) => rule.bodyHints).toList(),
+  );
+}
 
 /// Manage the rules that are allowed to identify bank SMS messages.
 /// A matched message is still only a suggestion; approval remains manual.
@@ -155,6 +164,7 @@ class SmsRulesPage extends StatelessWidget {
               value: enabled,
               onChanged: (value) async {
                 await repo.setSmsRuleEnabled(rule.id, value);
+                await _syncArrivalRuleHints(repo);
                 if (context.mounted) {
                   showSnack(
                     context,
@@ -209,6 +219,7 @@ class SmsRulesPage extends StatelessWidget {
     );
     if (!confirmed) return;
     await repo.deleteSmsRule(rule.id);
+    await _syncArrivalRuleHints(repo);
     if (context.mounted) showSnack(context, 'Custom rule deleted.');
   }
 }
@@ -454,6 +465,7 @@ class _SmsRuleEditPageState extends State<SmsRuleEditPage> {
     setState(() => _saving = true);
     try {
       await repo.addSmsRule(_buildRule(LocalStore.newId()));
+      await _syncArrivalRuleHints(repo);
       if (!mounted) return;
       showSnack(context, 'Custom rule added.');
       Navigator.of(context).pop(true);

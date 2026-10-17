@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,8 @@ import 'package:provider/provider.dart';
 
 import '../core/haptics.dart';
 import '../core/notifications/notify.dart';
+import '../core/sms/sms_access.dart';
+import '../core/sms/sms_models.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 import 'customers_page.dart';
@@ -19,6 +22,7 @@ import 'forms/transaction_edit_page.dart';
 import 'personal_page.dart';
 import 'reports_page.dart';
 import 'settings_page.dart';
+import 'sms_page.dart';
 import 'subscriptions_page.dart';
 import 'transactions_page.dart';
 import 'widgets/ledger_nav_bar.dart';
@@ -81,14 +85,18 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     'Transactions',
   ];
 
-  /// The repository this shell keeps a handle on, so the lifecycle callback
-  /// can refresh the notification permission without a full rebuild.
+  /// The repository this shell keeps a handle on, so lifecycle callbacks and
+  /// notification taps can be handled without rebuilding the whole shell.
   AppRepository? _repo;
+  late final StreamSubscription<SmsMessage> _smsNotificationSubscription;
+  final Set<String> _handledSmsNotificationKeys = {};
+  final List<SmsMessage> _deferredSmsNotificationTaps = [];
 
   @override
   void dispose() {
     _closeDial();
     _dialHighlight.dispose();
+    unawaited(_smsNotificationSubscription.cancel());
     WidgetsBinding.instance.removeObserver(this);
     _fabVisible.dispose();
     for (final controller in _scrollControllers.values) {
@@ -104,8 +112,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       final repo = _repo;
       if (repo != null && repo.isReady) {
-        repo.refreshNotificationPermission();
+        unawaited(repo.refreshNotificationPermission().then<void>((_) {}));
       }
+      unawaited(_consumeSmsNotificationTaps());
     }
   }
 
@@ -117,6 +126,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    _repo = context.read<AppRepository>();
+    _smsNotificationSubscription = smsAccess.notificationTaps.listen(
+      (message) => unawaited(_handleSmsNotificationTap(message)),
+    );
     // First run after an update: teach the gestures once, with animation.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) maybeShowGestureTour(context);
@@ -144,7 +157,72 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         await reminder.requestPermission();
         await repo.refreshNotificationPermission();
       }
+
+      // The Android receiver uses the same active bank rules as inbox sync.
+      await smsAccess.syncArrivalRules(
+        senderHints: repo.activeSmsRules
+            .expand((rule) => rule.senderHints)
+            .toList(),
+        bodyHints: repo.activeSmsRules
+            .expand((rule) => rule.bodyHints)
+            .toList(),
+      );
+      if (!mounted) return;
+      unawaited(_consumeSmsNotificationTaps());
     });
+  }
+
+  Future<void> _consumeSmsNotificationTaps() async {
+    if (!mounted) return;
+    final deferred = List<SmsMessage>.of(_deferredSmsNotificationTaps);
+    _deferredSmsNotificationTaps.clear();
+    final buffered = smsAccess.takeBufferedNotificationTaps();
+    for (final message in [...deferred, ...buffered]) {
+      if (!mounted) return;
+      await _handleSmsNotificationTap(message);
+    }
+
+    final launchMessage = await smsAccess.takePendingNotification();
+    if (mounted && launchMessage != null) {
+      await _handleSmsNotificationTap(launchMessage);
+    }
+  }
+
+  Future<void> _handleSmsNotificationTap(SmsMessage message) async {
+    if (!mounted) return;
+    final repo = _repo;
+    if (repo == null || !repo.isReady) {
+      if (!_deferredSmsNotificationTaps.any(
+        (item) => item.key == message.key,
+      )) {
+        _deferredSmsNotificationTaps.add(message);
+      }
+      return;
+    }
+    if (!_handledSmsNotificationKeys.add(message.key)) return;
+
+    var suggestion = repo.smsSuggestions
+        .where((sms) => sms.key == message.key)
+        .firstOrNull;
+    if (suggestion == null) {
+      repo.importInboxSms([message]);
+      suggestion = repo.smsSuggestions
+          .where((sms) => sms.key == message.key)
+          .firstOrNull;
+    }
+    if (suggestion == null) {
+      showSnack(
+        context,
+        'No matching bank transaction was found for this SMS.',
+      );
+      return;
+    }
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => SmsPage(openReviewKey: suggestion!.key),
+      ),
+    );
   }
 
   void _goTo(int i) {

@@ -91,12 +91,12 @@ android {
 
     // One build, one APK, no flavors.
     //
-    // READ_SMS is used for an explicitly user-triggered sync of recent bank
-    // inbox messages. The app does not declare RECEIVE_SMS or register a
-    // background SMS receiver. Google Play Protect can warn or block APKs
-    // sideloaded with READ_SMS, and Google Play restricts SMS permissions;
-    // users who decline access can still paste a message into the review page.
-    // See docs/android-install.md.
+    // READ_SMS supports user-triggered inbox sync. RECEIVE_SMS powers only the
+    // optional, user-enabled new-bank-SMS notification receiver. Both filter
+    // and parse on-device; notifications open review and never auto-record.
+    // SMS permissions can trigger Play Protect warnings when sideloaded and
+    // Google Play restricts their use. Users can leave these features off and
+    // paste SMS text manually. See docs/android-install.md.
 
     signingConfigs {
         if (hasReleaseSigning) {

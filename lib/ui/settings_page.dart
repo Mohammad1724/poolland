@@ -12,6 +12,7 @@ import '../core/money.dart';
 import '../core/notifications/notify.dart';
 import '../core/notifications/notification_sound_picker.dart';
 import '../core/platform_info.dart';
+import '../core/sms/sms_access.dart';
 import '../data/models.dart';
 import 'design.dart';
 import '../data/repository.dart';
@@ -25,6 +26,14 @@ import 'widgets/widgets.dart';
 import '../core/localization.dart';
 
 enum _NotificationSoundAction { systemDefault, phoneSound, audioFile }
+
+Future<void> _syncSmsArrivalRuleHints(AppRepository repo) {
+  final rules = repo.activeSmsRules;
+  return smsAccess.syncArrivalRules(
+    senderHints: rules.expand((rule) => rule.senderHints).toList(),
+    bodyHints: rules.expand((rule) => rule.bodyHints).toList(),
+  );
+}
 
 /// The "Save" action of a small input dialog, disabled while the field holds
 /// nothing usable.
@@ -237,8 +246,8 @@ class SettingsPage extends StatelessWidget {
 
           // ---------- Bank SMS ----------
           //
-          // Inbox access is permission-gated and synced on demand; users can
-          // still paste a message if they do not grant READ_SMS.
+          // Inbox sync and arrival alerts are separate opt-ins; users can
+          // still paste a message if they decline either SMS permission.
           if (isAndroidPlatform) ...[
             const SectionTitle('Bank SMS', icon: Icons.sms_rounded),
             CardBox(
@@ -252,7 +261,7 @@ class SettingsPage extends StatelessWidget {
                       style: TextStyle(fontSize: 13.5),
                     ),
                     subtitle: Text(
-                      'Recent bank messages are read on this device only when you sync. Nothing is recorded until you approve it.'
+                      'Recent bank messages are read on this device when you sync. New messages are checked only if you enable arrival alerts. Nothing is recorded until you approve it.'
                           .tr,
                       style: TextStyle(fontSize: 11.5),
                     ),
@@ -665,6 +674,7 @@ class SettingsPage extends StatelessWidget {
                     );
                     if (!ok) return;
                     await repo.loadDemoData();
+                    await _syncSmsArrivalRuleHints(repo);
                     if (context.mounted) {
                       showSnack(context, 'Sample data loaded'.tr);
                     }
@@ -687,7 +697,9 @@ class SettingsPage extends StatelessWidget {
                       danger: true,
                     );
                     if (!ok) return;
+                    await smsAccess.setArrivalNotificationsEnabled(false);
                     await repo.wipeAll();
+                    await _syncSmsArrivalRuleHints(repo);
                     if (context.mounted) showSnack(context, 'All data erased');
                   },
                 ),
@@ -933,6 +945,7 @@ class SettingsPage extends StatelessWidget {
       );
       if (!ok) return;
       await repo.importData(data);
+      await _syncSmsArrivalRuleHints(repo);
       // A backup restored onto a phone that never granted the permissions
       // must not pretend notifications work: ask for what the restored
       // settings now require, and refresh the displayed state either way.

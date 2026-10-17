@@ -92,7 +92,7 @@ class _PermissionsIntroPageState extends State<PermissionsIntroPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Notifications and SMS access are optional. SMS is read only on this device when you sync; matching messages enter a review queue, and no transaction is recorded until you approve it.'
+                  'Notifications and SMS access are optional. You can sync recent messages or enable on-device alerts for new bank SMS. Matching messages enter review; no transaction is recorded until you approve it.'
                       .tr,
                   textAlign: TextAlign.center,
                   style: TextStyle(
