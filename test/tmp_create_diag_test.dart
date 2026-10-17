@@ -12,7 +12,8 @@ import 'package:poolland/data/store.dart';
 import 'package:poolland/ui/settings_page.dart';
 import 'package:poolland/ui/theme.dart';
 
-/// TEMP (run 8): step-by-step diagnostics for the create-subcategory test.
+/// TEMP (run 10): observation-only diagnostics for the create-subcategory
+/// flow. Prints exactly one compact ::error:: line, then passes.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -61,86 +62,88 @@ void main() {
       )
       .first;
 
-  testWidgets('create diag', (tester) async {
-    await tester.pumpWidget(wrap(const CategoriesPage()));
-    await tester.pumpAndSettle();
+  testWidgets('create diag (observation only)', (tester) async {
+    final r = <String>[];
+    try {
+      await tester.pumpWidget(wrap(const CategoriesPage()));
+      await tester.pumpAndSettle();
+      r.add('pump=1');
 
-    await tester.tap(find.text('Expense'));
-    await tester.pumpAndSettle();
-    print('::error::CD1 tab=expense');
+      await tester.tap(find.text('Expense'));
+      await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(
-      find.text('Add category'),
-      200,
-      scrollable: formScrollable(),
-    );
-    await tester.pumpAndSettle();
-    print('::error::CD2 addBtn=${find.text('Add category').evaluate().length}');
-
-    await tester.tap(find.text('Add category'));
-    await tester.pumpAndSettle();
-    print(
-      '::error::CD3 title=${find.text('New expense category').evaluate().length} '
-      'textFields=${find.byType(TextField).evaluate().length} '
-      'dropdowns=${find.byType(DropdownButtonFormField<String?>).evaluate().length}',
-    );
-
-    await tester.enterText(find.byType(TextField), 'Fuel and oil');
-    print('::error::CD4 entered=${find.text('Fuel and oil').evaluate().length}');
-
-    final firstParent = repo
-        .categoriesOf(TxnKind.expense, scope: TxnScope.business)
-        .where((c) => c.parentId == null)
-        .first;
-    print('::error::CD5 firstParent=${firstParent.name}');
-
-    await tester.tap(find.byType(DropdownButtonFormField<String?>));
-    await tester.pumpAndSettle();
-    final all = find.text(firstParent.name);
-    print(
-      '::error::CD6 menuOpen parentMatches=${all.evaluate().length} '
-      'topLevel=${find.text('Top-level category').evaluate().length}',
-    );
-
-    // Where are the matches, and which is last?
-    for (final el in all.evaluate()) {
-      final rect = tester.getRect(el);
-      print('::error::CD7 match rect=$rect');
-    }
-
-    await tester.tap(all.last);
-    await tester.pumpAndSettle();
-    print(
-      '::error::CD8 afterSelect '
-      'selectedShown=${find.descendant(of: find.byType(DropdownButtonFormField<String?>), matching: find.text(firstParent.name)).evaluate().length} '
-      'menuGone=${find.text('Top-level category').evaluate().length}',
-    );
-
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-    print('::error::CD9 canceled');
-
-    await tester.runAsync(() => repo.addCategory('Fuel and oil',
-        TxnKind.expense, parentId: firstParent.id));
-    await tester.pumpAndSettle();
-    final inData = repo
-        .categoriesOf(TxnKind.expense, scope: TxnScope.business)
-        .firstWhere((c) => c.name == 'Fuel and oil');
-    print('::error::CD10 inData parent=${inData.parentId == firstParent.id}');
-
-    var count = find.text('Fuel and oil').evaluate().length;
-    print('::error::CD11 foundUnscrolled=$count');
-    if (count == 0) {
       await tester.scrollUntilVisible(
-        find.text('Fuel and oil'),
-        100,
+        find.text('Add category'),
+        200,
         scrollable: formScrollable(),
       );
-      count = find.text('Fuel and oil').evaluate().length;
-      print('::error::CD12 foundAfterScroll=$count');
-    }
+      await tester.pumpAndSettle();
+      r.add('btn=${find.text('Add category').evaluate().length}');
 
+      await tester.tap(find.text('Add category'));
+      await tester.pumpAndSettle();
+      r.add(
+        'dlg=${find.text('New expense category').evaluate().length} '
+        'tf=${find.byType(TextField).evaluate().length} '
+        'dd=${find.byType(DropdownButtonFormField<String?>).evaluate().length}',
+      );
+
+      await tester.enterText(find.byType(TextField), 'Fuel and oil');
+      r.add('ent=${find.text('Fuel and oil').evaluate().length}');
+
+      final firstParent = repo
+          .categoriesOf(TxnKind.expense, scope: TxnScope.business)
+          .where((c) => c.parentId == null)
+          .first;
+      r.add('pp=${firstParent.name}');
+
+      await tester.tap(find.byType(DropdownButtonFormField<String?>));
+      await tester.pumpAndSettle();
+      final all = find.text(firstParent.name);
+      final rects = all
+          .evaluate()
+          .map((e) => '${tester.getRect(e).top.toInt()},'
+              '${tester.getRect(e).bottom.toInt()}')
+          .join('|');
+      r.add('menu=${all.evaluate().length} rects=$rects');
+
+      await tester.tap(all.last);
+      await tester.pumpAndSettle();
+      r.add(
+        'sel=${find.descendant(of: find.byType(DropdownButtonFormField<String?>), matching: find.text(firstParent.name)).evaluate().length} '
+        'tl=${find.text('Top-level category').evaluate().length}',
+      );
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      r.add('cancel=1');
+
+      await tester.runAsync(() => repo.addCategory('Fuel and oil',
+          TxnKind.expense, parentId: firstParent.id));
+      await tester.pumpAndSettle();
+      final inData = repo
+          .categoriesOf(TxnKind.expense, scope: TxnScope.business)
+          .firstWhere((c) => c.name == 'Fuel and oil');
+      r.add('data=${inData.parentId == firstParent.id}');
+
+      var found = find.text('Fuel and oil').evaluate().length;
+      r.add('found=$found');
+      if (found == 0) {
+        await tester.scrollUntilVisible(
+          find.text('Fuel and oil'),
+          100,
+          scrollable: formScrollable(),
+        );
+        found = find.text('Fuel and oil').evaluate().length;
+        r.add('scf=$found');
+      }
+    } catch (e) {
+      r.add('ERR ${e.runtimeType} $e');
+    }
     final ex = tester.takeException();
-    print('::error::CD13 exception=${ex == null ? 'none' : '$ex'}');
+    if (ex != null) {
+      r.add('ex=${ex.runtimeType} ${'$ex'.substring(0, '$ex'.length > 90 ? 90 : '$ex'.length)}');
+    }
+    print('::error::CD ${r.join(' ')}');
   });
 }

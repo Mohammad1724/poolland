@@ -5,15 +5,13 @@ on:
     branches: [main]
   pull_request:
 
-# Superseded runs (new pushes to the same branch/PR) are cancelled instead of
-# piling up in the Actions tab.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Analyze and test
+  analyze:
+    name: Analyze dump
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -22,16 +20,28 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - name: flutter analyze (TEMP annotated dump)
+      - name: flutter analyze (bare annotation dump)
         continue-on-error: true
         run: |
           flutter analyze > /tmp/analyze.txt 2>&1
           EC=$?
           python3 - <<'PYEOF'
-          lines = open('/tmp/analyze.txt').read().splitlines()
-          for i, ln in enumerate(lines[:35]):
-              print(f"::error file=.github,line=100{i}::AN {ln[:220]}")
-          print(f"::error file=.github,line=900::AN DONE ec=$EC total_lines={len(lines)}")
+          data = open('/tmp/analyze.txt').read()
+          total = len(data)
+          joined = " | ".join(l for l in data.splitlines() if l.strip())
+          print(f"::error::AN [ec=$EC totalchars=$total] {joined[:3500]}")
           PYEOF
-      - name: flutter test
-        run: flutter test --concurrency=1
+
+  diag:
+    name: Create-flow diagnostics
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: run only the diagnostic test
+        continue-on-error: true
+        run: flutter test test/tmp_create_diag_test.dart --concurrency=1
