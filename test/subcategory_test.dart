@@ -317,7 +317,7 @@ void main() {
 
     // The list is still scrolled down to the button; the new child row
     // sits at the top, right under its parent. Jump back to the top.
-    tester.state<ScrollableState>(find.byType(Scrollable))
+    tester.state<ScrollableState>(formScrollable())
         .position
         .jumpTo(0);
     await tester.pumpAndSettle();
