@@ -441,8 +441,8 @@ class DashboardPage extends StatelessWidget {
             ),
           ),
 
-        // Bank SMS (Android only). The app has no SMS permission, so the
-        // card opens the review page for pasted messages.
+        // Bank SMS (Android only). Inbox messages are synced on demand and
+        // queued for review; opening the card also supports manual pasting.
         if (isAndroidPlatform) ...[
           const SizedBox(height: 12),
           CardBox(
@@ -490,7 +490,7 @@ class DashboardPage extends StatelessWidget {
                             ? '{count} transactions awaiting review'.trArgs({
                                 'count': repo.smsPendingCount,
                               })
-                            : 'Tap to paste a bank SMS'.tr,
+                            : 'Sync bank SMS to review transactions'.tr,
                         style: TextStyle(
                           fontSize: 11.5,
                           color: onSurface.withValues(alpha: 0.6),

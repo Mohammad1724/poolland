@@ -508,7 +508,7 @@ void main() {
   testWidgets('Permissions intro renders', (tester) async {
     await tester.pumpWidget(wrap(const PermissionsIntroPage()));
     await tester.pumpAndSettle();
-    expect(find.text('Required permissions'), findsOneWidget);
+    expect(find.text('Permissions'), findsOneWidget);
     expect(find.text('Skip for now'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -517,6 +517,28 @@ void main() {
     await tester.pumpWidget(wrap(const SmsPage()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('SMS notification opens the matching approval sheet', (
+    tester,
+  ) async {
+    final message = SmsMessage(
+      id: 'arrival-sms',
+      address: 'BANKMELAT',
+      body: 'بانک ملت\nواریز مبلغ 100,000 ریال',
+      date: DateTime(2026, 10, 17, 12),
+    );
+    repo.importInboxSms([message]);
+    final reviewKey = repo.smsSuggestions.single.key;
+    final initialTransactionCount = repo.transactions.length;
+
+    await tester.pumpWidget(wrap(SmsPage(openReviewKey: reviewKey)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Record this SMS transaction'), findsOneWidget);
+    expect(find.text('Record transaction'), findsOneWidget);
+    expect(repo.transactions.length, initialTransactionCount);
     expect(tester.takeException(), isNull);
   });
 

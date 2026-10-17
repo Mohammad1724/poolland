@@ -1145,68 +1145,69 @@ class _SheetDismissState extends State<_SheetDismiss>
   @override
   Widget build(BuildContext context) {
     _animated = Motion.motionEnabled && !Motion.reduced(context);
-    final content = Stack(
-      children: [
-        // `translucent` keeps the pointer bookkeeping alive over the whole
-        // sheet while still returning false from `hitTest`, so nothing below
-        // the sheet — the barrier included — loses the event.
-        Listener(
-          behavior: HitTestBehavior.translucent,
-          onPointerDown: (e) {
-            _pointerDown = true;
-            _decided = false;
-            _tracker = VelocityTracker.withKind(e.kind);
-          },
-          onPointerMove: (e) => _tracker?.addPosition(e.timeStamp, e.position),
-          onPointerUp: (e) {
-            _pointerDown = false;
-            release(velocity: _tracker?.getVelocity().pixelsPerSecond.dy ?? 0);
-          },
-          onPointerCancel: (_) {
-            _pointerDown = false;
-            _decided = true;
-            _tracker = null;
-            if (_pull > 0) _snapBack();
-          },
-          child: widget.child,
-        ),
-        if (widget.enabled)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: _grabHeight,
-            child: RawGestureDetector(
-              behavior: HitTestBehavior.translucent,
-              gestures: {
-                _DownOnlyDrag:
-                    GestureRecognizerFactoryWithHandlers<_DownOnlyDrag>(
-                      _DownOnlyDrag.new,
-                      (_DownOnlyDrag instance) {
-                        instance.dragStartBehavior = DragStartBehavior.start;
-                        instance.onStart = (_) {
-                          _adopt();
-                        };
-                        instance.onUpdate = (d) {
-                          addPull(d.delta.dy);
-                        };
-                        instance.onEnd = (d) {
-                          release(velocity: d.primaryVelocity ?? 0);
-                        };
-                        instance.onCancel = () {
-                          // The drag lost the arena; the pointer is still down,
-                          // so the sheet-wide pointer-up gets to make the
-                          // decision instead.
-                          _decided = false;
-                          if (_pull > 0) _snapBack();
-                        };
-                      },
-                    ),
-              },
-              child: const SizedBox.expand(),
+    // Keep pointer bookkeeping above the entire hit-test subtree. The grab
+    // strip is a Stack sibling layered over the sheet body, so a Listener on
+    // the body itself never receives pointer-downs that start on that strip;
+    // without those, its drag recognizer has no active pull to release.
+    final content = Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (e) {
+        _pointerDown = true;
+        _decided = false;
+        _tracker = VelocityTracker.withKind(e.kind);
+      },
+      onPointerMove: (e) => _tracker?.addPosition(e.timeStamp, e.position),
+      onPointerUp: (e) {
+        _pointerDown = false;
+        release(velocity: _tracker?.getVelocity().pixelsPerSecond.dy ?? 0);
+      },
+      onPointerCancel: (_) {
+        _pointerDown = false;
+        _decided = true;
+        _tracker = null;
+        if (_pull > 0) _snapBack();
+      },
+      child: Stack(
+        children: [
+          widget.child,
+          if (widget.enabled)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: _grabHeight,
+              child: RawGestureDetector(
+                behavior: HitTestBehavior.translucent,
+                gestures: {
+                  _DownOnlyDrag:
+                      GestureRecognizerFactoryWithHandlers<_DownOnlyDrag>(
+                        _DownOnlyDrag.new,
+                        (_DownOnlyDrag instance) {
+                          instance.dragStartBehavior = DragStartBehavior.start;
+                          instance.onStart = (_) {
+                            _adopt();
+                          };
+                          instance.onUpdate = (d) {
+                            addPull(d.delta.dy);
+                          };
+                          instance.onEnd = (d) {
+                            release(velocity: d.primaryVelocity ?? 0);
+                          };
+                          instance.onCancel = () {
+                            // The drag lost the arena; the pointer is still
+                            // down, so the sheet-wide pointer-up gets to make
+                            // the decision instead.
+                            _decided = false;
+                            if (_pull > 0) _snapBack();
+                          };
+                        },
+                      ),
+                },
+                child: const SizedBox.expand(),
+              ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
 
     Widget sheet = _SheetDismissScope(controller: this, child: content);

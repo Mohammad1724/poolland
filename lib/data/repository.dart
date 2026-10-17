@@ -52,11 +52,10 @@ class AppRepository extends ChangeNotifier {
 
   // ---- Bank SMS ----
   //
-  // The app never reads the SMS inbox: it declares neither READ_SMS nor
-  // RECEIVE_SMS, because Google Play Protect blocks the install of any APK
-  // that does. A bank message reaches the review queue only when the user
-  // pastes its text (see [importSmsText]) — the parser, the rules, and the
-  // review sheet are the same either way.
+  // On Android, inbox sync and optional arrival alerts are permission-gated.
+  // Parsing and review stay on-device; the app never records a transaction
+  // without user approval. Pasting a message remains available if SMS access
+  // is declined.
   List<ParsedSms> smsSuggestions = [];
   List<SmsHistoryEntry> smsHistory = [];
   List<BankRule> smsRules = [];
@@ -1185,11 +1184,10 @@ class AppRepository extends ChangeNotifier {
 
   /// Queues a bank message the user pasted into the review page.
   ///
-  /// The app never reads the SMS inbox — it declares no SMS permission, so
-  /// Google Play Protect lets it install — but the parser, the rules, and the
-  /// review sheet are the same. A message that matches no active bank rule is
-  /// still accepted when it clearly contains an amount and a direction, so a
-  /// paste from a bank the rule list does not cover is not thrown away.
+  /// Pasted messages remain available when the user declines inbox access.
+  /// A message that matches no active bank rule is still accepted when it
+  /// clearly contains an amount and a direction, so a paste from a bank the
+  /// rule list does not cover is not thrown away.
   ///
   /// Duplicates are matched on the message body as well as the sender/time
   /// twin window, because a pasted message has no sender and may be pasted
@@ -1237,6 +1235,66 @@ class AppRepository extends ChangeNotifier {
     return SmsImportResult.added;
   }
 
+  /// Adds recognized messages from a permission-gated Android inbox read or
+  /// an explicitly enabled incoming-SMS notification.
+  ///
+  /// Unlike pasted text, received inbox messages must match an enabled bank
+  /// rule.
+  /// Unknown senders, OTPs, and other non-transaction messages are ignored.
+  /// Duplicates already queued or reviewed are not resurrected.
+  int importInboxSms(Iterable<SmsMessage> messages) {
+    final seenKeys = <String>{};
+    final currentStore = _store;
+    if (currentStore != null) {
+      // Keep status-only entries from older app versions from being queued
+      // again even though those records have no displayable SMS body.
+      seenKeys.addAll(currentStore.loadSmsState().keys);
+    }
+    seenKeys
+      ..addAll(smsSuggestions.map((sms) => sms.key))
+      ..addAll(smsHistory.map((entry) => entry.key));
+    final manualBodies = <String>{
+      ...smsSuggestions
+          .where((sms) => sms.message.address.isEmpty)
+          .map((sms) => SmsParser.normalize(sms.message.body).trim()),
+      ...smsHistory
+          .where((entry) => entry.message.address.isEmpty)
+          .map((entry) => SmsParser.normalize(entry.message.body).trim()),
+    };
+    final additions = <ParsedSms>[];
+    final newestFirst = messages.toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+
+    for (final message in newestFirst) {
+      if (message.body.trim().isEmpty || !seenKeys.add(message.key)) continue;
+      final normalizedBody = SmsParser.normalize(message.body).trim();
+      if (normalizedBody.isEmpty || manualBodies.contains(normalizedBody)) {
+        continue;
+      }
+
+      final parsed = SmsParser.parse(
+        message,
+        extraRules: smsRules,
+        disabledRuleIds: settings.disabledSmsRuleIds.toSet(),
+      );
+      if (!parsed.isTransaction) continue;
+
+      // Banks sometimes send a second confirmation for the same payment.
+      // Keep only one suggestion within the existing two-minute twin window.
+      if (smsSuggestions.any(isTwinSmsOf(parsed)) ||
+          additions.any(isTwinSmsOf(parsed))) {
+        continue;
+      }
+      additions.add(parsed);
+    }
+
+    if (additions.isEmpty) return 0;
+    smsSuggestions = [...smsSuggestions, ...additions]
+      ..sort((a, b) => b.message.date.compareTo(a.message.date));
+    notifyListeners();
+    return additions.length;
+  }
+
   /// Quiet probe of the notification permission (no system dialog).
   Future<bool> refreshNotificationPermission() async {
     try {
@@ -1268,8 +1326,7 @@ class AppRepository extends ChangeNotifier {
     required TxnScope scope,
   }) async {
     // Inbox messages must match a bank rule, but a pasted message is an
-    // explicit user decision: it may be recorded even when no rule matched
-    // (the safe build depends on this).
+    // explicit user decision: it may be recorded even when no rule matched.
     if (!sms.isTransaction && !sms.manual) return null;
 
     final cust = scope == TxnScope.business

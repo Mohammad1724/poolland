@@ -1,19 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!--
-        No SMS permission is declared, on purpose.
-
-        Google Play Protect hard-blocks any APK installed from a browser, a
-        messenger, or a file manager that declares READ_SMS or RECEIVE_SMS
-        (the "App blocked to protect your device" screen), and the block is
-        by permission, not by signature — a release-signed APK is blocked
-        exactly the same way. The app therefore has no inbox access at all:
-        a bank message reaches the ledger when the user pastes its text into
-        the review page, where the same parser detects bank, amount,
-        direction, and card.
-
-        Keep it that way: adding READ_SMS or RECEIVE_SMS back would make the
-        app uninstallable for most users.
+        READ_SMS is used for user-triggered inbox sync. RECEIVE_SMS is only
+        used after the user separately enables new-bank-SMS notifications.
+        Candidate filtering and transaction parsing stay on-device; a tap opens
+        review and never records a transaction automatically. SMS permissions
+        may trigger Play Protect warnings and are restricted by Google Play.
     -->
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
 
     <!-- Optional fingerprint / face unlock for the app lock -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
@@ -57,6 +51,23 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!--
+            New-message notifications are optional; the receiver component is
+            disabled in the manifest until the user opts in. When enabled, it is
+            guarded at runtime by RECEIVE_SMS and the in-app switch.
+            The system-only broadcast permission prevents other apps from
+            invoking this receiver.
+        -->
+        <receiver
+            android:name=".SmsReceivedReceiver"
+            android:enabled="false"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Reschedule reminders after the device restarts -->
         <receiver android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"

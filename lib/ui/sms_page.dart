@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -6,7 +8,9 @@ import '../core/format_utils.dart';
 import '../core/haptics.dart';
 import '../core/jalali_utils.dart';
 import '../core/money.dart';
+import '../core/notifications/notify.dart';
 import '../core/platform_info.dart';
+import '../core/sms/sms_access.dart';
 import '../core/sms/sms_models.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
@@ -24,15 +28,18 @@ import 'personal_page.dart';
 import 'widgets/quick_buttons.dart';
 
 /// ============================================================
-///  Bank SMS — review and approval queue
+///  Bank SMS — inbox sync, review, and approval queue
 ///
-///  The app declares no SMS permission (Google Play Protect blocks the
-///  install of any APK that does), so a message is added by pasting its
-///  text here. It is parsed, but until the user approves it, no transaction
-///  is recorded in the ledger.
+///  Android inbox sync is opt-in through READ_SMS. New-message alerts are a
+///  separate RECEIVE_SMS opt-in. Matching transactions enter the review queue,
+///  and nothing is recorded until the user approves it. Pasting remains
+///  available if SMS access is declined.
 /// ============================================================
 class SmsPage extends StatefulWidget {
-  const SmsPage({super.key});
+  const SmsPage({super.key, this.openReviewKey});
+
+  /// Opens this queued message's approval sheet after a notification tap.
+  final String? openReviewKey;
 
   @override
   State<SmsPage> createState() => _SmsPageState();
@@ -41,9 +48,248 @@ class SmsPage extends StatefulWidget {
 enum _SmsFilter { all, deposit, withdraw }
 enum _HistoryFilter { all, recorded, rejected }
 
-class _SmsPageState extends State<SmsPage> {
+class _SmsPageState extends State<SmsPage> with WidgetsBindingObserver {
   _SmsFilter _filter = _SmsFilter.all;
   _HistoryFilter _historyFilter = _HistoryFilter.all;
+  bool? _smsPermissionGranted;
+  bool _checkingPermission = true;
+  bool _syncing = false;
+  bool _arrivalNotificationsEnabled = false;
+  bool _loadingArrivalNotifications = true;
+  bool _updatingArrivalNotifications = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    if (isAndroidPlatform) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await _checkPermission(syncWhenGranted: widget.openReviewKey == null);
+        if (!mounted) return;
+        await _loadArrivalNotifications();
+        if (!mounted) return;
+        if (widget.openReviewKey != null) await _openInitialReview();
+      });
+    } else {
+      _checkingPermission = false;
+      _loadingArrivalNotifications = false;
+      if (widget.openReviewKey != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          unawaited(_openInitialReview());
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && isAndroidPlatform) {
+      unawaited(_checkPermission(syncWhenGranted: true));
+      unawaited(_loadArrivalNotifications());
+    }
+  }
+
+  Future<void> _checkPermission({bool syncWhenGranted = false}) async {
+    if (!mounted || _syncing) return;
+    setState(() => _checkingPermission = true);
+    final granted = await smsAccess.hasReadPermission();
+    if (!mounted) return;
+    setState(() {
+      _smsPermissionGranted = granted;
+      _checkingPermission = false;
+    });
+    if (granted && syncWhenGranted) {
+      await _syncInbox(showResult: false);
+    }
+  }
+
+  Future<void> _loadArrivalNotifications() async {
+    if (!mounted) return;
+    final repo = context.read<AppRepository>();
+    final enabled = await smsAccess.arrivalNotificationsEnabled();
+    final receiveGranted = await smsAccess.hasReceivePermission();
+    final notificationsGranted = await repo.refreshNotificationPermission();
+    var canRemainEnabled = enabled && receiveGranted && notificationsGranted;
+    if (enabled) {
+      if (canRemainEnabled) {
+        canRemainEnabled =
+            await smsAccess.setArrivalNotificationsEnabled(true);
+      }
+      if (!canRemainEnabled) {
+        await smsAccess.setArrivalNotificationsEnabled(false);
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _arrivalNotificationsEnabled = canRemainEnabled;
+      _loadingArrivalNotifications = false;
+    });
+  }
+
+  Future<void> _setArrivalNotifications(bool enabled) async {
+    if (_updatingArrivalNotifications) return;
+    setState(() => _updatingArrivalNotifications = true);
+    try {
+      if (!enabled) {
+        await smsAccess.setArrivalNotificationsEnabled(false);
+        if (mounted) {
+          setState(() => _arrivalNotificationsEnabled = false);
+          showSnack(context, 'Bank SMS notifications turned off.');
+        }
+        return;
+      }
+
+      final repo = context.read<AppRepository>();
+      var notificationsGranted = await repo.refreshNotificationPermission();
+      if (!notificationsGranted) {
+        await reminder.requestPermission();
+        notificationsGranted = await repo.refreshNotificationPermission();
+      }
+      if (!notificationsGranted) {
+        if (mounted) {
+          showSnack(
+            context,
+            'Notification permission denied. Enable it in Android settings.',
+            error: true,
+            actionLabel: 'Open app settings',
+            onAction: () => smsAccess.openAppSettings(),
+          );
+        }
+        return;
+      }
+
+      final receiveGranted = await smsAccess.requestReceivePermission();
+      if (!receiveGranted) {
+        if (mounted) {
+          showSnack(
+            context,
+            'Incoming SMS permission denied. Enable it in Android settings.',
+            error: true,
+            actionLabel: 'Open app settings',
+            onAction: () => smsAccess.openAppSettings(),
+          );
+        }
+        return;
+      }
+
+      final rules = repo.activeSmsRules;
+      await smsAccess.syncArrivalRules(
+        senderHints: rules.expand((rule) => rule.senderHints).toList(),
+        bodyHints: rules.expand((rule) => rule.bodyHints).toList(),
+      );
+      final saved = await smsAccess.setArrivalNotificationsEnabled(true);
+      if (!saved) {
+        if (mounted) {
+          showSnack(
+            context,
+            'Could not enable bank SMS notifications.',
+            error: true,
+          );
+        }
+        return;
+      }
+      if (mounted) {
+        setState(() => _arrivalNotificationsEnabled = true);
+        showSnack(context, 'Bank SMS notifications enabled.');
+      }
+    } catch (_) {
+      if (mounted) {
+        showSnack(
+          context,
+          'Could not enable bank SMS notifications.',
+          error: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _updatingArrivalNotifications = false);
+    }
+  }
+
+  Future<void> _openInitialReview() async {
+    final reviewKey = widget.openReviewKey;
+    if (!mounted || reviewKey == null) return;
+    final repo = context.read<AppRepository>();
+    final sms = repo.smsSuggestions
+        .where((item) => item.key == reviewKey)
+        .firstOrNull;
+    if (sms == null) {
+      showSnack(context, 'This SMS is no longer waiting for review.');
+      return;
+    }
+    final ok = await showLedgerSheet<bool>(
+      context,
+      builder: (_) => SmsReviewSheet(
+        sms: sms,
+        initialCustomer: repo.matchCustomerForSms(sms),
+      ),
+    );
+    if (ok == true && mounted) {
+      showSnack(context, 'Transaction recorded from SMS');
+    }
+  }
+
+  Future<void> _syncInbox({bool showResult = true}) async {
+    if (_syncing) return;
+    final repo = context.read<AppRepository>();
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _syncing = true);
+    try {
+      var granted = _smsPermissionGranted ?? false;
+      if (!granted) {
+        granted = await smsAccess.requestReadPermission();
+        if (!mounted) return;
+        setState(() => _smsPermissionGranted = granted);
+      }
+      if (!granted) {
+        if (showResult) {
+          showMessengerSnack(
+            messenger,
+            'SMS permission denied. Enable it in Android settings or keep using paste.',
+            error: true,
+            actionLabel: 'Open app settings',
+            onAction: () => smsAccess.openAppSettings(),
+          );
+        }
+        return;
+      }
+
+      final messages = await smsAccess.readInbox();
+      final added = repo.importInboxSms(messages);
+      if (!mounted || !showResult) return;
+      showMessengerSnack(
+        messenger,
+        added > 0
+            ? '{count} bank messages added to review'.trArgs({
+                'count': added,
+              })
+            : 'No new transaction messages found. Tap Sync to check recent messages.',
+      );
+    } on PlatformException {
+      if (mounted && showResult) {
+        showMessengerSnack(
+          messenger,
+          'Could not read SMS. Please try again.',
+          error: true,
+        );
+      }
+    } catch (_) {
+      if (mounted && showResult) {
+        showMessengerSnack(
+          messenger,
+          'Could not read SMS. Please try again.',
+          error: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -146,14 +392,79 @@ class _SmsPageState extends State<SmsPage> {
     children: [
       _summaryCard(context, all.length),
       const SizedBox(height: 10),
-      // The only way in: the app has no SMS permission, so a bank message
-      // is added by pasting its text.
+      Text(
+        _smsPermissionGranted == true
+            ? 'Sync recent bank messages on this device. Matching messages enter review; nothing is recorded until you approve it.'
+                  .tr
+            : 'Grant SMS access to sync recent bank messages. You can still paste a message manually.'
+                  .tr,
+        style: TextStyle(
+          fontSize: 12,
+          height: 1.6,
+          color: onSurface.withValues(alpha: 0.68),
+        ),
+      ),
+      const SizedBox(height: 10),
       SizedBox(
         width: double.infinity,
         child: FilledButton.tonalIcon(
+          onPressed: (_checkingPermission || _syncing)
+              ? null
+              : () => _syncInbox(),
+          icon: _syncing
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(
+                  _smsPermissionGranted == true
+                      ? Icons.sync_rounded
+                      : Icons.lock_open_rounded,
+                  size: 18,
+                ),
+          label: Text(
+            _syncing
+                ? 'Syncing…'.tr
+                : _checkingPermission
+                    ? 'Checking SMS access…'.tr
+                    : _smsPermissionGranted == true
+                        ? 'Sync bank SMS'.tr
+                        : 'Grant SMS access'.tr,
+          ),
+        ),
+      ),
+      const SizedBox(height: 4),
+      SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
           onPressed: () => _importSms(context, repo),
           icon: const Icon(Icons.content_paste_rounded, size: 18),
           label: Text('Add from SMS text'.tr),
+        ),
+      ),
+      const SizedBox(height: 10),
+      CardBox(
+        child: SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          value: _arrivalNotificationsEnabled,
+          onChanged: (_loadingArrivalNotifications ||
+                  _updatingArrivalNotifications)
+              ? null
+              : _setArrivalNotifications,
+          secondary: _updatingArrivalNotifications
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.notifications_active_outlined),
+          title: Text('Notify me about new bank SMS'.tr),
+          subtitle: Text(
+            'New messages are checked on this device against enabled bank rules. Matching transaction messages send a private notification; nothing is recorded until you approve it.'
+                .tr,
+            style: const TextStyle(fontSize: 11.5, height: 1.45),
+          ),
         ),
       ),
       const SizedBox(height: 12),
@@ -178,10 +489,12 @@ class _SmsPageState extends State<SmsPage> {
       if (list.isEmpty)
         Padding(
           padding: const EdgeInsets.only(top: 40),
-          child: const EmptyState(
+          child: EmptyState(
             icon: Icons.sms_outlined,
             title: 'No items found',
-            text: 'No messages yet. Paste a bank SMS above to review it.',
+            text: _smsPermissionGranted == true
+                ? 'No new transaction messages found. Tap Sync to check recent messages.'
+                : 'Grant SMS access to sync recent bank messages. You can still paste a message manually.',
           ),
         )
       else
@@ -307,7 +620,8 @@ class _SmsPageState extends State<SmsPage> {
   Widget _summaryCard(BuildContext context, int count) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final subtitle =
-        'Poolland never reads your SMS. Paste a bank SMS to review it.'.tr;
+        'SMS stays on this device. Review each matched message before recording it.'
+            .tr;
     return CardBox(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1097,11 +1411,10 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   }
 }
 
-/// Sheet for handing a bank message to the parser without SMS permission.
+/// Sheet for manually handing a copied bank message to the parser.
 ///
-/// Both builds get it: the safe build has no other way in, and the full build
-/// gives a user who denied the permission (or is reading one message right
-/// now) a way to record it without changing system settings.
+/// It remains available to users who decline inbox access or want to review
+/// one message without syncing the device inbox.
 class _ImportSmsSheet extends StatefulWidget {
   const _ImportSmsSheet();
 

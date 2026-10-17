@@ -12,6 +12,7 @@ import '../core/money.dart';
 import '../core/notifications/notify.dart';
 import '../core/notifications/notification_sound_picker.dart';
 import '../core/platform_info.dart';
+import '../core/sms/sms_access.dart';
 import '../data/models.dart';
 import 'design.dart';
 import '../data/repository.dart';
@@ -25,6 +26,14 @@ import 'widgets/widgets.dart';
 import '../core/localization.dart';
 
 enum _NotificationSoundAction { systemDefault, phoneSound, audioFile }
+
+Future<void> _syncSmsArrivalRuleHints(AppRepository repo) {
+  final rules = repo.activeSmsRules;
+  return smsAccess.syncArrivalRules(
+    senderHints: rules.expand((rule) => rule.senderHints).toList(),
+    bodyHints: rules.expand((rule) => rule.bodyHints).toList(),
+  );
+}
 
 /// The "Save" action of a small input dialog, disabled while the field holds
 /// nothing usable.
@@ -237,10 +246,8 @@ class SettingsPage extends StatelessWidget {
 
           // ---------- Bank SMS ----------
           //
-          // The app declares no SMS permission, so Google Play Protect
-          // installs it everywhere. A bank message is added by pasting its
-          // text on the review page, where the same parser detects bank,
-          // amount, direction, and card.
+          // Inbox sync and arrival alerts are separate opt-ins; users can
+          // still paste a message if they decline either SMS permission.
           if (isAndroidPlatform) ...[
             const SectionTitle('Bank SMS', icon: Icons.sms_rounded),
             CardBox(
@@ -250,11 +257,11 @@ class SettingsPage extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.shield_outlined, size: 20),
                     title: Text(
-                      'Poolland never reads your SMS'.tr,
+                      'On-device SMS access'.tr,
                       style: TextStyle(fontSize: 13.5),
                     ),
                     subtitle: Text(
-                      'The app has no SMS permission, so it installs without a Google Play Protect block. Paste a bank SMS on the review page to record it.'
+                      'Recent bank messages are read on this device when you sync. New messages are checked only if you enable arrival alerts. Nothing is recorded until you approve it.'
                           .tr,
                       style: TextStyle(fontSize: 11.5),
                     ),
@@ -268,7 +275,7 @@ class SettingsPage extends StatelessWidget {
                         ? '{count} transactions awaiting review'.trArgs({
                             'count': repo.smsPendingCount,
                           })
-                        : 'Paste a bank SMS to review it'.tr,
+                        : 'Sync bank SMS to review transactions'.tr,
                     page: const SmsPage(),
                   ),
                   Divider(color: Theme.of(context).dividerColor),
@@ -277,7 +284,7 @@ class SettingsPage extends StatelessWidget {
                     icon: Icons.tune_rounded,
                     title: 'Recognition rules'.tr,
                     subtitle:
-                        'Choose which banks and phrases a pasted SMS can match.'
+                        'Choose which banks and phrases a bank SMS can match.'
                             .tr,
                     page: const SmsRulesPage(),
                   ),
@@ -667,6 +674,7 @@ class SettingsPage extends StatelessWidget {
                     );
                     if (!ok) return;
                     await repo.loadDemoData();
+                    await _syncSmsArrivalRuleHints(repo);
                     if (context.mounted) {
                       showSnack(context, 'Sample data loaded'.tr);
                     }
@@ -689,7 +697,9 @@ class SettingsPage extends StatelessWidget {
                       danger: true,
                     );
                     if (!ok) return;
+                    await smsAccess.setArrivalNotificationsEnabled(false);
                     await repo.wipeAll();
+                    await _syncSmsArrivalRuleHints(repo);
                     if (context.mounted) showSnack(context, 'All data erased');
                   },
                 ),
@@ -935,6 +945,7 @@ class SettingsPage extends StatelessWidget {
       );
       if (!ok) return;
       await repo.importData(data);
+      await _syncSmsArrivalRuleHints(repo);
       // A backup restored onto a phone that never granted the permissions
       // must not pretend notifications work: ask for what the restored
       // settings now require, and refresh the displayed state either way.

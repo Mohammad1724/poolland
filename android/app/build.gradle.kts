@@ -91,15 +91,12 @@ android {
 
     // One build, one APK, no flavors.
     //
-    // There used to be a `full` flavor that read the SMS inbox and a `safe`
-    // one that did not. Google Play Protect hard-blocks internet-sideloaded
-    // APKs that declare READ_SMS, RECEIVE_SMS, a notification listener, or
-    // an accessibility service — and the block is by permission, not by
-    // signature, so a release-signed APK is blocked exactly the same way.
-    // The `full` flavor was therefore uninstallable for most people, and it
-    // is gone: the app declares no SMS permission at all, and a bank message
-    // reaches the ledger when the user pastes its text into the review
-    // page. See docs/android-install.md.
+    // READ_SMS supports user-triggered inbox sync. RECEIVE_SMS powers only the
+    // optional, user-enabled new-bank-SMS notification receiver. Both filter
+    // and parse on-device; notifications open review and never auto-record.
+    // SMS permissions can trigger Play Protect warnings when sideloaded and
+    // Google Play restricts their use. Users can leave these features off and
+    // paste SMS text manually. See docs/android-install.md.
 
     signingConfigs {
         if (hasReleaseSigning) {
