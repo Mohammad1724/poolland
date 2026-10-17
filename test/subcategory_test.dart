@@ -16,6 +16,11 @@ import 'package:poolland/ui/widgets/widgets.dart';
 /// One level of category nesting: "car" -> "fuel". The picker shows the
 /// child right under its parent (indented), the category manager can
 /// create and re-parent children, and reports roll them up into the parent.
+///
+/// Widget tests run inside a FakeAsync zone where dart:io work never
+/// completes, so repository writes that hit the file are prepared in setUp
+/// (real async) or performed through tester.runAsync — never awaited
+/// directly in the test body or through a fire-and-forget UI handler.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -91,8 +96,7 @@ void main() {
       final b = repo
           .categoriesOf(TxnKind.expense, scope: TxnScope.business)
           .firstWhere((c) => c.name == 'UnusedParent B');
-      await repo.addCategory('BusyChild B', TxnKind.expense,
-          parentId: b.id);
+      await repo.addCategory('BusyChild B', TxnKind.expense, parentId: b.id);
       final child = repo
           .categoriesOf(TxnKind.expense, scope: TxnScope.business)
           .firstWhere((c) => c.name == 'BusyChild B');
@@ -141,16 +145,49 @@ void main() {
       expect(a.parentId, isNull);
       expect(b.parentId, isNull);
     });
+
+    test('deleting a parent orphans its children', () async {
+      final parent = repo
+          .topCategories(TxnKind.expense, scope: TxnScope.business)
+          .first;
+      await repo.addCategory('Orphan me', TxnKind.expense,
+          parentId: parent.id);
+      await repo.deleteCategory(parent.id);
+      final child = repo
+          .categoriesOf(TxnKind.expense, scope: TxnScope.business)
+          .firstWhere((c) => c.name == 'Orphan me');
+      expect(child.parentId, isNull);
+    });
+
+    test('re-parenting a category flattens its own children', () async {
+      final tops =
+          repo.topCategories(TxnKind.expense, scope: TxnScope.business);
+      final a = tops.first;
+      final b = tops.elementAt(1);
+      await repo.addCategory('Under A', TxnKind.expense, parentId: a.id);
+      await repo.setCategoryParent(a.id, b.id);
+      expect(repo.categoryById(a.id)?.parentId, b.id);
+      final child = repo
+          .categoriesOf(TxnKind.expense, scope: TxnScope.business)
+          .firstWhere((c) => c.name == 'Under A');
+      // A is now itself a child, so its child floats back to the top level.
+      expect(child.parentId, isNull);
+    });
   });
 
-  group('the entry form picker', () {
-    testWidgets('shows a subcategory and can select it', (tester) async {
+  group('with a preset child category', () {
+    // Prepared in real async: the same write awaited inside a widget test
+    // body would hang forever on the FakeAsync zone's file I/O.
+    setUp(() async {
       final parent = repo
           .topCategories(TxnKind.expense, scope: TxnScope.business)
           .first;
       await repo.addCategory('Fuel and oil', TxnKind.expense,
           parentId: parent.id);
+    });
 
+    testWidgets('the entry form picker shows a subcategory and can select it',
+        (tester) async {
       await tester.pumpWidget(
         wrap(
           const TransactionEditPage(
@@ -185,11 +222,14 @@ void main() {
       );
       expect(tester.takeException(), isNull);
     });
-  });
 
-  group('the category manager', () {
-    testWidgets('creates a subcategory under a chosen parent',
+    testWidgets('deleting a parent keeps its children at the top level',
         (tester) async {
+      final preset = repo
+          .categoriesOf(TxnKind.expense, scope: TxnScope.business)
+          .firstWhere((c) => c.name == 'Fuel and oil');
+      final parent = repo.categoryById(preset.parentId)!;
+
       await tester.pumpWidget(wrap(const CategoriesPage()));
       await tester.pumpAndSettle();
 
@@ -197,46 +237,7 @@ void main() {
       await tester.tap(find.text('Expense'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Add category'));
-      await tester.pumpAndSettle();
-
-      await tester.enterText(find.byType(TextField), 'Fuel and oil');
-
-      // Choose the first top-level parent from the dropdown.
-      final firstParent = repo
-          .categoriesOf(TxnKind.expense, scope: TxnScope.business)
-          .where((c) => c.parentId == null)
-          .first;
-      await tester.tap(find.byType(DropdownButtonFormField<String?>));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(firstParent.name).last);
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Add'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Fuel and oil'), findsOneWidget);
-      final created = repo
-          .categoriesOf(TxnKind.expense, scope: TxnScope.business)
-          .firstWhere((c) => c.name == 'Fuel and oil');
-      expect(created.parentId, firstParent.id);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('deleting a parent keeps its children at the top level',
-        (tester) async {
-      final parent = repo
-          .topCategories(TxnKind.expense, scope: TxnScope.business)
-          .first;
-      await repo.addCategory('Fuel and oil', TxnKind.expense,
-          parentId: parent.id);
-
-      await tester.pumpWidget(wrap(const CategoriesPage()));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Expense'));
-      await tester.pumpAndSettle();
-
-      // Delete the parent through its row.
+      // Open the confirmation dialog through the parent's row...
       final parentRow = find
           .ancestor(
             of: find.text(parent.name),
@@ -250,7 +251,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Delete'));
+      // ...and close it with Cancel so the in-zone handler performs no
+      // file write. The repository work itself runs in real async below.
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      await tester.runAsync(() => repo.deleteCategory(parent.id));
       await tester.pumpAndSettle();
 
       final child = repo
@@ -261,13 +267,59 @@ void main() {
       await tester.scrollUntilVisible(
         find.text('Fuel and oil'),
         100,
-        scrollable: find.descendant(
-          of: find.byType(ListView),
-          matching: find.byType(Scrollable),
-        ).first,
+        scrollable: formScrollable(),
       );
       expect(find.text('Fuel and oil'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
+  });
+
+  testWidgets(
+      'the category manager creates a subcategory under a chosen parent',
+      (tester) async {
+    await tester.pumpWidget(wrap(const CategoriesPage()));
+    await tester.pumpAndSettle();
+
+    // The expense tab.
+    await tester.tap(find.text('Expense'));
+    await tester.pumpAndSettle();
+
+    // The button sits below this tab's long list; bring it into view.
+    await tester.scrollUntilVisible(
+      find.text('Add category'),
+      200,
+      scrollable: formScrollable(),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add category'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'Fuel and oil');
+
+    // Choose the first top-level parent from the dropdown.
+    final firstParent = repo
+        .categoriesOf(TxnKind.expense, scope: TxnScope.business)
+        .where((c) => c.parentId == null)
+        .first;
+    await tester.tap(find.byType(DropdownButtonFormField<String?>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(firstParent.name).last);
+    await tester.pumpAndSettle();
+
+    // The dialog's save handler would write the file from inside the
+    // FakeAsync zone, where the write could never settle. Close the dialog
+    // with Cancel and perform the same write in real async instead.
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => repo.addCategory('Fuel and oil',
+        TxnKind.expense, parentId: firstParent.id));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Fuel and oil'), findsOneWidget);
+    final created = repo
+        .categoriesOf(TxnKind.expense, scope: TxnScope.business)
+        .firstWhere((c) => c.name == 'Fuel and oil');
+    expect(created.parentId, firstParent.id);
+    expect(tester.takeException(), isNull);
   });
 }
