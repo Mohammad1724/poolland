@@ -15,9 +15,9 @@ jobs:
   test:
     name: Analyze and test
     runs-on: ubuntu-latest
-    # TEMP (diagnostic): hard cap so we get the final progress dump instead of
-    # another 6-hour kill. Will be reverted to the original workflow.
-    timeout-minutes: 45
+    # TEMP (diagnostic round 2): per-test bounded probes with exit codes and
+    # output tails. Reverted to the original workflow afterwards.
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
@@ -26,74 +26,200 @@ jobs:
           cache: true
       - run: flutter pub get
 
-      # TEMP (diagnostic): three bounded probes with live progress annotations.
-      # A = old fast file (control), B = new subcategory file (suspect),
-      # C = full suite. Each ends with a dump of its last output lines.
-      - name: Probe A - old file (ledger_test)
+      - name: P1 subcategory file (all)
         run: |
-          ( timeout 420 flutter test test/ledger_test.dart --concurrency=1 --no-pub > probeA.txt 2>&1; echo "EXITCODE=$?" >> probeA.txt ) &
-          FLPID=$!
-          for i in $(seq 1 28); do
-            sleep 15
-            LAST=$(tail -c 2000 probeA.txt 2>/dev/null | tr -d '\000-\037' | grep -v '^[[:space:]]*$' | tail -n 1 | cut -c1-200)
-            if [ -n "$LAST" ]; then
-              LAST="${LAST//\%/%25}"
-              echo "::notice file=test/probeA.txt,line=$i::PA $LAST"
-            fi
-            grep -q '^EXITCODE=' probeA.txt 2>/dev/null && break
-          done
-          wait $FLPID
-          python3 - <<'PY'
-          import re
-          lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip()
-                   for l in open('probeA.txt', encoding='utf-8', errors='replace')]
-          lines = [l for l in lines if l.strip()][-40:]
-          for l in lines:
-              print('::notice file=test/probeA.txt,line=99::PAT ' + l.replace('%', '%25')[:300])
+          set +e
+          timeout 600 flutter test test/subcategory_test.dart --concurrency=1 --no-pub > p1.txt 2>&1
+          EC=$?
+          set -e
+          EC="$EC" TAG="P1" python3 - <<'PY'
+          import os, re
+          tag = os.environ['TAG']
+          ec = int(os.environ.get('EC', '0'))
+          print('::notice file=test/%s.txt,line=1::%s EC=%d' % (tag, tag, ec))
+          try:
+              raw = open(tag + '.txt', encoding='utf-8', errors='replace').read()
+          except Exception as e:
+              print('::notice file=test/%s.txt,line=2::%s NOFILE %s' % (tag, tag, e))
+              raise SystemExit(0)
+          lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip() for l in raw.splitlines()]
+          lines = [l for l in lines if l.strip()][-45:]
+          for i, l in enumerate(lines):
+              print('::notice file=test/%s.txt,line=%d::%s %s' % (tag, 10 + i, tag, l.replace('%', '%25')[:300]))
           PY
 
-      - name: Probe B - new file (subcategory_test)
+      - name: P2 subcategory - entry form picker
         run: |
-          ( timeout 600 flutter test test/subcategory_test.dart --concurrency=1 --no-pub > probeB.txt 2>&1; echo "EXITCODE=$?" >> probeB.txt ) &
-          FLPID=$!
-          for i in $(seq 1 40); do
-            sleep 15
-            LAST=$(tail -c 2000 probeB.txt 2>/dev/null | tr -d '\000-\037' | grep -v '^[[:space:]]*$' | tail -n 1 | cut -c1-200)
-            if [ -n "$LAST" ]; then
-              LAST="${LAST//\%/%25}"
-              echo "::notice file=test/probeB.txt,line=$i::PB $LAST"
-            fi
-            grep -q '^EXITCODE=' probeB.txt 2>/dev/null && break
-          done
-          wait $FLPID
-          python3 - <<'PY'
-          import re
-          lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip()
-                   for l in open('probeB.txt', encoding='utf-8', errors='replace')]
-          lines = [l for l in lines if l.strip()][-40:]
-          for l in lines:
-              print('::notice file=test/probeB.txt,line=99::PBT ' + l.replace('%', '%25')[:300])
+          set +e
+          timeout 180 flutter test test/subcategory_test.dart --concurrency=1 --no-pub --plain-name 'shows a subcategory' > p2.txt 2>&1
+          EC=$?
+          set -e
+          EC="$EC" TAG="P2" python3 - <<'PY'
+          import os, re
+          tag = os.environ['TAG']
+          ec = int(os.environ.get('EC', '0'))
+          print('::notice file=test/%s.txt,line=1::%s EC=%d' % (tag, tag, ec))
+          try:
+              raw = open(tag + '.txt', encoding='utf-8', errors='replace').read()
+          except Exception as e:
+              print('::notice file=test/%s.txt,line=2::%s NOFILE %s' % (tag, tag, e))
+              raise SystemExit(0)
+          lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip() for l in raw.splitlines()]
+          lines = [l for l in lines if l.strip()][-45:]
+          for i, l in enumerate(lines):
+              print('::notice file=test/%s.txt,line=%d::%s %s' % (tag, 10 + i, tag, l.replace('%', '%25')[:300]))
           PY
 
-      - name: Probe C - full suite
+      - name: P3 subcategory - category manager create
         run: |
-          ( timeout 1500 flutter test --concurrency=1 --no-pub > probeC.txt 2>&1; echo "EXITCODE=$?" >> probeC.txt ) &
-          FLPID=$!
-          for i in $(seq 1 100); do
-            sleep 15
-            LAST=$(tail -c 2000 probeC.txt 2>/dev/null | tr -d '\000-\037' | grep -v '^[[:space:]]*$' | tail -n 1 | cut -c1-200)
-            if [ -n "$LAST" ]; then
-              LAST="${LAST//\%/%25}"
-              echo "::notice file=test/probeC.txt,line=$i::PC $LAST"
-            fi
-            grep -q '^EXITCODE=' probeC.txt 2>/dev/null && break
-          done
-          wait $FLPID
-          python3 - <<'PY'
-          import re
-          lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip()
-                   for l in open('probeC.txt', encoding='utf-8', errors='replace')]
-          lines = [l for l in lines if l.strip()][-60:]
-          for l in lines:
-              print('::notice file=test/probeC.txt,line=99::PCT ' + l.replace('%', '%25')[:300])
+          set +e
+          timeout 180 flutter test test/subcategory_test.dart --concurrency=1 --no-pub --plain-name 'creates a subcategory' > p3.txt 2>&1
+          EC=$?
+          set -e
+          EC="$EC" TAG="P3" python3 - <<'PY'
+          import os, re
+          tag = os.environ['TAG']
+          ec = int(os.environ.get('EC', '0'))
+          print('::notice file=test/%s.txt,line=1::%s EC=%d' % (tag, tag, ec))
+          try:
+              raw = open(tag + '.txt', encoding='utf-8', errors='replace').read()
+          except Exception as e:
+              print('::notice file=test/%s.txt,line=2::%s NOFILE %s' % (tag, tag, e))
+              raise SystemExit(0)
+          lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip() for l in raw.splitlines()]
+          lines = [l for l in lines if l.strip()][-45:]
+          for i, l in enumerate(lines):
+              print('::notice file=test/%s.txt,line=%d::%s %s' % (tag, 10 + i, tag, l.replace('%', '%25')[:300]))
+          PY
+
+      - name: P4 subcategory - category manager delete
+        run: |
+          set +e
+          timeout 180 flutter test test/subcategory_test.dart --concurrency=1 --no-pub --plain-name 'deleting a parent' > p4.txt 2>&1
+          EC=$?
+          set -e
+          EC="$EC" TAG="P4" python3 - <<'PY'
+          import os, re
+          tag = os.environ['TAG']
+          ec = int(os.environ.get('EC', '0'))
+          print('::notice file=test/%s.txt,line=1::%s EC=%d' % (tag, tag, ec))
+          try:
+              raw = open(tag + '.txt', encoding='utf-8', errors='replace').read()
+          except Exception as e:
+              print('::notice file=test/%s.txt,line=2::%s NOFILE %s' % (tag, tag, e))
+              raise SystemExit(0)
+          lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip() for l in raw.splitlines()]
+          lines = [l for l in lines if l.strip()][-45:]
+          for i, l in enumerate(lines):
+              print('::notice file=test/%s.txt,line=%d::%s %s' % (tag, 10 + i, tag, l.replace('%', '%25')[:300]))
+          PY
+
+      - name: P5 form ux file (all)
+        run: |
+          set +e
+          timeout 600 flutter test test/transaction_form_ux_test.dart --concurrency=1 --no-pub > p5.txt 2>&1
+          EC=$?
+          set -e
+          EC="$EC" TAG="P5" python3 - <<'PY'
+          import os, re
+          tag = os.environ['TAG']
+          ec = int(os.environ.get('EC', '0'))
+          print('::notice file=test/%s.txt,line=1::%s EC=%d' % (tag, tag, ec))
+          try:
+              raw = open(tag + '.txt', encoding='utf-8', errors='replace').read()
+          except Exception as e:
+              print('::notice file=test/%s.txt,line=2::%s NOFILE %s' % (tag, tag, e))
+              raise SystemExit(0)
+          lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip() for l in raw.splitlines()]
+          lines = [l for l in lines if l.strip()][-45:]
+          for i, l in enumerate(lines):
+              print('::notice file=test/%s.txt,line=%d::%s %s' % (tag, 10 + i, tag, l.replace('%', '%25')[:300]))
+          PY
+
+      - name: P6 form ux - searchable list
+        run: |
+          set +e
+          timeout 180 flutter test test/transaction_form_ux_test.dart --concurrency=1 --no-pub --plain-name 'searchable list' > p6.txt 2>&1
+          EC=$?
+          set -e
+          EC="$EC" TAG="P6" python3 - <<'PY'
+          import os, re
+          tag = os.environ['TAG']
+          ec = int(os.environ.get('EC', '0'))
+          print('::notice file=test/%s.txt,line=1::%s EC=%d' % (tag, tag, ec))
+          try:
+              raw = open(tag + '.txt', encoding='utf-8', errors='replace').read()
+          except Exception as e:
+              print('::notice file=test/%s.txt,line=2::%s NOFILE %s' % (tag, tag, e))
+              raise SystemExit(0)
+          lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip() for l in raw.splitlines()]
+          lines = [l for l in lines if l.strip()][-45:]
+          for i, l in enumerate(lines):
+              print('::notice file=test/%s.txt,line=%d::%s %s' % (tag, 10 + i, tag, l.replace('%', '%25')[:300]))
+          PY
+
+      - name: P7 form ux - recent chip
+        run: |
+          set +e
+          timeout 180 flutter test test/transaction_form_ux_test.dart --concurrency=1 --no-pub --plain-name 'recent chip' > p7.txt 2>&1
+          EC=$?
+          set -e
+          EC="$EC" TAG="P7" python3 - <<'PY'
+          import os, re
+          tag = os.environ['TAG']
+          ec = int(os.environ.get('EC', '0'))
+          print('::notice file=test/%s.txt,line=1::%s EC=%d' % (tag, tag, ec))
+          try:
+              raw = open(tag + '.txt', encoding='utf-8', errors='replace').read()
+          except Exception as e:
+              print('::notice file=test/%s.txt,line=2::%s NOFILE %s' % (tag, tag, e))
+              raise SystemExit(0)
+          lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip() for l in raw.splitlines()]
+          lines = [l for l in lines if l.strip()][-45:]
+          for i, l in enumerate(lines):
+              print('::notice file=test/%s.txt,line=%d::%s %s' % (tag, 10 + i, tag, l.replace('%', '%25')[:300]))
+          PY
+
+      - name: P8 form ux - contact chips
+        run: |
+          set +e
+          timeout 180 flutter test test/transaction_form_ux_test.dart --concurrency=1 --no-pub --plain-name 'contact chips' > p8.txt 2>&1
+          EC=$?
+          set -e
+          EC="$EC" TAG="P8" python3 - <<'PY'
+          import os, re
+          tag = os.environ['TAG']
+          ec = int(os.environ.get('EC', '0'))
+          print('::notice file=test/%s.txt,line=1::%s EC=%d' % (tag, tag, ec))
+          try:
+              raw = open(tag + '.txt', encoding='utf-8', errors='replace').read()
+          except Exception as e:
+              print('::notice file=test/%s.txt,line=2::%s NOFILE %s' % (tag, tag, e))
+              raise SystemExit(0)
+          lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip() for l in raw.splitlines()]
+          lines = [l for l in lines if l.strip()][-45:]
+          for i, l in enumerate(lines):
+              print('::notice file=test/%s.txt,line=%d::%s %s' % (tag, 10 + i, tag, l.replace('%', '%25')[:300]))
+          PY
+
+      - name: P9 form ux - cash and credit
+        run: |
+          set +e
+          timeout 180 flutter test test/transaction_form_ux_test.dart --concurrency=1 --no-pub --plain-name 'cash and credit' > p9.txt 2>&1
+          EC=$?
+          set -e
+          EC="$EC" TAG="P9" python3 - <<'PY'
+          import os, re
+          tag = os.environ['TAG']
+          ec = int(os.environ.get('EC', '0'))
+          print('::notice file=test/%s.txt,line=1::%s EC=%d' % (tag, tag, ec))
+          try:
+              raw = open(tag + '.txt', encoding='utf-8', errors='replace').read()
+          except Exception as e:
+              print('::notice file=test/%s.txt,line=2::%s NOFILE %s' % (tag, tag, e))
+              raise SystemExit(0)
+          lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip() for l in raw.splitlines()]
+          lines = [l for l in lines if l.strip()][-45:]
+          for i, l in enumerate(lines):
+              print('::notice file=test/%s.txt,line=%d::%s %s' % (tag, 10 + i, tag, l.replace('%', '%25')[:300]))
           PY
