@@ -1,7 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Bank SMS is read on-device only and is never sent to a server. -->
-    <uses-permission android:name="android.permission.READ_SMS"/>
-    <uses-permission android:name="android.permission.RECEIVE_SMS"/>
+    <!--
+        No SMS permission is declared, on purpose.
+
+        Google Play Protect hard-blocks any APK installed from a browser, a
+        messenger, or a file manager that declares READ_SMS or RECEIVE_SMS
+        (the "App blocked to protect your device" screen), and the block is
+        by permission, not by signature — a release-signed APK is blocked
+        exactly the same way. The app therefore has no inbox access at all:
+        a bank message reaches the ledger when the user pastes its text into
+        the review page, where the same parser detects bank, amount,
+        direction, and card.
+
+        Keep it that way: adding READ_SMS or RECEIVE_SMS back would make the
+        app uninstallable for most users.
+    -->
 
     <!-- Optional fingerprint / face unlock for the app lock -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
@@ -54,16 +66,6 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
                 <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
-            </intent-filter>
-        </receiver>
-
-        <!-- Deliver new SMS messages to the app -->
-        <receiver
-            android:name=".SmsReceiver"
-            android:exported="true"
-            android:permission="android.permission.BROADCAST_SMS">
-            <intent-filter>
-                <action android:name="android.provider.Telephony.SMS_RECEIVED"/>
             </intent-filter>
         </receiver>
     </application>

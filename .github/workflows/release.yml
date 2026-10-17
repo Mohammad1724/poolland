@@ -59,45 +59,52 @@ jobs:
             echo "::warning::ANDROID_KEYSTORE_BASE64 is not set — signing with the debug key."
           fi
 
-      # Two flavors, same app id and version:
-      #   full — reads bank SMS; Play Protect blocks its internet-sideload
-      #          install, so docs/android-install.md explains ADB / pausing.
-      #   safe — no SMS permission at all; installs with Play Protect on and
-      #          parses a bank SMS the user pastes on the review page.
-      - name: Build full-feature APKs
+      # One build, one app id, one version.
+      #
+      # The app declares no SMS permission, so Google Play Protect installs
+      # it from a browser, a messenger, or a file manager without a block —
+      # there is no second "full" flavor to choose from any more, and no
+      # way for the block to come back.
+      - name: Build APKs
         env:
           POOLLAND_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           POOLLAND_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           POOLLAND_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          flutter build apk --release --flavor full --split-per-abi
-          flutter build apk --release --flavor full
+          flutter build apk --release --split-per-abi
+          flutter build apk --release
 
-      - name: Build Play Protect-safe APKs
-        env:
-          POOLLAND_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          POOLLAND_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          POOLLAND_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Assert the release APK declares no sensitive permission
         run: |
-          flutter build apk --release --flavor safe --split-per-abi
-          flutter build apk --release --flavor safe
+          set -euo pipefail
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          test -f "$APK"
+          AAPT2="$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -n 1)"
+          "$AAPT2" dump permissions "$APK" | tee /tmp/release-permissions.txt
+          if grep -qE 'READ_SMS|RECEIVE_SMS|BIND_NOTIFICATION_LISTENER_SERVICE|BIND_ACCESSIBILITY_SERVICE' /tmp/release-permissions.txt; then
+            echo "::error::The release APK declares a Play Protect-blocked permission."
+            exit 1
+          fi
+          "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" > /tmp/release-manifest.txt
+          if grep -q 'SmsReceiver' /tmp/release-manifest.txt; then
+            echo "::error::The release APK still registers SmsReceiver."
+            exit 1
+          fi
 
       - name: Collect and name artifacts
         run: |
           mkdir -p artifacts
           VERSION="${GITHUB_REF_NAME:-dev}"
           VERSION="${VERSION//\//-}"
-          for flavor in full safe; do
-            APK="build/app/outputs/flutter-apk/app-${flavor}-release.apk"
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          if [ -f "$APK" ]; then
+            cp "$APK" "artifacts/poolland-${VERSION}-universal.apk"
+          fi
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            APK="build/app/outputs/flutter-apk/app-${abi}-release.apk"
             if [ -f "$APK" ]; then
-              cp "$APK" "artifacts/poolland-${VERSION}-${flavor}-universal.apk"
+              cp "$APK" "artifacts/poolland-${VERSION}-${abi}.apk"
             fi
-            for abi in arm64-v8a armeabi-v7a x86_64; do
-              APK="build/app/outputs/flutter-apk/app-${abi}-${flavor}-release.apk"
-              if [ -f "$APK" ]; then
-                cp "$APK" "artifacts/poolland-${VERSION}-${flavor}-${abi}.apk"
-              fi
-            done
           done
           (cd artifacts && sha256sum *.apk > SHA256SUMS.txt)
           ls -la artifacts
@@ -130,16 +137,12 @@ jobs:
 
             | File | SMS access | Play Protect | Best for |
             |---|---|---|---|
-            | `poolland-*-safe-arm64-v8a.apk` | no | installs normally | **recommended** — ~95% of modern phones |
-            | `poolland-*-safe-armeabi-v7a.apk` | no | installs normally | older 32-bit phones |
-            | `poolland-*-safe-universal.apk` | no | installs normally | every phone (larger) |
-            | `poolland-*-full-arm64-v8a.apk` | yes | blocked when sideloaded | automatic bank-SMS detection |
-            | `poolland-*-full-armeabi-v7a.apk` | yes | blocked when sideloaded | automatic SMS on older phones |
-            | `poolland-*-full-universal.apk` | yes | blocked when sideloaded | automatic SMS, every phone |
+            | `poolland-*-arm64-v8a.apk` | no | installs normally | **recommended** — ~95% of modern phones |
+            | `poolland-*-armeabi-v7a.apk` | no | installs normally | older 32-bit phones |
+            | `poolland-*-universal.apk` | no | installs normally | every phone (larger) |
 
-            The **safe** build declares no SMS permission, so Play Protect installs it
-            from a browser or file manager; paste a bank SMS on the review page.
-            The **full** build reads the SMS inbox; install it with ADB or with app
-            scanning paused — see `docs/android-install.md`.
+            The app declares **no SMS permission**, so Google Play Protect installs
+            it from a browser, a messenger, or a file manager without a block.
+            A bank message is recorded by pasting its text on the review page.
 
             Verify downloads with `sha256sum -c SHA256SUMS.txt`.

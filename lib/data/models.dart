@@ -80,14 +80,12 @@ class AppSettings {
   final bool gestureTourSeen;
 
   // ---- Bank SMS ----
-  final bool smsEnabled; // Whether SMS reading is enabled.
-  final int smsSyncDays; // Number of past days to scan.
-  final int smsLastSyncAt; // Last sync timestamp (for incremental updates).
   /// Built-in or custom rules turned off; empty preserves legacy behavior.
+  ///
+  /// The app never reads the SMS inbox — it declares no SMS permission, so
+  /// Google Play Protect lets it install — but a bank message the user
+  /// pastes is still matched against these rules.
   final List<String> disabledSmsRuleIds;
-  /// Show a system notification when a new bank SMS arrives while the app is
-  /// in the background or closed, so the transaction is not left unrecorded.
-  final bool smsNotify;
 
   // ---- Daily expense reminder ----
   final bool dailyReminder; // Whether the daily reminder is enabled.
@@ -111,11 +109,7 @@ class AppSettings {
     this.setupDone = false,
     this.permissionsIntroDone = false,
     this.gestureTourSeen = false,
-    this.smsEnabled = false,
-    this.smsSyncDays = 90,
-    this.smsLastSyncAt = 0,
     this.disabledSmsRuleIds = const [],
-    this.smsNotify = true,
     this.dailyReminder = false,
     this.reminderHour = 21,
     this.reminderMinute = 0,
@@ -186,11 +180,7 @@ class AppSettings {
     bool? setupDone,
     bool? permissionsIntroDone,
     bool? gestureTourSeen,
-    bool? smsEnabled,
-    int? smsSyncDays,
-    int? smsLastSyncAt,
     List<String>? disabledSmsRuleIds,
-    bool? smsNotify,
     bool? dailyReminder,
     int? reminderHour,
     int? reminderMinute,
@@ -215,11 +205,7 @@ class AppSettings {
     permissionsIntroDone:
         permissionsIntroDone ?? this.permissionsIntroDone,
     gestureTourSeen: gestureTourSeen ?? this.gestureTourSeen,
-    smsEnabled: smsEnabled ?? this.smsEnabled,
-    smsSyncDays: smsSyncDays ?? this.smsSyncDays,
-    smsLastSyncAt: smsLastSyncAt ?? this.smsLastSyncAt,
     disabledSmsRuleIds: disabledSmsRuleIds ?? this.disabledSmsRuleIds,
-    smsNotify: smsNotify ?? this.smsNotify,
     dailyReminder: dailyReminder ?? this.dailyReminder,
     reminderHour: reminderHour ?? this.reminderHour,
     reminderMinute: reminderMinute ?? this.reminderMinute,
@@ -253,11 +239,7 @@ class AppSettings {
     'setupDone': setupDone,
     'permissionsIntroDone': permissionsIntroDone,
     'gestureTourSeen': gestureTourSeen,
-    'smsEnabled': smsEnabled,
-    'smsSyncDays': smsSyncDays,
-    'smsLastSyncAt': smsLastSyncAt,
     'disabledSmsRuleIds': disabledSmsRuleIds,
-    'smsNotify': smsNotify,
     'dailyReminder': dailyReminder,
     'reminderHour': reminderHour,
     'reminderMinute': reminderMinute,
@@ -286,16 +268,11 @@ class AppSettings {
     permissionsIntroDone:
         map['permissionsIntroDone'] as bool? ?? false,
     gestureTourSeen: map['gestureTourSeen'] as bool? ?? false,
-    smsEnabled: map['smsEnabled'] as bool? ?? false,
-    smsSyncDays: (map['smsSyncDays'] as num?)?.toInt() ?? 90,
-    smsLastSyncAt: (map['smsLastSyncAt'] as num?)?.toInt() ?? 0,
     disabledSmsRuleIds: (map['disabledSmsRuleIds'] as List? ?? const [])
         .map((e) => '$e')
         .where((e) => e.isNotEmpty)
         .toSet()
         .toList(),
-    // Legacy backups predate the flag; notifications default to on.
-    smsNotify: map['smsNotify'] as bool? ?? true,
     dailyReminder: map['dailyReminder'] as bool? ?? false,
     reminderHour: (map['reminderHour'] as num?)?.toInt() ?? 21,
     reminderMinute: (map['reminderMinute'] as num?)?.toInt() ?? 0,

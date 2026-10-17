@@ -2,18 +2,14 @@ package com.poolland.app
 
 import android.Manifest
 import android.app.Activity
-import android.content.ContentResolver
 import android.content.ContentValues
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
-import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
-import android.provider.Telephony
 import java.io.File
 import java.util.Locale
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -22,101 +18,27 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
 /**
- * Holds the channel shared with the Flutter app.
- * SmsReceiver uses this channel to
- * send newly received SMS messages to Dart in real time.
- *
- * It also carries the little piece of state the native SMS notification
- * needs while the Flutter engine is not running: whether the UI is visible
- * ([foreground]) and which route a notification tap asked for
- * ([pendingRoute]).
- */
-object SmsBus {
-    const val CHANNEL_NAME = "poolland/sms"
-
-    /// SharedPreferences file mirroring the Dart-side notification setting.
-    const val PREFS_NAME = "poolland_sms"
-    const val PREF_NOTIFY_ENABLED = "notify_enabled"
-    const val PREF_LANGUAGE = "language"
-    const val PREF_RULES_JSON = "rules_json"
-
-    /// Intent extra asking the app to open the SMS review page.
-    const val EXTRA_ROUTE = "poolland_route"
-    const val ROUTE_SMS_REVIEW = "sms_review"
-
-    /// Identity of the SMS the notification was posted for, so the app can
-    /// open the review sheet of that exact message.
-    const val EXTRA_SMS_DATE = "poolland_sms_date"
-    const val EXTRA_SMS_ADDRESS = "poolland_sms_address"
-
-    const val NOTIFICATION_CHANNEL_ID = "bank_sms"
-    const val NOTIFICATION_ID = 24040101
-    const val NOTIFICATION_REQUEST_CODE = 24040102
-
-    var channel: MethodChannel? = null
-
-    /// True while the Flutter UI is resumed; set over the method channel.
-    @Volatile
-    var foreground: Boolean = false
-
-    /// Route requested by a notification tap, consumed once by Dart.
-    @Volatile
-    var pendingRoute: String? = null
-
-    @Volatile
-    var pendingSmsDate: Long? = null
-
-    @Volatile
-    var pendingSmsAddress: String? = null
-}
-
-/**
  * Extends FlutterFragmentActivity rather than FlutterActivity because
  * androidx.biometric's BiometricPrompt, which local_auth uses, can only be
  * shown from a FragmentActivity. On a plain FlutterActivity every
  * authenticate() call fails with "The current Activity must be a
  * FragmentActivity".
+ *
+ * The app deliberately has no SMS bridge: it declares neither READ_SMS nor
+ * RECEIVE_SMS, so Google Play Protect installs it from a browser or a file
+ * manager without a block. Bank messages reach the ledger only when the
+ * user pastes their text into the review page.
  */
 class MainActivity : FlutterFragmentActivity() {
 
     companion object {
-        private const val PERMISSION_REQUEST_SMS = 1017
         private const val PERMISSION_REQUEST_SOUND_STORAGE = 1018
         private const val REQUEST_PICK_NOTIFICATION_SOUND = 1019
         private const val SOUND_CHANNEL_NAME = "poolland/notification_sound"
     }
 
-    private var pendingPermissionResult: MethodChannel.Result? = null
     private var pendingSystemSoundResult: MethodChannel.Result? = null
     private var pendingSoundImport: PendingSoundImport? = null
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        handleRouteIntent(intent)
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        handleRouteIntent(intent)
-    }
-
-    /// Remembers a route requested by tapping the bank-SMS notification so
-    /// Dart can consume it once the engine is up. When the engine is already
-    /// alive (warm start), the request is also pushed over the channel so
-    /// the review sheet opens immediately.
-    private fun handleRouteIntent(intent: Intent?) {
-        val route = intent?.getStringExtra(SmsBus.EXTRA_ROUTE)
-        if (route.isNullOrBlank()) return
-        val date = intent?.getLongExtra(SmsBus.EXTRA_SMS_DATE, 0L)?.takeIf { it != 0L }
-        val address = intent?.getStringExtra(SmsBus.EXTRA_SMS_ADDRESS)
-        SmsBus.pendingRoute = route
-        SmsBus.pendingSmsDate = date
-        SmsBus.pendingSmsAddress = address
-        SmsBus.channel?.invokeMethod(
-            "openRoute",
-            mapOf("route" to route, "date" to date, "address" to address),
-        )
-    }
 
     private data class PendingSoundImport(
         val name: String,
@@ -127,61 +49,6 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-
-        val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SmsBus.CHANNEL_NAME)
-        SmsBus.channel = channel
-
-        channel.setMethodCallHandler { call, result ->
-            when (call.method) {
-                // Whether this APK was built with SMS support at all. The
-                // "safe" flavor strips READ_SMS/RECEIVE_SMS from the merged
-                // manifest, so the Dart layer hides every SMS affordance
-                // instead of offering a permission dialog that can never
-                // appear. Checked against the manifest, not the runtime
-                // grant, so the answer is stable before the user decides.
-                "isSmsSupported" -> result.success(hasSmsPermissionDeclared())
-                "hasPermission" -> result.success(hasSmsPermission())
-                "requestPermission" -> requestSmsPermission(result)
-                "readInbox" -> {
-                    val since = (call.argument<Number>("since") ?: 0).toLong()
-                    val limit = (call.argument<Number>("limit") ?: 500).toInt()
-                    result.success(readInbox(since, limit))
-                }
-                "syncSmsPrefs" -> {
-                    val args = call.arguments as? Map<*, *> ?: emptyMap<Any, Any>()
-                    getSharedPreferences(SmsBus.PREFS_NAME, Context.MODE_PRIVATE)
-                        .edit()
-                        .putBoolean(
-                            SmsBus.PREF_NOTIFY_ENABLED,
-                            args["enabled"] as? Boolean ?: true,
-                        )
-                        .putString(SmsBus.PREF_LANGUAGE, args["language"] as? String ?: "fa")
-                        .putString(SmsBus.PREF_RULES_JSON, args["rules"] as? String ?: "[]")
-                        .apply()
-                    result.success(null)
-                }
-                "setForeground" -> {
-                    SmsBus.foreground = call.arguments as? Boolean ?: false
-                    result.success(null)
-                }
-                "consumePendingRoute" -> {
-                    val route = SmsBus.pendingRoute
-                    val date = SmsBus.pendingSmsDate
-                    val address = SmsBus.pendingSmsAddress
-                    SmsBus.pendingRoute = null
-                    SmsBus.pendingSmsDate = null
-                    SmsBus.pendingSmsAddress = null
-                    result.success(
-                        if (route == null) {
-                            null
-                        } else {
-                            mapOf("route" to route, "date" to date, "address" to address)
-                        },
-                    )
-                }
-                else -> result.notImplemented()
-            }
-        }
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
@@ -213,7 +80,7 @@ class MainActivity : FlutterFragmentActivity() {
                 RingtoneManager.EXTRA_RINGTONE_DEFAULT_URI,
                 RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
             )
-            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SILENT, false)
             call.argument<String>("existingUri")?.takeIf { it.isNotBlank() }?.let {
                 putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Uri.parse(it))
             }
@@ -245,6 +112,7 @@ class MainActivity : FlutterFragmentActivity() {
                 Uri::class.java,
             )
         } else {
+            @Suppress("DEPRECATION")
             data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
         }
         val defaultUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
@@ -299,7 +167,7 @@ class MainActivity : FlutterFragmentActivity() {
             PackageManager.PERMISSION_GRANTED
         ) {
             if (pendingSoundImport != null) {
-                result.error("sound_import_busy", "An audio import is already in progress.", null)
+                result.error("sound_import_busy", "A sound import is already in progress.", null)
                 return
             }
             pendingSoundImport = pending
@@ -339,7 +207,7 @@ class MainActivity : FlutterFragmentActivity() {
             .replace(Regex("[^A-Za-z0-9_-]"), "_")
             .take(48)
             .ifBlank { "sound" }
-        val displayName = "poolland_${System.currentTimeMillis()}_${baseName}.$extension"
+        val displayName = "poolland_${System.currentTimeMillis()}_$baseName.$extension"
         val mimeType = when (extension) {
             "aac" -> "audio/aac"
             "flac" -> "audio/flac"
@@ -400,128 +268,24 @@ class MainActivity : FlutterFragmentActivity() {
             ?: throw IllegalStateException("Could not register the notification audio file.")
     }
 
-    override fun onDestroy() {
-        SmsBus.channel = null
-        super.onDestroy()
-    }
-
-    // ---------------------------------------------------------
-    // Permissions
-    // ---------------------------------------------------------
-    /**
-     * True when the merged manifest of this build declares the SMS
-     * permissions. The "safe" flavor removes them, so this reports false
-     * there even though the code still ships in the APK.
-     */
-    private fun hasSmsPermissionDeclared(): Boolean {
-        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            packageManager.getPackageInfo(
-                packageName,
-                PackageManager.PackageInfoFlags.of(
-                    PackageManager.GET_PERMISSIONS.toLong(),
-                ),
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            packageManager.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS)
-        }
-        return info.requestedPermissions?.contains(Manifest.permission.READ_SMS) == true
-    }
-
-    private fun hasSmsPermission(): Boolean {
-        val read = checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
-        val receive = checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
-        return read && receive
-    }
-
-    private fun requestSmsPermission(result: MethodChannel.Result) {
-        if (hasSmsPermission()) {
-            result.success(true)
-            return
-        }
-        pendingPermissionResult = result
-        requestPermissions(
-            arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS),
-            PERMISSION_REQUEST_SMS
-        )
-    }
-
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        when (requestCode) {
-            PERMISSION_REQUEST_SMS -> {
-                val pending = pendingPermissionResult
-                pendingPermissionResult = null
-                pending?.success(hasSmsPermission())
-            }
-            PERMISSION_REQUEST_SOUND_STORAGE -> {
-                val pending = pendingSoundImport
-                pendingSoundImport = null
-                if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-                    pending?.let(::finishSoundImport)
-                } else {
-                    pending?.result?.error(
-                        "sound_storage_permission_denied",
-                        "Storage permission is required to import an audio file.",
-                        null,
-                    )
-                }
-            }
+        if (requestCode != PERMISSION_REQUEST_SOUND_STORAGE) return
+
+        val pending = pendingSoundImport
+        pendingSoundImport = null
+        if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            pending?.let(::finishSoundImport)
+        } else {
+            pending?.result?.error(
+                "sound_storage_permission_denied",
+                "Storage permission is required to import an audio file.",
+                null,
+            )
         }
-    }
-
-    // ---------------------------------------------------------
-    // Read received SMS messages
-    // ---------------------------------------------------------
-    private fun readInbox(since: Long, limit: Int): List<Map<String, Any?>> {
-        val out = mutableListOf<Map<String, Any?>>()
-        if (!hasSmsPermission()) return out
-
-        val resolver: ContentResolver = contentResolver
-        val projection = arrayOf(
-            Telephony.Sms._ID,
-            Telephony.Sms.ADDRESS,
-            Telephony.Sms.BODY,
-            Telephony.Sms.DATE
-        )
-        val selection = if (since > 0L) "${Telephony.Sms.DATE} > ?" else null
-        val selectionArgs = if (since > 0L) arrayOf(since.toString()) else null
-        val sortOrder = "${Telephony.Sms.DATE} DESC"
-
-        val cursor = resolver.query(
-            Telephony.Sms.Inbox.CONTENT_URI,
-            projection,
-            selection,
-            selectionArgs,
-            sortOrder
-        ) ?: return out
-
-        cursor.use {
-            val idIndex = it.getColumnIndex(Telephony.Sms._ID)
-            val addressIndex = it.getColumnIndex(Telephony.Sms.ADDRESS)
-            val bodyIndex = it.getColumnIndex(Telephony.Sms.BODY)
-            val dateIndex = it.getColumnIndex(Telephony.Sms.DATE)
-
-            while (it.moveToNext() && out.size < limit) {
-                val id = if (idIndex >= 0) it.getLong(idIndex) else out.size.toLong()
-                val address = if (addressIndex >= 0) it.getString(addressIndex) ?: "" else ""
-                val body = if (bodyIndex >= 0) it.getString(bodyIndex) ?: "" else ""
-                val date = if (dateIndex >= 0) it.getLong(dateIndex) else System.currentTimeMillis()
-
-                out.add(
-                    mapOf(
-                        "id" to id.toString(),
-                        "address" to address,
-                        "body" to body,
-                        "date" to date
-                    )
-                )
-            }
-        }
-        return out
     }
 }

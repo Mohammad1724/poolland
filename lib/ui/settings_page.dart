@@ -236,155 +236,13 @@ class SettingsPage extends StatelessWidget {
           ),
 
           // ---------- Bank SMS ----------
-          if (repo.smsSupported) ...[
-            const SectionTitle('Bank SMS', icon: Icons.sms_rounded),
-            CardBox(
-              child: Column(
-                children: [
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: s.smsEnabled,
-                    title: Text(
-                      'Read bank SMS'.tr,
-                      style: TextStyle(fontSize: 13.5),
-                    ),
-                    subtitle: Text(
-                      'Deposits and withdrawals are detected automatically and added to the review queue'
-                          .tr,
-                      style: TextStyle(fontSize: 11.5),
-                    ),
-                    onChanged: (v) async {
-                      if (v && !repo.smsPermissionGranted) {
-                        final ok = await repo.requestSmsPermission();
-                        if (!ok) return;
-                      }
-                      await repo.updateSettings(s.copyWith(smsEnabled: v));
-                    },
-                  ),
-                  Divider(color: Theme.of(context).dividerColor),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: s.smsNotify,
-                    title: Text(
-                      'Bank SMS notification'.tr,
-                      style: TextStyle(fontSize: 13.5),
-                    ),
-                    subtitle: Text(
-                      'Show a notification when a new bank SMS arrives, even if the app is closed'
-                          .tr,
-                      style: TextStyle(fontSize: 11.5),
-                    ),
-                    onChanged: (v) async {
-                      if (v && isAndroidPlatform) {
-                        // Android 13+ silently refuses to post notifications
-                        // without this; a denied request returns false
-                        // without a dialog, so the toggle still saves.
-                        final ok = await reminder.requestPermission();
-                        if (!ok && context.mounted) {
-                          showSnack(
-                            context,
-                            'Notification permission is required for bank SMS alerts',
-                          );
-                        }
-                      }
-                      if (!context.mounted) return;
-                      await repo.updateSettings(s.copyWith(smsNotify: v));
-                    },
-                  ),
-                  if (isAndroidPlatform &&
-                      s.smsNotify &&
-                      !repo.notificationPermissionGranted) ...[
-                    Divider(color: Theme.of(context).dividerColor),
-                    _actionTile(
-                      context,
-                      icon: Icons.notification_important_outlined,
-                      title: 'Notification permission not granted'.tr,
-                      subtitle:
-                          'Notifications are switched on but Android blocks them. Tap to request again.'
-                              .tr,
-                      onTap: () async {
-                        final ok = await reminder.requestPermission();
-                        await repo.refreshNotificationPermission();
-                        if (!ok && context.mounted) {
-                          showSnack(
-                            context,
-                            'Notification permission denied. Enable it in Android settings.',
-                            error: true,
-                          );
-                        }
-                      },
-                    ),
-                  ],
-                  Divider(color: Theme.of(context).dividerColor),
-                  _navTile(
-                    context,
-                    icon: Icons.fact_check_outlined,
-                    title: 'Review SMS'.tr,
-                    subtitle: repo.smsPendingCount > 0
-                        ? '{count} transactions awaiting review'.trArgs({
-                            'count': repo.smsPendingCount,
-                          })
-                        : 'Nothing awaiting review'.tr,
-                    page: const SmsPage(),
-                  ),
-                  Divider(color: Theme.of(context).dividerColor),
-                  _navTile(
-                    context,
-                    icon: Icons.tune_rounded,
-                    title: 'Recognition rules'.tr,
-                    subtitle:
-                        'Choose which built-in banks and custom senders can match SMS.'
-                            .tr,
-                    page: const SmsRulesPage(),
-                  ),
-                  Divider(color: Theme.of(context).dividerColor),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.date_range_outlined, size: 20),
-                    title: Text(
-                      'SMS lookback period'.tr,
-                      style: TextStyle(fontSize: 13.5),
-                    ),
-                    subtitle: Text(
-                      'Past {days} days'.trArgs({'days': s.smsSyncDays}),
-                      style: const TextStyle(fontSize: 11.5),
-                    ),
-                    onTap: () => _editInt(
-                      context,
-                      title: 'How many past days should be checked?'.tr,
-                      initial: s.smsSyncDays,
-                      onSave: (v) => repo.updateSettings(
-                        s.copyWith(smsSyncDays: v.clamp(1, 365)),
-                      ),
-                    ),
-                  ),
-                  Divider(color: Theme.of(context).dividerColor),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.info_outline_rounded, size: 20),
-                    title: Text(
-                      'Manual SMS review is required'.tr,
-                      style: TextStyle(fontSize: 13.5),
-                    ),
-                    subtitle: Text(
-                      'Choose VPN business or personal before recording each SMS transaction.'
-                          .tr,
-                      style: TextStyle(fontSize: 11.5),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          // ---------- Bank SMS (manual) ----------
           //
-          // The safe APK declares no SMS permission, so Play Protect installs
-          // it; the review page can still parse a message the user pastes.
-          // Explaining the trade-off here keeps the missing switches from
-          // looking like a bug.
-          if (isAndroidPlatform && !repo.smsSupported) ...[
-            const SectionTitle('Bank SMS (manual)', icon: Icons.sms_rounded),
+          // The app declares no SMS permission, so Google Play Protect
+          // installs it everywhere. A bank message is added by pasting its
+          // text on the review page, where the same parser detects bank,
+          // amount, direction, and card.
+          if (isAndroidPlatform) ...[
+            const SectionTitle('Bank SMS', icon: Icons.sms_rounded),
             CardBox(
               child: Column(
                 children: [
@@ -392,11 +250,11 @@ class SettingsPage extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.shield_outlined, size: 20),
                     title: Text(
-                      'SMS reading is off in this build'.tr,
+                      'Poolland never reads your SMS'.tr,
                       style: TextStyle(fontSize: 13.5),
                     ),
                     subtitle: Text(
-                      'This build declares no SMS permission, so Google Play Protect installs it. Paste a bank SMS on the review page to record it.'
+                      'The app has no SMS permission, so it installs without a Google Play Protect block. Paste a bank SMS on the review page to record it.'
                           .tr,
                       style: TextStyle(fontSize: 11.5),
                     ),
@@ -1080,12 +938,8 @@ class SettingsPage extends StatelessWidget {
       // A backup restored onto a phone that never granted the permissions
       // must not pretend notifications work: ask for what the restored
       // settings now require, and refresh the displayed state either way.
-      await repo.refreshSmsPermission();
       await repo.refreshNotificationPermission();
-      if (repo.settings.smsEnabled && !repo.smsPermissionGranted) {
-        await repo.requestSmsPermission();
-      }
-      if ((repo.settings.smsNotify || repo.settings.dailyReminder) &&
+      if (repo.settings.dailyReminder &&
           !repo.notificationPermissionGranted) {
         await reminder.requestPermission();
         await repo.refreshNotificationPermission();

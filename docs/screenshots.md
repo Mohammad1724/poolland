@@ -2,7 +2,7 @@
 
 To add screenshots:
 
-1. Run the app on a phone (`flutter run --flavor full`).
+1. Run the app on a phone (`flutter run`).
 2. Capture the dashboard, customers, subscriptions, transactions, and reports screens.
 3. Place the files in this folder using the names below:
 

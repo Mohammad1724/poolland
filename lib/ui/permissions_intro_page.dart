@@ -3,17 +3,19 @@ import 'package:provider/provider.dart';
 
 import '../core/localization.dart';
 import '../core/notifications/notify.dart';
-import '../core/platform_info.dart';
-import '../core/sms/sms_service.dart';
 import '../data/repository.dart';
 import 'widgets/widgets.dart';
 
 /// One-time permissions gate shown on the very first app open (and after a
 /// backup restore onto a fresh install, where the restored settings claim
-/// SMS reading and notifications while no permission was ever granted here).
+/// notifications while no permission was ever granted here).
 ///
 /// The user answers once — grant or skip — and only then does the real app
 /// open, so nothing silently runs without the permissions it needs.
+///
+/// The app asks for one permission only: the notification permission behind
+/// the daily reminder. It has no SMS permission at all, so there is nothing
+/// to ask about reading messages.
 class PermissionsIntroPage extends StatefulWidget {
   const PermissionsIntroPage({super.key});
 
@@ -22,22 +24,15 @@ class PermissionsIntroPage extends StatefulWidget {
 }
 
 class _PermissionsIntroPageState extends State<PermissionsIntroPage> {
-  bool? _smsGranted;
   bool? _notifyGranted;
   bool _busy = false;
 
-  bool get _answered =>
-      (!SmsService.isSupported || _smsGranted != null) &&
-      (!reminder.supported || _notifyGranted != null);
+  bool get _answered => !reminder.supported || _notifyGranted != null;
 
   Future<void> _grantAll() async {
     final repo = context.read<AppRepository>();
     setState(() => _busy = true);
-    bool? sms;
     bool? notify;
-    if (SmsService.isSupported) {
-      sms = await repo.requestSmsPermission();
-    }
     if (reminder.supported) {
       notify = await reminder.requestPermission();
       await repo.refreshNotificationPermission();
@@ -45,7 +40,6 @@ class _PermissionsIntroPageState extends State<PermissionsIntroPage> {
     if (!mounted) return;
     setState(() {
       _busy = false;
-      _smsGranted = sms;
       _notifyGranted = notify;
     });
     // A denied request is not a dead end: the toggles in Settings ask again,
@@ -85,9 +79,7 @@ class _PermissionsIntroPageState extends State<PermissionsIntroPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  (SmsService.isSupported
-                          ? 'Poolland works best with two permissions. You can skip now and grant them later from Settings.'
-                          : 'Poolland uses notifications for the daily reminder. You can skip now and grant it later from Settings.')
+                  'Poolland uses notifications for the daily reminder. You can skip now and grant it later from Settings.'
                       .tr,
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -98,22 +90,11 @@ class _PermissionsIntroPageState extends State<PermissionsIntroPage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                if (SmsService.isSupported)
-                  _PermissionRow(
-                    icon: Icons.sms_outlined,
-                    title: 'Read bank SMS'.tr,
-                    reason:
-                        'Deposits and withdrawals are detected automatically and added to the review queue'
-                            .tr,
-                    state: _smsGranted,
-                  ),
-                if (SmsService.isSupported && reminder.supported)
-                  const SizedBox(height: 12),
                 if (reminder.supported)
                   _PermissionRow(
                     icon: Icons.notifications_active_outlined,
                     title: 'Show notifications'.tr,
-                    reason: 'For bank SMS alerts and the daily reminder'.tr,
+                    reason: 'For the daily expense reminder'.tr,
                     state: _notifyGranted,
                   ),
                 const SizedBox(height: 28),
@@ -140,19 +121,6 @@ class _PermissionsIntroPageState extends State<PermissionsIntroPage> {
                   onPressed: _busy ? null : _finish,
                   child: Text('Skip for now'.tr),
                 ),
-                if (!isAndroidPlatform) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    'SMS reading is only available on Android phones.'
-                        .tr,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: Theme.of(context).colorScheme.onSurface
-                          .withValues(alpha: 0.55),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
