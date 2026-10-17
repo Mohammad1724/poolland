@@ -147,6 +147,8 @@ class AppLocalization {
     'This category is already a quick button': 'این دسته‌بندی قبلاً دکمهٔ سریع است',
     'Parent category': 'زیرمجموعهٔ',
     'Top-level category': 'دستهٔ اصلی (بدون زیرمجموعه)',
+    'Delete category "{name}"? Its transactions will become uncategorized.'
+        : 'این دسته حذف شود؟ تراکنش‌هایش بی‌دسته می‌شوند.',
     'Delete category "{name}"? Its transactions will become uncategorized. Its subcategories move to the top level.'
         : 'این دسته حذف شود؟ تراکنش‌هایش بی‌دسته می‌شوند و زیرمجموعه‌هایش به سطح اصلی برمی‌گردند.',
     'Select customer': 'انتخاب مشتری',
