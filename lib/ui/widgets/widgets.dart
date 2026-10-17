@@ -8,6 +8,7 @@ import '../../core/money.dart';
 import '../../data/models.dart';
 import '../design.dart';
 import '../motion_kit.dart';
+import '../theme.dart';
 import 'date_picker.dart';
 
 import '../../core/localization.dart';
@@ -201,11 +202,22 @@ class FormActionBar extends StatefulWidget {
     required this.label,
     required this.onPressed,
     this.icon = Icons.check_rounded,
+    this.hint,
   });
 
   final String label;
   final Future<void> Function()? onPressed;
   final IconData icon;
+
+  /// An optional line above the button that says what is still missing.
+  ///
+  /// A greyed-out button with no reason is a dead end: the user taps it,
+  /// nothing happens, and the form gives no clue what to do. The hint
+  /// answers that question where the question is asked — right above the
+  /// button that refused to act.
+  ///
+  /// Plain display text: pass an already translated string.
+  final String? hint;
 
   @override
   State<FormActionBar> createState() => _FormActionBarState();
@@ -249,21 +261,74 @@ class _FormActionBarState extends State<FormActionBar> {
             border: Border(top: BorderSide(color: theme.dividerColor)),
           ),
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-          child: SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: widget.onPressed == null ? null : _handleTap,
-              icon: _busy
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(widget.icon),
-              label: Text((_busy ? 'Saving…' : widget.label).tr),
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (widget.hint != null) ActionHint(widget.hint!),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: widget.onPressed == null ? null : _handleTap,
+                  icon: _busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(widget.icon),
+                  label: Text((_busy ? 'Saving…' : widget.label).tr),
+                ),
+              ),
+            ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// One line under a primary button that says what is still missing.
+///
+/// A disabled button with no reason is a dead end: the user taps it, nothing
+/// happens, and the form gives no clue what to do next. The hint names the
+/// missing piece instead of leaving the user to guess — which is what the
+/// entry forms used to do: the "Record" button stayed grey and silent until
+/// an amount was typed, and nothing on screen said why.
+///
+/// The text is plain display text: pass an already translated string.
+class ActionHint extends StatelessWidget {
+  const ActionHint(
+    this.text, {
+    super.key,
+    this.icon = Icons.info_outline_rounded,
+  });
+
+  final String text;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 15, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1042,7 +1107,10 @@ Future<bool> confirmDialog(
         ),
         FilledButton(
           style: danger
-              ? FilledButton.styleFrom(backgroundColor: const Color(0xFFE11D48))
+              ? FilledButton.styleFrom(
+                  backgroundColor: AppTheme.danger,
+                  foregroundColor: Colors.white,
+                )
               : null,
           onPressed: () => Navigator.pop(ctx, true),
           child: Text(okLabel.tr),
@@ -1053,13 +1121,29 @@ Future<bool> confirmDialog(
   return res ?? false;
 }
 
+/// How long a message stays on screen.
+///
+/// Material's own default is four seconds. The app used two, which is not
+/// enough to read a Persian sentence: the bar was gone before the eye had
+/// finished the first line, and a message like "this category is already a
+/// quick button" was gone before it had been read at all.
+const Duration kSnackDuration = Duration(seconds: 4);
+
+/// Errors stay up longer than confirmations. They carry information the user
+/// has to act on, and they are the messages people want to read twice.
+const Duration kSnackErrorDuration = Duration(seconds: 6);
+
+/// A message with an action ("Undo") keeps Material's own window: long enough
+/// to notice the button, short enough not to sit over the next screen.
+const Duration kSnackActionDuration = Duration(seconds: 5);
+
 void showSnack(
   BuildContext context,
   String message, {
   bool error = false,
   String? actionLabel,
   VoidCallback? onAction,
-  Duration duration = const Duration(seconds: 2),
+  Duration? duration,
 }) {
   showMessengerSnack(
     ScaffoldMessenger.of(context),
@@ -1076,25 +1160,74 @@ void showSnack(
 /// Saving flows resolve the messenger *before* their `await` and then use this
 /// function afterwards, so no `BuildContext` is read once the async work has
 /// started (see `use_build_context_synchronously`).
+///
+/// Every message in the app goes through here, so this is where the feedback
+/// contract lives:
+///
+///  * **A status icon.** A tick and a warning sign read at a glance, and
+///    they carry the meaning without relying on the background colour alone —
+///    which matters for colour-blind users and for anyone looking at a
+///    washed-out screen in daylight.
+///  * **A contrast-safe surface.** The text colour is computed from the bar's
+///    own background instead of being left to the theme's inverse pair, so a
+///    dark bar can never end up with dark text on it — the old theme left the
+///    colour unset, and the bar relied on a default it never checked.
+///  * **Enough time to read.** Four seconds for a confirmation, six for an
+///    error, five when there is an action to press.
 void showMessengerSnack(
   ScaffoldMessengerState messenger,
   String message, {
   bool error = false,
   String? actionLabel,
   VoidCallback? onAction,
-  Duration duration = const Duration(seconds: 2),
+  Duration? duration,
+  IconData? icon,
 }) {
+  final theme = Theme.of(messenger.context);
+  final normal = theme.snackBarTheme.backgroundColor ??
+      theme.colorScheme.inverseSurface;
+  final background = error ? const Color(0xFFB91C1C) : normal;
+  // Dark surface, light text — computed, never assumed, so a future theme
+  // change cannot flip the message into an unreadable one.
+  final foreground = ThemeData.estimateBrightnessForColor(background) ==
+          Brightness.dark
+      ? Colors.white
+      : theme.colorScheme.onSurface;
+  final glyph =
+      icon ?? (error ? Icons.error_outline_rounded : Icons.check_rounded);
+
   messenger
     ..hideCurrentSnackBar()
     ..showSnackBar(
       SnackBar(
-        content: Text(message.tr),
-        backgroundColor: error ? const Color(0xFFB91C1C) : null,
-        duration: actionLabel == null ? duration : const Duration(seconds: 5),
+        backgroundColor: background,
+        duration: duration ??
+            (actionLabel != null
+                ? kSnackActionDuration
+                : error
+                ? kSnackErrorDuration
+                : kSnackDuration),
+        content: Row(
+          children: [
+            Icon(glyph, size: 19, color: foreground),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message.tr,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: foreground,
+                ),
+              ),
+            ),
+          ],
+        ),
         action: actionLabel == null
             ? null
             : SnackBarAction(
                 label: actionLabel.tr,
+                textColor: foreground,
                 onPressed: () => onAction?.call(),
               ),
       ),
@@ -1909,8 +2042,13 @@ class SwipeActions extends StatefulWidget {
     super.key,
     required this.child,
     required this.actions,
-    this.panelWidth = 150,
+    this.panelWidth = defaultPanelWidth,
   });
+
+  /// Three actions at 56dp each: enough for a 34dp circle and a label that
+  /// is still legible at 10.5, with room for a finger to land on the right
+  /// one. At the old 150 the labels were set at 9.5 and squeezed.
+  static const double defaultPanelWidth = 168;
 
   final Widget child;
   final List<SwipeAction> actions;
@@ -2164,7 +2302,7 @@ class _SwipeButton extends StatelessWidget {
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 9.5,
+                      fontSize: 10.5,
                       fontWeight: FontWeight.w700,
                       color: action.color,
                     ),

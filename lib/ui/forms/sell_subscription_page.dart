@@ -154,6 +154,10 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
       return;
     }
     if (_formKey.currentState?.validate() != true) return;
+    // Resolved before the write: the page pops itself right after it, and
+    // the confirmation has to outlive the page.
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
     final price = parseAmount(_price.text);
     final received = parseAmount(_received.text);
     await repo.sellSubscription(
@@ -174,8 +178,11 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
     );
     if (!mounted) return;
     MoneyCelebration.recorded(context);
-    showSnack(context, isRenew ? 'Subscription renewed' : 'Sale recorded');
-    Navigator.pop(context);
+    showMessengerSnack(
+      messenger,
+      isRenew ? 'Subscription renewed' : 'Sale recorded',
+    );
+    navigator.pop();
   }
 
   @override
@@ -195,6 +202,10 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
       bottomNavigationBar: FormActionBar(
         label: isRenew ? 'Record renewal' : 'Record sale',
         icon: isRenew ? Icons.autorenew_rounded : Icons.check_rounded,
+        // A sale without a customer has nowhere to go: the account cannot be
+        // updated and the subscription has no owner. Say so before the tap
+        // instead of only after it.
+        hint: _contact == null ? 'Select a customer first.'.tr : null,
         onPressed: _save,
       ),
       body: Form(

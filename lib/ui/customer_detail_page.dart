@@ -245,10 +245,16 @@ class CustomerDetailPage extends StatelessWidget {
           const SizedBox(height: 12),
 
           // ---------- Actions ----------
+          // Three levels, one per row. The balance card right above the
+          // buttons is an invitation to collect the money, so "Receive"
+          // carries the emphasis and leads the row (the first button of a
+          // row is the one the eye meets first in a right-to-left layout).
+          // Selling a subscription is a different flow and steps down one
+          // level; the two leftovers are quiet.
           Row(
             children: [
               Expanded(
-                child: FilledButton.tonalIcon(
+                child: FilledButton.icon(
                   onPressed: () => showPaymentSheet(context, customer: c),
                   icon: const Icon(Icons.call_received_rounded, size: 18),
                   label: Text('Receive'.tr),
@@ -256,7 +262,7 @@ class CustomerDetailPage extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: FilledButton.icon(
+                child: FilledButton.tonalIcon(
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -288,29 +294,31 @@ class CustomerDetailPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Clipboard.setData(
-                      ClipboardData(
-                        text: '{name}\nBalance: {amount} {status}\nSubscriptions: {count}'
-                            .trArgs({
-                              'name': c.name,
-                              'amount': Money.text(balance.abs()),
-                              'status': balance.abs() < 1
-                                  ? 'Settled'.tr
-                                  : balance > 0
-                                  ? 'Debtor'.tr
-                                  : 'Creditor'.tr,
-                              'count': subs.length,
-                            }),
-                      ),
-                    );
-                    showSnack(context, 'Details copied');
-                  },
-                  icon: const Icon(Icons.copy_rounded, size: 18),
-                  label: Text('Copy summary'.tr),
-                ),
+              // A shortcut, not a peer of "record a transaction": copying the
+              // summary puts a text on the clipboard, so it steps down to a
+              // utility button instead of taking half the row and a full
+              // label with it.
+              IconButton.filledTonal(
+                tooltip: 'Copy summary'.tr,
+                onPressed: () {
+                  Clipboard.setData(
+                    ClipboardData(
+                      text: '{name}\nBalance: {amount} {status}\nSubscriptions: {count}'
+                          .trArgs({
+                            'name': c.name,
+                            'amount': Money.text(balance.abs()),
+                            'status': balance.abs() < 1
+                                ? 'Settled'.tr
+                                : balance > 0
+                                ? 'Debtor'.tr
+                                : 'Creditor'.tr,
+                            'count': subs.length,
+                          }),
+                    ),
+                  );
+                  showSnack(context, 'Details copied');
+                },
+                icon: const Icon(Icons.copy_rounded, size: 20),
               ),
             ],
           ),

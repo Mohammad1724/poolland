@@ -258,21 +258,21 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   /// the review queue the moment a new bank SMS lands in it.
   void _onNewSmsSuggestion() {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('New bank SMS — review and record it'.tr),
-          duration: const Duration(seconds: 6),
-          action: SnackBarAction(
-            label: 'Review SMS'.tr,
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SmsPage()),
-            ),
-          ),
-        ),
-      );
+    // Through the shared helper, so this banner looks and lasts like every
+    // other message in the app — icon, contrast-checked colours, and a
+    // window long enough to notice the action button.
+    showMessengerSnack(
+      ScaffoldMessenger.of(context),
+      'New bank SMS — review and record it',
+      actionLabel: 'Review SMS',
+      onAction: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const SmsPage()),
+      ),
+      // Six seconds: the action has to be noticed, and the queue behind it
+      // can wait for the next message.
+      duration: const Duration(seconds: 6),
+    );
   }
 
   void _goTo(int i) {
@@ -797,11 +797,17 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (_dialEntry == null) return;
     // The *nearest* slot inside the radius wins. Taking the first match used to
     // stick on the wrong item once the screen got small enough for two slots to
-    // overlap the radius, because `_dialSlot` clamps them to the screen edges.
+    // overlap the radius, because the old fan clamped its slots to the screen
+    // edges.
+    final layout = _DialLayout.of(
+      origin: _dialOrigin,
+      size: _dialSize,
+      count: _dialItems.length,
+    );
     var hit = -1;
     var best = _dialPickRadius;
     for (var i = 0; i < _dialItems.length; i++) {
-      final slot = _dialSlot(i, _dialItems.length, _dialOrigin, _dialSize);
+      final slot = layout.slot(i, _dialItems.length);
       final distance = (slot - d.globalPosition).distance;
       if (distance < best) {
         best = distance;
@@ -1130,20 +1136,110 @@ class _TabPaneState extends State<_TabPane>
   }
 }
 
-/// Where the i-th speed-dial item sits: a fan of arcs opening upward,
-/// tilted toward the middle of the screen, clamped inside the viewport.
-Offset _dialSlot(int i, int n, Offset origin, Size size) {
-  const r = 122.0;
-  final spread = n <= 1 ? 0.5 : i / (n - 1);
-  final a = math.pi / 2 + spread * 1.12; // 90 degrees -> ~154 degrees
-  final dx = origin.dx > size.width / 2
-      ? math.cos(a) * r
-      : -math.cos(a) * r;
-  final p = Offset(origin.dx + dx, origin.dy - math.sin(a) * r);
-  return Offset(
-    p.dx.clamp(34.0, size.width - 34.0),
-    p.dy.clamp(34.0, size.height - 34.0),
-  );
+/// The geometry of the speed-dial fan.
+///
+/// Two things have to hold at the same time, and the old fixed radius could
+/// not hold both:
+///
+///  * the buttons must not overlap — every slot is a [itemSize] circle, so
+///    neighbouring slots have to stay at least [itemSize] + [gap] apart;
+///  * the fan must stay inside the screen — a slot that is clamped to the
+///    edge lands on top of its neighbour, and that is exactly what turned
+///    the five-button fan of the dashboard into a pile of overlapping
+///    circles (the old radius put them 34 pixels apart with 54 pixel
+///    buttons).
+///
+/// So the radius is derived from the number of buttons: the more of them
+/// there are, the further out they have to sit to keep the same distance.
+/// The fan always opens towards the middle of the screen, and it is never
+/// allowed to reach past the edges.
+class _DialLayout {
+  const _DialLayout({
+    required this.origin,
+    required this.radius,
+    required this.sweep,
+    required this.direction,
+  });
+
+  /// The diameter of one dial button.
+  static const double itemSize = 54;
+
+  /// The clear space kept between two neighbouring buttons.
+  static const double gap = 12;
+
+  /// How wide the fan opens, in radians (about 64 degrees). Kept below a
+  /// quarter turn so the last button never drops below the button it
+  /// belongs to.
+  static const double maxSweep = 1.12;
+
+  /// How close a button may come to the edge of the screen.
+  static const double edge = 34;
+
+  /// The radius the fan uses when it has room to breathe.
+  static const double preferredRadius = 122;
+
+  /// The centre of the button the fan grew out of.
+  final Offset origin;
+
+  /// The distance from [origin] to every button.
+  final double radius;
+
+  /// The angle the fan covers, in radians.
+  final double sweep;
+
+  /// Which way the fan opens: towards the middle of the screen.
+  final double direction;
+
+  factory _DialLayout.of({
+    required Offset origin,
+    required Size size,
+    required int count,
+  }) {
+    // The fan opens towards the middle of the screen, so it never reaches
+    // for the edge the button is anchored to.
+    final direction = origin.dx > size.width / 2 ? -1.0 : 1.0;
+    if (count <= 1) {
+      return _DialLayout(
+        origin: origin,
+        radius: preferredRadius,
+        sweep: 0,
+        direction: direction,
+      );
+    }
+    final spacing = itemSize + gap;
+    final sweep = maxSweep;
+    // The room the fan has: above the button, and towards the side it
+    // opens to.
+    final topRoom = origin.dy - edge;
+    final sideRoom = math.max(
+      1.0,
+      direction > 0 ? size.width - edge - origin.dx : origin.dx - edge,
+    );
+    final maxRadius = math.min(topRoom, sideRoom / math.sin(sweep));
+    // The radius the spacing asks for. When the screen is too small for it,
+    // the buttons sit a little closer instead of being pushed on top of
+    // each other.
+    final wanted = math.max(
+      spacing / (2 * math.sin(sweep / (2 * (count - 1)))),
+      preferredRadius,
+    );
+    return _DialLayout(
+      origin: origin,
+      radius: math.min(wanted, maxRadius),
+      sweep: sweep,
+      direction: direction,
+    );
+  }
+
+  /// The centre of the i-th button.
+  Offset slot(int i, int count) {
+    final spread = count <= 1 ? 0.5 : i / (count - 1);
+    final a = math.pi / 2 + spread * sweep;
+    return Offset(
+      origin.dx + direction * -math.cos(a) * radius,
+      origin.dy - math.sin(a) * radius,
+    );
+  }
 }
 
 class _DialItem {
@@ -1186,6 +1282,15 @@ class _SpeedDialLayerState extends State<_SpeedDialLayer>
     duration: const Duration(milliseconds: 280),
   );
   bool _fanStarted = false;
+
+  /// The fan's geometry. Computed once: the layout only depends on where
+  /// the button is and how many items there are, and both are fixed for as
+  /// long as the dial is open.
+  late final _DialLayout _layout = _DialLayout.of(
+    origin: widget.origin,
+    size: widget.size,
+    count: widget.items.length,
+  );
 
   @override
   void dispose() {
@@ -1245,13 +1350,14 @@ class _SpeedDialLayerState extends State<_SpeedDialLayer>
 
   Widget _item(BuildContext context, int i, double t, bool hot) {
     final item = widget.items[i];
-    final slot = _dialSlot(i, widget.items.length, widget.origin, widget.size);
+    final slot = _layout.slot(i, widget.items.length);
     final appear = Curves.easeOutBack.transform(
       ((t - i * 0.05) / 0.7).clamp(0.0, 1.0),
     );
+    final half = _DialLayout.itemSize / 2;
     return Positioned(
-      left: slot.dx - 27,
-      top: slot.dy - 27,
+      left: slot.dx - half,
+      top: slot.dy - half,
       child: Opacity(
         opacity: appear.clamp(0.0, 1.0),
         child: Transform.scale(

@@ -164,7 +164,12 @@ class _SmsPageState extends State<SmsPage> {
                       okLabel: 'Reject'.tr,
                       danger: true,
                     );
-                    if (ok) await repo.rejectAllSms();
+                    if (!ok || !context.mounted) break;
+                    final messenger = ScaffoldMessenger.of(context);
+                    await repo.rejectAllSms();
+                    // The queue empties itself, which can look like a glitch
+                    // unless the app says what happened.
+                    showMessengerSnack(messenger, 'All suggestions rejected');
                     break;
                   case 'reset':
                     final ok = await confirmDialog(
@@ -606,7 +611,13 @@ class _SmsCard extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => repo.rejectSms(sms),
+                  // Rejecting removes the card from the queue, so without a
+                  // word it looks like the card vanished. Say so.
+                  onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    await repo.rejectSms(sms);
+                    showMessengerSnack(messenger, 'SMS rejected');
+                  },
                   icon: const Icon(Icons.close_rounded, size: 17),
                   label: Text('Reject'.tr),
                 ),
@@ -988,7 +999,13 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     final c = res.value!;
     if (!mounted) return;
     if (repo.quickExpenses.any((q) => q.categoryId == c.id)) {
-      showSnack(context, 'This category is already a quick button');
+      // A rejection, not a confirmation: it says the tap did nothing, so it
+      // has to look like a warning rather than a green tick.
+      showSnack(
+        context,
+        'This category is already a quick button',
+        error: true,
+      );
       return;
     }
     Haptics.selection();

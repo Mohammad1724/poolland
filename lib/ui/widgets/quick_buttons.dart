@@ -204,23 +204,23 @@ Future<void> recordQuickExpense(BuildContext context, QuickExpense q) async {
   final txn = await repo.addQuickExpense(q, amount: amount, date: date);
   if (!context.mounted) return;
   MoneyCelebration.recorded(context);
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(
-      SnackBar(
-        content: Text(
-          '{label} • {amount} recorded'.trArgs({
-            'label': q.label.tr,
-            'amount': Money.text(amount),
-          }),
-        ),
-        duration: const Duration(seconds: 3),
-        action: SnackBarAction(
-          label: 'Cancel'.tr,
-          onPressed: () => repo.deleteTxn(txn.id),
-        ),
-      ),
-    );
+  // The message names what was recorded, and the action undoes it. The label
+  // used to be "Cancel" on a button that actually deleted the entry, and the
+  // three seconds it stayed up were not enough to notice the button at all.
+  final messenger = ScaffoldMessenger.of(context);
+  showMessengerSnack(
+    messenger,
+    '{label} • {amount} recorded'.trArgs({
+      'label': q.label.tr,
+      'amount': Money.text(amount),
+    }),
+    actionLabel: 'Undo',
+    onAction: () async {
+      await repo.deleteTxn(txn.id);
+      if (!context.mounted) return;
+      showMessengerSnack(messenger, 'Entry removed');
+    },
+  );
 }
 
 /// What [QuickAmountSheet] hands back: the entered amount plus the day it

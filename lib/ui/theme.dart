@@ -10,6 +10,14 @@ class AppTheme {
   static const revenue = Color(0xFF16A34A);
   static const expense = Color(0xFFE11D48);
   static const warning = Color(0xFFF59E0B);
+
+  /// The fill of a destructive button (delete, remove, reset).
+  ///
+  /// A shade darker than [expense]: white text on the brand red sits at
+  /// roughly 4:1, just under the 4.5:1 that normal-size text needs, while on
+  /// this one it clears 6:1. Destructive actions are exactly the ones that
+  /// must not be misread, so they get the accessible shade.
+  static const danger = Color(0xFFBE123C);
   static const receivable = Color(0xFF0F766E); // Receivable
   static const payable = Color(0xFF2563EB); // Payable
   static const cash = Color(0xFF7C3AED);
@@ -162,10 +170,18 @@ class AppTheme {
         backgroundColor: isDark
             ? const Color(0xFF23304A)
             : const Color(0xFF1F2937),
+        // The bar is dark in both themes, so the text is light in both. It is
+        // spelled out instead of inherited: the snack bar wraps its content in
+        // a `DefaultTextStyle` that *replaces* the ambient one, so a style
+        // without a colour left the message to whatever the engine defaults
+        // to — readable by luck, not by design.
         contentTextStyle: const TextStyle(
           fontFamily: 'Vazirmatn',
           fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
         ),
+        actionTextColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       filledButtonTheme: FilledButtonThemeData(

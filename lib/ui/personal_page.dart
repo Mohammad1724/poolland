@@ -801,6 +801,9 @@ class _BudgetSheetState extends State<_BudgetSheet> {
     final cats = repo.categories
         .where((c) => c.kind == TxnKind.expense && c.scope == TxnScope.personal)
         .toList();
+    // Rebuilt on every keystroke through the field's `onChanged`, so the
+    // save button and its hint track the form as it is filled in.
+    final canSave = _categoryId != null && parseAmount(_limit.text) > 0;
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
@@ -830,7 +833,11 @@ class _BudgetSheetState extends State<_BudgetSheet> {
               onChanged: (c) => setState(() => _categoryId = c?.id),
             ),
             const SizedBox(height: 12),
-            AmountField(controller: _limit, label: 'Monthly limit'.tr),
+            AmountField(
+              controller: _limit,
+              label: 'Monthly limit'.tr,
+              onChanged: () => setState(() {}),
+            ),
             const SizedBox(height: 8),
             SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
@@ -843,34 +850,51 @@ class _BudgetSheetState extends State<_BudgetSheet> {
               onChanged: (v) => setState(() => _enabled = v),
             ),
             const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () async {
-                final limit = parseAmount(_limit.text);
-                if (_categoryId == null || limit <= 0) return;
-                final repo = context.read<AppRepository>();
-                // Editing keeps the stored id and scope instead of
-                // rebuilding the budget from scratch.
-                final initial = widget.initial;
-                final b = initial == null
-                    ? Budget(
-                        id: LocalStore.newId(),
-                        categoryId: _categoryId!,
-                        limit: limit,
-                        enabled: _enabled,
-                      )
-                    : initial.copyWith(
-                        categoryId: _categoryId!,
-                        limit: limit,
-                        enabled: _enabled,
-                      );
-                if (initial == null) {
-                  await repo.addBudget(b);
-                } else {
-                  await repo.updateBudget(b);
-                }
-                if (context.mounted) Navigator.pop(context);
-              },
-              child: Text('Save'.tr),
+            // A budget needs a category and a limit. The button used to stay
+            // live and then return without a word when one of them was
+            // missing: the sheet simply refused to close and nothing on screen
+            // said why. Now it is disabled while the form is incomplete, and
+            // the line under it names what is missing.
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                FilledButton(
+                  onPressed: canSave
+                      ? () async {
+                          final limit = parseAmount(_limit.text);
+                          // Editing keeps the stored id and scope instead of
+                          // rebuilding the budget from scratch.
+                          final initial = widget.initial;
+                          final b = initial == null
+                              ? Budget(
+                                  id: LocalStore.newId(),
+                                  categoryId: _categoryId!,
+                                  limit: limit,
+                                  enabled: _enabled,
+                                )
+                              : initial.copyWith(
+                                  categoryId: _categoryId!,
+                                  limit: limit,
+                                  enabled: _enabled,
+                                );
+                          if (initial == null) {
+                            await repo.addBudget(b);
+                          } else {
+                            await repo.updateBudget(b);
+                          }
+                          if (context.mounted) Navigator.pop(context);
+                        }
+                      : null,
+                  child: Text('Save'.tr),
+                ),
+                if (!canSave)
+                  ActionHint(
+                    (_categoryId == null
+                            ? 'Pick a category first'
+                            : 'Enter an amount')
+                        .tr,
+                  ),
+              ],
             ),
           ],
         ),
@@ -1062,40 +1086,66 @@ class _RecurringSheetState extends State<_RecurringSheet> {
               onChanged: (v) => setState(() => _enabled = v),
             ),
             const SizedBox(height: 10),
-            FilledButton(
-              onPressed: () async {
-                final amount = parseAmount(_amount.text);
-                if (_title.text.trim().isEmpty || amount <= 0) return;
-                final repo = context.read<AppRepository>();
-                // Fields this sheet does not edit (scope, currency, customer,
-                // note) are carried over from the stored rule instead of
-                // silently reset to their defaults.
-                final initial = widget.initial;
-                final r = RecurringRule(
-                  id: initial?.id ?? LocalStore.newId(),
-                  title: _title.text.trim(),
-                  kind: _kind,
-                  amount: amount,
-                  scope: initial?.scope ?? TxnScope.personal,
-                  currency: initial?.currency ?? 'IRT',
-                  customerId: initial?.customerId,
-                  note: initial?.note ?? '',
-                  categoryId: _categoryId,
-                  period: _period,
-                  dayOfMonth: _dayOfMonth,
-                  startDate: _start,
-                  endDate: _end,
-                  enabled: _enabled,
-                  lastPosted: initial?.lastPosted,
+            // A rule needs a title and an amount. As before, the button used
+            // to swallow the tap and say nothing when one of them was
+            // missing; now it is disabled until the form is complete and the
+            // line under it says what is still needed.
+            ListenableBuilder(
+              listenable: Listenable.merge([_title, _amount]),
+              builder: (context, _) {
+                final hasTitle = _title.text.trim().isNotEmpty;
+                final hasAmount = parseAmount(_amount.text) > 0;
+                final canSave = hasTitle && hasAmount;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    FilledButton(
+                      onPressed: canSave
+                          ? () async {
+                              final amount = parseAmount(_amount.text);
+                              final repo = context.read<AppRepository>();
+                              // Fields this sheet does not edit (scope,
+                              // currency, customer, note) are carried over
+                              // from the stored rule instead of silently
+                              // reset to their defaults.
+                              final initial = widget.initial;
+                              final r = RecurringRule(
+                                id: initial?.id ?? LocalStore.newId(),
+                                title: _title.text.trim(),
+                                kind: _kind,
+                                amount: amount,
+                                scope: initial?.scope ?? TxnScope.personal,
+                                currency: initial?.currency ?? 'IRT',
+                                customerId: initial?.customerId,
+                                note: initial?.note ?? '',
+                                categoryId: _categoryId,
+                                period: _period,
+                                dayOfMonth: _dayOfMonth,
+                                startDate: _start,
+                                endDate: _end,
+                                enabled: _enabled,
+                                lastPosted: initial?.lastPosted,
+                              );
+                              if (initial == null) {
+                                await repo.addRecurring(r);
+                              } else {
+                                await repo.updateRecurring(r);
+                              }
+                              if (context.mounted) Navigator.pop(context);
+                            }
+                          : null,
+                      child: Text('Save'.tr),
+                    ),
+                    if (!canSave)
+                      ActionHint(
+                        (!hasTitle
+                                ? 'Enter a title'
+                                : 'Enter an amount')
+                            .tr,
+                      ),
+                  ],
                 );
-                if (initial == null) {
-                  await repo.addRecurring(r);
-                } else {
-                  await repo.updateRecurring(r);
-                }
-                if (context.mounted) Navigator.pop(context);
               },
-              child: Text('Save'.tr),
             ),
           ],
         ),
@@ -1425,35 +1475,53 @@ class _QuickEditPageState extends State<_QuickEditPage> {
           ],
         ),
         const SizedBox(height: 20),
-        FilledButton(
-          onPressed: () async {
-            if (_label.text.trim().isEmpty) return;
-            final repo = context.read<AppRepository>();
-            final initial = widget.initial;
-            final q = QuickExpense(
-              id: initial?.id ?? LocalStore.newId(),
-              label: _label.text.trim(),
-              amount: parseAmount(_amount.text),
-              kind: _kind,
-              // Editing keeps the stored scope; a brand-new button lands in
-              // whichever section the sheet is currently set to.
-              scope: initial?.scope ?? _scope,
-              categoryId: _categoryId,
-              iconCodePoint: _iconCodePoint,
-              sortOrder:
-                  initial?.sortOrder ??
-                  (repo.quickExpenses.isEmpty
-                      ? 0
-                      : repo.quickExpenses.last.sortOrder + 1),
+        // A quick button without a name has nothing to show on the button
+        // itself, so the name is required. The Save button used to swallow
+        // the tap silently in that case; it is disabled now and the line
+        // under it says what is missing.
+        ListenableBuilder(
+          listenable: _label,
+          builder: (context, _) {
+            final canSave = _label.text.trim().isNotEmpty;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                FilledButton(
+                  onPressed: canSave
+                      ? () async {
+                          final repo = context.read<AppRepository>();
+                          final initial = widget.initial;
+                          final q = QuickExpense(
+                            id: initial?.id ?? LocalStore.newId(),
+                            label: _label.text.trim(),
+                            amount: parseAmount(_amount.text),
+                            kind: _kind,
+                            // Editing keeps the stored scope; a brand-new
+                            // button lands in whichever section the sheet is
+                            // currently set to.
+                            scope: initial?.scope ?? _scope,
+                            categoryId: _categoryId,
+                            iconCodePoint: _iconCodePoint,
+                            sortOrder:
+                                initial?.sortOrder ??
+                                (repo.quickExpenses.isEmpty
+                                    ? 0
+                                    : repo.quickExpenses.last.sortOrder + 1),
+                          );
+                          if (initial == null) {
+                            await repo.addQuickButton(q);
+                          } else {
+                            await repo.updateQuickButton(q);
+                          }
+                          if (context.mounted) Navigator.pop(context);
+                        }
+                      : null,
+                  child: Text('Save'.tr),
+                ),
+                if (!canSave) ActionHint('Enter a label'.tr),
+              ],
             );
-            if (initial == null) {
-              await repo.addQuickButton(q);
-            } else {
-              await repo.updateQuickButton(q);
-            }
-            if (context.mounted) Navigator.pop(context);
           },
-          child: Text('Save'.tr),
         ),
       ],
     );

@@ -381,6 +381,14 @@ void main() {
 
     expect(find.text('Contact (optional)'), findsNothing);
     // Personal categories are offered instead (Salary is the seeded default).
+    // The save bar now carries a hint above the button until an amount is
+    // typed, which leaves the category field just below the fold: scroll to
+    // it before asserting.
+    await tester.scrollUntilVisible(
+      find.text('Category'),
+      200,
+      scrollable: formScrollable(),
+    );
     expect(find.text('Category'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('Salary'),
