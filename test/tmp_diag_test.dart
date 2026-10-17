@@ -61,49 +61,32 @@ void main() {
   testWidgets('DL dump expense listview children', (tester) async {
     await tester.pumpWidget(wrap(const CategoriesPage()));
     await tester.pumpAndSettle();
-    // Income page first (default tab).
-    final incomeLvs = find.byType(ListView).evaluate().length;
-    print('DL-1 income lists=$incomeLvs');
     await tester.tap(find.text('Expense'));
     await tester.pumpAndSettle();
-    final lvFinder = find.byType(ListView);
-    final lvEl = tester.element(lvFinder);
-    print('DL-2 expense ListView element=${lvEl.widget.runtimeType} '
-        'scrollExtent=${(lvEl.findRenderObject() as RenderAbstractViewport).offset.pixels}');
-    final sliver = lvEl.child;
-    if (sliver == null) {
-      print('DL-3 sliver element null');
-      return;
-    }
-    var i = 0;
-    sliver.visitChildren((e) {
-      var extra = '';
-      if (e.widget is Padding) {
-        e.child?.visitChildren((c) {
-          extra = ' inner=${c.widget.runtimeType}';
-          if (c.widget is Card) {
-            c.visitChildren((d) {
-              if (d.widget is Row) {
-                d.visitChildren((f) {
-                  if (f.widget is Text) {
-                    extra += ' name=${(f.widget as Text).data}';
-                    return false;
-                  }
-                  return true;
-                });
-                return false;
-              }
-              return true;
-            });
-          }
+    final lvEl = tester.element(find.byType(ListView));
+    lvEl.visitChildren((sliver) {
+      print('DL-2 sliver=${sliver.widget.runtimeType}');
+      var i = 0;
+      sliver.visitChildren((e) {
+        var desc = 'child[$i] ${e.widget.runtimeType}';
+        e.visitChildren((inner) {
+          desc += ' > ${inner.widget.runtimeType}';
+          inner.visitChildren((leaf) {
+            if (leaf.widget is Text) {
+              desc += ' text="${(leaf.widget as Text).data}"';
+              return false;
+            }
+            return true;
+          });
           return false;
         });
-      }
-      print('DL-3 child[$i] ${e.widget.runtimeType}$extra mounted=${e.mounted}');
-      i++;
+        print('DL-3 $desc');
+        i++;
+        return false;
+      });
+      print('DL-4 total children=$i');
       return false;
     });
-    print('DL-4 total direct children=$i');
   });
 
   group('preset child', () {
