@@ -47,7 +47,23 @@ jobs:
       # READ_SMS, RECEIVE_SMS, a notification listener, or an accessibility
       # service — by permission, not by signature.)
       - name: Build the APK
-        run: flutter build apk --debug
+        run: |
+          set -uo pipefail
+          flutter build apk --debug > /tmp/build.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            # The raw job log lives in a blob store, so the important lines
+            # are re-emitted as annotations: they show up on the pull
+            # request and can be read through the API.
+            grep -E "(^e: |FAILURE:|What went wrong|Execution failed|Caused by:|error:|Error:)" /tmp/build.log \
+              | head -10 \
+              | while IFS= read -r line; do
+                  echo "::error::$line"
+                done
+            tail -40 /tmp/build.log >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          cat /tmp/build.log
       - name: Assert the APK declares no sensitive permission
         run: |
           set -euo pipefail
