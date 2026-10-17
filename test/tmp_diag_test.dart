@@ -8,16 +8,15 @@ import 'package:poolland/core/localization.dart';
 import 'package:poolland/data/models.dart';
 import 'package:poolland/data/repository.dart';
 import 'package:poolland/data/store.dart';
-import 'package:poolland/ui/forms/transaction_edit_page.dart';
 import 'package:poolland/ui/settings_page.dart';
 import 'package:poolland/ui/theme.dart';
 import 'package:poolland/ui/widgets/widgets.dart';
 
-/// TEMP diagnostic round 5:
-///  - DF/DG run the full previously-hanging flows WITH the fix (category
-///    created in a group-scoped setUp, i.e. outside the FakeAsync zone).
-///  - DH walks the category-manager create flow step by step to find why the
-///    'Add category' button is missing on the expense tab.
+/// TEMP diagnostic round 6:
+///  - DL: dump the expense ListView's actual child elements + the length of
+///    its children list (the 'Add category' button is missing there).
+///  - DN: the delete flow with a drain loop after the fire-and-forget write
+///    (validates the tearDown-deadlock fix).
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -26,7 +25,7 @@ void main() {
   late AppRepository repo;
 
   setUp(() async {
-    tmp = await Directory.systemTemp.createTemp('poolland_diag5');
+    tmp = await Directory.systemTemp.createTemp('poolland_diag6');
     store = await LocalStore.openAt(tmp.path);
     repo = AppRepository(store: store);
     await repo.loadDemoData();
@@ -59,10 +58,55 @@ void main() {
     );
   }
 
-  List<String> textData(WidgetTester t) =>
-      find.byType(Text).evaluate().map((e) => (e.widget as Text).data ?? '').toList();
+  testWidgets('DL dump expense listview children', (tester) async {
+    await tester.pumpWidget(wrap(const CategoriesPage()));
+    await tester.pumpAndSettle();
+    // Income page first (default tab).
+    final incomeLvs = find.byType(ListView).evaluate().length;
+    print('DL-1 income lists=$incomeLvs');
+    await tester.tap(find.text('Expense'));
+    await tester.pumpAndSettle();
+    final lvFinder = find.byType(ListView);
+    final lvWidget = tester.widget<ListView>(lvFinder.first);
+    print('DL-2 expense ListView children.length='
+        '${lvWidget.children?.length} cacheExtent=${lvWidget.cacheExtent}');
+    final sliver = lvFinder.first.element.child;
+    if (sliver == null) {
+      print('DL-3 sliver element null');
+      return;
+    }
+    var i = 0;
+    sliver.visitChildren((e) {
+      var extra = '';
+      if (e.widget is Padding) {
+        e.child?.visitChildren((c) {
+          extra = ' inner=${c.widget.runtimeType}';
+          if (c.widget is Card) {
+            c.visitChildren((d) {
+              if (d.widget is Row) {
+                d.visitChildren((f) {
+                  if (f.widget is Text) {
+                    extra += ' name=${(f.widget as Text).data}';
+                    return false;
+                  }
+                  return true;
+                });
+                return false;
+              }
+              return true;
+            });
+          }
+          return false;
+        });
+      }
+      print('DL-3 child[$i] ${e.widget.runtimeType}$extra mounted=${e.mounted}');
+      i++;
+      return false;
+    });
+    print('DL-4 total direct children=$i');
+  });
 
-  group('preset child (created in group setUp)', () {
+  group('preset child', () {
     late Category theChild;
 
     setUp(() async {
@@ -74,52 +118,16 @@ void main() {
       theChild = repo
           .categoriesOf(TxnKind.expense, scope: TxnScope.business)
           .firstWhere((c) => c.name == 'Fuel and oil');
-      print('DSETUP child created in real-async setUp OK');
     });
 
-    testWidgets('DF entry form + sheet + child tap (fixed)', (tester) async {
-      print('DF-1 pumpWidget');
-      await tester.pumpWidget(
-        wrap(
-          const TransactionEditPage(
-            initialKind: TxnKind.expense,
-            autofocusAmount: false,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      print('DF-2 settled, child=${theChild.id}');
-      await tester.scrollUntilVisible(
-        find.text('Category'),
-        200,
-        scrollable: find
-            .descendant(
-              of: find.byType(ListView),
-              matching: find.byType(Scrollable),
-            )
-            .first,
-      );
-      print('DF-3 category visible');
-      await tester.tap(find.byType(SelectField<Category>));
-      await tester.pumpAndSettle();
-      print('DF-4 sheet settled, fuel tiles='
-          '${find.text('Fuel and oil').evaluate().length}');
-      await tester.tap(find.text('Fuel and oil'));
-      await tester.pumpAndSettle();
-      print('DF-5 child selected, settled OK');
-    });
-
-    testWidgets('DG delete parent via UI (fixed)', (tester) async {
+    testWidgets('DN delete flow with drain loop', (tester) async {
       final parent = repo
           .topCategories(TxnKind.expense, scope: TxnScope.business)
           .firstWhere((c) => c.id == theChild.parentId);
-      print('DG-1 parent=${parent.name}');
       await tester.pumpWidget(wrap(const CategoriesPage()));
       await tester.pumpAndSettle();
-      print('DG-2 settled');
       await tester.tap(find.text('Expense'));
       await tester.pumpAndSettle();
-      print('DG-3 expense tab settled');
       final parentRow = find
           .ancestor(
             of: find.text(parent.name),
@@ -129,38 +137,35 @@ void main() {
       await tester.tap(
         find.descendant(of: parentRow, matching: find.byTooltip('Delete')),
       );
-      print('DG-4 tapped delete icon');
       await tester.pumpAndSettle();
-      print('DG-5 dialog settled, delete texts='
-          '${find.text('Delete').evaluate().length}');
       await tester.tap(find.text('Delete').last);
       await tester.pumpAndSettle();
-      print('DG-6 deleted, child now parent=${theChild.parentId}');
+      print('DN-1 right after tap, fresh child parentId='
+          '${repo.categoriesOf(TxnKind.expense, scope: TxnScope.business)
+                .firstWhere((c) => c.name == 'Fuel and oil')
+                .parentId}');
+      // Drain the fire-and-forget repository writes before asserting.
+      for (var i = 0; i < 30; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      final child = repo
+          .categoriesOf(TxnKind.expense, scope: TxnScope.business)
+          .firstWhere((c) => c.name == 'Fuel and oil');
+      print('DN-2 after drain, child parentId=${child.parentId}');
+      expect(child.parentId, isNull);
+      await tester.scrollUntilVisible(
+        find.text('Fuel and oil'),
+        100,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(find.text('Fuel and oil'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      print('DN-3 all assertions passed');
     });
-  });
-
-  testWidgets('DH create flow walk (find the missing button)', (tester) async {
-    print('DH-1 pumpWidget');
-    await tester.pumpWidget(wrap(const CategoriesPage()));
-    await tester.pumpAndSettle();
-    print('DH-2 settled');
-    print('DH-3 income texts: ${textData(tester).take(30).toList()}');
-    print('DH-4 income buttons=${find.byWidgetPredicate((w) => w is FilledButton).evaluate().length} '
-        'addTexts=${find.text('Add category').evaluate().length}');
-    await tester.tap(find.text('Expense'));
-    print('DH-5 tapped expense tab');
-    await tester.pumpAndSettle();
-    print('DH-6 expense texts: ${textData(tester).take(40).toList()}');
-    print('DH-7 expense buttons=${find.byWidgetPredicate((w) => w is FilledButton).evaluate().length} '
-        'addTexts=${find.text('Add category').evaluate().length} '
-        'lists=${find.byType(ListView).evaluate().length} '
-        'exception=${tester.takeException()}');
-    final addBtn = find.text('Add category');
-    if (addBtn.evaluate().isEmpty) {
-      // Try to reach the dialog through the button widget directly.
-      final byType =
-          find.byWidgetPredicate((w) => w is FilledButton).evaluate();
-      print('DH-8 fallback filled buttons=${byType.length}');
-    }
   });
 }
