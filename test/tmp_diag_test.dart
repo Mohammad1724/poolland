@@ -67,10 +67,10 @@ void main() {
     await tester.tap(find.text('Expense'));
     await tester.pumpAndSettle();
     final lvFinder = find.byType(ListView);
-    final lvWidget = tester.widget<ListView>(lvFinder.first);
-    print('DL-2 expense ListView children.length='
-        '${lvWidget.children?.length} cacheExtent=${lvWidget.cacheExtent}');
-    final sliver = lvFinder.first.element.child;
+    final lvEl = tester.element(lvFinder);
+    print('DL-2 expense ListView element=${lvEl.widget.runtimeType} '
+        'scrollExtent=${(lvEl.findRenderObject() as RenderAbstractViewport).offset.pixels}');
+    final sliver = lvEl.child;
     if (sliver == null) {
       print('DL-3 sliver element null');
       return;
