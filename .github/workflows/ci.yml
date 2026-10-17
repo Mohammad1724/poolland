@@ -57,7 +57,8 @@ jobs:
             # request and can be read through the API.
             {
               echo "::error::APK build failed"
-              tail -12 /tmp/build.log | sed 's/^/::error::/'
+              grep -E "^e: " /tmp/build.log | head -8 | sed 's/^/::error::/'
+              tail -6 /tmp/build.log | sed 's/^/::error::/'
             }
             tail -40 /tmp/build.log >> "$GITHUB_STEP_SUMMARY"
             exit 1
