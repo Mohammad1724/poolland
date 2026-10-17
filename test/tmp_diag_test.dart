@@ -58,35 +58,31 @@ void main() {
     );
   }
 
-  testWidgets('DL dump expense listview children', (tester) async {
+  testWidgets('DL2 reach add button by scrolling', (tester) async {
     await tester.pumpWidget(wrap(const CategoriesPage()));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Expense'));
     await tester.pumpAndSettle();
-    final lvEl = tester.element(find.byType(ListView));
-    lvEl.visitChildren((sliver) {
-      print('DL-2 sliver=${sliver.widget.runtimeType}');
-      var i = 0;
-      sliver.visitChildren((e) {
-        var desc = 'child[$i] ${e.widget.runtimeType}';
-        e.visitChildren((inner) {
-          desc += ' > ${inner.widget.runtimeType}';
-          inner.visitChildren((leaf) {
-            if (leaf.widget is Text) {
-              desc += ' text="${(leaf.widget as Text).data}"';
-              return false;
-            }
-            return true;
-          });
-          return false;
-        });
-        print('DL-3 $desc');
-        i++;
-        return false;
-      });
-      print('DL-4 total children=$i');
-      return false;
-    });
+    final before = find.text('Add category').evaluate().length;
+    print('DL2-1 before scroll addBtn=$before');
+    await tester.scrollUntilVisible(
+      find.text('Add category'),
+      200,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    print('DL2-2 after scroll addBtn='
+        '${find.text('Add category').evaluate().length}');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add category'));
+    await tester.pumpAndSettle();
+    print('DL2-3 dialog opened, titleFound='
+        '${find.text('New expense category').evaluate().length} '
+        'dropdowns=${find.byType(DropdownButtonFormField<String?>).evaluate().length}');
   });
 
   group('preset child', () {
