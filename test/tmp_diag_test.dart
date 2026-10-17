@@ -12,11 +12,12 @@ import 'package:poolland/ui/settings_page.dart';
 import 'package:poolland/ui/theme.dart';
 import 'package:poolland/ui/widgets/widgets.dart';
 
-/// TEMP diagnostic round 6:
-///  - DL: dump the expense ListView's actual child elements + the length of
-///    its children list (the 'Add category' button is missing there).
-///  - DN: the delete flow with a drain loop after the fire-and-forget write
-///    (validates the tearDown-deadlock fix).
+/// TEMP diagnostic round 7:
+///  - DL2: is the 'Add category' button reachable by scrolling (expense tab)?
+///  - DN3: delete flow = dialog via UI + CANCEL, then the repository write
+///    in tester.runAsync (real async). Clean teardown?
+///  - DN4: create flow = full dialog SAVE via UI; does the in-zone write
+///    complete if we then runAsync a real delay?
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -25,7 +26,7 @@ void main() {
   late AppRepository repo;
 
   setUp(() async {
-    tmp = await Directory.systemTemp.createTemp('poolland_diag6');
+    tmp = await Directory.systemTemp.createTemp('poolland_diag7');
     store = await LocalStore.openAt(tmp.path);
     repo = AppRepository(store: store);
     await repo.loadDemoData();
@@ -82,7 +83,8 @@ void main() {
     await tester.pumpAndSettle();
     print('DL2-3 dialog opened, titleFound='
         '${find.text('New expense category').evaluate().length} '
-        'dropdowns=${find.byType(DropdownButtonFormField<String?>).evaluate().length}');
+        'dropdowns='
+        '${find.byType(DropdownButtonFormField<String?>).evaluate().length}');
   });
 
   group('preset child', () {
@@ -99,7 +101,7 @@ void main() {
           .firstWhere((c) => c.name == 'Fuel and oil');
     });
 
-    testWidgets('DN delete flow with drain loop', (tester) async {
+    testWidgets('DN3 delete: cancel dialog + runAsync write', (tester) async {
       final parent = repo
           .topCategories(TxnKind.expense, scope: TxnScope.business)
           .firstWhere((c) => c.id == theChild.parentId);
@@ -117,34 +119,65 @@ void main() {
         find.descendant(of: parentRow, matching: find.byTooltip('Delete')),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Delete').last);
+      // Close the dialog with Cancel: the UI handler then performs no write.
+      await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
-      print('DN-1 right after tap, fresh child parentId='
-          '${repo.categoriesOf(TxnKind.expense, scope: TxnScope.business)
-                .firstWhere((c) => c.name == 'Fuel and oil')
-                .parentId}');
-      // Drain the fire-and-forget repository writes before asserting.
-      for (var i = 0; i < 30; i++) {
-        await tester.pump(const Duration(milliseconds: 50));
-      }
+      print('DN3-1 dialog cancelled');
+      // Real-async zone: the repository write can actually complete here.
+      await tester.runAsync(() => repo.deleteCategory(parent.id));
+      print('DN3-2 runAsync delete done');
+      await tester.pumpAndSettle();
       final child = repo
           .categoriesOf(TxnKind.expense, scope: TxnScope.business)
           .firstWhere((c) => c.name == 'Fuel and oil');
-      print('DN-2 after drain, child parentId=${child.parentId}');
+      print('DN3-3 child parentId after=${child.parentId}');
       expect(child.parentId, isNull);
-      await tester.scrollUntilVisible(
-        find.text('Fuel and oil'),
-        100,
-        scrollable: find
-            .descendant(
-              of: find.byType(ListView),
-              matching: find.byType(Scrollable),
-            )
-            .first,
-      );
-      expect(find.text('Fuel and oil'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-      print('DN-3 all assertions passed');
+      print('DN3-4 assertion passed');
     });
+  });
+
+  testWidgets('DN4 create: save via UI then runAsync drain', (tester) async {
+    await tester.pumpWidget(wrap(const CategoriesPage()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Expense'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Add category'),
+      200,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add category'));
+    await tester.pumpAndSettle();
+    print('DN4-1 dialog open');
+    final firstParent = repo
+        .categoriesOf(TxnKind.expense, scope: TxnScope.business)
+        .where((c) => c.parentId == null)
+        .first;
+    await tester.enterText(find.byType(TextField), 'Fuel and oil');
+    await tester.tap(find.byType(DropdownButtonFormField<String?>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(firstParent.name).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+    print('DN4-2 Add tapped, dialog closed');
+    // The save handler runs in the FakeAsync zone; give the event loop real
+    // time via runAsync and see if the in-zone write completes.
+    await tester
+        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 800)));
+    await tester.pumpAndSettle();
+    final created = repo
+        .categoriesOf(TxnKind.expense, scope: TxnScope.business)
+        .where((c) => c.name == 'Fuel and oil')
+        .toList();
+    print('DN4-3 after drain count=${created.length} '
+        'parentIds=${created.map((c) => c.parentId).toList()} '
+        'expectedParent=${firstParent.id}');
   });
 }
