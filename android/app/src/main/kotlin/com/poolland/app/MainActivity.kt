@@ -133,6 +133,13 @@ class MainActivity : FlutterFragmentActivity() {
 
         channel.setMethodCallHandler { call, result ->
             when (call.method) {
+                // Whether this APK was built with SMS support at all. The
+                // "safe" flavor strips READ_SMS/RECEIVE_SMS from the merged
+                // manifest, so the Dart layer hides every SMS affordance
+                // instead of offering a permission dialog that can never
+                // appear. Checked against the manifest, not the runtime
+                // grant, so the answer is stable before the user decides.
+                "isSmsSupported" -> result.success(hasSmsPermissionDeclared())
                 "hasPermission" -> result.success(hasSmsPermission())
                 "requestPermission" -> requestSmsPermission(result)
                 "readInbox" -> {
@@ -401,6 +408,26 @@ class MainActivity : FlutterFragmentActivity() {
     // ---------------------------------------------------------
     // Permissions
     // ---------------------------------------------------------
+    /**
+     * True when the merged manifest of this build declares the SMS
+     * permissions. The "safe" flavor removes them, so this reports false
+     * there even though the code still ships in the APK.
+     */
+    private fun hasSmsPermissionDeclared(): Boolean {
+        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.getPackageInfo(
+                packageName,
+                PackageManager.PackageInfoFlags.of(
+                    PackageManager.GET_PERMISSIONS.toLong(),
+                ),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS)
+        }
+        return info.requestedPermissions?.contains(Manifest.permission.READ_SMS) == true
+    }
+
     private fun hasSmsPermission(): Boolean {
         val read = checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
         val receive = checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED

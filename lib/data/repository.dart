@@ -75,6 +75,11 @@ class AppRepository extends ChangeNotifier {
 
   /// Initialize the repository and open the database.
   Future<void> init() async {
+    // The safe Android build ships without the SMS permissions; ask the
+    // native side which build this is before anything reads
+    // [SmsService.isSupported] (the intro gate, the settings section, and
+    // the startup sync all do).
+    await SmsService.detectSupport();
     _store ??= await LocalStore.open();
     _loadFrom(_store!);
     _ready = true;
@@ -1225,14 +1230,17 @@ class AppRepository extends ChangeNotifier {
   void _refreshPendingSms() {
     final disabledRuleIds = settings.disabledSmsRuleIds.toSet();
     final refreshed = smsSuggestions
-        .map(
-          (sms) => SmsParser.parse(
+        .map((sms) {
+          final parsed = SmsParser.parse(
             sms.message,
             extraRules: smsRules,
             disabledRuleIds: disabledRuleIds,
-          ),
-        )
-        .where((sms) => sms.isTransaction)
+          );
+          // A pasted message the user already queued must survive a rule
+          // toggle even when no bank matched it.
+          return sms.manual ? parsed.asManual() : parsed;
+        })
+        .where((sms) => sms.isTransaction || sms.manual)
         .toList()
       ..sort((a, b) => b.message.date.compareTo(a.message.date));
     smsSuggestions = collapseTwins(refreshed);
@@ -1284,6 +1292,61 @@ class AppRepository extends ChangeNotifier {
     onNewSmsSuggestion?.call();
   }
 
+  /// Queues a bank message the user pasted into the review page.
+  ///
+  /// This is the permission-free counterpart of [_onIncomingSms]: the `safe`
+  /// build never reads the inbox, but the parser, the rules, and the review
+  /// sheet are identical. A message that matches no active bank rule is still
+  /// accepted when it clearly contains an amount and a direction — the same
+  /// "potential transaction" bar used when scanning unknown senders — so a
+  /// paste from a bank the rule list does not cover is not thrown away.
+  ///
+  /// Duplicates are matched on the message body as well as the sender/time
+  /// twin window, because a pasted message has no sender and may be pasted
+  /// again after the window (or after a restart).
+  SmsImportResult importSmsText(String rawText) {
+    final text = rawText.trim();
+    if (text.isEmpty) return SmsImportResult.notRecognized;
+
+    final message = SmsMessage(
+      id: 'pasted-${DateTime.now().microsecondsSinceEpoch}',
+      address: '',
+      body: text,
+      date: DateTime.now(),
+    );
+    final parsed = SmsParser.parse(
+      message,
+      extraRules: smsRules,
+      disabledRuleIds: settings.disabledSmsRuleIds.toSet(),
+    );
+    if (!parsed.isTransaction && !parsed.isPotentialUnrecognizedTransaction) {
+      return SmsImportResult.notRecognized;
+    }
+    // Potential-but-unmatched messages are still queued: the review sheet
+    // shows "Unknown bank" and the user confirms every field. They carry the
+    // `manual` mark so `approveSms` accepts them without weakening the rule
+    // check for inbox messages.
+    final queued = parsed.isTransaction ? parsed : parsed.asManual();
+
+    final normalized = SmsParser.normalize(text).trim();
+    final alreadyQueued = smsSuggestions.any(
+      (s) => SmsParser.normalize(s.message.body).trim() == normalized,
+    );
+    final alreadyReviewed = smsHistory.any(
+      (h) => SmsParser.normalize(h.message.body).trim() == normalized,
+    );
+    if (alreadyQueued ||
+        alreadyReviewed ||
+        smsSuggestions.any(isTwinSmsOf(queued))) {
+      return SmsImportResult.duplicate;
+    }
+
+    smsSuggestions = [queued, ...smsSuggestions]
+      ..sort((a, b) => b.message.date.compareTo(a.message.date));
+    notifyListeners();
+    return SmsImportResult.added;
+  }
+
   Future<bool> refreshSmsPermission() async {
     smsPermissionGranted = await SmsService.hasPermission();
     notifyListeners();
@@ -1330,14 +1393,20 @@ class AppRepository extends ChangeNotifier {
 
       final disabledRuleIds = settings.disabledSmsRuleIds.toSet();
       final current = smsSuggestions
-          .map(
-            (sms) => SmsParser.parse(
+          .map((sms) {
+            final parsed = SmsParser.parse(
               sms.message,
               extraRules: smsRules,
               disabledRuleIds: disabledRuleIds,
-            ),
+            );
+            // Manual pastes survive an inbox sync even when no rule matches.
+            return sms.manual ? parsed.asManual() : parsed;
+          })
+          .where(
+            (sms) =>
+                (sms.isTransaction || sms.manual) &&
+                !state.containsKey(sms.key),
           )
-          .where((sms) => sms.isTransaction && !state.containsKey(sms.key))
           .toList();
 
       final pending = <ParsedSms>[];
@@ -1454,7 +1523,10 @@ class AppRepository extends ChangeNotifier {
     double? amount,
     required TxnScope scope,
   }) async {
-    if (!sms.isTransaction) return null;
+    // Inbox messages must match a bank rule, but a pasted message is an
+    // explicit user decision: it may be recorded even when no rule matched
+    // (the safe build depends on this).
+    if (!sms.isTransaction && !sms.manual) return null;
 
     final cust = scope == TxnScope.business
         ? (customer ?? matchCustomerForSms(sms))

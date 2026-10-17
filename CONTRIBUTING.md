@@ -8,8 +8,13 @@ Welcome! Poolland is a simple, offline-first project, and every contribution is 
 git clone https://github.com/Mohammad1724/poolland.git
 cd poolland
 flutter pub get
-flutter run
+flutter run --flavor full   # full app: reads bank SMS (Play Protect blocks its APK)
+flutter run --flavor safe   # no SMS permission: installs with Play Protect on
 ```
+
+The project has two Android flavors. `full` declares `READ_SMS`/`RECEIVE_SMS`;
+`safe` removes them and relies on the paste-SMS flow. Always pass `--flavor`
+when running or building for Android. See `docs/android-install.md`.
 
 ## Before submitting changes
 

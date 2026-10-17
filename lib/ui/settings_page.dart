@@ -377,6 +377,57 @@ class SettingsPage extends StatelessWidget {
             ),
           ],
 
+          // ---------- Bank SMS (manual) ----------
+          //
+          // The safe APK declares no SMS permission, so Play Protect installs
+          // it; the review page can still parse a message the user pastes.
+          // Explaining the trade-off here keeps the missing switches from
+          // looking like a bug.
+          if (isAndroidPlatform && !repo.smsSupported) ...[
+            const SectionTitle('Bank SMS (manual)', icon: Icons.sms_rounded),
+            CardBox(
+              child: Column(
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.shield_outlined, size: 20),
+                    title: Text(
+                      'SMS reading is off in this build'.tr,
+                      style: TextStyle(fontSize: 13.5),
+                    ),
+                    subtitle: Text(
+                      'This build declares no SMS permission, so Google Play Protect installs it. Paste a bank SMS on the review page to record it.'
+                          .tr,
+                      style: TextStyle(fontSize: 11.5),
+                    ),
+                  ),
+                  Divider(color: Theme.of(context).dividerColor),
+                  _navTile(
+                    context,
+                    icon: Icons.fact_check_outlined,
+                    title: 'Review SMS'.tr,
+                    subtitle: repo.smsPendingCount > 0
+                        ? '{count} transactions awaiting review'.trArgs({
+                            'count': repo.smsPendingCount,
+                          })
+                        : 'Paste a bank SMS to review it'.tr,
+                    page: const SmsPage(),
+                  ),
+                  Divider(color: Theme.of(context).dividerColor),
+                  _navTile(
+                    context,
+                    icon: Icons.tune_rounded,
+                    title: 'Recognition rules'.tr,
+                    subtitle:
+                        'Choose which banks and phrases a pasted SMS can match.'
+                            .tr,
+                    page: const SmsRulesPage(),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           // ---------- Daily reminder ----------
           if (reminder.supported) ...[
             const SectionTitle(

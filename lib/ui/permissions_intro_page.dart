@@ -85,7 +85,9 @@ class _PermissionsIntroPageState extends State<PermissionsIntroPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Poolland works best with two permissions. You can skip now and grant them later from Settings.'
+                  (SmsService.isSupported
+                          ? 'Poolland works best with two permissions. You can skip now and grant them later from Settings.'
+                          : 'Poolland uses notifications for the daily reminder. You can skip now and grant it later from Settings.')
                       .tr,
                   textAlign: TextAlign.center,
                   style: TextStyle(

@@ -302,6 +302,32 @@ class AppLocalization {
     'Android only': 'فقط اندروید',
     'Bank SMS': 'پیامک بانکی',
     'Review SMS': 'بررسی پیامک‌ها',
+    'Bank SMS (manual)': 'پیامک بانکی (دستی)',
+    'Add from SMS text': 'افزودن از متن پیامک',
+    'Add to review': 'افزودن به صف بررسی',
+    'Paste': 'چسباندن',
+    'Bank SMS text': 'متن پیامک بانکی',
+    'Pasted message': 'پیامک چسبانده‌شده',
+    'Paste a bank SMS instead': 'در عوض متن پیامک بانکی را بچسبانید',
+    'Paste a bank SMS to review it': 'برای بررسی، متن پیامک بانکی را بچسبانید',
+    'This build cannot read SMS. Paste a bank SMS to review it.':
+        'این نسخه اجازهٔ خواندن پیامک را ندارد. متن پیامک بانکی را بچسبانید تا بررسی شود.',
+    'Copy a bank SMS and paste it here. It is parsed on this device and only added to the review queue.':
+        'متن پیامک بانکی را کپی و اینجا بچسبانید. متن فقط روی همین دستگاه پردازش می‌شود و فقط به صف بررسی اضافه می‌گردد.',
+    'No messages yet. Paste a bank SMS above to review it.':
+        'هنوز پیامی نیست. متن پیامک بانکی را بالا بچسبانید تا بررسی شود.',
+    'SMS added to review': 'پیامک به صف بررسی اضافه شد',
+    'This message is already in the review queue':
+        'این پیامک از قبل در صف بررسی است',
+    'No transaction found in this text': 'در این متن تراکنشی پیدا نشد',
+    'SMS reading is off in this build':
+        'خواندن پیامک در این نسخه غیرفعال است',
+    'This build declares no SMS permission, so Google Play Protect installs it. Paste a bank SMS on the review page to record it.':
+        'این نسخه هیچ دسترسی پیامکی نمی‌خواهد، بنابراین Play Protect آن را نصب می‌کند. برای ثبت، متن پیامک بانکی را در صفحهٔ بررسی بچسبانید.',
+    'Choose which banks and phrases a pasted SMS can match.':
+        'انتخاب کنید پیامک چسبانده‌شده با کدام بانک‌ها و عبارت‌ها تطبیق داده شود.',
+    'No SMS permission in this build — tap to paste a message':
+        'این نسخه دسترسی پیامک ندارد — برای چسباندن متن بزنید',
     'Sync': 'همگام‌سازی',
     'Rescan SMS': 'اسکن دوبارهٔ پیامک‌ها',
     'Reject': 'رد کردن',
@@ -549,6 +575,8 @@ class AppLocalization {
     'Review and record': 'بررسی و ثبت',
     'Quick button': 'دکمهٔ سریع',
     'Required permissions': 'دسترسی‌های لازم',
+    'Poolland uses notifications for the daily reminder. You can skip now and grant it later from Settings.':
+        'پول‌لند برای یادآور روزانه از اعلان استفاده می‌کند. می‌توانید الان رد کنید و بعداً از تنظیمات اجازه بدهید.',
     'Poolland works best with two permissions. You can skip now and grant them later from Settings.':
         'پول‌لند با دو دسترسی بهتر کار می‌کند: خواندن پیامک بانکی و نمایش اعلان‌ها. می‌توانید حالا رد کنید و بعداً از تنظیمات اعطا کنید.',
     'Show notifications': 'نمایش اعلان‌ها',

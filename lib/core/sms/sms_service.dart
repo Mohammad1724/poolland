@@ -30,6 +30,16 @@ class SmsService {
 
   static bool _inited = false;
 
+  /// Whether this APK can read SMS at all.
+  ///
+  /// Starts optimistic on Android and is corrected by [detectSupport] during
+  /// repository startup: the `safe` build flavor removes the SMS permissions
+  /// from its manifest (so Play Protect installs it), and Android reports
+  /// that here. Everything else — the intro page, settings, the review page,
+  /// the receiver — reads this flag instead of assuming every Android build
+  /// is a full one.
+  static bool _supported = isSmsCapable;
+
   /// Called when a new SMS arrives while the app is open.
   static void Function(SmsMessage message)? onSmsReceived;
 
@@ -38,8 +48,28 @@ class SmsService {
   /// covered by [consumePendingRoute] instead).
   static void Function(String route, int? date, String? address)? onOpenRoute;
 
-  /// Whether SMS is available on this platform (Android only).
-  static bool get isSupported => isSmsCapable;
+  /// Whether this build and platform can read SMS.
+  static bool get isSupported => _supported;
+
+  /// Ask the native side whether the merged manifest declares SMS access.
+  ///
+  /// The `safe` flavor answers false, which turns every automatic-SMS
+  /// affordance off while keeping the rest of the ledger intact. A failure
+  /// keeps the optimistic platform answer so an older native build — where
+  /// the method does not exist yet — still behaves like the full app.
+  static Future<void> detectSupport() async {
+    if (!isSmsCapable) {
+      _supported = false;
+      return;
+    }
+    try {
+      _supported = await _channel.invokeMethod<bool>('isSmsSupported') ?? true;
+    } on PlatformException {
+      _supported = true;
+    } on MissingPluginException {
+      _supported = true;
+    }
+  }
 
   static void init() {
     if (_inited) return;

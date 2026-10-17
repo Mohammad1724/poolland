@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/format_utils.dart';
 import '../core/jalali_utils.dart';
+import '../core/platform_info.dart';
 import '../data/ledger.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
@@ -440,8 +441,9 @@ class DashboardPage extends StatelessWidget {
             ),
           ),
 
-        // Bank SMS (Android only)
-        if (repo.smsSupported) ...[
+        // Bank SMS (Android only). The safe build cannot read the inbox but
+        // still opens the review page for pasted messages, so the card stays.
+        if (isAndroidPlatform) ...[
           const SizedBox(height: 12),
           CardBox(
             onTap: () => Navigator.push(
@@ -484,7 +486,10 @@ class DashboardPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        !repo.smsPermissionGranted
+                        !repo.smsSupported
+                            ? 'No SMS permission in this build — tap to paste a message'
+                                  .tr
+                            : !repo.smsPermissionGranted
                             ? 'Grant access to identify incoming payments automatically'
                                   .tr
                             : repo.smsPendingCount > 0

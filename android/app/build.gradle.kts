@@ -89,6 +89,28 @@ android {
         versionName = flutter.versionName
     }
 
+    // Two builds of the same app, same applicationId and versionCode:
+    //
+    //   full — reads bank SMS (READ_SMS + RECEIVE_SMS).
+    //   safe — ships without those permissions, so Google Play Protect
+    //          installs it from a browser, a file manager, or GitHub.
+    //
+    // Play Protect hard-blocks internet-sideloaded APKs that declare
+    // READ_SMS, RECEIVE_SMS, a notification listener, or an accessibility
+    // service. The block is by permission, not by signature — see
+    // docs/android-install.md. The safe flavor strips the permissions and the
+    // receiver in src/safe/AndroidManifest.xml; it can still parse a bank SMS
+    // the user pastes on the review page.
+    flavorDimensions += "sms"
+    productFlavors {
+        create("full") {
+            dimension = "sms"
+        }
+        create("safe") {
+            dimension = "sms"
+        }
+    }
+
     signingConfigs {
         if (hasReleaseSigning) {
             create("release") {

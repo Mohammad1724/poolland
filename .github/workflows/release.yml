@@ -59,30 +59,45 @@ jobs:
             echo "::warning::ANDROID_KEYSTORE_BASE64 is not set — signing with the debug key."
           fi
 
-      - name: Build split APKs
+      # Two flavors, same app id and version:
+      #   full — reads bank SMS; Play Protect blocks its internet-sideload
+      #          install, so docs/android-install.md explains ADB / pausing.
+      #   safe — no SMS permission at all; installs with Play Protect on and
+      #          parses a bank SMS the user pastes on the review page.
+      - name: Build full-feature APKs
         env:
           POOLLAND_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           POOLLAND_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           POOLLAND_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: flutter build apk --release --split-per-abi
+        run: |
+          flutter build apk --release --flavor full --split-per-abi
+          flutter build apk --release --flavor full
 
-      - name: Build universal APK
+      - name: Build Play Protect-safe APKs
         env:
           POOLLAND_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           POOLLAND_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           POOLLAND_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release --flavor safe --split-per-abi
+          flutter build apk --release --flavor safe
 
       - name: Collect and name artifacts
         run: |
           mkdir -p artifacts
           VERSION="${GITHUB_REF_NAME:-dev}"
           VERSION="${VERSION//\//-}"
-          cp build/app/outputs/flutter-apk/app-release.apk "artifacts/poolland-${VERSION}-universal.apk"
-          for abi in arm64-v8a armeabi-v7a x86_64; do
-            if [ -f "build/app/outputs/flutter-apk/app-${abi}-release.apk" ]; then
-              cp "build/app/outputs/flutter-apk/app-${abi}-release.apk" "artifacts/poolland-${VERSION}-${abi}.apk"
+          for flavor in full safe; do
+            APK="build/app/outputs/flutter-apk/app-${flavor}-release.apk"
+            if [ -f "$APK" ]; then
+              cp "$APK" "artifacts/poolland-${VERSION}-${flavor}-universal.apk"
             fi
+            for abi in arm64-v8a armeabi-v7a x86_64; do
+              APK="build/app/outputs/flutter-apk/app-${abi}-${flavor}-release.apk"
+              if [ -f "$APK" ]; then
+                cp "$APK" "artifacts/poolland-${VERSION}-${flavor}-${abi}.apk"
+              fi
+            done
           done
           (cd artifacts && sha256sum *.apk > SHA256SUMS.txt)
           ls -la artifacts
@@ -113,10 +128,18 @@ jobs:
 
             These APKs were signed with the **${{ env.SIGNING }}**.
 
-            | File | Best for |
-            |---|---|
-            | `poolland-*-arm64-v8a.apk` | ~95% of modern phones (smallest, recommended) |
-            | `poolland-*-armeabi-v7a.apk` | older 32-bit phones |
-            | `poolland-*-universal.apk` | every phone (larger) |
+            | File | SMS access | Play Protect | Best for |
+            |---|---|---|---|
+            | `poolland-*-safe-arm64-v8a.apk` | no | installs normally | **recommended** — ~95% of modern phones |
+            | `poolland-*-safe-armeabi-v7a.apk` | no | installs normally | older 32-bit phones |
+            | `poolland-*-safe-universal.apk` | no | installs normally | every phone (larger) |
+            | `poolland-*-full-arm64-v8a.apk` | yes | blocked when sideloaded | automatic bank-SMS detection |
+            | `poolland-*-full-armeabi-v7a.apk` | yes | blocked when sideloaded | automatic SMS on older phones |
+            | `poolland-*-full-universal.apk` | yes | blocked when sideloaded | automatic SMS, every phone |
+
+            The **safe** build declares no SMS permission, so Play Protect installs it
+            from a browser or file manager; paste a bank SMS on the review page.
+            The **full** build reads the SMS inbox; install it with ADB or with app
+            scanning paused — see `docs/android-install.md`.
 
             Verify downloads with `sha256sum -c SHA256SUMS.txt`.

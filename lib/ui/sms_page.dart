@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format_utils.dart';
 import '../core/haptics.dart';
 import '../core/jalali_utils.dart';
 import '../core/money.dart';
+import '../core/platform_info.dart';
 import '../core/sms/sms_models.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
@@ -107,7 +109,14 @@ class _SmsPageState extends State<SmsPage> {
     final repo = context.watch<AppRepository>();
     final onSurface = Theme.of(context).colorScheme.onSurface;
 
-    if (!repo.smsSupported) {
+    // Automatic inbox reading needs both the full Android build and the
+    // runtime permission. The safe build still opens this page — that is
+    // where a bank SMS can be pasted — so the platform check stays separate
+    // from the build/permission check.
+    final autoRead = repo.smsSupported;
+    final canReview = !autoRead || repo.smsPermissionGranted;
+
+    if (!isAndroidPlatform) {
       return Scaffold(
         appBar: AppBar(title: Text('Bank SMS'.tr)),
         body: const EmptyState(
@@ -141,17 +150,20 @@ class _SmsPageState extends State<SmsPage> {
                 MaterialPageRoute(builder: (_) => const SmsRulesPage()),
               ),
             ),
-            IconButton(
-              tooltip: 'Sync'.tr,
-              icon: repo.smsBusy
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.sync_rounded),
-              onPressed: repo.smsBusy ? null : () => repo.syncSms(force: true),
-            ),
+            if (autoRead)
+              IconButton(
+                tooltip: 'Sync'.tr,
+                icon: repo.smsBusy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.sync_rounded),
+                onPressed: repo.smsBusy
+                    ? null
+                    : () => repo.syncSms(force: true),
+              ),
             PopupMenuButton<String>(
               onSelected: (v) async {
                 switch (v) {
@@ -172,6 +184,8 @@ class _SmsPageState extends State<SmsPage> {
                     showMessengerSnack(messenger, 'All suggestions rejected');
                     break;
                   case 'reset':
+                    // Nothing to rescan when the build cannot read the inbox.
+                    if (!autoRead) break;
                     final ok = await confirmDialog(
                       context,
                       title: 'Review again'.tr,
@@ -189,11 +203,12 @@ class _SmsPageState extends State<SmsPage> {
               },
               itemBuilder: (_) => [
                 PopupMenuItem(value: 'reject_all', child: Text('Reject all'.tr)),
-                PopupMenuItem(value: 'reset', child: Text('Rescan SMS'.tr)),
+                if (autoRead)
+                  PopupMenuItem(value: 'reset', child: Text('Rescan SMS'.tr)),
               ],
             ),
           ],
-          bottom: repo.smsPermissionGranted
+          bottom: canReview
               ? TabBar(
                   tabs: [
                     Tab(
@@ -210,7 +225,7 @@ class _SmsPageState extends State<SmsPage> {
                 )
               : null,
         ),
-        body: !repo.smsPermissionGranted
+        body: !canReview
             ? _permissionView(context, repo)
             : TabBarView(
                 children: [
@@ -229,12 +244,27 @@ class _SmsPageState extends State<SmsPage> {
     List<ParsedSms> list,
     Color onSurface,
   ) => CoinRefresh(
-    onRefresh: () => repo.syncSms(force: true),
+    // Pull-to-refresh means "read the inbox again". The safe build has no
+    // inbox to read, so the gesture only scrolls there.
+    onRefresh: () async {
+      if (repo.smsSupported) await repo.syncSms(force: true);
+    },
     child: ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
       children: [
         _summaryCard(context, repo, all.length),
+        const SizedBox(height: 10),
+        // Available in both builds: the only way in without SMS permission,
+        // and a shortcut for a message the user is already reading.
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.tonalIcon(
+            onPressed: () => _importSms(context, repo),
+            icon: const Icon(Icons.content_paste_rounded, size: 18),
+            label: Text('Add from SMS text'.tr),
+          ),
+        ),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -262,8 +292,10 @@ class _SmsPageState extends State<SmsPage> {
               title: repo.smsBusy ? 'Checking SMS...' : 'No items found',
               text: repo.smsBusy
                   ? 'Please wait'
-                  : 'No new transaction messages found. Tap '
-                        'Sync to check recent messages.',
+                  : repo.smsSupported
+                  ? 'No new transaction messages found. Tap '
+                        'Sync to check recent messages.'
+                  : 'No messages yet. Paste a bank SMS above to review it.',
             ),
           )
         else
@@ -272,20 +304,55 @@ class _SmsPageState extends State<SmsPage> {
               padding: const EdgeInsets.only(bottom: 10),
               child: SlipIn(index: i, child: _SmsCard(sms: sms, onSurface: onSurface)),
             ),
-        const SizedBox(height: 6),
-        OutlinedButton.icon(
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const UnrecognizedSmsPage(),
+        if (repo.smsSupported) ...[
+          const SizedBox(height: 6),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const UnrecognizedSmsPage(),
+              ),
             ),
+            icon: const Icon(Icons.manage_search_rounded),
+            label: Text('Identify unrecognized SMS'.tr),
           ),
-          icon: const Icon(Icons.manage_search_rounded),
-          label: Text('Identify unrecognized SMS'.tr),
-        ),
+        ],
       ],
     ),
   );
+
+  /// Asks for a pasted bank message and queues it for review.
+  ///
+  /// Every outcome gets its own message: a queued card is visible, but a
+  /// duplicate or a non-transaction paste must say why nothing appeared.
+  Future<void> _importSms(BuildContext context, AppRepository repo) async {
+    final text = await showLedgerSheet<String>(
+      context,
+      builder: (_) => const _ImportSmsSheet(),
+    );
+    if (text == null || !context.mounted) return;
+    final result = repo.importSmsText(text);
+    if (!context.mounted) return;
+    switch (result) {
+      case SmsImportResult.added:
+        showSnack(context, 'SMS added to review');
+        break;
+      case SmsImportResult.duplicate:
+        showSnack(
+          context,
+          'This message is already in the review queue',
+          error: true,
+        );
+        break;
+      case SmsImportResult.notRecognized:
+        showSnack(
+          context,
+          'No transaction found in this text',
+          error: true,
+        );
+        break;
+    }
+  }
 
   Widget _historyTab(BuildContext context, AppRepository repo) {
     final history = repo.smsHistory;
@@ -369,6 +436,18 @@ class _SmsPageState extends State<SmsPage> {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final days = repo.settings.smsSyncDays;
     final last = repo.settings.smsLastSyncAt;
+    final subtitle = repo.smsSupported
+        ? 'Checking the past {days} days'.trArgs({'days': days}) +
+              (last > 0
+                  ? ' · {label}'.trArgs({
+                      'label': 'Last checked: {date}'.trArgs({
+                        'date': J.d(
+                          DateTime.fromMillisecondsSinceEpoch(last),
+                        ),
+                      }),
+                    })
+                  : '')
+        : 'This build cannot read SMS. Paste a bank SMS to review it.'.tr;
     return CardBox(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -392,16 +471,7 @@ class _SmsPageState extends State<SmsPage> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Checking the past {days} days'.trArgs({'days': days}) +
-                (last > 0
-                    ? ' · {label}'.trArgs({
-                        'label': 'Last checked: {date}'.trArgs({
-                          'date': J.d(
-                            DateTime.fromMillisecondsSinceEpoch(last),
-                          ),
-                        }),
-                      })
-                    : ''),
+            subtitle,
             style: TextStyle(
               fontSize: 11.5,
               color: onSurface.withValues(alpha: 0.6),
@@ -446,6 +516,17 @@ class _SmsPageState extends State<SmsPage> {
                   onPressed: () => repo.requestSmsPermission(),
                   icon: const Icon(Icons.sms_rounded, size: 18),
                   label: Text('Grant SMS access'.tr),
+                ),
+              ),
+              const SizedBox(height: 8),
+              // A permission dialog the user does not want to grant must not
+              // be a dead end: the same parser works on a pasted message.
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _importSms(context, repo),
+                  icon: const Icon(Icons.content_paste_rounded, size: 18),
+                  label: Text('Paste a bank SMS instead'.tr),
                 ),
               ),
             ],
@@ -502,7 +583,9 @@ class _SmsCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      (sms.bankName ?? 'Unknown bank').tr,
+                      (sms.bankName ??
+                              (sms.manual ? 'Pasted message' : 'Unknown bank'))
+                          .tr,
                       style: const TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w700,
@@ -671,7 +754,9 @@ class _SmsHistoryCard extends StatelessWidget {
         : const Color(0xFFE11D48);
     final title = entry.bankName?.isNotEmpty == true
         ? entry.bankName!.tr
-        : entry.message.address;
+        : entry.message.address.isNotEmpty
+        ? entry.message.address
+        : 'Pasted message'.tr;
     Txn? transaction;
     if (entry.transactionId != null) {
       for (final item in context.read<AppRepository>().transactions) {
@@ -1053,7 +1138,10 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
             ),
             const SizedBox(height: 4),
             Text(
-              sms.bankName?.tr ?? sms.message.address,
+              sms.bankName?.tr ??
+                  (sms.message.address.isNotEmpty
+                      ? sms.message.address
+                      : 'Pasted message'.tr),
               style: TextStyle(
                 fontSize: 11.5,
                 color: Theme.of(context).colorScheme.onSurface
@@ -1195,6 +1283,106 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
               ],
             ),
             const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Sheet for handing a bank message to the parser without SMS permission.
+///
+/// Both builds get it: the safe build has no other way in, and the full build
+/// gives a user who denied the permission (or is reading one message right
+/// now) a way to record it without changing system settings.
+class _ImportSmsSheet extends StatefulWidget {
+  const _ImportSmsSheet();
+
+  @override
+  State<_ImportSmsSheet> createState() => _ImportSmsSheetState();
+}
+
+class _ImportSmsSheetState extends State<_ImportSmsSheet> {
+  final _text = TextEditingController();
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  Future<void> _paste() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text;
+    if (text == null || text.trim().isEmpty || !mounted) return;
+    setState(() {
+      _text.text = text;
+      _text.selection = TextSelection.collapsed(offset: text.length);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final canAdd = _text.text.trim().isNotEmpty;
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SheetHandle(),
+            const SizedBox(height: 16),
+            Text(
+              'Add from SMS text'.tr,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Copy a bank SMS and paste it here. It is parsed on this device and only added to the review queue.'
+                  .tr,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.7,
+                color: onSurface.withValues(alpha: 0.65),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _text,
+              autofocus: true,
+              minLines: 4,
+              maxLines: 8,
+              textAlignVertical: TextAlignVertical.top,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'Bank SMS text'.tr,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: _paste,
+                  icon: const Icon(Icons.content_paste_rounded, size: 18),
+                  label: Text('Paste'.tr),
+                ),
+                const Spacer(),
+                FilledButton.icon(
+                  onPressed: canAdd
+                      ? () => Navigator.pop(context, _text.text.trim())
+                      : null,
+                  icon: const Icon(Icons.check_rounded, size: 18),
+                  label: Text('Add to review'.tr),
+                ),
+              ],
+            ),
           ],
         ),
       ),
