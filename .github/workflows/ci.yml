@@ -26,13 +26,13 @@ jobs:
           cache: true
       - run: flutter pub get
 
-      - name: Q2 entry-form picker (expanded)
+      - name: DA categories no child
         run: |
           set +e
-          timeout 240 flutter test test/subcategory_test.dart --concurrency=1 --no-pub --reporter expanded --plain-name 'shows a subcategory' > q2.txt 2>&1
+          timeout 240 flutter test test/tmp_diag_test.dart --concurrency=1 --no-pub --reporter expanded --plain-name 'diag A' > da.txt 2>&1
           EC=$?
           set -e
-          EC="$EC" TAG="Q2" python3 - <<'PY'
+          EC="$EC" TAG="DA" python3 - <<'PY'
           import os, re
           tag = os.environ['TAG']
           ec = int(os.environ.get('EC', '0'))
@@ -47,13 +47,13 @@ jobs:
           for i, l in enumerate(lines):
               print('::notice file=test/' + tag.lower() + '.txt,line=' + str(10 + i) + '::' + tag + ' ' + l.replace('%', '%25')[:300])
           PY
-      - name: Q3 category manager create (expanded)
+      - name: DB categories with child
         run: |
           set +e
-          timeout 240 flutter test test/subcategory_test.dart --concurrency=1 --no-pub --reporter expanded --plain-name 'creates a subcategory' > q3.txt 2>&1
+          timeout 240 flutter test test/tmp_diag_test.dart --concurrency=1 --no-pub --reporter expanded --plain-name 'diag B' > db.txt 2>&1
           EC=$?
           set -e
-          EC="$EC" TAG="Q3" python3 - <<'PY'
+          EC="$EC" TAG="DB" python3 - <<'PY'
           import os, re
           tag = os.environ['TAG']
           ec = int(os.environ.get('EC', '0'))
@@ -68,13 +68,55 @@ jobs:
           for i, l in enumerate(lines):
               print('::notice file=test/' + tag.lower() + '.txt,line=' + str(10 + i) + '::' + tag + ' ' + l.replace('%', '%25')[:300])
           PY
-      - name: Q4 category manager delete (expanded)
+      - name: DC expense tab + add button
         run: |
           set +e
-          timeout 240 flutter test test/subcategory_test.dart --concurrency=1 --no-pub --reporter expanded --plain-name 'deleting a parent' > q4.txt 2>&1
+          timeout 240 flutter test test/tmp_diag_test.dart --concurrency=1 --no-pub --reporter expanded --plain-name 'diag C' > dc.txt 2>&1
           EC=$?
           set -e
-          EC="$EC" TAG="Q4" python3 - <<'PY'
+          EC="$EC" TAG="DC" python3 - <<'PY'
+          import os, re
+          tag = os.environ['TAG']
+          ec = int(os.environ.get('EC', '0'))
+          print('::notice file=test/' + tag.lower() + '.txt,line=1::' + tag + ' EC=' + str(ec))
+          try:
+              raw = open(tag.lower() + '.txt', encoding='utf-8', errors='replace').read()
+          except Exception as e:
+              print('::notice file=test/' + tag.lower() + '.txt,line=2::' + tag + ' NOFILE ' + str(e))
+              raise SystemExit(0)
+          lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip() for l in raw.splitlines()]
+          lines = [l for l in lines if l.strip()][-60:]
+          for i, l in enumerate(lines):
+              print('::notice file=test/' + tag.lower() + '.txt,line=' + str(10 + i) + '::' + tag + ' ' + l.replace('%', '%25')[:300])
+          PY
+      - name: DD entry form + sheet + child tap
+        run: |
+          set +e
+          timeout 240 flutter test test/tmp_diag_test.dart --concurrency=1 --no-pub --reporter expanded --plain-name 'diag D' > dd.txt 2>&1
+          EC=$?
+          set -e
+          EC="$EC" TAG="DD" python3 - <<'PY'
+          import os, re
+          tag = os.environ['TAG']
+          ec = int(os.environ.get('EC', '0'))
+          print('::notice file=test/' + tag.lower() + '.txt,line=1::' + tag + ' EC=' + str(ec))
+          try:
+              raw = open(tag.lower() + '.txt', encoding='utf-8', errors='replace').read()
+          except Exception as e:
+              print('::notice file=test/' + tag.lower() + '.txt,line=2::' + tag + ' NOFILE ' + str(e))
+              raise SystemExit(0)
+          lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip() for l in raw.splitlines()]
+          lines = [l for l in lines if l.strip()][-60:]
+          for i, l in enumerate(lines):
+              print('::notice file=test/' + tag.lower() + '.txt,line=' + str(10 + i) + '::' + tag + ' ' + l.replace('%', '%25')[:300])
+          PY
+      - name: DE delete parent with child
+        run: |
+          set +e
+          timeout 240 flutter test test/tmp_diag_test.dart --concurrency=1 --no-pub --reporter expanded --plain-name 'diag E' > de.txt 2>&1
+          EC=$?
+          set -e
+          EC="$EC" TAG="DE" python3 - <<'PY'
           import os, re
           tag = os.environ['TAG']
           ec = int(os.environ.get('EC', '0'))
