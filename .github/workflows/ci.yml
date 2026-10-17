@@ -26,13 +26,13 @@ jobs:
           cache: true
       - run: flutter pub get
 
-      - name: DA categories no child
+      - name: DF entry form flow (fixed)
         run: |
           set +e
-          timeout 240 flutter test test/tmp_diag_test.dart --concurrency=1 --no-pub --reporter expanded --plain-name 'diag A' > da.txt 2>&1
+          timeout 240 flutter test test/tmp_diag_test.dart --concurrency=1 --no-pub --reporter expanded --plain-name 'DF entry form' > df.txt 2>&1
           EC=$?
           set -e
-          EC="$EC" TAG="DA" python3 - <<'PY'
+          EC="$EC" TAG="DF" python3 - <<'PY'
           import os, re
           tag = os.environ['TAG']
           ec = int(os.environ.get('EC', '0'))
@@ -43,17 +43,17 @@ jobs:
               print('::notice file=test/' + tag.lower() + '.txt,line=2::' + tag + ' NOFILE ' + str(e))
               raise SystemExit(0)
           lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip() for l in raw.splitlines()]
-          lines = [l for l in lines if l.strip()][-60:]
+          lines = [l for l in lines if l.strip()][-70:]
           for i, l in enumerate(lines):
-              print('::notice file=test/' + tag.lower() + '.txt,line=' + str(10 + i) + '::' + tag + ' ' + l.replace('%', '%25')[:300])
+              print('::notice file=test/' + tag.lower() + '.txt,line=' + str(10 + i) + '::' + tag + ' ' + l.replace('%', '%25')[:400])
           PY
-      - name: DB categories with child
+      - name: DG delete parent flow (fixed)
         run: |
           set +e
-          timeout 240 flutter test test/tmp_diag_test.dart --concurrency=1 --no-pub --reporter expanded --plain-name 'diag B' > db.txt 2>&1
+          timeout 240 flutter test test/tmp_diag_test.dart --concurrency=1 --no-pub --reporter expanded --plain-name 'DG delete parent' > dg.txt 2>&1
           EC=$?
           set -e
-          EC="$EC" TAG="DB" python3 - <<'PY'
+          EC="$EC" TAG="DG" python3 - <<'PY'
           import os, re
           tag = os.environ['TAG']
           ec = int(os.environ.get('EC', '0'))
@@ -64,17 +64,17 @@ jobs:
               print('::notice file=test/' + tag.lower() + '.txt,line=2::' + tag + ' NOFILE ' + str(e))
               raise SystemExit(0)
           lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip() for l in raw.splitlines()]
-          lines = [l for l in lines if l.strip()][-60:]
+          lines = [l for l in lines if l.strip()][-70:]
           for i, l in enumerate(lines):
-              print('::notice file=test/' + tag.lower() + '.txt,line=' + str(10 + i) + '::' + tag + ' ' + l.replace('%', '%25')[:300])
+              print('::notice file=test/' + tag.lower() + '.txt,line=' + str(10 + i) + '::' + tag + ' ' + l.replace('%', '%25')[:400])
           PY
-      - name: DC expense tab + add button
+      - name: DH create flow walk
         run: |
           set +e
-          timeout 240 flutter test test/tmp_diag_test.dart --concurrency=1 --no-pub --reporter expanded --plain-name 'diag C' > dc.txt 2>&1
+          timeout 240 flutter test test/tmp_diag_test.dart --concurrency=1 --no-pub --reporter expanded --plain-name 'DH create flow' > dh.txt 2>&1
           EC=$?
           set -e
-          EC="$EC" TAG="DC" python3 - <<'PY'
+          EC="$EC" TAG="DH" python3 - <<'PY'
           import os, re
           tag = os.environ['TAG']
           ec = int(os.environ.get('EC', '0'))
@@ -85,49 +85,7 @@ jobs:
               print('::notice file=test/' + tag.lower() + '.txt,line=2::' + tag + ' NOFILE ' + str(e))
               raise SystemExit(0)
           lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip() for l in raw.splitlines()]
-          lines = [l for l in lines if l.strip()][-60:]
+          lines = [l for l in lines if l.strip()][-70:]
           for i, l in enumerate(lines):
-              print('::notice file=test/' + tag.lower() + '.txt,line=' + str(10 + i) + '::' + tag + ' ' + l.replace('%', '%25')[:300])
-          PY
-      - name: DD entry form + sheet + child tap
-        run: |
-          set +e
-          timeout 240 flutter test test/tmp_diag_test.dart --concurrency=1 --no-pub --reporter expanded --plain-name 'diag D' > dd.txt 2>&1
-          EC=$?
-          set -e
-          EC="$EC" TAG="DD" python3 - <<'PY'
-          import os, re
-          tag = os.environ['TAG']
-          ec = int(os.environ.get('EC', '0'))
-          print('::notice file=test/' + tag.lower() + '.txt,line=1::' + tag + ' EC=' + str(ec))
-          try:
-              raw = open(tag.lower() + '.txt', encoding='utf-8', errors='replace').read()
-          except Exception as e:
-              print('::notice file=test/' + tag.lower() + '.txt,line=2::' + tag + ' NOFILE ' + str(e))
-              raise SystemExit(0)
-          lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip() for l in raw.splitlines()]
-          lines = [l for l in lines if l.strip()][-60:]
-          for i, l in enumerate(lines):
-              print('::notice file=test/' + tag.lower() + '.txt,line=' + str(10 + i) + '::' + tag + ' ' + l.replace('%', '%25')[:300])
-          PY
-      - name: DE delete parent with child
-        run: |
-          set +e
-          timeout 240 flutter test test/tmp_diag_test.dart --concurrency=1 --no-pub --reporter expanded --plain-name 'diag E' > de.txt 2>&1
-          EC=$?
-          set -e
-          EC="$EC" TAG="DE" python3 - <<'PY'
-          import os, re
-          tag = os.environ['TAG']
-          ec = int(os.environ.get('EC', '0'))
-          print('::notice file=test/' + tag.lower() + '.txt,line=1::' + tag + ' EC=' + str(ec))
-          try:
-              raw = open(tag.lower() + '.txt', encoding='utf-8', errors='replace').read()
-          except Exception as e:
-              print('::notice file=test/' + tag.lower() + '.txt,line=2::' + tag + ' NOFILE ' + str(e))
-              raise SystemExit(0)
-          lines = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', l).rstrip() for l in raw.splitlines()]
-          lines = [l for l in lines if l.strip()][-60:]
-          for i, l in enumerate(lines):
-              print('::notice file=test/' + tag.lower() + '.txt,line=' + str(10 + i) + '::' + tag + ' ' + l.replace('%', '%25')[:300])
+              print('::notice file=test/' + tag.lower() + '.txt,line=' + str(10 + i) + '::' + tag + ' ' + l.replace('%', '%25')[:400])
           PY
