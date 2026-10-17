@@ -76,13 +76,23 @@ void main() {
 
   testWidgets('CD $analyzeCompact', (tester) async {
     final r = <String>[];
+    // Clear anything the binding captured so the test can never fail on a
+    // leftover exception; record whether a step left one behind.
+    Future<void> quiet() async {
+      final ex = tester.takeException();
+      if (ex != null) {
+        r.add('took=${ex.runtimeType}');
+      }
+    }
     try {
       await tester.pumpWidget(wrap(const CategoriesPage()));
       await tester.pumpAndSettle();
+      await quiet();
       r.add('pump=1');
 
       await tester.tap(find.text('Expense'));
       await tester.pumpAndSettle();
+      await quiet();
 
       await tester.scrollUntilVisible(
         find.text('Add category'),
@@ -90,10 +100,12 @@ void main() {
         scrollable: formScrollable(),
       );
       await tester.pumpAndSettle();
+      await quiet();
       r.add('btn=${find.text('Add category').evaluate().length}');
 
       await tester.tap(find.text('Add category'));
       await tester.pumpAndSettle();
+      await quiet();
       r.add(
         'dlg=${find.text('New expense category').evaluate().length} '
         'tf=${find.byType(TextField).evaluate().length} '
@@ -101,6 +113,8 @@ void main() {
       );
 
       await tester.enterText(find.byType(TextField), 'Fuel and oil');
+      await tester.pumpAndSettle();
+      await quiet();
       r.add('ent=${find.text('Fuel and oil').evaluate().length}');
 
       final firstParent = repo
@@ -111,6 +125,7 @@ void main() {
 
       await tester.tap(find.byType(DropdownButtonFormField<String?>));
       await tester.pumpAndSettle();
+      await quiet();
       final all = find.text(firstParent.name);
       final rects = all
           .evaluate()
@@ -123,6 +138,7 @@ void main() {
 
       await tester.tap(all.last);
       await tester.pumpAndSettle();
+      await quiet();
       r.add(
         'sel=${find.descendant(of: find.byType(DropdownButtonFormField<String?>), matching: find.text(firstParent.name)).evaluate().length} '
         'tl=${find.text('Top-level category').evaluate().length}',
@@ -130,11 +146,13 @@ void main() {
 
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
+      await quiet();
       r.add('cancel=1');
 
       await tester.runAsync(() => repo.addCategory('Fuel and oil',
           TxnKind.expense, parentId: firstParent.id));
       await tester.pumpAndSettle();
+      await quiet();
       final inData = repo
           .categoriesOf(TxnKind.expense, scope: TxnScope.business)
           .firstWhere((c) => c.name == 'Fuel and oil');
@@ -154,10 +172,6 @@ void main() {
     } catch (e) {
       r.add('ERR ${e.runtimeType} ${e.toString().substring(0, e.toString().length > 200 ? 200 : e.toString().length)}');
     } finally {
-      final ex = tester.takeException();
-      if (ex != null) {
-        r.add('ex=${ex.runtimeType}');
-      }
       // The workflow posts this file as a PR comment (the annotation
       // channel caps out at five entries).
       try {

@@ -9,6 +9,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  pull-requests: write
+
 jobs:
   diag:
     name: Diagnostics
@@ -34,7 +37,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 - <<'PYEOF'
-          import json, os, subprocess
+          import json, os, urllib.request
           parts = []
           for name in ('test/tmp_analyze_out.txt', 'test/tmp_diag_steps.txt'):
               try:
@@ -42,15 +45,27 @@ jobs:
               except Exception as e:
                   data = '(read error: %s)' % e
               parts.append('=== %s ===\n```\n%s\n```' % (name, data[:8000]))
-          payload = json.dumps({'body': '\n\n'.join(parts)[:60000]})
-          open('/tmp/comment.json', 'w').write(payload)
+          body = '\n\n'.join(parts)[:60000]
+          payload = json.dumps({'body': body}).encode()
+          url = 'https://api.github.com/repos/Mohammad1724/poolland/issues/8/comments'
           token = os.environ.get('GH_TOKEN', '')
-          subprocess.run([
-              'curl', '-s', '-X', 'POST',
-              '-H', 'Authorization: token ' + token,
-              '-H', 'Accept: application/vnd.github+json',
-              '-H', 'Content-Type: application/json',
-              '-d', '@/tmp/comment.json',
-              'https://api.github.com/repos/Mohammad1724/poolland/issues/8/comments',
-          ], check=False)
+          req = urllib.request.Request(
+              url, data=payload, method='POST',
+              headers={
+                  'Authorization': 'token ' + token,
+                  'Accept': 'application/vnd.github+json',
+                  'Content-Type': 'application/json',
+              })
+          try:
+              resp = urllib.request.urlopen(req, timeout=30)
+              out = 'HTTP %s' % resp.status
+          except Exception as e:
+              raw = b''
+              try:
+                  raw = e.read()[:300]
+              except Exception:
+                  pass
+              out = 'POST FAILED: %s %s' % (e, raw.decode('utf-8', 'replace'))
+          open('test/tmp_post_result.txt', 'w').write(out + '\n')
+          print(out)
           PYEOF
