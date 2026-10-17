@@ -329,6 +329,9 @@ class Category {
   final int sortOrder;
   final TxnScope
   scope; // Whether this category is for business or personal use.
+  /// One level of nesting: a category can sit inside another one of the
+  /// same kind and scope ("car" -> "fuel"). Null means top-level.
+  final String? parentId;
 
   const Category({
     required this.id,
@@ -336,6 +339,7 @@ class Category {
     required this.kind,
     this.sortOrder = 0,
     this.scope = TxnScope.business,
+    this.parentId,
   });
 
   Map<String, dynamic> toMap() => {
@@ -344,6 +348,7 @@ class Category {
     'kind': kind.name,
     'sortOrder': sortOrder,
     'scope': scope.name,
+    'parentId': parentId,
   };
 
   factory Category.fromMap(Map map) => Category(
@@ -353,6 +358,7 @@ class Category {
       (k) => k.name == map['kind'],
       orElse: () => TxnKind.expense,
     ),
+    parentId: map['parentId'] as String?,
     sortOrder: (map['sortOrder'] as num?)?.toInt() ?? 0,
     scope: TxnScope.values.firstWhere(
       (v) => v.name == map['scope'],
@@ -660,6 +666,16 @@ extension TxnKindX on TxnKind {
     TxnKind.receive => Icons.call_received_rounded,
     TxnKind.refund => Icons.currency_exchange_rounded,
     TxnKind.payablePayment => Icons.payments_outlined,
+  };
+
+  /// Accent color of the kind, shared by list rows, filter chips and the
+  /// entry-form kind tiles so a kind always looks the same everywhere.
+  Color get color => switch (this) {
+    TxnKind.income => const Color(0xFF16A34A),
+    TxnKind.expense => const Color(0xFFE11D48),
+    TxnKind.receive => const Color(0xFF0F766E),
+    TxnKind.refund => const Color(0xFFD97706),
+    TxnKind.payablePayment => const Color(0xFF7C3AED),
   };
 
   bool get isProfitKind => this == TxnKind.income || this == TxnKind.expense;

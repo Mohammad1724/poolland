@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format_utils.dart';
+import '../core/haptics.dart';
 import '../core/jalali_utils.dart';
 import '../core/money.dart';
 import '../core/sms/sms_models.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
+import '../data/store.dart';
 import 'design.dart';
 import 'motion_kit.dart';
+import 'forms/contact_edit_page.dart';
 import 'forms/transaction_edit_page.dart';
+import 'settings_page.dart';
 import 'sms_rules_page.dart';
 import 'unrecognized_sms_page.dart';
 import 'widgets/widgets.dart';
@@ -795,7 +799,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   late TextEditingController _amount;
   Customer? _customer;
   TxnKind _kind = TxnKind.income;
-  TxnScope? _scope;
+  TxnScope _scope = TxnScope.business;
   String? _categoryId;
   bool _presetDone = false;
 
@@ -822,7 +826,6 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   @override
   void initState() {
     super.initState();
-    _scope = null;
     _customer = widget.initialCustomer;
     _amount = TextEditingController(
       text: groupedNumber(
@@ -910,17 +913,108 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     super.dispose();
   }
 
+  /// Same one-tap selection as the main entry form: the contact chip is
+  /// the frequent regular, a second tap clears it.
+  Widget _contactChip(Customer c) {
+    final selected = _customer?.id == c.id;
+    return PresetChip(
+      icon: Icons.person_outline_rounded,
+      label: c.name,
+      selected: selected,
+      onTap: () {
+        Haptics.selection();
+        setState(() => _customer = selected ? null : c);
+      },
+    );
+  }
+
+  /// The full, searchable contact sheet behind the "all contacts" chip.
+  Future<void> _openContactSheet() async {
+    final repo = context.read<AppRepository>();
+    final res = await showPickSheet<Customer>(
+      context,
+      title: 'Select contact',
+      items: repo.activeCustomers,
+      current: _customer,
+      labelOf: (c) => c.name,
+      subOf: (c) => c.phone,
+      clearable: true,
+      searchHint: 'Customer name...',
+    );
+    if (res == null) return;
+    if (res.cleared) {
+      setState(() => _customer = null);
+    } else if (res.value != null) {
+      setState(() => _customer = res.value);
+    }
+  }
+
+  /// Create the contact inline and select it, like the main entry form.
+  Future<void> _newContact() async {
+    final created = await Navigator.push<Customer>(
+      context,
+      MaterialPageRoute(builder: (_) => const ContactEditPage()),
+    );
+    if (!mounted) return;
+    if (created != null) {
+      setState(() => _customer = created);
+    }
+  }
+
+  /// "+ quick button" means pinning one of the existing categories: the
+  /// choice happens in the same searchable list, no name typing.
+  Future<void> _addQuickFromCategory(TxnScope scope) async {
+    final repo = context.read<AppRepository>();
+    final categoryKind = _categoryKind(_kind);
+    if (categoryKind == null) {
+      await _openQuickEdit(scope);
+      return;
+    }
+    final all = repo.categoriesOf(categoryKind, scope: scope);
+    if (all.isEmpty) {
+      await _openQuickEdit(scope);
+      return;
+    }
+    final res = await showPickSheet<Category>(
+      context,
+      title: 'Choose a category for the button',
+      items: repo.pickOrderCategories(categoryKind, scope: scope),
+      current: null,
+      labelOf: (c) => c.name,
+      searchHint: 'Category name...',
+      isChild: (c) => c.parentId != null,
+    );
+    if (res == null || res.value == null) return;
+    final c = res.value!;
+    if (!mounted) return;
+    if (repo.quickExpenses.any((q) => q.categoryId == c.id)) {
+      showSnack(context, 'This category is already a quick button');
+      return;
+    }
+    Haptics.selection();
+    await repo.addQuickButton(QuickExpense(
+      id: LocalStore.newId(),
+      label: c.name,
+      kind: c.kind,
+      scope: scope,
+      categoryId: c.id,
+      iconCodePoint: 0,
+      sortOrder: repo.quickExpenses.isEmpty
+          ? 0
+          : repo.quickExpenses.last.sortOrder + 1,
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
     final sms = widget.sms;
     final scope = _scope;
-    final categoryKind = scope == null ? null : _categoryKind(_kind);
-    final categories = scope == null || categoryKind == null
-        ? <Category>[]
-        : repo.categoriesOf(categoryKind, scope: scope);
-    final availableKinds =
-        scope == null ? <TxnKind>[] : _availableKinds(repo, scope);
+    final categoryKind = _categoryKind(_kind);
+    final categories = categoryKind == null
+        ? const <Category>[]
+        : repo.pickOrderCategories(categoryKind, scope: scope);
+    final availableKinds = _availableKinds(repo, scope);
 
     return Container(
       decoration: BoxDecoration(
@@ -950,183 +1044,96 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
               ),
             ),
             const SizedBox(height: 16),
-            Text(
-              'Record this in'.tr,
-              style: const TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
+            // The same intent zone as the main entry form: the color-coded
+            // kind tiles (restricted to what this SMS can become), then the
+            // business/personal segment.
+            TxnKindStrip(
+              kinds: availableKinds,
+              selected: _kind,
+              onSelect: (k) => setState(() {
+                _kind = k;
+                _categoryId = _suggestedCategoryId(repo, scope);
+              }),
+            ),
+            const SizedBox(height: 10),
+            ScopeSegment(
+              selected: scope,
+              onSelect: (s) => _changeScope(repo, s),
+            ),
+            const SizedBox(height: 14),
+            // Quick-entry buttons for this section and direction: one tap
+            // sets the type/category here, the chip adds a new button.
+            QuickButtonsRow(
+              scopeFilter: scope,
+              incomeFilter: sms.direction == SmsDirection.deposit,
+              hideWhenEmpty: true,
+              onTap: (q) => setState(() {
+                if (availableKinds.contains(q.kind)) _kind = q.kind;
+                if (q.categoryId != null) _categoryId = q.categoryId;
+              }),
+              onLongPress: (q) => _openQuickEdit(scope, q),
+              trailing: ActionChip(
+                avatar: const Icon(Icons.add_rounded, size: 16),
+                label: Text('Quick button'.tr),
+                onPressed: () => _addQuickFromCategory(scope),
               ),
             ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ChoiceChip(
-                  selected: scope == TxnScope.business,
-                  avatar: const Icon(Icons.vpn_key_rounded, size: 17),
-                  label: Text('VPN business'.tr),
-                  onSelected: (_) => _changeScope(repo, TxnScope.business),
-                ),
-                ChoiceChip(
-                  selected: scope == TxnScope.personal,
-                  avatar: const Icon(Icons.person_outline_rounded, size: 17),
-                  label: Text('Personal'.tr),
-                  onSelected: (_) => _changeScope(repo, TxnScope.personal),
-                ),
-              ],
+            const SizedBox(height: 14),
+            AmountField(
+              controller: _amount,
+              label: 'Amount'.tr,
+              currency: sms.currency,
             ),
-            if (scope == null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Choose where this transaction belongs before recording'.tr,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: Theme.of(context).colorScheme.onSurface
-                      .withValues(alpha: 0.65),
-                ),
-              ),
-            ] else ...[
-              const SizedBox(height: 14),
-
-              // Default transaction type follows the SMS direction; only
-              // relevant business settlement choices remain available.
-              Wrap(
-                spacing: 8,
-                children: [
-                  for (final k in availableKinds)
-                    ChoiceChip(
-                      selected: _kind == k,
-                      avatar: Icon(k.icon, size: 16),
-                      label: Text(k.shortLabel),
-                      onSelected: (_) => setState(() {
-                        _kind = k;
-                        _categoryId = _suggestedCategoryId(repo, scope);
-                      }),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 14),
-
-              // Quick-entry buttons for this section and direction: one tap
-              // sets the type/category here, the chip adds a new button.
-              QuickButtonsRow(
-                scopeFilter: scope,
-                incomeFilter: sms.direction == SmsDirection.deposit,
-                hideWhenEmpty: true,
-                onTap: (q) => setState(() {
-                  if (availableKinds.contains(q.kind)) _kind = q.kind;
-                  if (q.categoryId != null) _categoryId = q.categoryId;
-                }),
-                onLongPress: (q) => _openQuickEdit(scope, q),
-                trailing: ActionChip(
-                  avatar: const Icon(Icons.add_rounded, size: 16),
-                  label: Text('Quick button'.tr),
-                  onPressed: () => _openQuickEdit(scope),
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              // Frequent categories for this section: one tap, no picker.
-              Text(
-                'Frequent picks'.tr,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: Theme.of(context).colorScheme.onSurface
-                      .withValues(alpha: 0.7),
-                ),
-              ),
+            if (scope == TxnScope.business) ...[
+              const SizedBox(height: 16),
+              SectionCaption('Contact (optional)'),
               const SizedBox(height: 6),
-              if (categoryKind != null)
-                Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final c in repo.topCategories(
-                    categoryKind,
-                    scope: scope,
-                  ))
-                    ChoiceChip(
-                      selected: _categoryId == c.id,
-                      showCheckmark: false,
-                      label: Text(c.name.tr),
-                      onSelected: (_) => setState(() => _categoryId = c.id),
-                    ),
-                ],
-              ),
-              if (scope == TxnScope.business) ...[
-                const SizedBox(height: 8),
-                // Regular contacts, most-recorded first.
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final c in repo.topCustomers(limit: 3))
-                      ActionChip(
-                        avatar: Icon(
-                          _customer?.id == c.id
-                              ? Icons.check_rounded
-                              : Icons.person_outline_rounded,
-                          size: 16,
-                        ),
-                        label: Text(c.name),
-                        onPressed: () => setState(() =>
-                            _customer = _customer?.id == c.id ? null : c),
-                      ),
-                  ],
+              ChipStrip(chips: [
+                for (final c in repo.topCustomers(limit: 3)) _contactChip(c),
+                PresetChip(
+                  icon: Icons.person_search_outlined,
+                  label: 'All contacts'.tr,
+                  onTap: _openContactSheet,
                 ),
-              ],
-              const SizedBox(height: 14),
-
-              AmountField(
-                controller: _amount,
-                label: 'Amount'.tr,
-                currency: sms.currency,
-              ),
-              const SizedBox(height: 14),
-
-              if (scope == TxnScope.business)
-                SelectField<Customer>(
-                  label: 'Contact (optional)'.tr,
-                  icon: Icons.person_outline_rounded,
-                  value: _customer,
-                  items: repo.activeCustomers,
-                  clearable: true,
-                  labelOf: (c) => c.name,
-                  subOf: (c) => c.phone,
-                  searchHint: 'Customer name...'.tr,
-                  sheetTitle: 'Select contact'.tr,
-                  onChanged: (c) => setState(() {
-                    _customer = c;
-                    if (widget.sms.direction == SmsDirection.deposit) {
-                      _kind = _suggestedKind(repo, TxnScope.business);
-                      _categoryId = _suggestedCategoryId(
-                        repo,
-                        TxnScope.business,
-                      );
-                    }
-                  }),
+                PresetChip(
+                  icon: Icons.person_add_alt_1_rounded,
+                  label: 'New contact'.tr,
+                  onTap: _newContact,
                 ),
-
-              if (categoryKind != null) ...[
-                const SizedBox(height: 14),
-                SelectField<Category>(
-                  label: (categoryKind == TxnKind.expense
-                          ? 'Expense category'
-                          : 'Income category')
-                      .tr,
-                  icon: Icons.category_outlined,
-                  value: categories
-                      .where((c) => c.id == _categoryId)
-                      .firstOrNull,
-                  items: categories,
-                  labelOf: (c) => c.name,
-                  onChanged: (c) => setState(() => _categoryId = c?.id),
+              ]),
+              if (_customer != null)
+                ContactBalanceCard(
+                  customer: _customer!,
+                  balance: repo.balanceOf(_customer!),
                 ),
-              ],
             ],
-
+            if (categoryKind != null) ...[
+              const SizedBox(height: 16),
+              // Every category lives in one searchable list — frequent ones
+              // lead, so a long catalog is never a scrolling hunt.
+              SelectField<Category>(
+                label: 'Category',
+                icon: Icons.category_outlined,
+                value:
+                    categories.where((c) => c.id == _categoryId).firstOrNull,
+                items: categories,
+                labelOf: (c) => c.name,
+                searchHint: 'Category name...',
+                sheetTitle: 'Select category',
+                isChild: (c) => c.parentId != null,
+                extraActionLabel: 'Manage',
+                onExtraAction: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CategoriesPage(),
+                  ),
+                ),
+                onChanged: (c) {
+                  Haptics.selection();
+                  setState(() => _categoryId = c?.id);
+                },
+              ),
+            ],
             const SizedBox(height: 18),
             Row(
               children: [
@@ -1140,32 +1147,30 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                 Expanded(
                   flex: 2,
                   child: FilledButton.icon(
-                    onPressed: scope == null
-                        ? null
-                        : () async {
-                            final value = parseAmount(_amount.text);
-                            if (value <= 0) {
-                              showSnack(
-                                context,
-                                'Enter an amount',
-                                error: true,
-                              );
-                              return;
-                            }
-                            await repo.approveSms(
-                              sms,
-                              customer: _customer,
-                              kind: _kind,
-                              categoryId: _categoryId,
-                              amount: value,
-                              scope: scope,
-                            );
-                            if (context.mounted) {
-                              // Coin + stamp: the money-landed moment.
-                              MoneyCelebration.recorded(context);
-                              Navigator.pop(context, true);
-                            }
-                          },
+                    onPressed: () async {
+                      final value = parseAmount(_amount.text);
+                      if (value <= 0) {
+                        showSnack(
+                          context,
+                          'Enter an amount',
+                          error: true,
+                        );
+                        return;
+                      }
+                      await repo.approveSms(
+                        sms,
+                        customer: _customer,
+                        kind: _kind,
+                        categoryId: _categoryId,
+                        amount: value,
+                        scope: scope,
+                      );
+                      if (context.mounted) {
+                        // Coin + stamp: the money-landed moment.
+                        MoneyCelebration.recorded(context);
+                        Navigator.pop(context, true);
+                      }
+                    },
                     icon: const Icon(Icons.check_rounded, size: 18),
                     label: Text('Record transaction'.tr),
                   ),

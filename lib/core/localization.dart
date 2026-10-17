@@ -41,6 +41,17 @@ class AppLocalization {
     'Copied': 'کپی شد',
     'Undo': 'بازگردانی',
     'Frequent picks': 'پرکاربردها',
+    'Recent': 'تازگی‌ها',
+    'All contacts': 'همهٔ مخاطبان',
+    'Record {amount}': 'ثبت {amount}',
+    'Cash goes into the box.': 'نقدی به صندوق می‌رود.',
+    'Credit is added to this customer\'s balance.':
+        'نسیه به ماندهٔ حساب این مشتری افزوده می‌شود.',
+    'Cash leaves the box.': 'نقدی از صندوق خارج می‌شود.',
+    'Credit is recorded as our debt to this contact.':
+        'نسیه به‌عنوان بدهی ما به این مخاطب ثبت می‌شود.',
+    'The rest will be recorded as our debt to this contact: {amount}':
+        'بقیه به‌عنوان بدهی ما به این مخاطب ثبت می‌شود: {amount}',
     'Transaction': 'تراکنش',
     'Gesture guide': 'راهنمای ژست‌ها',
     'See every swipe, hold and drag again': 'مرور همهٔ کشیدن‌ها، نگه‌داشتن‌ها و درگ‌ها',
@@ -130,6 +141,16 @@ class AppLocalization {
     'Customer': 'مشتری',
     'Customer name...': 'نام مشتری…',
     'Select contact': 'انتخاب مخاطب',
+    'Select category': 'انتخاب دسته‌بندی',
+    'Category name...': 'نام دسته‌بندی…',
+    'Choose a category for the button': 'برای دکمهٔ سریع، دسته‌بندی را انتخاب کنید',
+    'This category is already a quick button': 'این دسته‌بندی قبلاً دکمهٔ سریع است',
+    'Parent category': 'زیرمجموعهٔ',
+    'Top-level category': 'دستهٔ اصلی (بدون زیرمجموعه)',
+    'Delete category "{name}"? Its transactions will become uncategorized.'
+        : 'این دسته حذف شود؟ تراکنش‌هایش بی‌دسته می‌شوند.',
+    'Delete category "{name}"? Its transactions will become uncategorized. Its subcategories move to the top level.'
+        : 'این دسته حذف شود؟ تراکنش‌هایش بی‌دسته می‌شوند و زیرمجموعه‌هایش به سطح اصلی برمی‌گردند.',
     'Select customer': 'انتخاب مشتری',
     'New contact': 'مخاطب جدید',
     'New customer': 'مشتری جدید',

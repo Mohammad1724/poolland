@@ -433,8 +433,8 @@ void main() {
     await tester.tap(find.text('Expense').last);
     await tester.pumpAndSettle();
 
-    // Reveal the category field and inspect the form state directly: the
-    // selected category must have been re-derived for the new direction
+    // Reveal the category row: the selected chip must be the default expense
+    // category for the business scope, re-derived after the direction switch
     // instead of silently keeping the income category (which would corrupt
     // per-category reports on save).
     await tester.scrollUntilVisible(
@@ -448,12 +448,14 @@ void main() {
           .first,
     );
     await tester.pumpAndSettle();
-    final field = tester.widget<SelectField<Category>>(
-      find.byType(SelectField<Category>).first,
+    final expected = repo.categoryById(
+      repo.defaultCategoryId(TxnKind.expense, scope: TxnScope.business),
     );
-    expect(field.value, isNotNull);
-    expect(field.value!.kind, TxnKind.expense);
-    expect(field.value!.scope, TxnScope.business);
+    expect(expected, isNotNull);
+    // The category row now carries the re-derived default for the new kind.
+    expect(find.text(expected!.name), findsOneWidget);
+    expect(expected.kind, TxnKind.expense);
+    expect(expected.scope, TxnScope.business);
     expect(tester.takeException(), isNull);
   });
 
@@ -546,7 +548,16 @@ void main() {
     );
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
     expect(find.text('Amount'), findsOneWidget);
-    expect(find.byType(ChoiceChip), findsWidgets);
+    // The sheet speaks the same visual language as the entry form: a
+    // full-width scope segment.
+    expect(find.byType(SegmentedButton<TxnScope>), findsOneWidget);
+
+    // The section follows the ledger's habits; point it at the business
+    // side, where regular contacts are one-tap chips.
+    await tester.tap(find.text('Business'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PresetChip), findsWidgets);
+    expect(find.byType(ChipStrip), findsWidgets);
 
     // Switching the section still re-derives kind and category.
     await tester.tap(find.text('Personal'));
