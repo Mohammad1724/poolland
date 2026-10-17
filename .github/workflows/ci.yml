@@ -25,8 +25,8 @@ jobs:
       - run: flutter analyze
       - run: flutter test --concurrency=1
 
-  build-safe-apk:
-    name: Build Play Protect-safe APK
+  build-apk:
+    name: Build APK and check it stays installable
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -40,27 +40,44 @@ jobs:
           cache: true
       - name: Prepare Flutter project
         run: flutter pub get
-      # Compiles the safe flavor end-to-end and proves the Play Protect block
-      # cannot come back: the merged manifest of the actual APK must declare
-      # no SMS permission and no SmsReceiver. (Play Protect blocks
-      # internet-sideloaded APKs that declare READ_SMS, RECEIVE_SMS, a
-      # notification listener, or an accessibility service.)
-      - name: Build the safe flavor
-        run: flutter build apk --debug --flavor safe
-      - name: Assert the safe APK declares no sensitive permission
+      # Compiles the release APK end-to-end and proves the Play Protect
+      # block cannot come back: the merged manifest of the actual APK must
+      # declare no sensitive permission and register no SMS receiver.
+      # (Play Protect blocks internet-sideloaded APKs that declare
+      # READ_SMS, RECEIVE_SMS, a notification listener, or an accessibility
+      # service — by permission, not by signature.)
+      - name: Build the APK
+        run: |
+          # `if ! cmd` is used on purpose: the runner runs the script with
+          # `bash -e`, so a plain failing command would abort the step
+          # before the error could be captured.
+          if ! flutter build apk --debug > /tmp/build.log 2>&1; then
+            # The raw job log lives in a blob store, so the important lines
+            # are re-emitted as annotations: they show up on the pull
+            # request and can be read through the API.
+            {
+              echo "::error::APK build failed"
+              grep -E "^e: " /tmp/build.log | head -8 | sed 's/^/::error::/'
+              tail -6 /tmp/build.log | sed 's/^/::error::/'
+            }
+            tail -40 /tmp/build.log >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          cat /tmp/build.log
+      - name: Assert the APK declares no sensitive permission
         run: |
           set -euo pipefail
-          APK="build/app/outputs/flutter-apk/app-safe-debug.apk"
+          APK="build/app/outputs/flutter-apk/app-debug.apk"
           test -f "$APK"
           AAPT2="$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -n 1)"
           echo "Using $AAPT2"
-          "$AAPT2" dump permissions "$APK" | tee /tmp/safe-permissions.txt
-          if grep -qE 'READ_SMS|RECEIVE_SMS|BIND_NOTIFICATION_LISTENER_SERVICE|BIND_ACCESSIBILITY_SERVICE' /tmp/safe-permissions.txt; then
-            echo "::error::The safe APK declares a Play Protect-blocked permission."
+          "$AAPT2" dump permissions "$APK" | tee /tmp/apk-permissions.txt
+          if grep -qE 'READ_SMS|RECEIVE_SMS|BIND_NOTIFICATION_LISTENER_SERVICE|BIND_ACCESSIBILITY_SERVICE' /tmp/apk-permissions.txt; then
+            echo "::error::The APK declares a Play Protect-blocked permission."
             exit 1
           fi
-          "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" > /tmp/safe-manifest.txt
-          if grep -q 'SmsReceiver' /tmp/safe-manifest.txt; then
-            echo "::error::The safe APK still registers SmsReceiver."
+          "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" > /tmp/apk-manifest.txt
+          if grep -q 'SmsReceiver' /tmp/apk-manifest.txt; then
+            echo "::error::The APK still registers SmsReceiver."
             exit 1
           fi

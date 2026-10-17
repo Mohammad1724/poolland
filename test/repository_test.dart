@@ -1,8 +1,8 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:poolland/core/jalali_utils.dart';
+import 'package:poolland/core/localization.dart';
 import 'package:poolland/core/sms/bank_rules.dart';
 import 'package:poolland/core/sms/sms_models.dart';
 import 'package:poolland/core/sms/sms_parser.dart';
@@ -62,24 +62,22 @@ void main() {
     expect(repo.scopeFilter, TxnScope.business);
   });
 
-  test('Bank SMS notification preference defaults on and persists', () async {
-    expect(repo.settings.smsNotify, isTrue);
-
-    await repo.updateSettings(repo.settings.copyWith(smsNotify: false));
-    expect(store.loadSettings().smsNotify, isFalse);
-    final restored = AppSettings.fromMap(store.loadSettings().toMap());
-    expect(restored.smsNotify, isFalse);
-
-    // Legacy backups without the flag turn notifications on, not off.
+  test('The app keeps no SMS-access setting', () async {
+    // The app declares no SMS permission, so there is nothing to enable:
+    // a bank message is added by pasting it. Older backups may still carry
+    // the removed flags; they are ignored instead of crashing the restore.
     final legacy = Map<String, dynamic>.from(store.loadSettings().toMap())
-      ..remove('smsNotify');
-    expect(AppSettings.fromMap(legacy).smsNotify, isTrue);
+      ..['smsEnabled'] = true
+      ..['smsNotify'] = true
+      ..['smsSyncDays'] = 30;
+    final restored = AppSettings.fromMap(legacy);
+    expect(restored.disabledSmsRuleIds, isEmpty);
   });
 
   test('SMS rule enablement defaults on and persists per rule', () async {
     expect(repo.isSmsRuleEnabled('melat'), isTrue);
     expect(
-      AppSettings.fromMap({'smsEnabled': true}).disabledSmsRuleIds,
+      AppSettings.fromMap({'disabledSmsRuleIds': <String>[]}).disabledSmsRuleIds,
       isEmpty,
       reason: 'Legacy settings keep every built-in rule enabled',
     );
@@ -754,27 +752,27 @@ void main() {
     });
   });
 
-  group('Mirrored SMS notification rules', () {
+  group('Active SMS rules', () {
     test('Default rules include the built-in banks and their Persian names',
         () {
-      final rules = jsonDecode(repo.nativeRulesJson()) as List;
-      final mellat =
-          rules.firstWhere((r) => (r['s'] as List).contains('MELLAT'));
-      expect(mellat['fa'], 'بانک ملت');
-      expect((mellat['b'] as List).join(' '), contains('ملت'));
+      final rules = repo.activeSmsRules;
+      final mellat = rules.firstWhere((r) => r.senderHints.contains('MELLAT'));
+      expect(AppLocalization.text(mellat.bankName, languageCode: 'fa'),
+          'بانک ملت');
+      expect(mellat.bodyHints.join(' '), contains('ملت'));
     });
 
-    test('Disabled built-in rules are not mirrored', () async {
+    test('Disabled built-in rules are not active', () async {
       final disabled = {...repo.settings.disabledSmsRuleIds, 'melat'};
       await repo.updateSettings(
         repo.settings.copyWith(disabledSmsRuleIds: disabled.toList()..sort()),
       );
-      final rules = jsonDecode(repo.nativeRulesJson()) as List;
-      expect(rules.any((r) => (r['s'] as List).contains('MELLAT')), isFalse);
-      expect(rules.any((r) => (r['s'] as List).contains('SEPAH')), isTrue);
+      final rules = repo.activeSmsRules;
+      expect(rules.any((r) => r.senderHints.contains('MELLAT')), isFalse);
+      expect(rules.any((r) => r.senderHints.contains('SEPAH')), isTrue);
     });
 
-    test('Custom rules are mirrored with their hints and label', () async {
+    test('Custom rules are active with their hints and label', () async {
       await repo.addSmsRule(
         const BankRule(
           id: 'q1',
@@ -784,11 +782,11 @@ void main() {
           custom: true,
         ),
       );
-      final rules = jsonDecode(repo.nativeRulesJson()) as List;
-      final custom =
-          rules.firstWhere((r) => (r['s'] as List).contains('CREDIT1'));
-      expect(custom['fa'], 'صندوق اعتباری');
-      expect((custom['b'] as List).join(' '), contains('صندوق'));
+      final rules = repo.activeSmsRules;
+      final custom = rules.firstWhere((r) => r.senderHints.contains('CREDIT1'));
+      expect(AppLocalization.text(custom.bankName, languageCode: 'fa'),
+          'صندوق اعتباری');
+      expect(custom.bodyHints.join(' '), contains('صندوق'));
     });
   });
 }

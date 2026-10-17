@@ -1,8 +1,6 @@
-import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart' show ChangeNotifier, VoidCallback;
+import 'package:flutter/foundation.dart' show ChangeNotifier;
 
 import '../core/app_lock.dart';
 import '../core/jalali_utils.dart';
@@ -12,7 +10,6 @@ import '../core/notifications/notify.dart';
 import '../core/sms/bank_rules.dart';
 import '../core/sms/sms_models.dart';
 import '../core/sms/sms_parser.dart';
-import '../core/sms/sms_service.dart';
 import 'ledger.dart';
 import 'models.dart';
 import 'store.dart';
@@ -54,36 +51,26 @@ class AppRepository extends ChangeNotifier {
   }
 
   // ---- Bank SMS ----
+  //
+  // The app never reads the SMS inbox: it declares neither READ_SMS nor
+  // RECEIVE_SMS, because Google Play Protect blocks the install of any APK
+  // that does. A bank message reaches the review queue only when the user
+  // pastes its text (see [importSmsText]) — the parser, the rules, and the
+  // review sheet are the same either way.
   List<ParsedSms> smsSuggestions = [];
   List<SmsHistoryEntry> smsHistory = [];
-  List<SmsMessage> smsUnrecognizedMessages = [];
   List<BankRule> smsRules = [];
-  bool smsPermissionGranted = false;
 
   /// Whether the OS currently allows posting notifications. Tracked so the
   /// settings page never claims "notifications on" while Android is silently
   /// dropping them (restored backups used to look enabled without this).
   bool notificationPermissionGranted = true;
-  bool smsBusy = false;
-  bool smsUnrecognizedBusy = false;
-  bool _smsInited = false;
-
-  /// Called when a new bank SMS lands in the review queue while the app is
-  /// open, so the shell can point at the queue. The system notification for
-  /// the background case is posted natively (see SmsReceiver.kt).
-  VoidCallback? onNewSmsSuggestion;
 
   /// Initialize the repository and open the database.
   Future<void> init() async {
-    // The safe Android build ships without the SMS permissions; ask the
-    // native side which build this is before anything reads
-    // [SmsService.isSupported] (the intro gate, the settings section, and
-    // the startup sync all do).
-    await SmsService.detectSupport();
     _store ??= await LocalStore.open();
     _loadFrom(_store!);
     _ready = true;
-    await syncNativeSmsPrefs();
     await refreshNotificationPermission();
     notifyListeners();
   }
@@ -126,17 +113,10 @@ class AppRepository extends ChangeNotifier {
 
   void _syncGlobals() => Money.sync(settings);
 
-  /// Pull-to-refresh: re-read the ledger from disk and re-scan bank SMS,
-  /// so a manual pully always shows the freshest data.
+  /// Pull-to-refresh: re-read the ledger from disk, so a manual pully always
+  /// shows the freshest data.
   Future<void> refreshAll() async {
     await reload();
-    if (smsSupported && settings.smsEnabled) {
-      try {
-        await syncSms();
-      } catch (_) {
-        // A failed SMS scan must not break the refresh gesture.
-      }
-    }
   }
 
   Future<void> reload() async {
@@ -1045,8 +1025,6 @@ class AppRepository extends ChangeNotifier {
     _syncGlobals();
     await store.saveSettings(s);
     notifyListeners();
-    // The native receiver mirrors language, rules, and the notification flag.
-    await syncNativeSmsPrefs();
     if (!reminderChanged) return;
     if (s.dailyReminder) {
       await scheduleDailyReminder();
@@ -1153,47 +1131,15 @@ class AppRepository extends ChangeNotifier {
   );
 
   // ---------------- Bank SMS ----------------
-  /// Whether SMS is supported on this device (Android only).
-  bool get smsSupported => SmsService.isSupported;
-
-  /// Mirror everything the native SMS receiver needs into Android
-  /// SharedPreferences: the notification flag, the app language, and the
-  /// effective bank rules.
-  ///
-  /// The receiver runs even when the Flutter engine is not alive, so it
-  /// cannot read Hive. Mirroring the rules keeps the native pre-filter (and
-  /// therefore the arrival notification) in lockstep with the Dart parser:
-  /// a carrier or shop SMS that matches no rule never produces a
-  /// “bank SMS” notification.
-  Future<void> syncNativeSmsPrefs() => SmsService.syncNotificationPrefs(
-    enabled: settings.smsEnabled && settings.smsNotify,
-    language: settings.languageCode,
-    rulesJson: nativeRulesJson(),
-  );
-
-  /// The active bank rules (custom rules first, like [SmsParser.findRule])
-  /// as JSON the native side can match against: normalized sender hints,
-  /// normalized body hints, and the bank name in both app languages.
-  String nativeRulesJson() {
-    final active = [...smsRules, ...builtinBankRules]
-        .where((rule) => isSmsRuleEnabled(rule.id))
-        .toList();
-    return jsonEncode([
-      for (final rule in active)
-        {
-          's': [
-            for (final hint in rule.senderHints)
-              SmsParser.normalize(hint).toUpperCase(),
-          ],
-          'b': [for (final hint in rule.bodyHints) SmsParser.normalize(hint)],
-          'fa': AppLocalization.text(rule.bankName, languageCode: 'fa'),
-          'en': rule.bankName,
-        },
-    ]);
-  }
-
   /// Number of suggestions awaiting approval.
   int get smsPendingCount => smsSuggestions.length;
+
+  /// The bank rules that are in effect right now: custom rules first (like
+  /// [SmsParser.findRule] prefers them), the built-in ones after, minus the
+  /// ones the user turned off.
+  List<BankRule> get activeSmsRules => [...smsRules, ...builtinBankRules]
+      .where((rule) => isSmsRuleEnabled(rule.id))
+      .toList();
 
   /// Built-in rules are enabled unless explicitly disabled in settings.
   bool isSmsRuleEnabled(String ruleId) =>
@@ -1215,16 +1161,6 @@ class AppRepository extends ChangeNotifier {
       settings.copyWith(disabledSmsRuleIds: sortedIds),
     );
     _refreshPendingSms();
-
-    // Enabling a rule may make messages already in the inbox eligible for
-    // manual review. It still never records a transaction automatically.
-    if (enabled && smsPermissionGranted) {
-      try {
-        await syncSms(force: true);
-      } catch (_) {
-        // The setting is saved; the user can retry from the SMS review page.
-      }
-    }
   }
 
   void _refreshPendingSms() {
@@ -1244,61 +1180,15 @@ class AppRepository extends ChangeNotifier {
         .toList()
       ..sort((a, b) => b.message.date.compareTo(a.message.date));
     smsSuggestions = collapseTwins(refreshed);
-    smsUnrecognizedMessages = [];
     notifyListeners();
-  }
-
-  /// Initialize listening for new SMS messages.
-  void initSms() {
-    if (_smsInited || !SmsService.isSupported) return;
-    _smsInited = true;
-    SmsService.init();
-    SmsService.onSmsReceived = _onIncomingSms;
-  }
-
-  Future<void> _onIncomingSms(SmsMessage msg) async {
-    final parsed = SmsParser.parse(
-      msg,
-      extraRules: smsRules,
-      disabledRuleIds: settings.disabledSmsRuleIds.toSet(),
-    );
-    if (!parsed.isTransaction) return;
-    final state = store.loadSmsState();
-    if (state.containsKey(parsed.key)) return;
-
-    // A duplicate confirmation of an event already queued or reviewed must
-    // not create a second card for the same transaction.
-    final twinQueued = smsSuggestions.any(isTwinSmsOf(parsed));
-    final twinReviewed = smsHistory.any(
-      (h) =>
-          _twinKeyOf(h.message.address, h.direction, h.amount) ==
-              _twinKey(parsed) &&
-          h.message.date.difference(parsed.message.date).abs() <= twinWindow,
-    );
-    if (twinQueued || twinReviewed) {
-      await store.setSmsState(
-        parsed.key,
-        SmsHistoryEntry.rejectedStatus,
-        history: _smsHistoryEntry(parsed, SmsHistoryEntry.rejectedStatus),
-      );
-      return;
-    }
-
-    smsSuggestions = [
-      parsed,
-      ...smsSuggestions.where((e) => e.key != parsed.key),
-    ]..sort((a, b) => b.message.date.compareTo(a.message.date));
-    notifyListeners();
-    onNewSmsSuggestion?.call();
   }
 
   /// Queues a bank message the user pasted into the review page.
   ///
-  /// This is the permission-free counterpart of [_onIncomingSms]: the `safe`
-  /// build never reads the inbox, but the parser, the rules, and the review
-  /// sheet are identical. A message that matches no active bank rule is still
-  /// accepted when it clearly contains an amount and a direction — the same
-  /// "potential transaction" bar used when scanning unknown senders — so a
+  /// The app never reads the SMS inbox — it declares no SMS permission, so
+  /// Google Play Protect lets it install — but the parser, the rules, and the
+  /// review sheet are the same. A message that matches no active bank rule is
+  /// still accepted when it clearly contains an amount and a direction, so a
   /// paste from a bank the rule list does not cover is not thrown away.
   ///
   /// Duplicates are matched on the message body as well as the sender/time
@@ -1347,12 +1237,6 @@ class AppRepository extends ChangeNotifier {
     return SmsImportResult.added;
   }
 
-  Future<bool> refreshSmsPermission() async {
-    smsPermissionGranted = await SmsService.hasPermission();
-    notifyListeners();
-    return smsPermissionGranted;
-  }
-
   /// Quiet probe of the notification permission (no system dialog).
   Future<bool> refreshNotificationPermission() async {
     try {
@@ -1363,146 +1247,6 @@ class AppRepository extends ChangeNotifier {
     }
     notifyListeners();
     return notificationPermissionGranted;
-  }
-
-  Future<bool> requestSmsPermission() async {
-    final ok = await SmsService.requestPermission();
-    smsPermissionGranted = ok;
-    if (ok) {
-      await updateSettings(settings.copyWith(smsEnabled: true));
-      // Fire-and-forget, but an inbox read failure must not surface as an
-      // unhandled async error; the review page offers a manual retry.
-      unawaited(syncSms().catchError((_) => 0));
-    }
-    notifyListeners();
-    return ok;
-  }
-
-  /// Read SMS messages and build the suggestion list.
-  /// Returns the number of new suggestions.
-  Future<int> syncSms({bool force = false}) async {
-    if (!isReady || !SmsService.isSupported) return 0;
-    if (smsBusy && !force) return 0;
-    smsBusy = true;
-    notifyListeners();
-    try {
-      final days = settings.smsSyncDays < 1 ? 1 : settings.smsSyncDays;
-      final since = DateTime.now().subtract(Duration(days: days));
-      final messages = await SmsService.readInbox(since: since);
-      final state = store.loadSmsState();
-
-      final disabledRuleIds = settings.disabledSmsRuleIds.toSet();
-      final current = smsSuggestions
-          .map((sms) {
-            final parsed = SmsParser.parse(
-              sms.message,
-              extraRules: smsRules,
-              disabledRuleIds: disabledRuleIds,
-            );
-            // Manual pastes survive an inbox sync even when no rule matches.
-            return sms.manual ? parsed.asManual() : parsed;
-          })
-          .where(
-            (sms) =>
-                (sms.isTransaction || sms.manual) &&
-                !state.containsKey(sms.key),
-          )
-          .toList();
-
-      final pending = <ParsedSms>[];
-      for (final m in messages) {
-        if (state.containsKey(m.key)) continue;
-        final parsed = SmsParser.parse(
-          m,
-          extraRules: smsRules,
-          disabledRuleIds: disabledRuleIds,
-        );
-        if (parsed.isTransaction) {
-          pending.add(parsed);
-        } else {
-          // Unmatched messages are discarded by policy. Do not create review
-          // cache entries for them; they may be rechecked later but never enter
-          // the approval queue without a rule match.
-        }
-      }
-
-      final known = current.map((e) => e.key).toSet();
-      final merged = <ParsedSms>[
-        ...current,
-        ...pending.where((p) => !known.contains(p.key)),
-      ]..sort((a, b) => b.message.date.compareTo(a.message.date));
-      final collapsed = collapseTwins(merged);
-      for (final twin in merged.where(
-        (s) => !collapsed.any((k) => k.key == s.key),
-      )) {
-        await store.setSmsState(
-          twin.key,
-          SmsHistoryEntry.rejectedStatus,
-          history: _smsHistoryEntry(twin, SmsHistoryEntry.rejectedStatus),
-        );
-      }
-      smsSuggestions = collapsed;
-
-      await updateSettings(
-        settings.copyWith(smsLastSyncAt: DateTime.now().millisecondsSinceEpoch),
-      );
-      notifyListeners();
-      return pending.length;
-    } finally {
-      smsBusy = false;
-      notifyListeners();
-    }
-  }
-
-  /// Find transaction-like messages that do not match any active rule.
-  /// These remain out of the review queue until the user explicitly creates a
-  /// rule for their sender or a phrase in the body.
-  Future<int> scanUnrecognizedSms({bool force = false}) async {
-    if (!isReady || !SmsService.isSupported || !smsPermissionGranted) return 0;
-    if (smsUnrecognizedBusy && !force) return 0;
-
-    smsUnrecognizedBusy = true;
-    notifyListeners();
-    try {
-      final days = settings.smsSyncDays < 1 ? 1 : settings.smsSyncDays;
-      final since = DateTime.now().subtract(Duration(days: days));
-      final messages = await SmsService.readInbox(since: since);
-      final state = store.loadSmsState();
-      final disabledRuleIds = settings.disabledSmsRuleIds.toSet();
-      final candidates = <String, SmsMessage>{};
-
-      for (final message in messages) {
-        if (state.containsKey(message.key)) continue;
-        final body = SmsParser.normalize(message.body);
-        if (SmsParser.isIgnored(body)) continue;
-
-        final parsed = SmsParser.parse(
-          message,
-          extraRules: smsRules,
-          disabledRuleIds: disabledRuleIds,
-        );
-        if (!parsed.isPotentialUnrecognizedTransaction) continue;
-
-        // Do not advertise a known-but-disabled bank as an unknown sender.
-        final disabledMatch = SmsParser.findRule(
-          SmsParser.normalize(message.address).toUpperCase(),
-          body,
-          smsRules,
-        );
-        if (disabledMatch != null &&
-            disabledRuleIds.contains(disabledMatch.id)) {
-          continue;
-        }
-        candidates[message.key] = message;
-      }
-
-      smsUnrecognizedMessages = candidates.values.toList()
-        ..sort((a, b) => b.date.compareTo(a.date));
-      return smsUnrecognizedMessages.length;
-    } finally {
-      smsUnrecognizedBusy = false;
-      notifyListeners();
-    }
   }
 
   /// Match an SMS to a customer using their bank identifiers.
@@ -1671,12 +1415,11 @@ class AppRepository extends ChangeNotifier {
   static bool Function(ParsedSms) isTwinSmsOf(ParsedSms s) =>
       (other) => isTwinSms(s, other);
 
-  /// Clear review history so all messages are scanned again.
+  /// Clear the review history so the queue starts empty.
   Future<void> resetSmsState() async {
     await store.clearSmsState();
     smsSuggestions = [];
     smsHistory = [];
-    smsUnrecognizedMessages = [];
     notifyListeners();
   }
 
@@ -1684,14 +1427,6 @@ class AppRepository extends ChangeNotifier {
     await store.putSmsRule(rule);
     await reload();
     _refreshPendingSms();
-    await syncNativeSmsPrefs();
-    if (smsPermissionGranted) {
-      try {
-        await syncSms(force: true);
-      } catch (_) {
-        // Keep the new rule even if inbox scanning is temporarily unavailable.
-      }
-    }
   }
 
   Future<void> deleteSmsRule(String id) async {
@@ -1706,7 +1441,6 @@ class AppRepository extends ChangeNotifier {
     }
     await reload();
     _refreshPendingSms();
-    await syncNativeSmsPrefs();
   }
 
   static String _smsNote(ParsedSms sms) {

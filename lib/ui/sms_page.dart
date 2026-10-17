@@ -17,7 +17,6 @@ import 'forms/contact_edit_page.dart';
 import 'forms/transaction_edit_page.dart';
 import 'settings_page.dart';
 import 'sms_rules_page.dart';
-import 'unrecognized_sms_page.dart';
 import 'widgets/widgets.dart';
 
 import '../core/localization.dart';
@@ -27,20 +26,13 @@ import 'widgets/quick_buttons.dart';
 /// ============================================================
 ///  Bank SMS — review and approval queue
 ///
-///  Messages are read and parsed, but until the user approves them,
-///  no transaction is recorded in the ledger.
+///  The app declares no SMS permission (Google Play Protect blocks the
+///  install of any APK that does), so a message is added by pasting its
+///  text here. It is parsed, but until the user approves it, no transaction
+///  is recorded in the ledger.
 /// ============================================================
 class SmsPage extends StatefulWidget {
-  const SmsPage({
-    super.key,
-    this.autoReviewDate,
-    this.autoReviewAddress,
-  });
-
-  /// Identity of the SMS message whose review sheet should open as soon as
-  /// the page is ready (set when arriving from an arrival notification).
-  final int? autoReviewDate;
-  final String? autoReviewAddress;
+  const SmsPage({super.key});
 
   @override
   State<SmsPage> createState() => _SmsPageState();
@@ -54,67 +46,9 @@ class _SmsPageState extends State<SmsPage> {
   _HistoryFilter _historyFilter = _HistoryFilter.all;
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final repo = context.read<AppRepository>();
-      repo.initSms();
-      await repo.refreshSmsPermission();
-      if (repo.smsPermissionGranted &&
-          (repo.smsSuggestions.isEmpty || widget.autoReviewDate != null)) {
-        // Arriving from a notification: force the sync so the message that
-        // triggered it is in the queue even if older suggestions exist.
-        await repo.syncSms(force: widget.autoReviewDate != null);
-      }
-      // Arrived from an arrival notification: open the review sheet of that
-      // exact message, the way a banking app opens the matching receipt.
-      if (widget.autoReviewDate == null || !mounted) return;
-      var target = repo.smsSuggestions
-          .where(
-            (s) =>
-                s.message.date.millisecondsSinceEpoch ==
-                    widget.autoReviewDate &&
-                (widget.autoReviewAddress == null ||
-                    s.message.address == widget.autoReviewAddress),
-          )
-          .firstOrNull;
-      // Notification taps must always land on a sheet: fall back to the
-      // sender, then to the newest suggestion, instead of showing a bare
-      // queue when the exact identity no longer matches.
-      target ??= repo.smsSuggestions
-          .where(
-            (s) =>
-                widget.autoReviewAddress != null &&
-                s.message.address == widget.autoReviewAddress,
-          )
-          .firstOrNull;
-      target ??= repo.smsSuggestions.firstOrNull;
-      if (target == null || !mounted) return;
-      // Copy out of the nullable local: the sheet builder is a closure, and
-      // closures never see flow-promoted types of a reassigned variable.
-      final ParsedSms chosen = target;
-      final matched = repo.matchCustomerForSms(chosen);
-      final ok = await showLedgerSheet<bool>(
-        context,
-        builder: (ctx) => SmsReviewSheet(sms: chosen, initialCustomer: matched),
-      );
-      if (ok == true && mounted) {
-        showSnack(context, 'Transaction recorded from SMS');
-      }
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
     final onSurface = Theme.of(context).colorScheme.onSurface;
-
-    // Automatic inbox reading needs both the full Android build and the
-    // runtime permission. The safe build still opens this page — that is
-    // where a bank SMS can be pasted — so the platform check stays separate
-    // from the build/permission check.
-    final autoRead = repo.smsSupported;
-    final canReview = !autoRead || repo.smsPermissionGranted;
 
     if (!isAndroidPlatform) {
       return Scaffold(
@@ -150,20 +84,6 @@ class _SmsPageState extends State<SmsPage> {
                 MaterialPageRoute(builder: (_) => const SmsRulesPage()),
               ),
             ),
-            if (autoRead)
-              IconButton(
-                tooltip: 'Sync'.tr,
-                icon: repo.smsBusy
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.sync_rounded),
-                onPressed: repo.smsBusy
-                    ? null
-                    : () => repo.syncSms(force: true),
-              ),
             PopupMenuButton<String>(
               onSelected: (v) async {
                 switch (v) {
@@ -183,56 +103,34 @@ class _SmsPageState extends State<SmsPage> {
                     // unless the app says what happened.
                     showMessengerSnack(messenger, 'All suggestions rejected');
                     break;
-                  case 'reset':
-                    // Nothing to rescan when the build cannot read the inbox.
-                    if (!autoRead) break;
-                    final ok = await confirmDialog(
-                      context,
-                      title: 'Review again'.tr,
-                      message:
-                          'Clear the review history and scan SMS messages '
-                          'again?',
-                      okLabel: 'Clear',
-                    );
-                    if (ok) {
-                      await repo.resetSmsState();
-                      await repo.syncSms(force: true);
-                    }
-                    break;
                 }
               },
               itemBuilder: (_) => [
                 PopupMenuItem(value: 'reject_all', child: Text('Reject all'.tr)),
-                if (autoRead)
-                  PopupMenuItem(value: 'reset', child: Text('Rescan SMS'.tr)),
               ],
             ),
           ],
-          bottom: canReview
-              ? TabBar(
-                  tabs: [
-                    Tab(
-                      text: 'Unregistered ({count})'.trArgs({
-                        'count': all.length,
-                      }),
-                    ),
-                    Tab(
-                      text: 'Review history ({count})'.trArgs({
-                        'count': repo.smsHistory.length,
-                      }),
-                    ),
-                  ],
-                )
-              : null,
-        ),
-        body: !canReview
-            ? _permissionView(context, repo)
-            : TabBarView(
-                children: [
-                  _pendingTab(context, repo, all, list, onSurface),
-                  _historyTab(context, repo),
-                ],
+          bottom: TabBar(
+            tabs: [
+              Tab(
+                text: 'Unregistered ({count})'.trArgs({
+                  'count': all.length,
+                }),
               ),
+              Tab(
+                text: 'Review history ({count})'.trArgs({
+                  'count': repo.smsHistory.length,
+                }),
+              ),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            _pendingTab(context, repo, all, list, onSurface),
+            _historyTab(context, repo),
+          ],
+        ),
       ),
     );
   }
@@ -243,82 +141,56 @@ class _SmsPageState extends State<SmsPage> {
     List<ParsedSms> all,
     List<ParsedSms> list,
     Color onSurface,
-  ) => CoinRefresh(
-    // Pull-to-refresh means "read the inbox again". The safe build has no
-    // inbox to read, so the gesture only scrolls there.
-    onRefresh: () async {
-      if (repo.smsSupported) await repo.syncSms(force: true);
-    },
-    child: ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
-      children: [
-        _summaryCard(context, repo, all.length),
-        const SizedBox(height: 10),
-        // Available in both builds: the only way in without SMS permission,
-        // and a shortcut for a message the user is already reading.
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.tonalIcon(
-            onPressed: () => _importSms(context, repo),
-            icon: const Icon(Icons.content_paste_rounded, size: 18),
-            label: Text('Add from SMS text'.tr),
+  ) => ListView(
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
+    children: [
+      _summaryCard(context, all.length),
+      const SizedBox(height: 10),
+      // The only way in: the app has no SMS permission, so a bank message
+      // is added by pasting its text.
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.tonalIcon(
+          onPressed: () => _importSms(context, repo),
+          icon: const Icon(Icons.content_paste_rounded, size: 18),
+          label: Text('Add from SMS text'.tr),
+        ),
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          _chip('All', _SmsFilter.all, all.length),
+          const SizedBox(width: 8),
+          _chip(
+            'Deposit',
+            _SmsFilter.deposit,
+            all.where((s) => s.direction == SmsDirection.deposit).length,
           ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            _chip('All', _SmsFilter.all, all.length),
-            const SizedBox(width: 8),
-            _chip(
-              'Deposit',
-              _SmsFilter.deposit,
-              all.where((s) => s.direction == SmsDirection.deposit).length,
-            ),
-            const SizedBox(width: 8),
-            _chip(
-              'Withdrawal',
-              _SmsFilter.withdraw,
-              all.where((s) => s.direction == SmsDirection.withdraw).length,
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        if (list.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 40),
-            child: EmptyState(
-              icon: Icons.sms_outlined,
-              title: repo.smsBusy ? 'Checking SMS...' : 'No items found',
-              text: repo.smsBusy
-                  ? 'Please wait'
-                  : repo.smsSupported
-                  ? 'No new transaction messages found. Tap '
-                        'Sync to check recent messages.'
-                  : 'No messages yet. Paste a bank SMS above to review it.',
-            ),
-          )
-        else
-          for (final (i, sms) in list.indexed)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: SlipIn(index: i, child: _SmsCard(sms: sms, onSurface: onSurface)),
-            ),
-        if (repo.smsSupported) ...[
-          const SizedBox(height: 6),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const UnrecognizedSmsPage(),
-              ),
-            ),
-            icon: const Icon(Icons.manage_search_rounded),
-            label: Text('Identify unrecognized SMS'.tr),
+          const SizedBox(width: 8),
+          _chip(
+            'Withdrawal',
+            _SmsFilter.withdraw,
+            all.where((s) => s.direction == SmsDirection.withdraw).length,
           ),
         ],
-      ],
-    ),
+      ),
+      const SizedBox(height: 12),
+      if (list.isEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 40),
+          child: const EmptyState(
+            icon: Icons.sms_outlined,
+            title: 'No items found',
+            text: 'No messages yet. Paste a bank SMS above to review it.',
+          ),
+        )
+      else
+        for (final (i, sms) in list.indexed)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: SlipIn(index: i, child: _SmsCard(sms: sms, onSurface: onSurface)),
+          ),
+    ],
   );
 
   /// Asks for a pasted bank message and queues it for review.
@@ -432,22 +304,10 @@ class _SmsPageState extends State<SmsPage> {
     onSelected: (_) => setState(() => _filter = f),
   );
 
-  Widget _summaryCard(BuildContext context, AppRepository repo, int count) {
+  Widget _summaryCard(BuildContext context, int count) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
-    final days = repo.settings.smsSyncDays;
-    final last = repo.settings.smsLastSyncAt;
-    final subtitle = repo.smsSupported
-        ? 'Checking the past {days} days'.trArgs({'days': days}) +
-              (last > 0
-                  ? ' · {label}'.trArgs({
-                      'label': 'Last checked: {date}'.trArgs({
-                        'date': J.d(
-                          DateTime.fromMillisecondsSinceEpoch(last),
-                        ),
-                      }),
-                    })
-                  : '')
-        : 'This build cannot read SMS. Paste a bank SMS to review it.'.tr;
+    final subtitle =
+        'Poolland never reads your SMS. Paste a bank SMS to review it.'.tr;
     return CardBox(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -482,59 +342,6 @@ class _SmsPageState extends State<SmsPage> {
     );
   }
 
-  Widget _permissionView(BuildContext context, AppRepository repo) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 30),
-      children: [
-        CardBox(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.privacy_tip_outlined, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    'SMS reading permission'.tr,
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'To let Poolland read bank SMS and automatically identify deposits and withdrawals, grant SMS permission.\n\n'
-                        '• SMS messages are read on this device only\n'
-                        '• No data is sent anywhere\n'
-                        '• No transaction is recorded until you approve it'
-                    .tr,
-                style: const TextStyle(fontSize: 12.5, height: 1.8),
-              ),
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () => repo.requestSmsPermission(),
-                  icon: const Icon(Icons.sms_rounded, size: 18),
-                  label: Text('Grant SMS access'.tr),
-                ),
-              ),
-              const SizedBox(height: 8),
-              // A permission dialog the user does not want to grant must not
-              // be a dead end: the same parser works on a pasted message.
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _importSms(context, repo),
-                  icon: const Icon(Icons.content_paste_rounded, size: 18),
-                  label: Text('Paste a bank SMS instead'.tr),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 /// ---------------- SMS card ----------------

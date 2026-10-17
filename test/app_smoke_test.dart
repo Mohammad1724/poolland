@@ -26,7 +26,6 @@ import 'package:poolland/ui/settings_page.dart';
 import 'package:poolland/ui/sms_page.dart';
 import 'package:poolland/ui/sms_rules_page.dart';
 import 'package:poolland/ui/subscriptions_page.dart';
-import 'package:poolland/ui/unrecognized_sms_page.dart';
 import 'package:poolland/ui/theme.dart';
 import 'package:poolland/ui/transactions_page.dart';
 import 'package:poolland/ui/widgets/quick_buttons.dart';
@@ -335,7 +334,6 @@ void main() {
       const RatesPage(),
       const SmsRulesPage(),
       const SmsRuleEditPage(),
-      const UnrecognizedSmsPage(),
     ]) {
       await tester.pumpWidget(wrap(page));
       await tester.pump();

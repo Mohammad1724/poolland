@@ -5,8 +5,6 @@ import 'package:provider/provider.dart';
 
 import '../core/haptics.dart';
 import '../core/notifications/notify.dart';
-import '../core/sms/sms_models.dart';
-import '../core/sms/sms_service.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 import 'customers_page.dart';
@@ -21,7 +19,6 @@ import 'forms/transaction_edit_page.dart';
 import 'personal_page.dart';
 import 'reports_page.dart';
 import 'settings_page.dart';
-import 'sms_page.dart';
 import 'subscriptions_page.dart';
 import 'transactions_page.dart';
 import 'widgets/ledger_nav_bar.dart';
@@ -84,7 +81,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     'Transactions',
   ];
 
-  /// The repository this shell reports new SMS messages to.
+  /// The repository this shell keeps a handle on, so the lifecycle callback
+  /// can refresh the notification permission without a full rebuild.
   AppRepository? _repo;
 
   @override
@@ -92,10 +90,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     _closeDial();
     _dialHighlight.dispose();
     WidgetsBinding.instance.removeObserver(this);
-    // The repository and the SMS channel outlive this shell, so they must
-    // not keep callbacks that hold a dead BuildContext.
-    _repo?.onNewSmsSuggestion = null;
-    SmsService.onOpenRoute = null;
     _fabVisible.dispose();
     for (final controller in _scrollControllers.values) {
       controller.dispose();
@@ -105,17 +99,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // The native SMS receiver stays quiet while the app is visible (the
-    // review queue and a snackbar cover that case) and posts a system
-    // notification otherwise.
-    SmsService.setForeground(state == AppLifecycleState.resumed);
     // Coming back from the system settings or a permission dialog: the
     // granted state may have changed without us asking here.
     if (state == AppLifecycleState.resumed) {
       final repo = _repo;
       if (repo != null && repo.isReady) {
         repo.refreshNotificationPermission();
-        if (repo.settings.smsEnabled) repo.refreshSmsPermission();
       }
     }
   }
@@ -133,13 +122,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       if (mounted) maybeShowGestureTour(context);
     });
     WidgetsBinding.instance.addObserver(this);
-    // Set synchronously: a notification tap can arrive over the channel at
-    // any moment once the engine is alive.
-    SmsService.onOpenRoute = _handleOpenRoute;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final repo = context.read<AppRepository>();
       _repo = repo;
-      repo.onNewSmsSuggestion = _onNewSmsSuggestion;
       if (!repo.isReady) await repo.init();
 
       // Automatically post due recurring transactions (rent, internet, and so on).
@@ -153,126 +138,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       // Schedule the daily reminder only when enabled by the user.
       await repo.scheduleDailyReminder();
 
-      // Initialize the SMS receiver and perform the initial sync (Android only).
-      repo.initSms();
-      await repo.refreshSmsPermission();
-      if (repo.smsPermissionGranted &&
-          repo.settings.smsEnabled &&
-          repo.smsSuggestions.isEmpty) {
-        await repo.syncSms();
-      }
-
       // Android 13+ gates notifications behind a runtime permission. Asking
       // again after a denial returns silently, so this is safe every launch.
-      // Not gated on the SMS permission: the daily reminder needs this too,
-      // and a restored backup may enable notifications on a fresh install.
-      if (repo.settings.smsNotify || repo.settings.dailyReminder) {
+      if (repo.settings.dailyReminder) {
         await reminder.requestPermission();
         await repo.refreshNotificationPermission();
       }
-
-      // Opened by tapping a bank-SMS arrival notification? Go straight to
-      // the review sheet of that exact SMS instead of making the user
-      // find it in the queue.
-      final pending = await SmsService.consumePendingRoute();
-      if (!mounted || pending == null) return;
-      await _openSmsReview(pending);
     });
-  }
-
-  /// Native push for the warm-start case (engine alive, app brought
-  /// forward by a notification tap).
-  void _handleOpenRoute(String route, int? date, String? address) {
-    if (!mounted || route != 'sms_review') return;
-    _openSmsReview({'route': route, 'date': date, 'address': address});
-  }
-
-  /// Notification tap: open the record sheet of that exact SMS right here,
-  /// over whatever page the user is on — never the review queue. Only when
-  /// the message cannot be found at all does the queue open as a fallback.
-  Future<void> _openSmsReview(Map<String, Object?> pending) async {
-    if (pending['route'] != 'sms_review') return;
-    final repo = context.read<AppRepository>();
-    final date = (pending['date'] as num?)?.toInt();
-    final address = pending['address'] as String?;
-
-    ParsedSms? exact() {
-      if (date == null) return null;
-      final hits = repo.smsSuggestions
-          .where(
-            (s) =>
-                s.message.date.millisecondsSinceEpoch == date &&
-                (address == null || s.message.address == address),
-          )
-          .toList();
-      return hits.isEmpty ? null : hits.first;
-    }
-
-    ParsedSms? bySender() {
-      if (address == null) return null;
-      final hits = repo.smsSuggestions
-          .where((s) => s.message.address == address)
-          .toList();
-      return hits.isEmpty ? null : hits.first;
-    }
-
-    var target = exact() ?? bySender();
-    if (target == null &&
-        repo.smsPermissionGranted &&
-        repo.settings.smsEnabled) {
-      // Incremental scan (only messages newer than the last sync), so the
-      // sheet appears quickly even when the queue did not have it yet.
-      try {
-        await repo.syncSms();
-      } catch (_) {
-        // A failed scan falls through to the queue fallback below.
-      }
-      if (!mounted) return;
-      target = exact() ?? bySender();
-    }
-    if (!mounted) return;
-
-    if (target == null) {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const SmsPage()),
-      );
-    } else {
-      final chosen = target;
-      final matched = repo.matchCustomerForSms(chosen);
-      final ok = await showLedgerSheet<bool>(
-        context,
-        builder: (ctx) => SmsReviewSheet(sms: chosen, initialCustomer: matched),
-      );
-      if (ok == true && mounted) {
-        showSnack(context, 'Transaction recorded from SMS');
-      }
-    }
-    // The native side keeps the tap request until it is consumed; consuming
-    // here also clears a warm-start request so a later cold start does not
-    // reopen an already reviewed message.
-    await SmsService.consumePendingRoute();
-  }
-
-  /// Foreground counterpart of the native arrival notification: points at
-  /// the review queue the moment a new bank SMS lands in it.
-  void _onNewSmsSuggestion() {
-    if (!mounted) return;
-    // Through the shared helper, so this banner looks and lasts like every
-    // other message in the app — icon, contrast-checked colours, and a
-    // window long enough to notice the action button.
-    showMessengerSnack(
-      ScaffoldMessenger.of(context),
-      'New bank SMS — review and record it',
-      actionLabel: 'Review SMS',
-      onAction: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const SmsPage()),
-      ),
-      // Six seconds: the action has to be noticed, and the queue behind it
-      // can wait for the next message.
-      duration: const Duration(seconds: 6),
-    );
   }
 
   void _goTo(int i) {
