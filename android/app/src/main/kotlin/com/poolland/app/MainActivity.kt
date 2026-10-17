@@ -80,7 +80,7 @@ class MainActivity : FlutterFragmentActivity() {
                 RingtoneManager.EXTRA_RINGTONE_DEFAULT_URI,
                 RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
             )
-            putExtra(RingtoneManager.EXTRA_RINGTONE_SILENT, false)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
             call.argument<String>("existingUri")?.takeIf { it.isNotBlank() }?.let {
                 putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Uri.parse(it))
             }
@@ -112,7 +112,6 @@ class MainActivity : FlutterFragmentActivity() {
                 Uri::class.java,
             )
         } else {
-            @Suppress("DEPRECATION")
             data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
         }
         val defaultUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
@@ -167,7 +166,7 @@ class MainActivity : FlutterFragmentActivity() {
             PackageManager.PERMISSION_GRANTED
         ) {
             if (pendingSoundImport != null) {
-                result.error("sound_import_busy", "A sound import is already in progress.", null)
+                result.error("sound_import_busy", "An audio import is already in progress.", null)
                 return
             }
             pendingSoundImport = pending
@@ -207,7 +206,7 @@ class MainActivity : FlutterFragmentActivity() {
             .replace(Regex("[^A-Za-z0-9_-]"), "_")
             .take(48)
             .ifBlank { "sound" }
-        val displayName = "poolland_${System.currentTimeMillis()}_$baseName.$extension"
+        val displayName = "poolland_${System.currentTimeMillis()}_${baseName}.$extension"
         val mimeType = when (extension) {
             "aac" -> "audio/aac"
             "flac" -> "audio/flac"
