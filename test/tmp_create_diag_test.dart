@@ -11,7 +11,6 @@ import 'package:poolland/data/repository.dart';
 import 'package:poolland/data/store.dart';
 import 'package:poolland/ui/settings_page.dart';
 import 'package:poolland/ui/theme.dart';
-import 'package:poolland/ui/widgets/widgets.dart';
 
 /// TEMP (run 8): step-by-step diagnostics for the create-subcategory test.
 void main() {
