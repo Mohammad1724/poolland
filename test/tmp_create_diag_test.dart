@@ -130,7 +130,9 @@ void main() {
       final rects = all
           .evaluate()
           .map((e) {
-            final rc = tester.getRect(e);
+            final rc = tester.getRect(
+              find.byElementPredicate((x) => identical(x, e)),
+            );
             return '${rc.top.toInt()}-${rc.bottom.toInt()}';
           })
           .join('|');
