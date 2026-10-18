@@ -1199,17 +1199,24 @@ class _SheetDismissState extends State<_SheetDismiss>
                             release(velocity: d.primaryVelocity ?? 0);
                           };
                           instance.onCancel = () {
-                            // The drag lost the arena because the pointer
-                            // traveled upward: the user does not want to
-                            // dismiss the sheet. Mark the gesture as decided
-                            // so the sheet-wide pointer-up that follows
-                            // cannot accidentally close it — if `_decided`
-                            // stayed false, a listener on the outer wrapper
-                            // would get to call [release] with whatever pull
-                            // was left from a previous drag and dismiss the
-                            // sheet the user was still reading.
-                            _decided = true;
-                            if (_pull > 0) _snapBack();
+                            // The drag lost the arena for some reason
+                            // (another recognizer won, or the pointer was
+                            // canceled). The user does not want to dismiss.
+                            //
+                            // Reset [_pull] to zero immediately so the
+                            // [Listener.onPointerUp] that follows cannot
+                            // accidentally close the sheet with stale pull
+                            // from a previous drag — but do NOT set
+                            // `_decided`, because that would force the user
+                            // to tap again before the next drag attempt
+                            // works. With [_pull] at zero, [release] reads
+                            // zero, skips the dismiss, and the next drag
+                            // starts clean.
+                            _adopt();
+                            _pull = 0;
+                            _ticked = false;
+                            _spring.stop();
+                            if (mounted) setState(() {});
                           };
                         },
                       ),
@@ -1395,15 +1402,16 @@ class _DownOnlyDrag extends VerticalDragGestureRecognizer {
     super.acceptGesture(pointer);
   }
 
+  // NOTE: the old implementation rejected the gesture when the pointer
+  // drifted upward by [kTouchSlop] before the drag was accepted. On a real
+  // phone a thumb naturally wobbles a few pixels in every direction the
+  // instant it touches the handle, so that rejection fired on almost every
+  // first attempt and forced the user to tap twice before a drag would
+  // close the sheet. The grab strip lives above any scrollable content, so
+  // an upward start here is never ambiguous — let the drag begin and let
+  // [_SheetDismissState.addPull] clamp negative deltas to zero.
   @override
   void handleEvent(PointerEvent event) {
-    if (!_settled &&
-        event is PointerMoveEvent &&
-        event.position.dy - _down.dy < -kTouchSlop) {
-      _settled = true;
-      resolve(GestureDisposition.rejected);
-      return;
-    }
     super.handleEvent(event);
   }
 }
