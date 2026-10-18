@@ -167,8 +167,9 @@ class CustomerDetailPage extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 6),
-                          CopyMoney(value: balance.abs(), child: OdometerMoney(
-                            balance.abs(),
+                          CopyMoney(value: balance, child: OdometerMoney(
+                            balance,
+                            signed: true,
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.w700,

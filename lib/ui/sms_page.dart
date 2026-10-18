@@ -1353,16 +1353,16 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
               // Every category lives in one searchable list — frequent ones
               // lead, so a long catalog is never a scrolling hunt.
               SelectField<Category>(
-                label: 'Category',
+                label: 'Category'.tr,
                 icon: Icons.category_outlined,
                 value:
                     categories.where((c) => c.id == _categoryId).firstOrNull,
                 items: categories,
                 labelOf: (c) => c.name,
-                searchHint: 'Category name...',
-                sheetTitle: 'Select category',
+                searchHint: 'Category name...'.tr,
+                sheetTitle: 'Select category'.tr,
                 isChild: (c) => c.parentId != null,
-                extraActionLabel: 'Manage',
+                extraActionLabel: 'Manage'.tr,
                 onExtraAction: () => Navigator.push(
                   context,
                   MaterialPageRoute(

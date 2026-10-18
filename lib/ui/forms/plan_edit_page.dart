@@ -291,7 +291,14 @@ class _PlanEditPageState extends State<PlanEditPage> {
                     ),
                   ),
                   IconButton.outlined(
-                    onPressed: () => setState(() => _duration++),
+                    // A plan longer than five years is almost certainly a
+                    // mistake — a slip of the finger on the plus button.
+                    onPressed: (_unit == PlanDurationUnit.month &&
+                                _duration >= 60) ||
+                            (_unit == PlanDurationUnit.day &&
+                                _duration >= 1825)
+                        ? null
+                        : () => setState(() => _duration++),
                     icon: const Icon(Icons.add_rounded, size: 18),
                   ),
                 ],

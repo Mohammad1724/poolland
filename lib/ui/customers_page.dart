@@ -427,7 +427,7 @@ class _CustomersPageState extends State<CustomersPage> {
                                         ),
                                       )
                                     : CopyMoney(
-                                        value: balance.abs(),
+                                        value: balance,
                                         child: Text(
                                           Money.text(
                                             balance.abs(),
