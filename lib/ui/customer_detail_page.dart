@@ -61,7 +61,7 @@ class CustomerDetailPage extends StatelessWidget {
                     .primary
                     .withValues(alpha: 0.13),
                 child: Text(
-                  c.name.characters.first,
+                  c.initial,
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,

@@ -343,7 +343,7 @@ class _CustomersPageState extends State<CustomersPage> {
                                     .primary
                                     .withValues(alpha: 0.13),
                                 child: Text(
-                                  c.name.characters.first,
+                                  c.initial,
                                   style: TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,

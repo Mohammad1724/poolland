@@ -95,6 +95,30 @@ class Ledger {
   /// Convert a transaction amount to the base currency using its recorded exchange rate.
   static double base(Txn t) => t.amount * t.rateToBase;
 
+  /// Whether a transaction counts as **realized income**.
+  ///
+  /// One definition for the whole app, because the same period is aggregated
+  /// in several places — [summarize] for the summary cards and the
+  /// weekly/monthly series, [byCategory] for the income breakdown, and
+  /// [dailySeries] for the daily bars — and the user compares those numbers
+  /// against each other on one screen.
+  ///
+  /// Realized income is a cash sale plus money actually collected from a
+  /// contact. A credit sale is a receivable, not income: it becomes income
+  /// through the `receive` entry that settles it, and counting it twice (or
+  /// counting it before it is paid) is exactly what the sign convention in
+  /// the README rules out.
+  static bool isRecognizedIncome(Txn t) =>
+      (t.kind == TxnKind.income && !t.credit) || t.kind == TxnKind.receive;
+
+  /// Whether a transaction counts as an **expense** on the charts.
+  ///
+  /// Refunds are deliberately not folded in here: [Summary] keeps them as
+  /// their own line so that `profit = income - expense - refunds` stays
+  /// readable, and the weekly/monthly series plot `expense` only. The daily
+  /// bars have to agree with them.
+  static bool isChartedExpense(Txn t) => t.kind == TxnKind.expense;
+
   static bool inRange(DateTime d, DateTime? from, DateTime? to) {
     if (from != null && d.isBefore(J.startOfDay(from))) return false;
     if (to != null && d.isAfter(J.endOfDay(to))) return false;
@@ -155,14 +179,15 @@ class Ledger {
     )) {
       final v = base(t);
       count++;
+      // Recognize revenue only when the money is actually there: cash sales
+      // and customer collections. A credit sale stays a receivable until a
+      // `receive` entry settles it. Routed through the shared predicate so
+      // the charts cannot drift away from this.
+      if (isRecognizedIncome(t)) income += v;
       switch (t.kind) {
         case TxnKind.income:
           sales += v;
-          // Credit sales stay in receivables; they are not realized income yet.
-          if (!t.credit) {
-            income += v;
-            incomeCash += v;
-          }
+          if (!t.credit) incomeCash += v;
           break;
         case TxnKind.expense:
           expense += v;
@@ -170,8 +195,6 @@ class Ledger {
           break;
         case TxnKind.receive:
           received += v;
-          // Recognize revenue only when customer money is actually received.
-          income += v;
           break;
         case TxnKind.refund:
           refunds += v;
@@ -344,10 +367,8 @@ class Ledger {
 
     final out = <String, double>{};
     for (final t in filter(txns, from: from, to: to, scope: scope)) {
-      final recognizedIncome =
-          (t.kind == TxnKind.income && !t.credit) ||
-          t.kind == TxnKind.receive;
-      final isExpense = t.kind == TxnKind.expense;
+      final recognizedIncome = isRecognizedIncome(t);
+      final isExpense = isChartedExpense(t);
       final include = switch (kind) {
         TxnKind.income => recognizedIncome,
         TxnKind.expense => isExpense,
@@ -480,6 +501,15 @@ class Ledger {
   /// directly. The previous implementation re-scanned the whole list twice per
   /// day (sixty passes for a 30-day chart), which made the personal page
   /// noticeably janky once a ledger grew to a few thousand rows.
+  ///
+  /// Buckets follow the same recognition as [weeklySeries] and
+  /// [monthlySeries] — [isRecognizedIncome] and [isChartedExpense] — because
+  /// all three sit behind one Daily/Weekly/Monthly switch on the same card.
+  /// They used to disagree: the daily bars summed *every* `income` entry
+  /// regardless of `credit` and ignored customer receipts entirely, so for a
+  /// seller whose sales are mostly on credit the daily chart showed money the
+  /// summary card right above it did not count, and the three modes of one
+  /// chart told three different stories about one month.
   static List<DayPoint> dailySeries(
     List<Txn> txns, {
     int days = 30,
@@ -491,14 +521,16 @@ class Ledger {
     final income = List<double>.filled(days, 0);
     final expense = List<double>.filled(days, 0);
     for (final t in txns) {
-      if (t.kind != TxnKind.income && t.kind != TxnKind.expense) continue;
+      final asIncome = isRecognizedIncome(t);
+      final asExpense = isChartedExpense(t);
+      if (!asIncome && !asExpense) continue;
       if (scope != null && t.scope != scope) continue;
       final day = J.startOfDay(t.date);
       if (day.isBefore(start) || day.isAfter(end)) continue;
       final index = day.difference(start).inDays;
       if (index < 0 || index >= days) continue;
       final v = base(t);
-      if (t.kind == TxnKind.income) {
+      if (asIncome) {
         income[index] += v;
       } else {
         expense[index] += v;

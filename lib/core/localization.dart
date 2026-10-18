@@ -838,6 +838,7 @@ class AppLocalization {
     'Invalid settings data.': 'دادهٔ تنظیمات نامعتبر است.',
     'A subscription references a missing customer.':
         'یک اشتراک به مشتری ناموجود ارجاع دارد.',
+    'A customer record has no name.': 'یک رکورد مشتری نام ندارد.',
     'PDF report created': 'گزارش PDF ساخته شد',
     'CSV file created': 'فایل CSV ساخته شد',
     'All data erased': 'همهٔ داده‌ها پاک شد',

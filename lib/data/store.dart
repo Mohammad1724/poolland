@@ -424,6 +424,15 @@ class LocalStore {
       );
     }
 
+    // A contact with no name has nothing to be listed under, and the customers
+    // list builds its avatar from the first character of that name. The entry
+    // form refuses an empty name, but a hand-edited or foreign file never went
+    // through it — so reject the record here, while nothing has been written
+    // yet, instead of importing a row the UI cannot render.
+    if (restoredCustomers.any((c) => c.name.trim().isEmpty)) {
+      throw const FormatException('A customer record has no name.');
+    }
+
     // All content is now validated; replacing the local data is safe to begin.
     await customers.clear();
     await subscriptions.clear();

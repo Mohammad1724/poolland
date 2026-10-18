@@ -278,6 +278,59 @@ void main() {
     });
   });
 
+  group('Daily series', () {
+    test('A credit sale is not charted as income until it is received', () {
+      final txns = [
+        txn(kind: TxnKind.income, amount: 500000, credit: true, date: now),
+        txn(kind: TxnKind.receive, amount: 200000, date: now),
+      ];
+      final day = Ledger.dailySeries(txns, days: 1, endDay: now).single;
+      // The receivable is not income yet; the collection is.
+      expect(day.income, 200000);
+      expect(day.expense, 0);
+    });
+
+    test('A refund is kept out of both bars, like the other two series', () {
+      final txns = [
+        txn(kind: TxnKind.income, amount: 100000, date: now),
+        txn(kind: TxnKind.refund, amount: 30000, date: now),
+      ];
+      final day = Ledger.dailySeries(txns, days: 1, endDay: now).single;
+      expect(day.income, 100000);
+      expect(day.expense, 0);
+      // It still reduces profit where profit is computed.
+      expect(Ledger.summarize(txns).profit, 70000);
+    });
+
+    test('The daily, weekly and monthly series agree about one period', () {
+      final txns = [
+        txn(kind: TxnKind.income, amount: 500000, credit: true, date: now),
+        txn(kind: TxnKind.income, amount: 120000, credit: false, date: now),
+        txn(kind: TxnKind.receive, amount: 200000, date: now),
+        txn(kind: TxnKind.expense, amount: 40000, date: now),
+        txn(kind: TxnKind.refund, amount: 10000, date: now),
+      ];
+      final day = Ledger.dailySeries(txns, days: 1, endDay: now).single;
+      final week = Ledger.weeklySeries(txns, weeks: 1, endDay: now).single;
+      final month = Ledger.monthlySeries(
+        txns,
+        months: 1,
+        endMonth: now,
+      ).single;
+
+      // One switch on one card shows all three, next to a summary card that
+      // reads `summarize`. Four readings of the same day have to match.
+      expect(day.income, week.income);
+      expect(day.income, month.income);
+      expect(day.income, Ledger.summarize(txns).income);
+      expect(day.expense, week.expense);
+      expect(day.expense, month.expense);
+      expect(day.expense, Ledger.summarize(txns).expense);
+      expect(day.income, 320000); // 120000 cash + 200000 collected
+      expect(day.expense, 40000);
+    });
+  });
+
   group('Subscription status', () {
     Subscription sub({required int daysFromNow}) => Subscription(
       id: 's1',

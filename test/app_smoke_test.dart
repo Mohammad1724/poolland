@@ -537,9 +537,10 @@ void main() {
     await tester.pumpWidget(wrap(SmsReviewSheet(sms: sms)));
     await tester.pumpAndSettle();
 
-    // New contract: the sheet opens ready to save — section, kind and
-    // category come pre-picked from the ledger's own habits, and frequent
-    // categories / regular contacts are offered as one-tap chips.
+    // New contract: the sheet opens ready to save — the section is the
+    // business side (a visible, fixed default rather than a guess taken from
+    // whichever entry happens to be newest), kind and category follow it, and
+    // frequent categories / regular contacts are offered as one-tap chips.
     final buttonFinder = find.widgetWithText(
       FilledButton,
       'Record transaction',
@@ -550,16 +551,29 @@ void main() {
     // full-width scope segment.
     expect(find.byType(SegmentedButton<TxnScope>), findsOneWidget);
 
-    // The section follows the ledger's habits; point it at the business
-    // side, where regular contacts are one-tap chips.
-    await tester.tap(find.text('Business'));
-    await tester.pumpAndSettle();
+    // It opens on the business side, where regular contacts are one-tap
+    // chips. The default is fixed, not derived from the newest entry, so the
+    // sheet cannot open a bank deposit on the personal side.
+    expect(
+      tester
+          .widget<SegmentedButton<TxnScope>>(
+            find.byType(SegmentedButton<TxnScope>),
+          )
+          .selected,
+      {TxnScope.business},
+    );
     expect(find.byType(PresetChip), findsWidgets);
     expect(find.byType(ChipStrip), findsWidgets);
 
     // Switching the section still re-derives kind and category.
     await tester.tap(find.text('Personal'));
     await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
+
+    // And switching back does not lose the one-tap contacts.
+    await tester.tap(find.text('Business'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PresetChip), findsWidgets);
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
   });
 
