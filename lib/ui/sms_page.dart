@@ -220,6 +220,9 @@ class _SmsPageState extends State<SmsPage> with WidgetsBindingObserver {
         .firstOrNull;
     if (sms == null) {
       showSnack(context, 'This SMS is no longer waiting for review.');
+      // The page was opened for a suggestion that has already been handled;
+      // leaving it here would be a dead end.
+      if (mounted) Navigator.maybePop(context);
       return;
     }
     final ok = await showLedgerSheet<bool>(
@@ -229,8 +232,12 @@ class _SmsPageState extends State<SmsPage> with WidgetsBindingObserver {
         initialCustomer: repo.matchCustomerForSms(sms),
       ),
     );
-    if (ok == true && mounted) {
+    if (!mounted) return;
+    if (ok == true) {
       showSnack(context, 'Transaction recorded from SMS');
+      // The notification opened this page only to review this one item; once
+      // it is recorded the page has nothing else to do.
+      Navigator.maybePop(context);
     }
   }
 
@@ -1032,6 +1039,11 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   /// leave the profit report. A predictable default the user can see and flip
   /// (the [ScopeSegment] sits right under the kind tiles) beats a plausible
   /// one they have no reason to check.
+  ///
+  /// State initialisation is centralised in [didChangeDependencies] so the
+  /// repository (which needs `context.read`) is only consulted once, after
+  /// the first build. The amount controller is the one thing that does not
+  /// depend on the repository, so it is set up in [initState] as usual.
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -1047,7 +1059,6 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   @override
   void initState() {
     super.initState();
-    _customer = widget.initialCustomer;
     _amount = TextEditingController(
       text: groupedNumber(
         widget.sms.amount,

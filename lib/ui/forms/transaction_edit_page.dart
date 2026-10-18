@@ -574,12 +574,16 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
         child: FormPageContent(
           maxWidth: 760,
           child: ListView(
-            // The key changes whenever the set of children changes, so the
-            // list re-mounts and re-computes its scroll extent (see
-            // _revealPayModeSection for the framework quirk this works
-            // around).
+            // The key changes whenever a *structural* change inserts or
+            // removes a whole section of the form (scope switches which
+            // contact row is shown; kind switches which category row is
+            // shown; contact changes whether the cash/credit row exists at
+            // all). Toggling cash/credit only inserts the settle field —
+            // the follow-up [Scrollable.ensureVisible] in
+            // [_revealPayModeSection] brings it into view without
+            // re-mounting the list and losing the keyboard.
             key: ValueKey('form-${_customer?.id ?? 'none'}-${_scope.name}-'
-                '${_kind.name}-$_credit'),
+                '${_kind.name}'),
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
             children: [
               // ---------------- 1. Intent ----------------

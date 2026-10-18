@@ -114,7 +114,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       if (repo != null && repo.isReady) {
         unawaited(repo.refreshNotificationPermission().then<void>((_) {}));
       }
-      unawaited(_consumeSmsNotificationTaps());
+      // Only consume notification taps once the repository is up — deferring
+      // them while it is still initialising is the job of
+      // [_handleSmsNotificationTap]'s own queue, so calling this here is
+      // enough to surface anything that arrived while the app was in the
+      // background.
+      if (repo != null) {
+        unawaited(_consumeSmsNotificationTaps());
+      }
     }
   }
 
@@ -136,8 +143,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     });
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final repo = context.read<AppRepository>();
-      _repo = repo;
+      final repo = _repo!;
       if (!repo.isReady) await repo.init();
 
       // Automatically post due recurring transactions (rent, internet, and so on).

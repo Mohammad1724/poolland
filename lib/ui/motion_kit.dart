@@ -990,11 +990,12 @@ class _SheetDismissState extends State<_SheetDismiss>
 
   /// How far the sheet must be pulled down before letting go dismisses it.
   ///
-  /// This is intentionally a short, deliberate pull rather than a large part
-  /// of the sheet: on high-density phones, a 100+ logical-pixel threshold felt
-  /// too demanding for a thumb swipe. It still exceeds touch slop enough that
-  /// a small graze cannot close the sheet accidentally.
-  static const double _dismissPull = 72;
+  /// Short enough to feel light on a thumb swipe, but long enough that an
+  /// ordinary scroll bounce at the top of a list cannot cross it by
+  /// accident. On phones with very high density the old 110 px threshold
+  /// felt too demanding; 90 px is the compromise that keeps the gesture
+  /// deliberate without making dismiss feel heavy.
+  static const double _dismissPull = 90;
 
   /// A downward fling dismisses from here, without needing the full pull.
   static const double _flingVelocity = 900;
@@ -1199,10 +1200,16 @@ class _SheetDismissState extends State<_SheetDismiss>
                             release(velocity: d.primaryVelocity ?? 0);
                           };
                           instance.onCancel = () {
-                            // The drag lost the arena; the pointer is still
-                            // down, so the sheet-wide pointer-up gets to make
-                            // the decision instead.
-                            _decided = false;
+                            // The drag lost the arena because the pointer
+                            // traveled upward: the user does not want to
+                            // dismiss the sheet. Mark the gesture as decided
+                            // so the sheet-wide pointer-up that follows
+                            // cannot accidentally close it — if `_decided`
+                            // stayed false, a listener on the outer wrapper
+                            // would get to call [release] with whatever pull
+                            // was left from a previous drag and dismiss the
+                            // sheet the user was still reading.
+                            _decided = true;
                             if (_pull > 0) _snapBack();
                           };
                         },
