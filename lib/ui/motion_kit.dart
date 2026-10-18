@@ -993,9 +993,8 @@ class _SheetDismissState extends State<_SheetDismiss>
   /// Short enough to feel light on a thumb swipe, but long enough that an
   /// ordinary scroll bounce at the top of a list cannot cross it by
   /// accident. On phones with very high density the old 110 px threshold
-  /// felt too demanding; 90 px is the compromise that keeps the gesture
-  /// deliberate without making dismiss feel heavy.
-  static const double _dismissPull = 90;
+  /// felt too demanding; 72 px keeps the gesture light.
+  static const double _dismissPull = 72;
 
   /// A downward fling dismisses from here, without needing the full pull.
   static const double _flingVelocity = 900;
