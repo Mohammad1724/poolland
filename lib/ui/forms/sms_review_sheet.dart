@@ -8,32 +8,21 @@ import '../../core/money.dart';
 import '../../core/sms/sms_models.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
+import '../design.dart';
 import '../motion_kit.dart';
 import '../personal_page.dart';
-import 'contact_edit_page.dart';
+import '../settings_page.dart';
+import '../theme.dart';
 import '../widgets/quick_buttons.dart';
 import '../widgets/widgets.dart';
-import '../settings_page.dart';
+import 'contact_edit_page.dart';
 
-/// Card accent colours — shared between the sheet and its sub-widgets.
-const Color _kAmountAccent = Color(0xFF1976D2);
-const Color _kAmountBg = Color(0xFFE3F2FD);
-const Color _kCategoryAccent = Color(0xFF2E7D32);
-const Color _kCategoryBg = Color(0xFFE8F5E9);
-const Color _kCustomerAccent = Color(0xFF6A1B9A);
-const Color _kCustomerBg = Color(0xFFF3E5F5);
-const Color _kNoteAccent = Color(0xFFF57F17);
-const Color _kNoteBg = Color(0xFFFFF8E1);
-
-/// ========================================================================
-/// Redesigned SMS review sheet.
+/// Compact, one-screen sheet for reviewing and approving a bank SMS.
 ///
-/// Card-based layout with distinct colour per section, a prominent amount
-/// display at the top, and a category grid that makes one-tap selection
-/// obvious. The old form-style layout is replaced with this because users
-/// reported that tapping a quick button or category gave no feedback and
-/// the long form felt slow for the one decision they actually had to make.
-/// ========================================================================
+/// Designed around the app's shared visual tokens ([Insets], [FontSizes],
+/// [Radii], [AppTheme]) so the entire review flow — scope, amount, category,
+/// contact, and action buttons — fits comfortably on a single screen without
+/// scrolling or oversized cards.
 class SmsReviewSheet extends StatefulWidget {
   const SmsReviewSheet({super.key, required this.sms, this.initialCustomer});
 
@@ -46,7 +35,6 @@ class SmsReviewSheet extends StatefulWidget {
 
 class _SmsReviewSheetState extends State<SmsReviewSheet> {
   late TextEditingController _amount;
-  final TextEditingController _note = TextEditingController();
   Customer? _customer;
   TxnKind _kind = TxnKind.income;
   TxnScope _scope = TxnScope.business;
@@ -79,11 +67,8 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   @override
   void dispose() {
     _amount.dispose();
-    _note.dispose();
     super.dispose();
   }
-
-  // ---- state helpers (kept from the old sheet) ---------------------------
 
   TxnKind _suggestedKind(AppRepository repo, TxnScope scope) {
     if (widget.sms.direction == SmsDirection.deposit) {
@@ -98,10 +83,10 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   }
 
   TxnKind? _categoryKind(TxnKind kind) => switch (kind) {
-        TxnKind.income || TxnKind.receive => TxnKind.income,
-        TxnKind.expense => TxnKind.expense,
-        _ => null,
-      };
+    TxnKind.income || TxnKind.receive => TxnKind.income,
+    TxnKind.expense => TxnKind.expense,
+    _ => null,
+  };
 
   String? _suggestedCategoryId(AppRepository repo, TxnScope scope) {
     final kind = _categoryKind(_kind);
@@ -128,7 +113,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
         TxnKind.expense,
         if (_customer != null) TxnKind.refund,
         if (_customer != null && repo.balanceOf(_customer!) < -0.5)
-            TxnKind.payablePayment,
+          TxnKind.payablePayment,
       ];
     }
     return [TxnKind.income, TxnKind.expense];
@@ -157,24 +142,51 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     );
   }
 
+  Widget _contactChip(AppRepository repo, Customer c) {
+    final selected = _customer?.id == c.id;
+    return PresetChip(
+      icon: Icons.person_outline_rounded,
+      label: c.name,
+      selected: selected,
+      onTap: () {
+        Haptics.selection();
+        setState(() {
+          _customer = selected ? null : c;
+          final available = _availableKinds(repo, _scope);
+          if (!available.contains(_kind)) {
+            _kind = _suggestedKind(repo, _scope);
+            _categoryId = _suggestedCategoryId(repo, _scope);
+          }
+        });
+      },
+    );
+  }
+
   Future<void> _openContactSheet() async {
     final repo = context.read<AppRepository>();
     final res = await showPickSheet<Customer>(
       context,
-      title: 'Select contact'.tr,
+      title: 'Select contact',
       items: repo.activeCustomers,
       current: _customer,
       labelOf: (c) => c.name,
       subOf: (c) => c.phone,
       clearable: true,
-      searchHint: 'Customer name...'.tr,
+      searchHint: 'Customer name...',
     );
     if (res == null) return;
-    if (res.cleared) {
-      setState(() => _customer = null);
-    } else if (res.value != null) {
-      setState(() => _customer = res.value);
-    }
+    setState(() {
+      if (res.cleared) {
+        _customer = null;
+      } else if (res.value != null) {
+        _customer = res.value;
+      }
+      final available = _availableKinds(repo, _scope);
+      if (!available.contains(_kind)) {
+        _kind = _suggestedKind(repo, _scope);
+        _categoryId = _suggestedCategoryId(repo, _scope);
+      }
+    });
   }
 
   Future<void> _newContact() async {
@@ -182,11 +194,9 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
       context,
       MaterialPageRoute(builder: (_) => const ContactEditPage()),
     );
-    if (!mounted) return;
-    if (created != null) setState(() => _customer = created);
+    if (!mounted || created == null) return;
+    setState(() => _customer = created);
   }
-
-  // ---- build -------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -202,37 +212,49 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(Radii.sheet),
+        ),
       ),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SheetHandle(),
-            const SizedBox(height: 14),
+            const SheetHandle(),
+            const SizedBox(height: 10),
 
             // -------- Header --------
             _header(sms),
-            const SizedBox(height: 16),
-
-            // -------- Amount card --------
-            _amountCard(sms),
             const SizedBox(height: 12),
 
-            // -------- Scope --------
+            // -------- Scope toggle --------
             _scopeRow(repo, scope),
+            if (availableKinds.length > 1) ...[
+              const SizedBox(height: 8),
+              TxnKindStrip(
+                kinds: availableKinds,
+                selected: _kind,
+                onSelect: (k) => setState(() {
+                  _kind = k;
+                  _categoryId = _suggestedCategoryId(repo, scope);
+                }),
+              ),
+            ],
+            const SizedBox(height: 10),
+
+            // -------- Amount (single compact field, no duplicate display) ----
+            AmountField(
+              controller: _amount,
+              label: 'Amount',
+              currency: sms.currency,
+              livePreview: false,
+              onChanged: () => setState(() {}),
+            ),
             const SizedBox(height: 12),
 
-            // -------- Category grid --------
-            if (categories.isNotEmpty)
-              _categoryGrid(categories)
-            else
-              _emptyCategoryCard(),
-            const SizedBox(height: 12),
-
-            // -------- Quick buttons (long-press to edit) --------
+            // -------- Quick buttons (hidden when empty) --------
             QuickButtonsRow(
               scopeFilter: scope,
               incomeFilter: sms.direction == SmsDirection.deposit,
@@ -244,427 +266,273 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
               }),
               onLongPress: (q) => _openQuickEdit(scope, q),
             ),
-            const SizedBox(height: 12),
 
-            // -------- Customer card --------
-            if (scope == TxnScope.business) ...[
-              _customerCard(),
-              const SizedBox(height: 12),
+            // -------- Compact Category Chips --------
+            if (categoryKind != null) ...[
+              const SizedBox(height: 10),
+              _categorySection(categories),
             ],
 
-            // -------- Notes --------
-            _noteCard(),
-            const SizedBox(height: 18),
+            // -------- Contact (Business scope only) --------
+            if (scope == TxnScope.business) ...[
+              const SizedBox(height: 12),
+              const SectionCaption('Contact (optional)'),
+              const SizedBox(height: 6),
+              ChipStrip(
+                chips: [
+                  for (final c in repo.topCustomers(limit: 3))
+                    _contactChip(repo, c),
+                  PresetChip(
+                    icon: Icons.person_search_outlined,
+                    label: 'All contacts'.tr,
+                    onTap: _openContactSheet,
+                  ),
+                  PresetChip(
+                    icon: Icons.person_add_alt_1_rounded,
+                    label: 'New contact'.tr,
+                    onTap: _newContact,
+                  ),
+                ],
+              ),
+              if (_customer != null)
+                ContactBalanceCard(
+                  customer: _customer!,
+                  balance: repo.balanceOf(_customer!),
+                ),
+            ],
 
-            // -------- Submit --------
-            _submitButton(repo, sms),
-            const SizedBox(height: 4),
+            const SizedBox(height: 14),
+
+            // -------- Action buttons --------
+            _actionBar(repo, sms),
           ],
         ),
       ),
     );
   }
 
-  // ---- section widgets ---------------------------------------------------
-
   Widget _header(ParsedSms sms) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDeposit = sms.direction == SmsDirection.deposit;
+    final accent = isDeposit ? AppTheme.revenue : AppTheme.expense;
     final bank = sms.bankName?.tr ??
         (sms.message.address.isNotEmpty
             ? sms.message.address
             : 'Pasted message'.tr);
+
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(10),
+          width: 36,
+          height: 36,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer
-                .withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(14),
+            color: accent.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(Icons.sms_rounded,
-              size: 22, color: Theme.of(context).colorScheme.primary),
+          child: Icon(
+            isDeposit
+                ? Icons.south_west_rounded
+                : Icons.north_east_rounded,
+            size: 18,
+            color: accent,
+          ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Record this SMS transaction'.tr,
-                style:
-                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  fontSize: FontSizes.body,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-              const SizedBox(height: 2),
               Text(
                 bank,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 11.5,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.6),
+                  fontSize: FontSizes.caption,
+                  color: scheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
             ],
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _amountCard(ParsedSms sms) {
-    final amountText =
-        Money.text(widget.sms.amount, currency: sms.currency);
-    return _SectionCard(
-      accentColor: _kAmountAccent,
-      backgroundColor: _kAmountBg,
-      icon: Icons.account_balance_wallet_rounded,
-      title: 'Amount'.tr,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            amountText,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            (isDeposit ? 'Income' : 'Expense').tr,
             style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.w800,
-              color: _kAmountAccent,
-              height: 1.2,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: accent,
             ),
           ),
-          const SizedBox(height: 10),
-          TextFormField(
-            controller: _amount,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
-            textDirection: TextDirection.ltr,
-            onChanged: (_) => setState(() {}),
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-            decoration: InputDecoration(
-              prefixIcon:
-                  const Icon(Icons.edit_rounded, size: 18),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(
-                    color: _kAmountAccent.withValues(alpha: 0.35)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide:
-                    BorderSide(color: _kAmountAccent, width: 2),
-              ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _scopeRow(AppRepository repo, TxnScope scope) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: scheme.onSurface.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: scheme.onSurface.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _ScopeChip(
+              label: 'Business'.tr,
+              icon: Icons.business_center_outlined,
+              selected: scope == TxnScope.business,
+              onTap: () => _changeScope(repo, TxnScope.business),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: _ScopeChip(
+              label: 'Personal'.tr,
+              icon: Icons.person_outline_rounded,
+              selected: scope == TxnScope.personal,
+              onTap: () => _changeScope(repo, TxnScope.personal),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _categorySection(List<Category> categories) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(child: SectionCaption('Category')),
+            InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CategoriesPage()),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.tune_rounded,
+                      size: 13,
+                      color: scheme.primary,
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      'Manage'.tr,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        if (categories.isEmpty)
+          OutlinedButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CategoriesPage()),
+            ),
+            icon: const Icon(Icons.add_rounded, size: 16),
+            label: Text('Manage'.tr),
+          )
+        else
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final c in categories)
+                _CategoryChip(
+                  category: c,
+                  selected: c.id == _categoryId,
+                  onTap: () {
+                    Haptics.selection();
+                    setState(() => _categoryId = c.id);
+                  },
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _actionBar(AppRepository repo, ParsedSms sms) {
+    final value = parseAmount(_amount.text);
+    final ready = value > 0;
     return Row(
       children: [
         Expanded(
-          child: _ScopeChip(
-            label: 'Business'.tr,
-            icon: Icons.business_center_outlined,
-            selected: scope == TxnScope.business,
-            onTap: () => _changeScope(repo, TxnScope.business),
+          child: SizedBox(
+            height: 46,
+            child: OutlinedButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel'.tr),
+            ),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: _ScopeChip(
-            label: 'Personal'.tr,
-            icon: Icons.person_outline_rounded,
-            selected: scope == TxnScope.personal,
-            onTap: () => _changeScope(repo, TxnScope.personal),
+          flex: 2,
+          child: SizedBox(
+            height: 46,
+            child: FilledButton.icon(
+              onPressed: ready
+                  ? () async {
+                      await repo.approveSms(
+                        sms,
+                        customer: _customer,
+                        kind: _kind,
+                        categoryId: _categoryId,
+                        amount: value,
+                        scope: _scope,
+                      );
+                      if (mounted) {
+                        MoneyCelebration.recorded(context);
+                        Navigator.pop(context, true);
+                      }
+                    }
+                  : null,
+              icon: const Icon(Icons.check_rounded, size: 18),
+              label: Text('Record transaction'.tr),
+            ),
           ),
         ),
       ],
     );
   }
-
-  Widget _categoryGrid(List<Category> categories) {
-    return _SectionCard(
-      accentColor: _kCategoryAccent,
-      backgroundColor: _kCategoryBg,
-      icon: Icons.grid_view_rounded,
-      title: 'Category'.tr,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // 4 columns on normal widths, 3 on narrow.
-          final crossCount = constraints.maxWidth > 340 ? 4 : 3;
-          return GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossCount,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 1.1,
-            ),
-            itemCount: categories.length,
-            itemBuilder: (context, i) {
-              final c = categories[i];
-              final selected = c.id == _categoryId;
-              return _CategoryTile(
-                category: c,
-                selected: selected,
-                onTap: () {
-                  Haptics.selection();
-                  setState(() => _categoryId = c.id);
-                },
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _emptyCategoryCard() {
-    return _SectionCard(
-      accentColor: _kCategoryAccent,
-      backgroundColor: _kCategoryBg,
-      icon: Icons.category_outlined,
-      title: 'Category'.tr,
-      child: OutlinedButton.icon(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const CategoriesPage()),
-        ),
-        icon: const Icon(Icons.add_rounded, size: 18),
-        label: Text('Manage'.tr),
-      ),
-    );
-  }
-
-  Widget _customerCard() {
-    final customer = _customer;
-    return _SectionCard(
-      accentColor: _kCustomerAccent,
-      backgroundColor: _kCustomerBg,
-      icon: Icons.person_rounded,
-      title: 'Contact'.tr,
-      child: customer == null
-          ? Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _openContactSheet,
-                    icon: const Icon(Icons.person_search_rounded, size: 18),
-                    label: Text('Select contact'.tr),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  tooltip: 'New contact'.tr,
-                  onPressed: _newContact,
-                  icon: const Icon(Icons.person_add_rounded),
-                ),
-              ],
-            )
-          : Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _kCustomerAccent.withValues(alpha: 0.18),
-                  ),
-                  child: Center(
-                    child: Text(
-                      customer.name.isNotEmpty
-                          ? customer.name[0]
-                          : '?',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: _kCustomerAccent,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        customer.name,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (customer.phone.isNotEmpty)
-                        Text(
-                          customer.phone,
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withValues(alpha: 0.55),
-                          ),
-                          textDirection: TextDirection.ltr,
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                TextButton(
-                  onPressed: () => setState(() => _customer = null),
-                  child: Text('Edit'.tr),
-                ),
-              ],
-            ),
-    );
-  }
-
-  Widget _noteCard() {
-    return _SectionCard(
-      accentColor: _kNoteAccent,
-      backgroundColor: _kNoteBg,
-      icon: Icons.notes_rounded,
-      title: 'Description (optional)'.tr,
-      child: TextField(
-        controller: _note,
-        maxLines: 2,
-        textAlignVertical: TextAlignVertical.top,
-        decoration: InputDecoration(
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(
-                color: _kNoteAccent.withValues(alpha: 0.35)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: _kNoteAccent, width: 2),
-          ),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        ),
-      ),
-    );
-  }
-
-  Widget _submitButton(AppRepository repo, ParsedSms sms) {
-    final value = parseAmount(_amount.text);
-    final ready = value > 0;
-    return SizedBox(
-      height: 52,
-      child: FilledButton.icon(
-        onPressed: ready
-            ? () async {
-                await repo.approveSms(
-                  sms,
-                  customer: _customer,
-                  kind: _kind,
-                  categoryId: _categoryId,
-                  amount: value,
-                  scope: _scope,
-                );
-                if (mounted) {
-                  MoneyCelebration.recorded(context);
-                  Navigator.pop(context, true);
-                }
-              }
-            : null,
-        style: FilledButton.styleFrom(
-          backgroundColor: _kAmountAccent,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14)),
-        ),
-        icon: const Icon(Icons.check_rounded, size: 20),
-        label: Text(
-          'Record transaction'.tr,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-        ),
-      ),
-    );
-  }
 }
 
-// ========================================================================
-// Private sub-widgets
-// ========================================================================
-
-/// A rounded section card with a tinted background, a leading icon, and a
-/// title. Used by every card in the redesign so they stay visually
-/// consistent even if we tweak the spacing later.
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.accentColor,
-    required this.backgroundColor,
-    required this.icon,
-    required this.title,
-    required this.child,
-  });
-
-  final Color accentColor;
-  final Color backgroundColor;
-  final IconData icon;
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: accentColor.withValues(alpha: 0.22),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, size: 18, color: accentColor),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: accentColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-/// One cell in the category grid.
-class _CategoryTile extends StatelessWidget {
-  const _CategoryTile({
+/// Compact pill for selecting a category in one tap.
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({
     required this.category,
     required this.selected,
     required this.onTap,
@@ -676,73 +544,48 @@ class _CategoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final onSurface = scheme.onSurface;
     return InkWell(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(10),
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: Motion.adaptive(context, Motion.expand),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
           color: selected
-              ? _kCategoryAccent.withValues(alpha: 0.22)
-              : Colors.white.withValues(alpha: 0.55),
-          borderRadius: BorderRadius.circular(12),
+              ? scheme.primary.withValues(alpha: 0.14)
+              : onSurface.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: selected ? _kCategoryAccent : _kCategoryAccent
-                .withValues(alpha: 0.25),
-            width: selected ? 2 : 1,
+            color: selected
+                ? scheme.primary.withValues(alpha: 0.65)
+                : onSurface.withValues(alpha: 0.13),
+            width: selected ? 1.4 : 1,
           ),
         ),
-        child: Stack(
-          clipBehavior: Clip.none,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.category_outlined,
-                  size: 22,
-                  color: selected ? _kCategoryAccent : _kCategoryAccent
-                      .withValues(alpha: 0.75),
-                ),
-                const SizedBox(height: 6),
-                Flexible(
-                  child: Text(
-                    category.name.tr,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight:
-                          selected ? FontWeight.w700 : FontWeight.w500,
-                      color: selected
-                          ? _kCategoryAccent
-                          : _kCategoryAccent.withValues(alpha: 0.85),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (selected)
-              Positioned(
-                top: -4,
-                right: -4,
-                child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    color: _kCategoryAccent,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 1.5),
-                  ),
-                  child: const Icon(
-                    Icons.check_rounded,
-                    size: 10,
-                    color: Colors.white,
-                  ),
-                ),
+            if (selected) ...[
+              Icon(
+                Icons.check_rounded,
+                size: 14,
+                color: scheme.primary,
               ),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              category.name.tr,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected
+                    ? scheme.primary
+                    : onSurface.withValues(alpha: 0.82),
+              ),
+            ),
           ],
         ),
       ),
@@ -750,7 +593,7 @@ class _CategoryTile extends StatelessWidget {
   }
 }
 
-/// A small scope chip (Business / Personal) used inside the redesign.
+/// Sleek segmented pill for switching between Business and Personal scope.
 class _ScopeChip extends StatelessWidget {
   const _ScopeChip({
     required this.label,
@@ -766,39 +609,55 @@ class _ScopeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final onSurface = scheme.onSurface;
     return InkWell(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(9),
       onTap: () {
         Haptics.selection();
         onTap();
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: Motion.adaptive(context, Motion.expand),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: selected
-              ? _kCategoryAccent.withValues(alpha: 0.15)
-              : Theme.of(context).colorScheme.surfaceContainerHighest
-                  .withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(12),
+          color: selected ? Theme.of(context).cardColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(9),
           border: Border.all(
-            color: selected ? _kCategoryAccent : Colors.transparent,
-            width: 1.5,
+            color: selected
+                ? scheme.primary.withValues(alpha: 0.40)
+                : Colors.transparent,
           ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 18,
-                color: selected ? _kCategoryAccent : null),
+            Icon(
+              icon,
+              size: 16,
+              color: selected
+                  ? scheme.primary
+                  : onSurface.withValues(alpha: 0.6),
+            ),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? _kCategoryAccent : null,
+                color: selected
+                    ? scheme.primary
+                    : onSurface.withValues(alpha: 0.72),
               ),
             ),
           ],
