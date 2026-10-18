@@ -15,6 +15,16 @@ import 'widgets/quick_buttons.dart';
 import 'widgets/widgets.dart';
 import '../settings_page.dart';
 
+/// Card accent colours — shared between the sheet and its sub-widgets.
+const Color _kAmountAccent = Color(0xFF1976D2);
+const Color _kAmountBg = Color(0xFFE3F2FD);
+const Color _kCategoryAccent = Color(0xFF2E7D32);
+const Color _kCategoryBg = Color(0xFFE8F5E9);
+const Color _kCustomerAccent = Color(0xFF6A1B9A);
+const Color _kCustomerBg = Color(0xFFF3E5F5);
+const Color _kNoteAccent = Color(0xFFF57F17);
+const Color _kNoteBg = Color(0xFFFFF8E1);
+
 /// ========================================================================
 /// Redesigned SMS review sheet.
 ///
@@ -42,17 +52,6 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   TxnScope _scope = TxnScope.business;
   String? _categoryId;
   bool _presetDone = false;
-
-  // Card accent colours — light pastel backgrounds with a matching darker
-  // border/icon. Kept `const` so they do not rebuild on every setState.
-  static const _amountAccent = Color(0xFF1976D2);
-  static const _amountBg = Color(0xFFE3F2FD);
-  static const _categoryAccent = Color(0xFF2E7D32);
-  static const _categoryBg = Color(0xFFE8F5E9);
-  static const _customerAccent = Color(0xFF6A1B9A);
-  static const _customerBg = Color(0xFFF3E5F5);
-  static const _noteAccent = Color(0xFFF57F17);
-  static const _noteBg = Color(0xFFFFF8E1);
 
   @override
   void didChangeDependencies() {
@@ -317,8 +316,8 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     final amountText =
         Money.text(widget.sms.amount, currency: sms.currency);
     return _SectionCard(
-      accentColor: _amountAccent,
-      backgroundColor: _amountBg,
+      accentColor: _kAmountAccent,
+      backgroundColor: _kAmountBg,
       icon: Icons.account_balance_wallet_rounded,
       title: 'Transaction amount'.tr,
       child: Column(
@@ -329,7 +328,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
             style: TextStyle(
               fontSize: 32,
               fontWeight: FontWeight.w800,
-              color: _amountAccent,
+              color: _kAmountAccent,
               height: 1.2,
             ),
           ),
@@ -350,12 +349,12 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide(
-                    color: _amountAccent.withValues(alpha: 0.35)),
+                    color: _kAmountAccent.withValues(alpha: 0.35)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide:
-                    BorderSide(color: _amountAccent, width: 2),
+                    BorderSide(color: _kAmountAccent, width: 2),
               ),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -392,8 +391,8 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
 
   Widget _categoryGrid(List<Category> categories) {
     return _SectionCard(
-      accentColor: _categoryAccent,
-      backgroundColor: _categoryBg,
+      accentColor: _kCategoryAccent,
+      backgroundColor: _kCategoryBg,
       icon: Icons.grid_view_rounded,
       title: 'Category'.tr,
       subtitle: 'Please specify the type of transaction'.tr,
@@ -431,8 +430,8 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
 
   Widget _emptyCategoryCard() {
     return _SectionCard(
-      accentColor: _categoryAccent,
-      backgroundColor: _categoryBg,
+      accentColor: _kCategoryAccent,
+      backgroundColor: _kCategoryBg,
       icon: Icons.category_outlined,
       title: 'Category'.tr,
       subtitle: 'No categories configured yet. Add one from Manage.'.tr,
@@ -450,8 +449,8 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   Widget _customerCard(AppRepository repo) {
     final customer = _customer;
     return _SectionCard(
-      accentColor: _customerAccent,
-      backgroundColor: _customerBg,
+      accentColor: _kCustomerAccent,
+      backgroundColor: _kCustomerBg,
       icon: Icons.person_rounded,
       title: 'Contact'.tr,
       subtitle: customer == null ? 'Optional'.tr : null,
@@ -480,7 +479,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                   height: 46,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: _customerAccent.withValues(alpha: 0.18),
+                    color: _kCustomerAccent.withValues(alpha: 0.18),
                   ),
                   child: Center(
                     child: Text(
@@ -490,7 +489,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
-                        color: _customerAccent,
+                        color: _kCustomerAccent,
                       ),
                     ),
                   ),
@@ -536,8 +535,8 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
 
   Widget _noteCard() {
     return _SectionCard(
-      accentColor: _noteAccent,
-      backgroundColor: _noteBg,
+      accentColor: _kNoteAccent,
+      backgroundColor: _kNoteBg,
       icon: Icons.notes_rounded,
       title: 'Notes (optional)'.tr,
       child: TextField(
@@ -549,11 +548,11 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide(
-                color: _noteAccent.withValues(alpha: 0.35)),
+                color: _kNoteAccent.withValues(alpha: 0.35)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: _noteAccent, width: 2),
+            borderSide: BorderSide(color: _kNoteAccent, width: 2),
           ),
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -585,7 +584,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
               }
             : null,
         style: FilledButton.styleFrom(
-          backgroundColor: _amountAccent,
+          backgroundColor: _kAmountAccent,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14)),
         ),
@@ -705,11 +704,11 @@ class _CategoryTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
         decoration: BoxDecoration(
           color: selected
-              ? _categoryAccent.withValues(alpha: 0.22)
+              ? _kCategoryAccent.withValues(alpha: 0.22)
               : Colors.white.withValues(alpha: 0.55),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? _categoryAccent : _categoryAccent
+            color: selected ? _kCategoryAccent : _kCategoryAccent
                 .withValues(alpha: 0.25),
             width: selected ? 2 : 1,
           ),
@@ -723,7 +722,7 @@ class _CategoryTile extends StatelessWidget {
                 Icon(
                   Icons.category_outlined,
                   size: 22,
-                  color: selected ? _categoryAccent : _categoryAccent
+                  color: selected ? _kCategoryAccent : _kCategoryAccent
                       .withValues(alpha: 0.75),
                 ),
                 const SizedBox(height: 6),
@@ -738,8 +737,8 @@ class _CategoryTile extends StatelessWidget {
                       fontWeight:
                           selected ? FontWeight.w700 : FontWeight.w500,
                       color: selected
-                          ? _categoryAccent
-                          : _categoryAccent.withValues(alpha: 0.85),
+                          ? _kCategoryAccent
+                          : _kCategoryAccent.withValues(alpha: 0.85),
                     ),
                   ),
                 ),
@@ -752,7 +751,7 @@ class _CategoryTile extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(2),
                   decoration: BoxDecoration(
-                    color: _categoryAccent,
+                    color: _kCategoryAccent,
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.white, width: 1.5),
                   ),
@@ -798,12 +797,12 @@ class _ScopeChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: selected
-              ? _categoryAccent.withValues(alpha: 0.15)
+              ? _kCategoryAccent.withValues(alpha: 0.15)
               : Theme.of(context).colorScheme.surfaceContainerHighest
                   .withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? _categoryAccent : Colors.transparent,
+            color: selected ? _kCategoryAccent : Colors.transparent,
             width: 1.5,
           ),
         ),
@@ -811,14 +810,14 @@ class _ScopeChip extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, size: 18,
-                color: selected ? _categoryAccent : null),
+                color: selected ? _kCategoryAccent : null),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? _categoryAccent : null,
+                color: selected ? _kCategoryAccent : null,
               ),
             ),
           ],
