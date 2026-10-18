@@ -218,6 +218,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
       ),
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
       child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
