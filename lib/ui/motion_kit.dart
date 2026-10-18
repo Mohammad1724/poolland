@@ -1013,6 +1013,12 @@ class _SheetDismissState extends State<_SheetDismiss>
   /// fling that has already been released, can report overscroll too, and
   /// neither has a pointer-up that would ever put the sheet back.
   bool _pointerDown = false;
+
+  /// Tracks the pull from the [Listener] pointer events directly, so the
+  /// sheet can dismiss even when the drag recognizer loses the gesture
+  /// arena to the scrollable underneath.
+  Offset? _pointerOrigin;
+
   VelocityTracker? _tracker;
 
   /// Cached in [build]: the gesture handlers run outside the build phase and
@@ -1071,6 +1077,18 @@ class _SheetDismissState extends State<_SheetDismiss>
     _setPull(_adopt() + delta);
   }
 
+  /// Updates the pull from a raw pointer position, used as a fallback when
+  /// the drag recognizer loses the arena. Tracks distance from the original
+  /// pointer-down location so the sheet dismisses regardless of which
+  /// recognizer wins the gesture.
+  void updatePullFromPointer(Offset position) {
+    if (!widget.enabled || _closing || _decided || !_pointerDown) return;
+    if (_pointerOrigin == null) return;
+    final delta = position.dy - _pointerOrigin!.dy;
+    if (delta <= 0) return; // ignore upward movement
+    _setPull(delta);
+  }
+
   /// Shrinks the pull when the content scrolls back up under the finger.
   void reducePull(double delta) {
     if (!widget.enabled || _closing || _pull <= 0) return;
@@ -1095,6 +1113,10 @@ class _SheetDismissState extends State<_SheetDismiss>
 
   /// The finger left the sheet. The grab strip's drag end and the sheet-wide
   /// pointer-up both arrive here for the same gesture, so the first decides.
+  ///
+  /// When the drag recognizer lost the arena to the scrollable underneath,
+  /// [_pull] may still hold the distance tracked by [updatePullFromPointer] —
+  /// so the sheet can dismiss even without the recognizer's help.
   void release({double velocity = 0}) {
     if (!widget.enabled || _closing || _decided) return;
     _decided = true;
@@ -1154,15 +1176,24 @@ class _SheetDismissState extends State<_SheetDismiss>
       onPointerDown: (e) {
         _pointerDown = true;
         _decided = false;
+        _pointerOrigin = e.position;
         _tracker = VelocityTracker.withKind(e.kind);
       },
-      onPointerMove: (e) => _tracker?.addPosition(e.timeStamp, e.position),
+      onPointerMove: (e) {
+        _tracker?.addPosition(e.timeStamp, e.position);
+        // Track pull directly from pointer movement, so the sheet can
+        // dismiss even when the drag recognizer loses the arena to the
+        // scrollable underneath.
+        updatePullFromPointer(e.position);
+      },
       onPointerUp: (e) {
         _pointerDown = false;
+        _pointerOrigin = null;
         release(velocity: _tracker?.getVelocity().pixelsPerSecond.dy ?? 0);
       },
       onPointerCancel: (_) {
         _pointerDown = false;
+        _pointerOrigin = null;
         _decided = true;
         _tracker = null;
         if (_pull > 0) _snapBack();
@@ -1194,24 +1225,14 @@ class _SheetDismissState extends State<_SheetDismiss>
                             release(velocity: d.primaryVelocity ?? 0);
                           };
                           instance.onCancel = () {
-                            // The drag lost the arena for some reason
-                            // (another recognizer won, or the pointer was
-                            // canceled). The user does not want to dismiss.
-                            //
-                            // Reset [_pull] to zero immediately so the
-                            // [Listener.onPointerUp] that follows cannot
-                            // accidentally close the sheet with stale pull
-                            // from a previous drag — but do NOT set
-                            // `_decided`, because that would force the user
-                            // to tap again before the next drag attempt
-                            // works. With [_pull] at zero, [release] reads
-                            // zero, skips the dismiss, and the next drag
-                            // starts clean.
-                            _adopt();
-                            _pull = 0;
-                            _ticked = false;
-                            _spring.stop();
-                            if (mounted) setState(() {});
+                            // The drag recognizer lost the arena — typically
+                            // to the scrollable inside the sheet. The user
+                            // still has their finger on the screen, and the
+                            // [Listener] below continues to track pointer
+                            // movement via [updatePullFromPointer], so the
+                            // sheet can still dismiss. Do NOT reset [_pull]
+                            // here: whatever distance the Listener already
+                            // accumulated is the user's real intent.
                           };
                         },
                       ),
