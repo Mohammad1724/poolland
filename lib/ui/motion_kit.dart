@@ -3,12 +3,7 @@ import 'dart:math' as math;
 // GestureRecognizerFactoryWithHandlers comes with material: it is declared in
 // src/widgets/gesture_detector.dart, next to RawGestureDetector.
 import 'package:flutter/gestures.dart'
-    show
-        DragStartBehavior,
-        GestureDisposition,
-        VerticalDragGestureRecognizer,
-        VelocityTracker,
-        kTouchSlop;
+    show DragStartBehavior, VerticalDragGestureRecognizer, VelocityTracker;
 import 'package:flutter/material.dart';
 
 import '../core/haptics.dart';
@@ -1373,47 +1368,20 @@ class _AmbientAuroraState extends State<AmbientAurora>
 
 /// A vertical drag that only ever claims *downward* movement.
 ///
-/// The grab strip is painted on top of the sheet's content, so it reaches the
-/// gesture arena before the list underneath. Claiming upward drags as well
-/// would mean a flick that starts on the handle can never scroll that list: the
-/// strip wins the arena and then has nothing to do with it. Giving the gesture
-/// up as soon as the pointer travels more than a slop upwards hands it back to
-/// whatever is underneath — the one thing a plain
-/// [VerticalDragGestureRecognizer] cannot be asked to do.
+/// A plain [VerticalDragGestureRecognizer] for the grab strip.
+///
+/// The strip is painted on top of the sheet's content and reaches the gesture
+/// arena before the list underneath. The old implementation rejected the
+/// gesture when the pointer drifted upward by a touch slop before the drag
+/// was accepted — handing it back to whatever was underneath so a flick that
+/// started on the handle could still scroll the list. On a real phone a thumb
+/// naturally wobbles a few pixels in every direction the instant it touches
+/// the handle, so that rejection fired on almost every first attempt and
+/// forced the user to tap twice before a drag would close the sheet. The
+/// strip wins the arena either way; negative deltas are harmless because
+/// [_SheetDismissState.addPull] clamps the pull to zero.
 class _DownOnlyDrag extends VerticalDragGestureRecognizer {
   _DownOnlyDrag({super.debugOwner});
-
-  Offset _down = Offset.zero;
-
-  /// Set once this recognizer has won or lost the arena, so the decision is
-  /// made exactly once per pointer.
-  bool _settled = false;
-
-  @override
-  void addAllowedPointer(PointerDownEvent event) {
-    super.addAllowedPointer(event);
-    _down = event.position;
-    _settled = false;
-  }
-
-  @override
-  void acceptGesture(int pointer) {
-    _settled = true;
-    super.acceptGesture(pointer);
-  }
-
-  // NOTE: the old implementation rejected the gesture when the pointer
-  // drifted upward by [kTouchSlop] before the drag was accepted. On a real
-  // phone a thumb naturally wobbles a few pixels in every direction the
-  // instant it touches the handle, so that rejection fired on almost every
-  // first attempt and forced the user to tap twice before a drag would
-  // close the sheet. The grab strip lives above any scrollable content, so
-  // an upward start here is never ambiguous — let the drag begin and let
-  // [_SheetDismissState.addPull] clamp negative deltas to zero.
-  @override
-  void handleEvent(PointerEvent event) {
-    super.handleEvent(event);
-  }
 }
 
 /// Turns "the content is already at its top and the finger keeps going down"
