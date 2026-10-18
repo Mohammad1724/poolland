@@ -821,4 +821,3 @@ class _ScopeChip extends StatelessWidget {
     );
   }
 }
-// CI trigger
