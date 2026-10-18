@@ -623,13 +623,13 @@ void main() {
     // frequent categories / regular contacts are offered as one-tap chips.
     final buttonFinder = find.widgetWithText(
       FilledButton,
-      'Confirm and record',
+      'ثبت تراکنش',
     );
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
-    expect(find.text('Transaction amount'), findsOneWidget);
+    expect(find.text('مبلغ'), findsOneWidget);
     // The redesigned sheet uses _ScopeChip instead of SegmentedButton.
-    expect(find.text('Business'), findsOneWidget);
-    expect(find.text('Personal'), findsOneWidget);
+    expect(find.text('کسب‌وکار'), findsOneWidget);
+    expect(find.text('شخصی'), findsOneWidget);
 
     // It opens on the business side, where regular contacts are shown
     // as a card. The default is fixed, not derived from the newest entry,
@@ -637,12 +637,12 @@ void main() {
     expect(find.byType(ContactBalanceCard), findsNothing);
 
     // Switching the section still re-derives kind and category.
-    await tester.tap(find.text('Personal'));
+    await tester.tap(find.text('شخصی'));
     await tester.pumpAndSettle();
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
 
     // And switching back does not lose the one-tap contacts.
-    await tester.tap(find.text('Business'));
+    await tester.tap(find.text('کسب‌وکار'));
     await tester.pumpAndSettle();
     expect(find.byType(ContactBalanceCard), findsNothing);
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);

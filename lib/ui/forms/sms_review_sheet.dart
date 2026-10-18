@@ -319,7 +319,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
       accentColor: _kAmountAccent,
       backgroundColor: _kAmountBg,
       icon: Icons.account_balance_wallet_rounded,
-      title: 'Transaction amount'.tr,
+      title: 'Amount'.tr,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -590,7 +590,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
         ),
         icon: const Icon(Icons.check_rounded, size: 20),
         label: Text(
-          'Confirm and record'.tr,
+          'Record transaction'.tr,
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
         ),
       ),
