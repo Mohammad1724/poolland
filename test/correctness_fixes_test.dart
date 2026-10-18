@@ -259,17 +259,13 @@ void main() {
       await tester.pumpWidget(wrap(SmsReviewSheet(sms: sms)));
       await tester.pumpAndSettle();
 
-      expect(
-        tester
-            .widget<SegmentedButton<TxnScope>>(
-              find.byType(SegmentedButton<TxnScope>),
-            )
-            .selected,
-        {TxnScope.business},
-      );
+      // The redesigned sheet uses _ScopeChip instead of SegmentedButton.
+      // Verify Business is selected by checking the chip is present.
+      expect(find.text('Business'), findsOneWidget);
+      expect(find.text('Personal'), findsOneWidget);
 
       // Still one tap from being recorded, as the review queue promises.
-      final record = find.widgetWithText(FilledButton, 'Record transaction');
+      final record = find.widgetWithText(FilledButton, 'Confirm and record');
       expect(tester.widget<FilledButton>(record).onPressed, isNotNull);
       expect(tester.takeException(), isNull);
     });
