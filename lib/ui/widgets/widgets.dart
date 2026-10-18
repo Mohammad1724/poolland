@@ -827,12 +827,28 @@ class SelectField<T> extends StatelessWidget {
           prefixIcon: icon == null ? null : Icon(icon, size: 19),
           errorText: validator != null ? validator!(value)?.tr : null,
         ),
-        child: Text(
-          hasValue ? labelOf(value as T).tr : placeholder.tr,
-          style: TextStyle(
-            fontSize: 14.5,
-            fontWeight: hasValue ? FontWeight.w600 : FontWeight.w400,
-            color: hasValue ? scheme.onSurface : scheme.onSurfaceVariant,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          transitionBuilder: (child, animation) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.1, 0),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              )),
+              child: FadeTransition(opacity: animation, child: child),
+            );
+          },
+          child: Text(
+            key: ValueKey(hasValue ? labelOf(value as T).tr : placeholder.tr),
+            hasValue ? labelOf(value as T).tr : placeholder.tr,
+            style: TextStyle(
+              fontSize: 14.5,
+              fontWeight: hasValue ? FontWeight.w600 : FontWeight.w400,
+              color: hasValue ? scheme.onSurface : scheme.onSurfaceVariant,
+            ),
           ),
         ),
       ),
