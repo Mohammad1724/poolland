@@ -706,24 +706,28 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   String? _categoryId;
   bool _presetDone = false;
 
-  /// The sheet opens ready to save: the section follows the matched
-  /// customer (or the ledger's most recent scope), and kind + category
-  /// follow the section, so the record button is enabled immediately.
+  /// The sheet opens ready to save: the section is business, and kind +
+  /// category follow the section, so the record button is enabled immediately.
+  ///
+  /// Business is a fixed default, not a guess. This used to fall back to
+  /// `repo.transactions.first.scope` — the scope of whichever entry happened
+  /// to be newest — and since the personal page is the app's landing tab with
+  /// one-tap quick buttons, that newest entry is very often personal. The
+  /// sheet would then open a *bank deposit* on «personal» with no contact,
+  /// still one tap from being recorded, and business income would quietly
+  /// leave the profit report. A predictable default the user can see and flip
+  /// (the [ScopeSegment] sits right under the kind tiles) beats a plausible
+  /// one they have no reason to check.
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_presetDone) return;
     _presetDone = true;
     final repo = context.read<AppRepository>();
-    final prefer = widget.initialCustomer != null
-        ? TxnScope.business
-        : repo.transactions.isEmpty
-        ? TxnScope.business
-        : repo.transactions.first.scope;
-    _scope = prefer;
-    _customer = prefer == TxnScope.business ? widget.initialCustomer : null;
-    _kind = _suggestedKind(repo, prefer);
-    _categoryId = _suggestedCategoryId(repo, prefer);
+    _scope = TxnScope.business;
+    _customer = widget.initialCustomer;
+    _kind = _suggestedKind(repo, _scope);
+    _categoryId = _suggestedCategoryId(repo, _scope);
   }
 
   @override

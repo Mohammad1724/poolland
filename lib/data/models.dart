@@ -405,7 +405,10 @@ class Customer {
 
   factory Customer.fromMap(Map map) => Customer(
     id: '${map['id']}',
-    name: '${map['name']}',
+    // `?? ''` like the free-text fields below: without it a record that has
+    // no `name` key at all decodes to the literal string "null" and is then
+    // printed as the contact's name.
+    name: '${map['name'] ?? ''}',
     phone: '${map['phone'] ?? ''}',
     telegram: '${map['telegram'] ?? ''}',
     note: '${map['note'] ?? ''}',
@@ -420,6 +423,23 @@ class Customer {
         .where((e) => e.trim().isNotEmpty)
         .toList(),
   );
+
+  /// The single grapheme shown in this contact's avatar.
+  ///
+  /// Never `name.characters.first` directly: that throws `StateError: No
+  /// element` on an empty string, and an empty name is reachable — the entry
+  /// form refuses one, but a record decoded from storage does not have to have
+  /// gone through the form. One blank name used to be enough to take the whole
+  /// customers list down with a red screen, on every launch, with no way to
+  /// reach the record that caused it. A placeholder glyph keeps the list
+  /// renderable so the row can still be opened, edited, or deleted.
+  ///
+  /// Grapheme-aware (`characters`, not `substring`) so a name that starts with
+  /// an emoji or a combined mark keeps its first visible character whole.
+  String get initial {
+    final trimmed = name.trim();
+    return trimmed.isEmpty ? '؟' : trimmed.characters.first;
+  }
 }
 
 /// ----- Subscription -----

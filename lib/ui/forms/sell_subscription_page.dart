@@ -189,9 +189,6 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
     final currencies = repo.settings.currencies;
-    final remaining = (_currency == _receiveCurrency)
-        ? parseAmount(_price.text) - parseAmount(_received.text)
-        : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -431,41 +428,65 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                   ),
                 ],
               ),
-              if (remaining != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Row(
-                    children: [
-                      Icon(
-                        remaining <= 0
-                            ? Icons.check_circle_rounded
-                            : Icons.info_outline_rounded,
-                        size: 15,
-                        color: remaining <= 0
-                            ? const Color(0xFF16A34A)
-                            : const Color(0xFFF59E0B),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        remaining <= 0
-                            ? 'Paid in full'.tr
-                            : 'The remaining balance will be recorded as customer debt: {amount}'
-                                  .trArgs({
-                                    'amount': Money.text(
-                                      remaining,
-                                      currency: _currency,
-                                    ),
-                                  }),
-                        style: TextStyle(
-                          fontSize: 11.5,
+              // The consequence line depends on both amounts, and neither
+              // field rebuilds this page — so it listens to the controllers
+              // itself. Read straight from `_price.text` in `build` it stayed
+              // frozen at whatever the two fields held when the page was last
+              // rebuilt for another reason: a renewal (both fields pre-filled,
+              // so the line said "paid in full") would keep saying that after
+              // the received amount was cleared. Same fix, same reason as the
+              // cash/credit hint in the transaction form.
+              ListenableBuilder(
+                listenable: Listenable.merge([_price, _received]),
+                builder: (context, _) {
+                  final price = parseAmount(_price.text);
+                  // Only meaningful once there is a price, and only when both
+                  // sides are the same currency: subtracting 3 USDT from
+                  // 500,000 Toman says nothing. With an untouched form the old
+                  // version computed 0 - 0 and announced "Paid in full" for a
+                  // sale that did not exist yet.
+                  final remaining = (_currency == _receiveCurrency && price > 0)
+                      ? price - parseAmount(_received.text)
+                      : null;
+                  if (remaining == null) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(
+                      children: [
+                        Icon(
+                          remaining <= 0
+                              ? Icons.check_circle_rounded
+                              : Icons.info_outline_rounded,
+                          size: 15,
                           color: remaining <= 0
                               ? const Color(0xFF16A34A)
-                              : const Color(0xFFB45309),
+                              : const Color(0xFFF59E0B),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            remaining <= 0
+                                ? 'Paid in full'.tr
+                                : 'The remaining balance will be recorded as customer debt: {amount}'
+                                      .trArgs({
+                                        'amount': Money.text(
+                                          remaining,
+                                          currency: _currency,
+                                        ),
+                                      }),
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: remaining <= 0
+                                  ? const Color(0xFF16A34A)
+                                  : const Color(0xFFB45309),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
               const SizedBox(height: 14),
 
               SelectField<Category>(

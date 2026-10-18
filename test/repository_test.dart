@@ -366,6 +366,47 @@ void main() {
     expect(repo.customerById(customer.id)?.name, 'Keep me');
   });
 
+  test('A backup holding a nameless customer is rejected', () async {
+    final customer = await repo.addCustomer(name: 'Keep me');
+    final before = repo.customers.length;
+    final backup = repo.exportData();
+    // The entry form refuses an empty name, but a hand-edited or foreign file
+    // never went through it — and one blank name used to be enough to take the
+    // customers list down with a red screen on every launch.
+    backup['customers'] = (List<Map>.from(backup['customers'] as List))
+      ..add({'id': 'ghost', 'name': '   ', 'createdAt': 0});
+
+    await expectLater(repo.importData(backup), throwsFormatException);
+    // Rejected before anything was cleared, so the ledger is untouched.
+    expect(repo.customers, hasLength(before));
+    expect(repo.customerById(customer.id)?.name, 'Keep me');
+  });
+
+  test('A record with no name key decodes as empty, not as "null"', () {
+    final decoded = Customer.fromMap({'id': 'c1'});
+    expect(decoded.name, isEmpty);
+    expect(decoded.initial, '؟');
+  });
+
+  test('The contact avatar never asks an empty name for a character', () {
+    final at = DateTime(2026, 10, 4);
+    expect(
+      Customer(id: 'c1', name: '', createdAt: at).initial,
+      '؟',
+    );
+    expect(
+      Customer(id: 'c1', name: '   ', createdAt: at).initial,
+      '؟',
+    );
+    expect(Customer(id: 'c1', name: 'Alex', createdAt: at).initial, 'A');
+    expect(Customer(id: 'c1', name: ' علی', createdAt: at).initial, 'ع');
+    // Grapheme-aware: an emoji avatar stays one visible character.
+    expect(
+      Customer(id: 'c1', name: '👤 Ali', createdAt: at).initial,
+      '👤',
+    );
+  });
+
   test(
     'Deleting a customer without data keeps history but detaches references',
     () async {
