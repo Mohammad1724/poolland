@@ -343,7 +343,6 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
               fontWeight: FontWeight.w600,
             ),
             decoration: InputDecoration(
-              hintText: 'Edit amount'.tr,
               prefixIcon:
                   const Icon(Icons.edit_rounded, size: 18),
               border: OutlineInputBorder(
@@ -395,7 +394,6 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
       backgroundColor: _kCategoryBg,
       icon: Icons.grid_view_rounded,
       title: 'Category'.tr,
-      subtitle: 'Please specify the type of transaction'.tr,
       child: LayoutBuilder(
         builder: (context, constraints) {
           // 4 columns on normal widths, 3 on narrow.
@@ -434,7 +432,6 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
       backgroundColor: _kCategoryBg,
       icon: Icons.category_outlined,
       title: 'Category'.tr,
-      subtitle: 'No categories configured yet. Add one from Manage.'.tr,
       child: OutlinedButton.icon(
         onPressed: () => Navigator.push(
           context,
@@ -453,7 +450,6 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
       backgroundColor: _kCustomerBg,
       icon: Icons.person_rounded,
       title: 'Contact'.tr,
-      subtitle: customer == null ? 'Optional'.tr : null,
       child: customer == null
           ? Row(
               children: [
@@ -526,7 +522,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                 const SizedBox(width: 8),
                 TextButton(
                   onPressed: () => setState(() => _customer = null),
-                  child: Text('Change'.tr),
+                  child: Text('Edit'.tr),
                 ),
               ],
             ),
@@ -538,13 +534,12 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
       accentColor: _kNoteAccent,
       backgroundColor: _kNoteBg,
       icon: Icons.notes_rounded,
-      title: 'Notes (optional)'.tr,
+      title: 'Description (optional)'.tr,
       child: TextField(
         controller: _note,
         maxLines: 2,
         textAlignVertical: TextAlignVertical.top,
         decoration: InputDecoration(
-          hintText: 'e.g. Monthly internet payment'.tr,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide(
