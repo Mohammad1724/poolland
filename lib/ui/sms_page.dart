@@ -1308,6 +1308,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
               scopeFilter: scope,
               incomeFilter: sms.direction == SmsDirection.deposit,
               hideWhenEmpty: true,
+              selectedCategoryId: _categoryId,
               onTap: (q) => setState(() {
                 if (availableKinds.contains(q.kind)) _kind = q.kind;
                 if (q.categoryId != null) _categoryId = q.categoryId;

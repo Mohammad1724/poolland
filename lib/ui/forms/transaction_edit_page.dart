@@ -638,6 +638,7 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                     incomeFilter: _kind == TxnKind.income ||
                         _kind == TxnKind.receive,
                     hideWhenEmpty: true,
+                    selectedCategoryId: _category?.id,
                     onTap: _applyQuick,
                     onLongPress: (q) => _openQuickEdit(q),
                     trailing: _addQuickChip(),
