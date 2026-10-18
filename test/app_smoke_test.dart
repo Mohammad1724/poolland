@@ -537,8 +537,8 @@ void main() {
     await tester.pumpWidget(wrap(SmsPage(openReviewKey: reviewKey)));
     await tester.pumpAndSettle();
 
-    expect(find.text('ثبت این تراکنش پیامکی'), findsOneWidget);
-    expect(find.text('ثبت تراکنش'), findsOneWidget);
+    expect(find.text('Record this SMS transaction'), findsOneWidget);
+    expect(find.text('Record transaction'), findsOneWidget);
     expect(repo.transactions.length, initialTransactionCount);
     expect(tester.takeException(), isNull);
 
@@ -551,7 +551,7 @@ void main() {
     );
     await tester.dragFrom(tester.getCenter(handle), const Offset(0, 100));
     await tester.pumpAndSettle();
-    expect(find.text('ثبت این تراکنش پیامکی'), findsNothing);
+    expect(find.text('Record this SMS transaction'), findsNothing);
     expect(repo.transactions.length, initialTransactionCount);
   });
 
@@ -587,7 +587,7 @@ void main() {
     );
     await tester.tap(find.text('Open SMS review'));
     await tester.pumpAndSettle();
-    expect(find.text('ثبت این تراکنش پیامکی'), findsOneWidget);
+    expect(find.text('Record this SMS transaction'), findsOneWidget);
 
     final sheet = tester.getRect(find.byType(SmsReviewSheet));
     await tester.dragFrom(
@@ -595,7 +595,7 @@ void main() {
       const Offset(0, 140),
     );
     await tester.pumpAndSettle();
-    expect(find.text('ثبت این تراکنش پیامکی'), findsNothing);
+    expect(find.text('Record this SMS transaction'), findsNothing);
     expect(repo.transactions.length, initialTransactionCount);
     expect(tester.takeException(), isNull);
   });
@@ -623,13 +623,13 @@ void main() {
     // frequent categories / regular contacts are offered as one-tap chips.
     final buttonFinder = find.widgetWithText(
       FilledButton,
-      'ثبت تراکنش',
+      'Record transaction',
     );
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
-    expect(find.text('مبلغ'), findsOneWidget);
+    expect(find.text('Amount'), findsOneWidget);
     // The redesigned sheet uses _ScopeChip instead of SegmentedButton.
-    expect(find.text('کسب‌وکار'), findsOneWidget);
-    expect(find.text('شخصی'), findsOneWidget);
+    expect(find.text('Business'), findsOneWidget);
+    expect(find.text('Personal'), findsOneWidget);
 
     // It opens on the business side, where regular contacts are shown
     // as a card. The default is fixed, not derived from the newest entry,
@@ -637,12 +637,12 @@ void main() {
     expect(find.byType(ContactBalanceCard), findsNothing);
 
     // Switching the section still re-derives kind and category.
-    await tester.tap(find.text('شخصی'));
+    await tester.tap(find.text('Personal'));
     await tester.pumpAndSettle();
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
 
     // And switching back does not lose the one-tap contacts.
-    await tester.tap(find.text('کسب‌وکار'));
+    await tester.tap(find.text('Business'));
     await tester.pumpAndSettle();
     expect(find.byType(ContactBalanceCard), findsNothing);
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);

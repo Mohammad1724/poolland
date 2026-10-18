@@ -11,8 +11,8 @@ import '../../data/repository.dart';
 import '../motion_kit.dart';
 import '../personal_page.dart';
 import 'contact_edit_page.dart';
-import 'widgets/quick_buttons.dart';
-import 'widgets/widgets.dart';
+import '../widgets/quick_buttons.dart';
+import '../widgets/widgets.dart';
 import '../settings_page.dart';
 
 /// Card accent colours — shared between the sheet and its sub-widgets.
@@ -338,6 +338,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
             keyboardType:
                 const TextInputType.numberWithOptions(decimal: true),
             textDirection: TextDirection.ltr,
+            onChanged: (_) => setState(() {}),
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -514,7 +515,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                                 .onSurface
                                 .withValues(alpha: 0.55),
                           ),
-                          direction: TextDirection.ltr,
+                          textDirection: TextDirection.ltr,
                         ),
                     ],
                   ),
