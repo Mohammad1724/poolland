@@ -406,6 +406,8 @@ class SmsParser {
         normalizedHead.contains('سریال') ||
         normalizedHead.contains('سريال') ||
         normalizedHead.contains('شناسه') ||
+        normalizedHead.contains('قرارداد') ||
+        normalizedHead.contains('contract') ||
         normalizedHead.contains('reference') ||
         normalizedHead.contains('sequence')) {
       return true;
