@@ -1343,8 +1343,17 @@ class TxnTile extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            // CopyMoney receives the signed value so long-pressing an
+            // expense copies a negative number — matching what the eye sees
+            // and what spreadsheets expect.
             CopyMoney(
-              value: txn.amount,
+              value: txn.amount *
+                  switch (txn.kind) {
+                    TxnKind.income || TxnKind.receive => 1,
+                    TxnKind.expense ||
+                    TxnKind.refund ||
+                    TxnKind.payablePayment => -1,
+                  },
               child: Text(
               Money.text(
                 txn.amount *

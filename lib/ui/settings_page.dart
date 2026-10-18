@@ -854,7 +854,7 @@ class SettingsPage extends StatelessWidget {
           controller: ctrl,
           autofocus: true,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(suffixText: 'Toman'),
+          decoration: InputDecoration(suffixText: 'Toman'.tr),
         ),
         actions: [
           TextButton(
@@ -889,7 +889,7 @@ class SettingsPage extends StatelessWidget {
           controller: ctrl,
           autofocus: true,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(suffixText: 'day'),
+          decoration: InputDecoration(suffixText: 'day'.tr),
         ),
         actions: [
           TextButton(
@@ -1105,7 +1105,7 @@ class RatesPage extends StatelessWidget {
           controller: ctrl,
           autofocus: true,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(suffixText: 'Toman'),
+          decoration: InputDecoration(suffixText: 'Toman'.tr),
         ),
         actions: [
           TextButton(
@@ -1232,17 +1232,40 @@ class _CategoriesPageState extends State<CategoriesPage> {
         ),
         body: Column(
           children: [
-            const SizedBox(height: 10),
-            SegmentedButton<TxnScope>(
-              segments: [
-                for (final sc in TxnScope.values)
-                  ButtonSegment(value: sc, label: Text(sc.label)),
-              ],
-              selected: {_scope},
-              onSelectionChanged: (s) => setState(() => _scope = s.first),
-              style: SegmentedButton.styleFrom(
-                minimumSize: const Size(0, Taps.minHeight),
-                textStyle: const TextStyle(fontSize: 12),
+            // Scope filter is visually separated from the kind tabs so the
+            // two axes of navigation are never confused: the tab bar selects
+            // the direction (income / expense), the chip row below selects
+            // the section (business / personal).
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Scope'.tr,
+                    style: TextStyle(
+                      fontSize: FontSizes.small,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).colorScheme.onSurface
+                          .withValues(alpha: 0.6),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: Insets.sm,
+                    runSpacing: Insets.sm,
+                    children: [
+                      for (final sc in TxnScope.values)
+                        ChoiceChip(
+                          label: Text(sc.label),
+                          showCheckmark: false,
+                          selected: _scope == sc,
+                          onSelected: (_) =>
+                              setState(() => _scope = sc),
+                        ),
+                    ],
+                  ),
+                ],
               ),
             ),
             Expanded(

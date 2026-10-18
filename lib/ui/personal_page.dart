@@ -707,12 +707,21 @@ class _PeriodChartCardState extends State<_PeriodChartCard> {
   @override
   Widget build(BuildContext context) {
     // The section header doubles as the collapsible card header, so the title
-    // and the six-month total are always visible while the chart opens on tap.
+    // and the period total stay always visible while the chart opens on tap.
+    // The summary adapts to the active mode so it never shows a monthly total
+    // when the daily or weekly chart is on screen.
+    final double periodProfit = switch (_mode) {
+      0 => widget.daily.fold<double>(
+        0, (s, p) => s + p.income - p.expense),
+      1 => widget.weekly.fold<double>(
+        0, (s, p) => s + p.income - p.expense),
+      _ => widget.monthly.fold<double>(0, (s, p) => s + p.profit),
+    };
     return CollapsibleCard(
       title: 'Income and expense trend',
       icon: Icons.bar_chart_rounded,
       summary: MoneyText(
-        widget.monthly.fold<double>(0, (sum, p) => sum + p.profit),
+        periodProfit,
         compact: true,
         signed: true,
         style: const TextStyle(

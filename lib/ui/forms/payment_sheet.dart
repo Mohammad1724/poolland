@@ -141,13 +141,17 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                 ),
               ),
               const SizedBox(height: 4),
+              // The balance always carries its sign so a creditor balance
+              // is visually distinct from a debtor one — the old version
+              // showed a bare positive number with only "(creditor)" in
+              // parentheses, which was easy to skim past.
               Text(
                 balance >= 0
                     ? 'Balance: {amount} (debtor)'.trArgs({
                         'amount': Money.text(balance, signed: true),
                       })
                     : 'Balance: {amount} (creditor)'.trArgs({
-                        'amount': Money.text(balance.abs()),
+                        'amount': Money.text(balance, signed: true),
                       }),
                 style: TextStyle(
                   fontSize: 12,

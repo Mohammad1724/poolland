@@ -26,7 +26,10 @@ enum _Range { thisMonth, lastMonth, threeMonths, sixMonths, thisYear, all }
 
 class _ReportsPageState extends State<ReportsPage> {
   _Range _range = _Range.thisMonth;
-  TxnScope? _scope = TxnScope.business;
+  // Default to "All" so a user who only tracks personal finances does not
+  // land on an empty report with no explanation. The scope chips below let
+  // the user narrow it down as needed.
+  TxnScope? _scope;
   bool _busy = false;
 
   (DateTime, DateTime) _bounds(AppRepository repo) {
