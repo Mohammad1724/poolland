@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sms_arrival_channel_name">Bank SMS review</string>
+    <string name="sms_arrival_channel_description">Notifications for matched bank transaction messages.</string>
+    <string name="sms_arrival_title">New bank SMS to review</string>
+    <string name="sms_arrival_body">Tap to review the transaction before recording it.</string>
+</resources>

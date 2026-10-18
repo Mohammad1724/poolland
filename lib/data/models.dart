@@ -72,7 +72,7 @@ class AppSettings {
   final bool setupDone; // Whether initial setup is complete.
 
   /// Whether the one-time permissions intro (SMS + notifications) has been
-  /// shown and answered; until then the app opens on the intro page.
+  /// shown; the user may grant or skip optional permissions.
   final bool permissionsIntroDone;
 
   /// Whether the one-time gesture tour has been shown; until then the
@@ -82,9 +82,8 @@ class AppSettings {
   // ---- Bank SMS ----
   /// Built-in or custom rules turned off; empty preserves legacy behavior.
   ///
-  /// The app never reads the SMS inbox — it declares no SMS permission, so
-  /// Google Play Protect lets it install — but a bank message the user
-  /// pastes is still matched against these rules.
+  /// Android inbox messages must match an enabled rule before they enter the
+  /// review queue. Pasted messages can still be added manually.
   final List<String> disabledSmsRuleIds;
 
   // ---- Daily expense reminder ----

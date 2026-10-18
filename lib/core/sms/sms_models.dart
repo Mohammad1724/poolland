@@ -16,9 +16,9 @@ String smsKeyDigest(String rawKey) =>
 
 /// Outcome of handing a pasted bank message to the review queue.
 ///
-/// The `safe` build cannot read the SMS inbox, so the review page lets the
-/// user paste a message instead. These three outcomes are the only ones the
-/// UI has to explain: queued, already there, or not a transaction at all.
+/// These are the outcomes when a user pastes one message into the review
+/// page: queued, already there, or not a transaction at all. Inbox sync uses
+/// a count because unrelated and unrecognized messages are simply ignored.
 enum SmsImportResult { added, duplicate, notRecognized }
 
 // Direction of money movement in an SMS.

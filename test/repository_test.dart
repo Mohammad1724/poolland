@@ -62,10 +62,9 @@ void main() {
     expect(repo.scopeFilter, TxnScope.business);
   });
 
-  test('The app keeps no SMS-access setting', () async {
-    // The app declares no SMS permission, so there is nothing to enable:
-    // a bank message is added by pasting it. Older backups may still carry
-    // the removed flags; they are ignored instead of crashing the restore.
+  test('Legacy SMS access settings are ignored', () async {
+    // SMS access is controlled by Android runtime permission, not a setting in
+    // the backup. Older backups may carry obsolete flags; they are ignored.
     final legacy = Map<String, dynamic>.from(store.loadSettings().toMap())
       ..['smsEnabled'] = true
       ..['smsNotify'] = true

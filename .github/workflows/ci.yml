@@ -40,12 +40,9 @@ jobs:
           cache: true
       - name: Prepare Flutter project
         run: flutter pub get
-      # Compiles the release APK end-to-end and proves the Play Protect
-      # block cannot come back: the merged manifest of the actual APK must
-      # declare no sensitive permission and register no SMS receiver.
-      # (Play Protect blocks internet-sideloaded APKs that declare
-      # READ_SMS, RECEIVE_SMS, a notification listener, or an accessibility
-      # service — by permission, not by signature.)
+      # Compiles the APK end-to-end and checks the actual merged manifest:
+      # inbox sync uses READ_SMS, and optional arrival alerts use RECEIVE_SMS
+      # through the app's explicitly enabled, transaction-filtering receiver.
       - name: Build the APK
         run: |
           # `if ! cmd` is used on purpose: the runner runs the script with
@@ -64,7 +61,7 @@ jobs:
             exit 1
           fi
           cat /tmp/build.log
-      - name: Assert the APK declares no sensitive permission
+      - name: Assert opt-in SMS permissions and receiver
         run: |
           set -euo pipefail
           APK="build/app/outputs/flutter-apk/app-debug.apk"
@@ -72,12 +69,28 @@ jobs:
           AAPT2="$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -n 1)"
           echo "Using $AAPT2"
           "$AAPT2" dump permissions "$APK" | tee /tmp/apk-permissions.txt
-          if grep -qE 'READ_SMS|RECEIVE_SMS|BIND_NOTIFICATION_LISTENER_SERVICE|BIND_ACCESSIBILITY_SERVICE' /tmp/apk-permissions.txt; then
-            echo "::error::The APK declares a Play Protect-blocked permission."
+          if ! grep -q 'READ_SMS' /tmp/apk-permissions.txt; then
+            echo "::error::The APK is missing READ_SMS, which inbox sync requires."
+            exit 1
+          fi
+          if ! grep -q 'RECEIVE_SMS' /tmp/apk-permissions.txt; then
+            echo "::error::The APK is missing RECEIVE_SMS, which opt-in arrival alerts require."
+            exit 1
+          fi
+          if grep -qE 'BIND_NOTIFICATION_LISTENER_SERVICE|BIND_ACCESSIBILITY_SERVICE' /tmp/apk-permissions.txt; then
+            echo "::error::The APK declares an unused high-risk permission."
             exit 1
           fi
           "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" > /tmp/apk-manifest.txt
-          if grep -q 'SmsReceiver' /tmp/apk-manifest.txt; then
-            echo "::error::The APK still registers SmsReceiver."
+          if ! grep -q 'SmsReceivedReceiver' /tmp/apk-manifest.txt; then
+            echo "::error::The APK must register the opt-in SmsReceivedReceiver."
+            exit 1
+          fi
+          if ! grep -B5 -A8 'SmsReceivedReceiver' /tmp/apk-manifest.txt | grep 'android:enabled.*false' > /dev/null; then
+            echo "::error::The SMS receiver must be disabled by default until opt-in."
+            exit 1
+          fi
+          if ! grep -B5 -A8 'SmsReceivedReceiver' /tmp/apk-manifest.txt | grep 'BROADCAST_SMS' > /dev/null; then
+            echo "::error::The SMS receiver must restrict broadcasts to the system."
             exit 1
           fi

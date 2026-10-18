@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app.dart';
+import 'core/sms/sms_access.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  smsAccess.initializeNotificationTapHandler();
   // Keep portrait and landscape available. The shell already adapts to wide
   // layouts, so forcing portrait unnecessarily excluded tablets and landscape
   // use on phones.

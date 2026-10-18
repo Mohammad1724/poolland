@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sms_arrival_channel_name">بررسی پیامک بانکی</string>
+    <string name="sms_arrival_channel_description">اعلان برای پیامک‌های تراکنش بانکی منطبق.</string>
+    <string name="sms_arrival_title">پیامک بانکی تازه برای بررسی</string>
+    <string name="sms_arrival_body">برای بررسی تراکنش پیش از ثبت، بزنید.</string>
+</resources>

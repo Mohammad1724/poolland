@@ -299,13 +299,34 @@ class AppLocalization {
     'Android only': 'فقط اندروید',
     'Bank SMS': 'پیامک بانکی',
     'Review SMS': 'بررسی پیامک‌ها',
+    'Read bank SMS': 'خواندن پیامک بانکی',
+    'On-device SMS access': 'دسترسی پیامک روی دستگاه',
+    'Recent bank messages are read on this device when you sync. New messages are checked only if you enable arrival alerts. Nothing is recorded until you approve it.':
+        'پیامک‌های بانکی اخیر هنگام همگام‌سازی روی همین دستگاه خوانده می‌شوند. پیامک‌های تازه فقط با فعال‌کردن اعلان ورودی بررسی می‌شوند. تا زمانی که تأیید نکنید چیزی ثبت نمی‌شود.',
+    'Notify me about new bank SMS': 'برای پیامک بانکی تازه اعلان بده',
+    'New messages are checked on this device against enabled bank rules. Matching transaction messages send a private notification; nothing is recorded until you approve it.':
+        'پیامک‌های تازه روی همین دستگاه با قواعد فعال بانک بررسی می‌شوند. برای پیامک تراکنشی منطبق اعلان خصوصی می‌آید؛ تا تأیید نکنید چیزی ثبت نمی‌شود.',
+    'Incoming SMS permission denied. Enable it in Android settings.':
+        'دسترسی پیامک ورودی داده نشد. آن را در تنظیمات اندروید فعال کنید.',
+    'Could not enable bank SMS notifications.':
+        'فعال‌کردن اعلان پیامک بانکی ناموفق بود.',
+    'No matching bank transaction was found for this SMS.':
+        'برای این پیامک تراکنش بانکی منطبقی پیدا نشد.',
+    'This SMS is no longer waiting for review.':
+        'این پیامک دیگر در انتظار بررسی نیست.',
+    'Bank SMS notifications enabled.': 'اعلان پیامک بانکی فعال شد.',
+    'Bank SMS notifications turned off.': 'اعلان پیامک بانکی خاموش شد.',
+
     'Add from SMS text': 'افزودن از متن پیامک',
-    'Poolland never reads your SMS': 'پول‌لند هیچ‌وقت پیامک شما را نمی‌خواند',
-    'Poolland never reads your SMS. Paste a bank SMS to review it.':
-        'پول‌لند هیچ‌وقت پیامک شما را نمی‌خواند. برای بررسی، متن پیامک بانکی را بچسبانید.',
-    'The app has no SMS permission, so it installs without a Google Play Protect block. Paste a bank SMS on the review page to record it.':
-        'اپ هیچ دسترسی پیامکی ندارد، پس بدون بلاک شدن توسط Google Play Protect نصب می‌شود. برای ثبت، متن پیامک بانکی را در صفحهٔ بررسی بچسبانید.',
-    'Tap to paste a bank SMS': 'برای ثبت، متن پیامک را بچسبانید',
+    'Grant SMS access': 'اعطای دسترسی پیامک',
+    'Sync bank SMS': 'همگام‌سازی پیامک‌های بانکی',
+    'Syncing…': 'در حال همگام‌سازی…',
+    'Checking SMS access…': 'در حال بررسی دسترسی پیامک…',
+    'Sync recent bank messages on this device. Matching messages enter review; nothing is recorded until you approve it.':
+        'پیامک‌های بانکی اخیر روی همین دستگاه بررسی می‌شوند. پیامک‌های منطبق به صف بررسی می‌روند و تا تأیید شما چیزی ثبت نمی‌شود.',
+    'Grant SMS access to sync recent bank messages. You can still paste a message manually.':
+        'برای همگام‌سازی پیامک‌های بانکی اخیر، دسترسی پیامک را بدهید. همچنان می‌توانید پیامک را دستی بچسبانید.',
+    'Sync bank SMS to review transactions': 'برای بررسی تراکنش‌ها، پیامک‌های بانکی را همگام‌سازی کنید',
     'Add to review': 'افزودن به صف بررسی',
     'Paste': 'چسباندن',
     'Bank SMS text': 'متن پیامک بانکی',
@@ -315,12 +336,19 @@ class AppLocalization {
         'متن پیامک بانکی را کپی و اینجا بچسبانید. متن فقط روی همین دستگاه پردازش می‌شود و فقط به صف بررسی اضافه می‌گردد.',
     'No messages yet. Paste a bank SMS above to review it.':
         'هنوز پیامی نیست. متن پیامک بانکی را بالا بچسبانید تا بررسی شود.',
+    'No new transaction messages found. Tap Sync to check recent messages.':
+        'پیامک تراکنش جدیدی پیدا نشد. برای بررسی پیامک‌های اخیر، همگام‌سازی را بزنید.',
     'SMS added to review': 'پیامک به صف بررسی اضافه شد',
+    '{count} bank messages added to review': '{count} پیامک بانکی به صف بررسی اضافه شد',
+    'SMS permission denied. Enable it in Android settings or keep using paste.':
+        'دسترسی پیامک داده نشد. آن را در تنظیمات اندروید فعال کنید یا از چسباندن متن استفاده کنید.',
+    'Open app settings': 'بازکردن تنظیمات برنامه',
+    'Could not read SMS. Please try again.': 'خواندن پیامک ناموفق بود. لطفاً دوباره تلاش کنید.',
     'This message is already in the review queue':
         'این پیامک از قبل در صف بررسی است',
     'No transaction found in this text': 'در این متن تراکنشی پیدا نشد',
-    'Choose which banks and phrases a pasted SMS can match.':
-        'انتخاب کنید پیامک چسبانده‌شده با کدام بانک‌ها و عبارت‌ها تطبیق داده شود.',
+    'Choose which banks and phrases a bank SMS can match.':
+        'انتخاب کنید پیامک بانکی با کدام بانک‌ها و عبارت‌ها تطبیق داده شود.',
     'Reject': 'رد کردن',
     'Reject all': 'رد همه',
     'Reject all suggestions? ': 'همهٔ پیشنهادها رد شوند؟ ',
@@ -342,7 +370,7 @@ class AppLocalization {
     'The sender and SMS sample are prefilled. Confirm the bank or service name and detection hints before saving.': 'فرستنده و نمونهٔ پیامک از قبل وارد شده‌اند. پیش از ذخیره، نام بانک یا سرویس و نشانه‌های شناسایی را بررسی کنید.',
     'Enabled {enabled} of {total} rules':
         '{enabled} قاعده از {total} قاعده فعال است',
-    'Only messages matched by an enabled rule can enter the review queue. No transaction is recorded until you review it and explicitly choose Personal or VPN business.': 'فقط پیامک‌های منطبق با قاعدهٔ فعال وارد صف بررسی می‌شوند. هیچ تراکنشی ثبت نمی‌شود مگر اینکه آن را بررسی و صریحاً بخش شخصی یا کسب‌وکار VPN را انتخاب کنید.',
+    'Inbox messages enter the review queue only when matched by an enabled rule. Pasted messages can be added manually. No transaction is recorded until you review it and explicitly choose Personal or VPN business.': 'پیامک‌های صندوق ورودی فقط در صورت تطبیق با قاعدهٔ فعال وارد صف بررسی می‌شوند. پیامک‌های چسبانده‌شده را می‌توان دستی افزود. هیچ تراکنشی ثبت نمی‌شود مگر اینکه آن را بررسی و صریحاً بخش شخصی یا کسب‌وکار VPN را انتخاب کنید.',
     'Built-in banks': 'بانک‌های داخلی',
     'Custom rules': 'قواعد سفارشی',
     'No custom rules yet. Add a sender ID or phrase to recognize a bank or payment service not listed above.': 'هنوز قاعدهٔ سفارشی ندارید. شناسهٔ فرستنده یا عبارتی را برای شناسایی بانک یا سرویس پرداختی که در فهرست بالا نیست اضافه کنید.',
@@ -541,11 +569,16 @@ class AppLocalization {
     'Transaction recorded from SMS': 'تراکنش از پیامک ثبت شد',
     'Review and record': 'بررسی و ثبت',
     'Quick button': 'دکمهٔ سریع',
-    'Required permissions': 'دسترسی‌های لازم',
-    'Poolland uses notifications for the daily reminder. You can skip now and grant it later from Settings.':
-        'پول‌لند برای یادآور روزانه از اعلان استفاده می‌کند. می‌توانید الان رد کنید و بعداً از تنظیمات اجازه بدهید.',
+    'Permissions': 'دسترسی‌ها',
+    'SMS stays on this device. Review each matched message before recording it.':
+        'پیامک‌ها روی همین دستگاه می‌مانند. هر پیامک منطبق را پیش از ثبت بررسی کنید.',
+    'Notifications and SMS access are optional. You can sync recent messages or enable on-device alerts for new bank SMS. Matching messages enter review; no transaction is recorded until you approve it.':
+        'دسترسی اعلان و پیامک اختیاری است. می‌توانید پیامک‌های اخیر را همگام‌سازی کنید یا اعلان پیامک بانکی تازه را روی همین دستگاه فعال کنید. پیامک‌های منطبق به صف بررسی می‌روند و تا تأیید شما هیچ تراکنشی ثبت نمی‌شود.',
     'Show notifications': 'نمایش اعلان‌ها',
     'For the daily expense reminder': 'برای یادآور روزانهٔ هزینه‌ها',
+    'For syncing recent bank messages into review': 'برای همگام‌سازی پیامک‌های بانکی اخیر و بررسی آن‌ها',
+    'SMS access was not granted. You can enable it later from the SMS review page.':
+        'دسترسی پیامک داده نشد. می‌توانید بعداً از صفحهٔ بررسی پیامک‌ها آن را فعال کنید.',
     'Grant permissions': 'اعطای دسترسی‌ها',
     'Skip for now': 'فعلاً رد کردن',
     'Notification permission not granted': 'دسترسی اعلان داده نشده',
@@ -598,8 +631,6 @@ class AppLocalization {
         'تومان، دلار، تتر و هر ارزی که اضافه کنید',
     'Enter a name': 'نام را وارد کنید',
     'No items found': 'موردی پیدا نشد',
-    'No new transaction messages found. Tap Sync to check recent messages.':
-        'پیامک تراکنش جدیدی پیدا نشد. برای بررسی دوباره، همگام‌سازی را بزنید.',
     'Tap + to record your first sale or expense.':
         'برای ثبت اولین فروش یا هزینه، دکمهٔ + را بزنید.',
     'Tap + to record a sale, receipt, or expense.':
@@ -614,7 +645,7 @@ class AppLocalization {
         'نسخهٔ {version} • نرم‌افزار متن‌باز (MIT)',
     'The Personal section is for your own finances and is not included in business profit or loss.': 'بخش شخصی برای امور مالی خودتان است و در سود و زیان کسب‌وکار محاسبه نمی‌شود.',
     'SMS access is not available on web or desktop. Try this feature on an Android phone.': 'دسترسی پیامک در وب یا رایانه فراهم نیست. این قابلیت را در تلفن اندرویدی امتحان کنید.',
-    'To let Poolland read bank SMS and automatically identify deposits and withdrawals, grant SMS permission.\n\n• SMS messages are read on this device only\n• No data is sent anywhere\n• No transaction is recorded until you approve it': 'برای شناسایی خودکار واریز و برداشت، دسترسی خواندن پیامک بانکی را به پول‌لند بدهید.\n\n• پیامک‌ها فقط روی همین دستگاه خوانده می‌شوند\n• هیچ داده‌ای جایی ارسال نمی‌شود\n• تا زمانی که تأیید نکنید، تراکنشی ثبت نمی‌شود',
+    'To let Poolland read recent bank SMS when you sync, grant SMS access.\n\n• Messages are read on this device\n• No data is sent anywhere\n• No transaction is recorded until you approve it': 'برای خواندن پیامک‌های بانکی اخیر هنگام همگام‌سازی، دسترسی پیامک را به پول‌لند بدهید.\n\n• پیامک‌ها روی همین دستگاه خوانده می‌شوند\n• هیچ داده‌ای جایی ارسال نمی‌شود\n• تا زمانی که تأیید نکنید، تراکنشی ثبت نمی‌شود',
     'Subscriptions ({count})': 'اشتراک‌ها ({count})',
     'Transactions ({count})': 'تراکنش‌ها ({count})',
     '{who} {customer}': '{who} {customer}',

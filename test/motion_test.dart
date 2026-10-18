@@ -390,6 +390,37 @@ void main() {
     ),
   );
 
+  testWidgets('ledger sheet grab handle closes a short sheet', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      sheetHost(
+        sheet: (ctx) => SizedBox(
+          height: 220,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SheetHandle(),
+              const SizedBox(height: 12),
+              const Text('short sheet body'),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(find.text('short sheet body'), findsOneWidget);
+
+    // The handle is painted in the top grab strip. The pointer tracker must
+    // observe events through the overlay gesture detector, even when the
+    // sheet's content has no scrollable to produce overscroll notifications.
+    final handle = tester.getRect(find.byType(SheetHandle));
+    await tester.dragFrom(handle.center, const Offset(0, 160));
+    await tester.pumpAndSettle();
+    expect(find.text('short sheet body'), findsNothing);
+  });
+
   testWidgets('ledger sheet closes on a pull-down under bouncing physics', (
     tester,
   ) async {

@@ -3,19 +3,14 @@ import 'package:provider/provider.dart';
 
 import '../core/localization.dart';
 import '../core/notifications/notify.dart';
+import '../core/platform_info.dart';
+import '../core/sms/sms_access.dart';
 import '../data/repository.dart';
 import 'widgets/widgets.dart';
 
-/// One-time permissions gate shown on the very first app open (and after a
-/// backup restore onto a fresh install, where the restored settings claim
-/// notifications while no permission was ever granted here).
-///
-/// The user answers once — grant or skip — and only then does the real app
-/// open, so nothing silently runs without the permissions it needs.
-///
-/// The app asks for one permission only: the notification permission behind
-/// the daily reminder. It has no SMS permission at all, so there is nothing
-/// to ask about reading messages.
+/// One-time permissions introduction shown before the app opens for the first
+/// time. Notifications and SMS inbox access are optional; the user can grant
+/// either permission or skip the screen and enable access later when needed.
 class PermissionsIntroPage extends StatefulWidget {
   const PermissionsIntroPage({super.key});
 
@@ -25,25 +20,43 @@ class PermissionsIntroPage extends StatefulWidget {
 
 class _PermissionsIntroPageState extends State<PermissionsIntroPage> {
   bool? _notifyGranted;
+  bool? _smsGranted;
   bool _busy = false;
 
-  bool get _answered => !reminder.supported || _notifyGranted != null;
+  bool get _answered =>
+      (!reminder.supported || _notifyGranted != null) &&
+      (!isAndroidPlatform || _smsGranted != null);
 
   Future<void> _grantAll() async {
     final repo = context.read<AppRepository>();
     setState(() => _busy = true);
-    bool? notify;
-    if (reminder.supported) {
-      notify = await reminder.requestPermission();
-      await repo.refreshNotificationPermission();
+
+    var notify = _notifyGranted;
+    var sms = _smsGranted;
+    if (reminder.supported && notify == null) {
+      try {
+        notify = await reminder.requestPermission();
+        await repo.refreshNotificationPermission();
+      } catch (_) {
+        notify = false;
+      }
     }
+    if (isAndroidPlatform && sms == null) {
+      try {
+        sms = await smsAccess.requestReadPermission();
+      } catch (_) {
+        sms = false;
+      }
+    }
+
     if (!mounted) return;
     setState(() {
       _busy = false;
       _notifyGranted = notify;
+      _smsGranted = sms;
     });
-    // A denied request is not a dead end: the toggles in Settings ask again,
-    // and the primary button now just continues into the app.
+    // A denied request is not a dead end: SMS can be requested from its
+    // review page later, and notifications can be enabled in Settings.
   }
 
   Future<void> _finish() async {
@@ -70,7 +83,7 @@ class _PermissionsIntroPageState extends State<PermissionsIntroPage> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Required permissions'.tr,
+                  'Permissions'.tr,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 20,
@@ -79,7 +92,7 @@ class _PermissionsIntroPageState extends State<PermissionsIntroPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Poolland uses notifications for the daily reminder. You can skip now and grant it later from Settings.'
+                  'Notifications and SMS access are optional. You can sync recent messages or enable on-device alerts for new bank SMS. Matching messages enter review; no transaction is recorded until you approve it.'
                       .tr,
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -97,6 +110,18 @@ class _PermissionsIntroPageState extends State<PermissionsIntroPage> {
                     reason: 'For the daily expense reminder'.tr,
                     state: _notifyGranted,
                   ),
+                if (isAndroidPlatform) ...[
+                  if (reminder.supported) const SizedBox(height: 10),
+                  _PermissionRow(
+                    icon: Icons.sms_outlined,
+                    title: 'Read bank SMS'.tr,
+                    reason: _smsGranted == false
+                        ? 'SMS access was not granted. You can enable it later from the SMS review page.'
+                              .tr
+                        : 'For syncing recent bank messages into review'.tr,
+                    state: _smsGranted,
+                  ),
+                ],
                 const SizedBox(height: 28),
                 FilledButton.icon(
                   onPressed: _busy ? null : (_answered ? _finish : _grantAll),
