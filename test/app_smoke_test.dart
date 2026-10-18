@@ -540,6 +540,63 @@ void main() {
     expect(find.text('Record transaction'), findsOneWidget);
     expect(repo.transactions.length, initialTransactionCount);
     expect(tester.takeException(), isNull);
+
+    // Exercise the real approval route rather than a generic test sheet. The
+    // visible pill is only 4 px tall, so start the swipe on its center as a
+    // user would. A short deliberate pull must close without recording.
+    final handle = find.descendant(
+      of: find.byType(SmsReviewSheet),
+      matching: find.byType(SheetHandle),
+    );
+    await tester.dragFrom(tester.getCenter(handle), const Offset(0, 100));
+    await tester.pumpAndSettle();
+    expect(find.text('Record this SMS transaction'), findsNothing);
+    expect(repo.transactions.length, initialTransactionCount);
+  });
+
+  testWidgets('SMS review sheet closes when pulled down from its content', (
+    tester,
+  ) async {
+    final sms = ParsedSms(
+      message: SmsMessage(
+        id: 'review-dismiss-sms',
+        address: 'BANK',
+        body: 'واریز مبلغ 100,000 ریال',
+        date: DateTime.now(),
+      ),
+      bankName: 'Test Bank',
+      amount: 100000,
+      direction: SmsDirection.deposit,
+      confident: true,
+    );
+    final initialTransactionCount = repo.transactions.length;
+
+    await tester.pumpWidget(
+      wrap(
+        Builder(
+          builder: (context) => FilledButton(
+            onPressed: () => showLedgerSheet<void>(
+              context,
+              builder: (_) => SmsReviewSheet(sms: sms),
+            ),
+            child: const Text('Open SMS review'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open SMS review'));
+    await tester.pumpAndSettle();
+    expect(find.text('Record this SMS transaction'), findsOneWidget);
+
+    final sheet = tester.getRect(find.byType(SmsReviewSheet));
+    await tester.dragFrom(
+      Offset(sheet.center.dx, sheet.top + 82),
+      const Offset(0, 140),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Record this SMS transaction'), findsNothing);
+    expect(repo.transactions.length, initialTransactionCount);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('SMS review requires a scope before recording', (tester) async {

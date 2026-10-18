@@ -982,14 +982,19 @@ class _SheetDismissScope extends InheritedWidget {
 class _SheetDismissState extends State<_SheetDismiss>
     with SingleTickerProviderStateMixin {
   /// Height of the grab strip along the top edge of the sheet.
-  static const double _grabHeight = 34;
+  ///
+  /// Keep this larger than the painted handle: on a phone the handle is only
+  /// four logical pixels tall, but people naturally start a swipe anywhere in
+  /// the top padding around it.
+  static const double _grabHeight = 56;
 
   /// How far the sheet must be pulled down before letting go dismisses it.
   ///
-  /// Deliberately more than a touch slop: the sheet has to visibly leave its
-  /// resting place, so grazing the top of a list cannot close it while a
-  /// deliberate pull always does.
-  static const double _dismissPull = 110;
+  /// This is intentionally a short, deliberate pull rather than a large part
+  /// of the sheet: on high-density phones, a 100+ logical-pixel threshold felt
+  /// too demanding for a thumb swipe. It still exceeds touch slop enough that
+  /// a small graze cannot close the sheet accidentally.
+  static const double _dismissPull = 72;
 
   /// A downward fling dismisses from here, without needing the full pull.
   static const double _flingVelocity = 900;
