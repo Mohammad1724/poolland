@@ -22,7 +22,14 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter analyze
+      - name: Run flutter analyze
+        run: |
+          if ! flutter analyze > /tmp/analyze.log 2>&1; then
+            cat /tmp/analyze.log
+            grep -E "^\s*(error|warning|info) " /tmp/analyze.log | head -10 | sed 's/^/::error::/'
+            exit 1
+          fi
+          cat /tmp/analyze.log
       - run: flutter test --concurrency=1
 
   build-apk:

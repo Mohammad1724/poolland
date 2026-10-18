@@ -248,7 +248,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
 
             // -------- Customer card --------
             if (scope == TxnScope.business) ...[
-              _customerCard(repo),
+              _customerCard(),
               const SizedBox(height: 12),
             ],
 
@@ -444,7 +444,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     );
   }
 
-  Widget _customerCard(AppRepository repo) {
+  Widget _customerCard() {
     final customer = _customer;
     return _SectionCard(
       accentColor: _kCustomerAccent,
@@ -607,7 +607,6 @@ class _SectionCard extends StatelessWidget {
     required this.backgroundColor,
     required this.icon,
     required this.title,
-    this.subtitle,
     required this.child,
   });
 
@@ -615,7 +614,6 @@ class _SectionCard extends StatelessWidget {
   final Color backgroundColor;
   final IconData icon;
   final String title;
-  final String? subtitle;
   final Widget child;
 
   @override
@@ -645,26 +643,13 @@ class _SectionCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: accentColor,
-                      ),
-                    ),
-                    if (subtitle != null)
-                      Text(
-                        subtitle!,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: accentColor.withValues(alpha: 0.75),
-                        ),
-                      ),
-                  ],
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: accentColor,
+                  ),
                 ),
               ),
             ],
