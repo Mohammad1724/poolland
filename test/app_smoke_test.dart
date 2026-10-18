@@ -537,7 +537,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Record this SMS transaction'), findsOneWidget);
-    expect(find.text('Record transaction'), findsOneWidget);
+    expect(find.text('Confirm and record'), findsOneWidget);
     expect(repo.transactions.length, initialTransactionCount);
     expect(tester.takeException(), isNull);
 
@@ -622,27 +622,18 @@ void main() {
     // frequent categories / regular contacts are offered as one-tap chips.
     final buttonFinder = find.widgetWithText(
       FilledButton,
-      'Record transaction',
+      'Confirm and record',
     );
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
-    expect(find.text('Amount'), findsOneWidget);
-    // The sheet speaks the same visual language as the entry form: a
-    // full-width scope segment.
-    expect(find.byType(SegmentedButton<TxnScope>), findsOneWidget);
+    expect(find.text('Transaction amount'), findsOneWidget);
+    // The redesigned sheet uses _ScopeChip instead of SegmentedButton.
+    expect(find.text('Business'), findsOneWidget);
+    expect(find.text('Personal'), findsOneWidget);
 
-    // It opens on the business side, where regular contacts are one-tap
-    // chips. The default is fixed, not derived from the newest entry, so the
-    // sheet cannot open a bank deposit on the personal side.
-    expect(
-      tester
-          .widget<SegmentedButton<TxnScope>>(
-            find.byType(SegmentedButton<TxnScope>),
-          )
-          .selected,
-      {TxnScope.business},
-    );
-    expect(find.byType(PresetChip), findsWidgets);
-    expect(find.byType(ChipStrip), findsWidgets);
+    // It opens on the business side, where regular contacts are shown
+    // as a card. The default is fixed, not derived from the newest entry,
+    // so the sheet cannot open a bank deposit on the personal side.
+    expect(find.byType(ContactBalanceCard), findsNothing);
 
     // Switching the section still re-derives kind and category.
     await tester.tap(find.text('Personal'));
@@ -652,7 +643,7 @@ void main() {
     // And switching back does not lose the one-tap contacts.
     await tester.tap(find.text('Business'));
     await tester.pumpAndSettle();
-    expect(find.byType(PresetChip), findsWidgets);
+    expect(find.byType(ContactBalanceCard), findsNothing);
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
   });
 
