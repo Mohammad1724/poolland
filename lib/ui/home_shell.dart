@@ -88,7 +88,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   /// The repository this shell keeps a handle on, so lifecycle callbacks and
   /// notification taps can be handled without rebuilding the whole shell.
   AppRepository? _repo;
-  late final StreamSubscription<SmsMessage> _smsNotificationSubscription;
+  StreamSubscription<SmsMessage>? _smsNotificationSubscription;
   final Set<String> _handledSmsNotificationKeys = {};
   final List<SmsMessage> _deferredSmsNotificationTaps = [];
 
@@ -96,7 +96,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void dispose() {
     _closeDial();
     _dialHighlight.dispose();
-    unawaited(_smsNotificationSubscription.cancel());
+    _smsNotificationSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _fabVisible.dispose();
     for (final controller in _scrollControllers.values) {
