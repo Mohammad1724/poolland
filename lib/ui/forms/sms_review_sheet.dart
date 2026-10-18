@@ -573,7 +573,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                   amount: value,
                   scope: _scope,
                 );
-                if (context.mounted) {
+                if (mounted) {
                   MoneyCelebration.recorded(context);
                   Navigator.pop(context, true);
                 }
