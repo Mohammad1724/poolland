@@ -537,8 +537,8 @@ void main() {
     await tester.pumpWidget(wrap(SmsPage(openReviewKey: reviewKey)));
     await tester.pumpAndSettle();
 
-    expect(find.text('Record this SMS transaction'), findsOneWidget);
-    expect(find.text('Confirm and record'), findsOneWidget);
+    expect(find.text('ثبت این تراکنش پیامکی'), findsOneWidget);
+    expect(find.text('ثبت تراکنش'), findsOneWidget);
     expect(repo.transactions.length, initialTransactionCount);
     expect(tester.takeException(), isNull);
 
@@ -551,7 +551,7 @@ void main() {
     );
     await tester.dragFrom(tester.getCenter(handle), const Offset(0, 100));
     await tester.pumpAndSettle();
-    expect(find.text('Record this SMS transaction'), findsNothing);
+    expect(find.text('ثبت این تراکنش پیامکی'), findsNothing);
     expect(repo.transactions.length, initialTransactionCount);
   });
 
@@ -587,7 +587,7 @@ void main() {
     );
     await tester.tap(find.text('Open SMS review'));
     await tester.pumpAndSettle();
-    expect(find.text('Record this SMS transaction'), findsOneWidget);
+    expect(find.text('ثبت این تراکنش پیامکی'), findsOneWidget);
 
     final sheet = tester.getRect(find.byType(SmsReviewSheet));
     await tester.dragFrom(
@@ -595,7 +595,7 @@ void main() {
       const Offset(0, 140),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Record this SMS transaction'), findsNothing);
+    expect(find.text('ثبت این تراکنش پیامکی'), findsNothing);
     expect(repo.transactions.length, initialTransactionCount);
     expect(tester.takeException(), isNull);
   });
