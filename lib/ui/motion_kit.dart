@@ -1014,10 +1014,10 @@ class _SheetDismissState extends State<_SheetDismiss>
   /// neither has a pointer-up that would ever put the sheet back.
   bool _pointerDown = false;
 
-  /// Tracks the pull from the [Listener] pointer events directly, so the
-  /// sheet can dismiss even when the drag recognizer loses the gesture
-  /// arena to the scrollable underneath.
-  Offset? _pointerOrigin;
+  /// When the pointer went down on the grab strip (top [_grabHeight] pixels),
+  /// tracks the origin so the Listener can accumulate pull as a fallback
+  /// when the drag recognizer loses the arena to the scrollable.
+  Offset? _grabOrigin;
 
   VelocityTracker? _tracker;
 
@@ -1077,15 +1077,17 @@ class _SheetDismissState extends State<_SheetDismiss>
     _setPull(_adopt() + delta);
   }
 
-  /// Updates the pull from a raw pointer position, used as a fallback when
-  /// the drag recognizer loses the arena. Tracks distance from the original
-  /// pointer-down location so the sheet dismisses regardless of which
-  /// recognizer wins the gesture.
-  void updatePullFromPointer(Offset position) {
+  /// Fallback pull tracker for when the drag recognizer loses the arena.
+  ///
+  /// Only active when the pointer went down on the grab strip (top
+  /// [_grabHeight] pixels). Computes pull from the distance between the
+  /// current pointer position and the origin, so the sheet can dismiss
+  /// even without the drag recognizer's help.
+  void updatePullFromGrab(Offset position) {
     if (!widget.enabled || _closing || _decided || !_pointerDown) return;
-    if (_pointerOrigin == null) return;
-    final delta = position.dy - _pointerOrigin!.dy;
-    if (delta <= 0) return; // ignore upward movement
+    if (_grabOrigin == null) return;
+    final delta = position.dy - _grabOrigin!.dy;
+    if (delta <= 0) return;
     _setPull(delta);
   }
 
@@ -1176,24 +1178,27 @@ class _SheetDismissState extends State<_SheetDismiss>
       onPointerDown: (e) {
         _pointerDown = true;
         _decided = false;
-        _pointerOrigin = e.position;
+        // If the pointer went down on the grab strip (top _grabHeight pixels),
+        // track the origin so we can accumulate pull as a fallback when the
+        /// drag recognizer loses the arena.
+        if (e.position.dy < _grabHeight) {
+          _grabOrigin = e.position;
+        }
         _tracker = VelocityTracker.withKind(e.kind);
       },
       onPointerMove: (e) {
         _tracker?.addPosition(e.timeStamp, e.position);
-        // Track pull directly from pointer movement, so the sheet can
-        // dismiss even when the drag recognizer loses the arena to the
-        // scrollable underneath.
-        updatePullFromPointer(e.position);
+        // Fallback pull tracking for when the drag recognizer lost the arena.
+        updatePullFromGrab(e.position);
       },
       onPointerUp: (e) {
         _pointerDown = false;
-        _pointerOrigin = null;
+        _grabOrigin = null;
         release(velocity: _tracker?.getVelocity().pixelsPerSecond.dy ?? 0);
       },
       onPointerCancel: (_) {
         _pointerDown = false;
-        _pointerOrigin = null;
+        _grabOrigin = null;
         _decided = true;
         _tracker = null;
         if (_pull > 0) _snapBack();
