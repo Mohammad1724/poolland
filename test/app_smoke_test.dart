@@ -670,11 +670,15 @@ void main() {
       // Opens on Business scope with "To account" («به حساب») button for expense.
       expect(find.text('To account'), findsOneWidget);
       expect(find.text('Contact (optional)'), findsOneWidget);
+      final businessHeight = tester.getSize(find.byType(SmsReviewSheet)).height;
 
-      // Horizontal swipe switches from Business to Personal scope.
+      // Horizontal swipe switches from Business to Personal scope while
+      // keeping the sheet height locked.
       await tester.drag(find.byType(SmsReviewSheet), const Offset(-120, 0));
       await tester.pumpAndSettle();
       expect(find.text('Contact (optional)'), findsNothing);
+      final personalHeight = tester.getSize(find.byType(SmsReviewSheet)).height;
+      expect(personalHeight, closeTo(businessHeight, 1.0));
 
       // In Personal expense scope, the seeded "Fuel" («بنزین») shortcut chip
       // is shown directly on the main sheet.

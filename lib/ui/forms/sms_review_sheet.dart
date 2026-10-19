@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -19,7 +21,8 @@ import 'contact_edit_page.dart';
 ///
 /// Supports:
 /// - Interactive Income (`درآمد`) / Expense (`هزینه`) toggle in the top header.
-/// - Smooth horizontal swipe between Business (`کسب‌وکار`) and Personal (`شخصی`).
+/// - Finger-tracking horizontal drag with magnetic snap between Business
+///   (`کسب‌وکار`) and Personal (`شخصی`), keeping the sheet height constant.
 /// - «به حساب» (Expense) / «از حساب» (Income) button that opens a hierarchical
 ///   category -> subcategory picker window.
 /// - One-tap subcategory shortcuts (`میان‌بر`) pinned directly on the sheet,
@@ -34,15 +37,32 @@ class SmsReviewSheet extends StatefulWidget {
   State<SmsReviewSheet> createState() => _SmsReviewSheetState();
 }
 
-class _SmsReviewSheetState extends State<SmsReviewSheet> {
+class _SmsReviewSheetState extends State<SmsReviewSheet>
+    with SingleTickerProviderStateMixin {
   late TextEditingController _amount;
+  late AnimationController _scopeAnim;
   Customer? _customer;
   late bool _isIncome;
   TxnKind _kind = TxnKind.income;
   TxnScope _scope = TxnScope.business;
+
+  // Magnetic pager state
+  TxnScope _fromScope = TxnScope.business;
+  TxnScope _toScope = TxnScope.personal;
+  bool _isDragging = false;
+  bool _magnetTriggered = false;
+  double _dragDx = 0;
+  double _slideDir = 1.0;
+
+  // Locked height so switching between Business and Personal never changes
+  // the bottom sheet's vertical size.
+  final GlobalKey _businessMeasureKey = GlobalKey();
+  double _lockedScopeHeight = 168.0;
+
+  // Separate category selections per scope so peeking the other page during
+  // a drag shows a valid category for that scope too.
   String? _categoryId;
   bool _presetDone = false;
-  double _horizontalDragDx = 0;
 
   @override
   void initState() {
@@ -54,6 +74,13 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
         decimals: Money.decimals(widget.sms.currency),
       ),
     );
+    _scopeAnim = AnimationController(
+      vsync: this,
+      value: 0.0,
+      duration: const Duration(milliseconds: 240),
+    )..addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -63,6 +90,8 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     _presetDone = true;
     final repo = context.read<AppRepository>();
     _scope = TxnScope.business;
+    _fromScope = TxnScope.business;
+    _toScope = TxnScope.personal;
     _customer = widget.initialCustomer;
     _kind = _suggestedKind(repo, _scope);
     _categoryId = _suggestedCategoryId(repo, _scope);
@@ -70,8 +99,36 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
 
   @override
   void dispose() {
+    _scopeAnim.dispose();
     _amount.dispose();
     super.dispose();
+  }
+
+  bool get _isTransitioning =>
+      _isDragging || (_scopeAnim.isAnimating && _scopeAnim.value > 0.001);
+
+  /// Continuous 0.0 (Business) -> 1.0 (Personal) progress for the top tab pill.
+  double get _personalProgress {
+    if (!_isTransitioning) {
+      return _scope == TxnScope.personal ? 1.0 : 0.0;
+    }
+    final t = Curves.easeOutCubic.transform(_scopeAnim.value.clamp(0.0, 1.0));
+    return _fromScope == TxnScope.business ? t : 1.0 - t;
+  }
+
+  void _measureBusinessHeight() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _businessMeasureKey.currentContext;
+      if (ctx == null) return;
+      final box = ctx.findRenderObject();
+      if (box is RenderBox && box.hasSize) {
+        final h = box.size.height;
+        if (h > 120 && (h - _lockedScopeHeight).abs() > 1.0) {
+          setState(() => _lockedScopeHeight = h);
+        }
+      }
+    });
   }
 
   TxnKind _suggestedKind(AppRepository repo, TxnScope scope) {
@@ -93,7 +150,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   };
 
   String? _suggestedCategoryId(AppRepository repo, TxnScope scope) {
-    final kind = _categoryKind(_kind);
+    final kind = _categoryKind(_suggestedKind(repo, scope));
     return kind == null ? null : repo.defaultCategoryId(kind, scope: scope);
   }
 
@@ -126,44 +183,145 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     });
   }
 
-  void _changeScope(AppRepository repo, TxnScope scope) {
-    if (_scope == scope) {
-      if (_horizontalDragDx != 0) setState(() => _horizontalDragDx = 0);
-      return;
-    }
+  void _applyScopeState(AppRepository repo, TxnScope scope) {
+    _scope = scope;
+    _customer = scope == TxnScope.business ? widget.initialCustomer : null;
+    _kind = _suggestedKind(repo, scope);
+    _categoryId = _suggestedCategoryId(repo, scope);
+  }
+
+  void _changeScopeByTap(AppRepository repo, TxnScope target) {
+    if (_scope == target && !_isTransitioning) return;
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    // In RTL, Business is on the right and Personal is on the left:
+    // switching to Personal pulls the left page rightward (+1), and switching
+    // to Business pulls the right page leftward (-1).
+    final dirForTarget = target == TxnScope.personal
+        ? (isRtl ? 1.0 : -1.0)
+        : (isRtl ? -1.0 : 1.0);
+    _fromScope = _scope;
+    _toScope = target;
+    _slideDir = dirForTarget;
+    _isDragging = false;
+    _magnetTriggered = true;
     Haptics.selection();
     setState(() {
-      _horizontalDragDx = 0;
-      _scope = scope;
-      _customer = scope == TxnScope.business ? widget.initialCustomer : null;
-      _kind = _suggestedKind(repo, scope);
-      _categoryId = _suggestedCategoryId(repo, scope);
+      _applyScopeState(repo, target);
+    });
+    _scopeAnim.forward(from: 0.0).then((_) {
+      if (!mounted) return;
+      setState(() {
+        _fromScope = _scope;
+        _scopeAnim.value = 0.0;
+      });
     });
   }
 
-  void _handleHorizontalSwipeUpdate(DragUpdateDetails details) {
+  void _handleHorizontalDragStart(DragStartDetails details) {
+    if (_scopeAnim.isAnimating) {
+      _scopeAnim.stop();
+    }
+    _fromScope = _scope;
+    _toScope = _scope == TxnScope.business
+        ? TxnScope.personal
+        : TxnScope.business;
+    _dragDx = 0;
+    _isDragging = true;
+    _magnetTriggered = false;
+    _scopeAnim.value = 0.0;
+  }
+
+  void _handleHorizontalDragUpdate(
+    AppRepository repo,
+    DragUpdateDetails details,
+  ) {
+    if (_magnetTriggered) return;
+    final width = (context.size?.width ?? 360.0).clamp(240.0, 600.0);
+    _dragDx += details.delta.dx;
+    if (_dragDx.abs() > 0.5) {
+      _slideDir = _dragDx.sign;
+    }
+    final fraction = (_dragDx.abs() / width).clamp(0.0, 1.0);
+    // Up to the magnetic catch point (~26% of the width, around 90px), the
+    // page glides 1:1 with the user's finger. Once it crosses that point,
+    // the magnet catches and pulls it all the way to the end automatically.
+    final magnetThreshold = math.min(width * 0.26, 96.0);
+    if (_dragDx.abs() >= magnetThreshold) {
+      _triggerMagneticSnap(repo, fromFraction: fraction);
+    } else {
+      _scopeAnim.value = fraction;
+    }
+  }
+
+  void _triggerMagneticSnap(
+    AppRepository repo, {
+    required double fromFraction,
+  }) {
+    _magnetTriggered = true;
+    _isDragging = false;
+    _scopeAnim.value = fromFraction;
+    Haptics.selection();
     setState(() {
-      _horizontalDragDx = (_horizontalDragDx + details.delta.dx).clamp(
-        -90.0,
-        90.0,
-      );
+      _applyScopeState(repo, _toScope);
     });
+    _scopeAnim
+        .animateTo(
+          1.0,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        )
+        .then((_) {
+          if (!mounted) return;
+          setState(() {
+            _fromScope = _scope;
+            _scopeAnim.value = 0.0;
+          });
+        });
   }
 
-  void _handleHorizontalSwipeEnd(
+  void _handleHorizontalDragEnd(
     AppRepository repo,
     DragEndDetails details,
   ) {
+    if (_magnetTriggered) return;
+    _isDragging = false;
+    final width = (context.size?.width ?? 360.0).clamp(240.0, 600.0);
     final velocity = details.primaryVelocity ?? 0;
-    final swipedEnough = _horizontalDragDx.abs() > 32 || velocity.abs() > 180;
-    if (!swipedEnough) {
-      if (_horizontalDragDx != 0) setState(() => _horizontalDragDx = 0);
-      return;
+    if (_dragDx.abs() < 1 && velocity.abs() > 1) {
+      _slideDir = velocity.sign;
     }
-    final nextScope = _scope == TxnScope.business
-        ? TxnScope.personal
-        : TxnScope.business;
-    _changeScope(repo, nextScope);
+    final fraction = (_dragDx.abs() / width).clamp(0.0, 1.0);
+    final shouldSnapToTarget =
+        _dragDx.abs() >= math.min(width * 0.15, 65.0) ||
+        velocity.abs() > 180;
+
+    if (shouldSnapToTarget) {
+      _triggerMagneticSnap(repo, fromFraction: fraction);
+    } else {
+      _scopeAnim
+          .animateTo(
+            0.0,
+            duration: const Duration(milliseconds: 170),
+            curve: Curves.easeOutCubic,
+          )
+          .then((_) {
+            if (!mounted) return;
+            setState(() {
+              _fromScope = _scope;
+              _scopeAnim.value = 0.0;
+            });
+          });
+    }
+  }
+
+  void _handleHorizontalDragCancel() {
+    if (_magnetTriggered) return;
+    _isDragging = false;
+    _scopeAnim.animateTo(
+      0.0,
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   Future<void> _openAccountCategorySheet(
@@ -244,12 +402,9 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
     final sms = widget.sms;
-    final scope = _scope;
-    final categoryKind = _categoryKind(_kind);
-    final shortcuts = categoryKind == null
-        ? const <Category>[]
-        : repo.shortcutCategories(categoryKind, scope: scope);
-    final availableKinds = _availableKinds(repo, scope);
+    if (_scope == TxnScope.business) {
+      _measureBusinessHeight();
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -261,12 +416,10 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onHorizontalDragStart: (_) => _horizontalDragDx = 0,
-        onHorizontalDragUpdate: _handleHorizontalSwipeUpdate,
-        onHorizontalDragCancel: () {
-          if (_horizontalDragDx != 0) setState(() => _horizontalDragDx = 0);
-        },
-        onHorizontalDragEnd: (d) => _handleHorizontalSwipeEnd(repo, d),
+        onHorizontalDragStart: _handleHorizontalDragStart,
+        onHorizontalDragUpdate: (d) => _handleHorizontalDragUpdate(repo, d),
+        onHorizontalDragCancel: _handleHorizontalDragCancel,
+        onHorizontalDragEnd: (d) => _handleHorizontalDragEnd(repo, d),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
@@ -281,7 +434,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
               const SizedBox(height: 12),
 
               // -------- Scope toggle (tap or swipe horizontally) --------
-              _scopeRow(repo, scope),
+              _scopeRow(repo),
               const SizedBox(height: 10),
 
               // -------- Amount (single compact field) --------
@@ -293,83 +446,8 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                 onChanged: () => setState(() {}),
               ),
 
-              // -------- Smoothly resized & faded scope section --------
-              AnimatedSize(
-                duration: Motion.adaptive(
-                  context,
-                  const Duration(milliseconds: 200),
-                ),
-                curve: Curves.easeOutCubic,
-                alignment: Alignment.topCenter,
-                child: AnimatedContainer(
-                  duration: _horizontalDragDx == 0
-                      ? const Duration(milliseconds: 180)
-                      : Duration.zero,
-                  curve: Curves.easeOutCubic,
-                  transform: Matrix4.translationValues(
-                    _horizontalDragDx * 0.18,
-                    0,
-                    0,
-                  ),
-                  child: Column(
-                    key: ValueKey<String>('${scope.name}-$_isIncome'),
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (availableKinds.length > 1) ...[
-                        const SizedBox(height: 8),
-                        TxnKindStrip(
-                          kinds: availableKinds,
-                          selected: _kind,
-                          onSelect: (k) => setState(() {
-                            _kind = k;
-                            _categoryId = _suggestedCategoryId(repo, scope);
-                          }),
-                        ),
-                      ],
-
-                      // -------- «به حساب» / «از حساب» + Shortcuts --------
-                      if (categoryKind != null) ...[
-                        const SizedBox(height: 12),
-                        _accountSelectorSection(
-                          repo: repo,
-                          categoryKind: categoryKind,
-                          scope: scope,
-                          shortcuts: shortcuts,
-                        ),
-                      ],
-
-                      // -------- Contact (Business scope only) --------
-                      if (scope == TxnScope.business) ...[
-                        const SizedBox(height: 12),
-                        const SectionCaption('Contact (optional)'),
-                        const SizedBox(height: 6),
-                        ChipStrip(
-                          chips: [
-                            for (final c in repo.topCustomers(limit: 3))
-                              _contactChip(repo, c),
-                            PresetChip(
-                              icon: Icons.person_search_outlined,
-                              label: 'All contacts'.tr,
-                              onTap: _openContactSheet,
-                            ),
-                            PresetChip(
-                              icon: Icons.person_add_alt_1_rounded,
-                              label: 'New contact'.tr,
-                              onTap: _newContact,
-                            ),
-                          ],
-                        ),
-                        if (_customer != null)
-                          ContactBalanceCard(
-                            customer: _customer!,
-                            balance: repo.balanceOf(_customer!),
-                          ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
+              // -------- Magnetic 2-page viewport with fixed height --------
+              _buildMagneticScopeViewport(repo),
 
               const SizedBox(height: 14),
 
@@ -379,6 +457,142 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
           ),
         ),
       ),
+    );
+  }
+
+  /// Renders the active scope page (and during a swipe/magnetic snap, both
+  /// the outgoing and incoming pages side-by-side) inside a fixed-height
+  /// viewport so the sheet height never jumps when switching scopes.
+  Widget _buildMagneticScopeViewport(AppRepository repo) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: _lockedScopeHeight),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : MediaQuery.sizeOf(context).width - 32;
+          if (!_isTransitioning) {
+            return _buildScopePage(
+              repo,
+              _scope,
+              measureKey: _scope == TxnScope.business
+                  ? _businessMeasureKey
+                  : null,
+            );
+          }
+
+          final rawT = _scopeAnim.value.clamp(0.0, 1.0);
+          final t = _isDragging
+              ? rawT
+              : Curves.easeOutCubic.transform(rawT);
+          final fromDx = _slideDir * width * t;
+          final toDx = fromDx - _slideDir * width;
+
+          return ClipRect(
+            child: Stack(
+              alignment: Alignment.topCenter,
+              children: [
+                Transform.translate(
+                  offset: Offset(fromDx, 0),
+                  child: Opacity(
+                    opacity: (1.0 - t * 0.35).clamp(0.0, 1.0),
+                    child: IgnorePointer(
+                      child: _buildScopePage(repo, _fromScope),
+                    ),
+                  ),
+                ),
+                Transform.translate(
+                  offset: Offset(toDx, 0),
+                  child: Opacity(
+                    opacity: (0.65 + t * 0.35).clamp(0.0, 1.0),
+                    child: IgnorePointer(
+                      child: _buildScopePage(repo, _toScope),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildScopePage(
+    AppRepository repo,
+    TxnScope pageScope, {
+    Key? measureKey,
+  }) {
+    final isCurrentScope = pageScope == _scope;
+    final pageKind = isCurrentScope
+        ? _kind
+        : _suggestedKind(repo, pageScope);
+    final categoryKind = _categoryKind(pageKind);
+    final pageCategoryId = isCurrentScope
+        ? _categoryId
+        : _suggestedCategoryId(repo, pageScope);
+    final shortcuts = categoryKind == null
+        ? const <Category>[]
+        : repo.shortcutCategories(categoryKind, scope: pageScope);
+    final availableKinds = _availableKinds(repo, pageScope);
+
+    return Column(
+      key: measureKey,
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (availableKinds.length > 1) ...[
+          const SizedBox(height: 8),
+          TxnKindStrip(
+            kinds: availableKinds,
+            selected: pageKind,
+            onSelect: (k) => setState(() {
+              _kind = k;
+              _categoryId = _suggestedCategoryId(repo, pageScope);
+            }),
+          ),
+        ],
+
+        // -------- «به حساب» / «از حساب» + Shortcuts --------
+        if (categoryKind != null) ...[
+          const SizedBox(height: 12),
+          _accountSelectorSection(
+            repo: repo,
+            categoryKind: categoryKind,
+            scope: pageScope,
+            selectedCategoryId: pageCategoryId,
+            shortcuts: shortcuts,
+          ),
+        ],
+
+        // -------- Contact (Business scope only) --------
+        if (pageScope == TxnScope.business) ...[
+          const SizedBox(height: 12),
+          const SectionCaption('Contact (optional)'),
+          const SizedBox(height: 6),
+          ChipStrip(
+            chips: [
+              for (final c in repo.topCustomers(limit: 3))
+                _contactChip(repo, c),
+              PresetChip(
+                icon: Icons.person_search_outlined,
+                label: 'All contacts'.tr,
+                onTap: _openContactSheet,
+              ),
+              PresetChip(
+                icon: Icons.person_add_alt_1_rounded,
+                label: 'New contact'.tr,
+                onTap: _newContact,
+              ),
+            ],
+          ),
+          if (_customer != null)
+            ContactBalanceCard(
+              customer: _customer!,
+              balance: repo.balanceOf(_customer!),
+            ),
+        ],
+      ],
     );
   }
 
@@ -442,9 +656,15 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     );
   }
 
-  Widget _scopeRow(AppRepository repo, TxnScope scope) {
+  /// Segmented bar whose highlight pill tracks `_personalProgress` continuously
+  /// during finger drag and snaps magnetically to the active tab.
+  Widget _scopeRow(AppRepository repo) {
     final scheme = Theme.of(context).colorScheme;
+    final p = _personalProgress;
+    final alignX = -1.0 + 2.0 * p;
+
     return Container(
+      height: 42,
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: scheme.onSurface.withValues(alpha: 0.05),
@@ -453,24 +673,53 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
           color: scheme.onSurface.withValues(alpha: 0.08),
         ),
       ),
-      child: Row(
+      child: Stack(
         children: [
-          Expanded(
-            child: _ScopeChip(
-              label: 'Business'.tr,
-              icon: Icons.business_center_outlined,
-              selected: scope == TxnScope.business,
-              onTap: () => _changeScope(repo, TxnScope.business),
+          Positioned.fill(
+            child: Align(
+              alignment: AlignmentDirectional(alignX, 0),
+              child: FractionallySizedBox(
+                widthFactor: 0.5,
+                heightFactor: 1.0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(
+                      color: scheme.primary.withValues(alpha: 0.42),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: _ScopeChip(
-              label: 'Personal'.tr,
-              icon: Icons.person_outline_rounded,
-              selected: scope == TxnScope.personal,
-              onTap: () => _changeScope(repo, TxnScope.personal),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: _ScopeChip(
+                  label: 'Business'.tr,
+                  icon: Icons.business_center_outlined,
+                  selected: p < 0.5,
+                  onTap: () => _changeScopeByTap(repo, TxnScope.business),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: _ScopeChip(
+                  label: 'Personal'.tr,
+                  icon: Icons.person_outline_rounded,
+                  selected: p >= 0.5,
+                  onTap: () => _changeScopeByTap(repo, TxnScope.personal),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -483,6 +732,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     required AppRepository repo,
     required TxnKind categoryKind,
     required TxnScope scope,
+    required String? selectedCategoryId,
     required List<Category> shortcuts,
   }) {
     final scheme = Theme.of(context).colorScheme;
@@ -490,7 +740,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     final buttonLabel = (isExpense ? 'To account' : 'From account').tr;
     final accent = isExpense ? AppTheme.expense : AppTheme.revenue;
 
-    final selectedCat = repo.categoryById(_categoryId);
+    final selectedCat = repo.categoryById(selectedCategoryId);
     final parentCat = selectedCat?.parentId == null
         ? null
         : repo.categoryById(selectedCat!.parentId);
@@ -586,7 +836,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                 parentName: sc.parentId == null
                     ? null
                     : repo.categoryById(sc.parentId)?.name.tr,
-                selected: sc.id == _categoryId,
+                selected: sc.id == selectedCategoryId,
                 accent: accent,
                 onTap: () {
                   Haptics.selection();
@@ -1308,7 +1558,7 @@ class _SubcategoryTile extends StatelessWidget {
   }
 }
 
-/// Sleek segmented pill for switching between Business and Personal scope.
+/// Tab label inside the magnetic segmented bar.
 class _ScopeChip extends StatelessWidget {
   const _ScopeChip({
     required this.label,
@@ -1329,28 +1579,7 @@ class _ScopeChip extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(9),
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: Motion.adaptive(context, Motion.expand),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? Theme.of(context).cardColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(9),
-          border: Border.all(
-            color: selected
-                ? scheme.primary.withValues(alpha: 0.40)
-                : Colors.transparent,
-          ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1),
-                  ),
-                ]
-              : null,
-        ),
+      child: Center(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
