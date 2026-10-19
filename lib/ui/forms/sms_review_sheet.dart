@@ -10,21 +10,20 @@ import '../../data/models.dart';
 import '../../data/repository.dart';
 import '../design.dart';
 import '../motion_kit.dart';
-import '../personal_page.dart';
 import '../settings_page.dart';
 import '../theme.dart';
-import '../widgets/quick_buttons.dart';
 import '../widgets/widgets.dart';
 import 'contact_edit_page.dart';
 
 /// Compact, one-screen sheet for reviewing and approving a bank SMS.
 ///
 /// Supports:
-/// - Horizontal swipe between Business (`کسب‌وکار`) and Personal (`شخصی`).
+/// - Interactive Income (`درآمد`) / Expense (`هزینه`) toggle in the top header.
+/// - Smooth horizontal swipe between Business (`کسب‌وکار`) and Personal (`شخصی`).
 /// - «به حساب» (Expense) / «از حساب» (Income) button that opens a hierarchical
 ///   category -> subcategory picker window.
 /// - One-tap subcategory shortcuts (`میان‌بر`) pinned directly on the sheet,
-///   recording under the parent category and selected subcategory.
+///   color-coded to match Expense (red) or Income (green).
 class SmsReviewSheet extends StatefulWidget {
   const SmsReviewSheet({super.key, required this.sms, this.initialCustomer});
 
@@ -38,11 +37,24 @@ class SmsReviewSheet extends StatefulWidget {
 class _SmsReviewSheetState extends State<SmsReviewSheet> {
   late TextEditingController _amount;
   Customer? _customer;
+  late bool _isIncome;
   TxnKind _kind = TxnKind.income;
   TxnScope _scope = TxnScope.business;
   String? _categoryId;
   bool _presetDone = false;
   double _horizontalDragDx = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _isIncome = widget.sms.direction != SmsDirection.withdraw;
+    _amount = TextEditingController(
+      text: groupedNumber(
+        widget.sms.amount,
+        decimals: Money.decimals(widget.sms.currency),
+      ),
+    );
+  }
 
   @override
   void didChangeDependencies() {
@@ -57,24 +69,13 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    _amount = TextEditingController(
-      text: groupedNumber(
-        widget.sms.amount,
-        decimals: Money.decimals(widget.sms.currency),
-      ),
-    );
-  }
-
-  @override
   void dispose() {
     _amount.dispose();
     super.dispose();
   }
 
   TxnKind _suggestedKind(AppRepository repo, TxnScope scope) {
-    if (widget.sms.direction == SmsDirection.deposit) {
+    if (_isIncome) {
       if (scope == TxnScope.business &&
           _customer != null &&
           repo.balanceOf(_customer!) > 0.5) {
@@ -98,38 +99,54 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
 
   List<TxnKind> _availableKinds(AppRepository repo, TxnScope scope) {
     if (scope == TxnScope.personal) {
-      return [
-        widget.sms.direction == SmsDirection.deposit
-            ? TxnKind.income
-            : TxnKind.expense,
-      ];
+      return [_isIncome ? TxnKind.income : TxnKind.expense];
     }
-    if (widget.sms.direction == SmsDirection.deposit) {
+    if (_isIncome) {
       return [
         TxnKind.income,
         if (_customer != null && repo.balanceOf(_customer!) > 0.5)
           TxnKind.receive,
       ];
     }
-    if (widget.sms.direction == SmsDirection.withdraw) {
-      return [
-        TxnKind.expense,
-        if (_customer != null) TxnKind.refund,
-        if (_customer != null && repo.balanceOf(_customer!) < -0.5)
-          TxnKind.payablePayment,
-      ];
-    }
-    return [TxnKind.income, TxnKind.expense];
+    return [
+      TxnKind.expense,
+      if (_customer != null) TxnKind.refund,
+      if (_customer != null && repo.balanceOf(_customer!) < -0.5)
+        TxnKind.payablePayment,
+    ];
+  }
+
+  void _changeDirection(AppRepository repo, bool isIncome) {
+    if (_isIncome == isIncome) return;
+    Haptics.selection();
+    setState(() {
+      _isIncome = isIncome;
+      _kind = _suggestedKind(repo, _scope);
+      _categoryId = _suggestedCategoryId(repo, _scope);
+    });
   }
 
   void _changeScope(AppRepository repo, TxnScope scope) {
-    if (_scope == scope) return;
+    if (_scope == scope) {
+      if (_horizontalDragDx != 0) setState(() => _horizontalDragDx = 0);
+      return;
+    }
     Haptics.selection();
     setState(() {
+      _horizontalDragDx = 0;
       _scope = scope;
       _customer = scope == TxnScope.business ? widget.initialCustomer : null;
       _kind = _suggestedKind(repo, scope);
       _categoryId = _suggestedCategoryId(repo, scope);
+    });
+  }
+
+  void _handleHorizontalSwipeUpdate(DragUpdateDetails details) {
+    setState(() {
+      _horizontalDragDx = (_horizontalDragDx + details.delta.dx).clamp(
+        -90.0,
+        90.0,
+      );
     });
   }
 
@@ -138,26 +155,15 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     DragEndDetails details,
   ) {
     final velocity = details.primaryVelocity ?? 0;
-    final swipedEnough = _horizontalDragDx.abs() > 28 || velocity.abs() > 160;
-    _horizontalDragDx = 0;
-    if (!swipedEnough) return;
+    final swipedEnough = _horizontalDragDx.abs() > 32 || velocity.abs() > 180;
+    if (!swipedEnough) {
+      if (_horizontalDragDx != 0) setState(() => _horizontalDragDx = 0);
+      return;
+    }
     final nextScope = _scope == TxnScope.business
         ? TxnScope.personal
         : TxnScope.business;
     _changeScope(repo, nextScope);
-  }
-
-  Future<void> _openQuickEdit(TxnScope scope, [QuickExpense? q]) async {
-    await showLedgerSheet<void>(
-      context,
-      builder: (_) => QuickEditSheet(
-        initial: q,
-        presetScope: scope,
-        presetKind: widget.sms.direction == SmsDirection.deposit
-            ? TxnKind.income
-            : TxnKind.expense,
-      ),
-    );
   }
 
   Future<void> _openAccountCategorySheet(
@@ -256,7 +262,10 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onHorizontalDragStart: (_) => _horizontalDragDx = 0,
-        onHorizontalDragUpdate: (d) => _horizontalDragDx += d.delta.dx,
+        onHorizontalDragUpdate: _handleHorizontalSwipeUpdate,
+        onHorizontalDragCancel: () {
+          if (_horizontalDragDx != 0) setState(() => _horizontalDragDx = 0);
+        },
         onHorizontalDragEnd: (d) => _handleHorizontalSwipeEnd(repo, d),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -267,8 +276,8 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
               const SheetHandle(),
               const SizedBox(height: 10),
 
-              // -------- Header --------
-              _header(sms),
+              // -------- Header with interactive Income / Expense toggle -----
+              _header(repo, sms),
               const SizedBox(height: 12),
 
               // -------- Scope toggle (tap or swipe horizontally) --------
@@ -284,100 +293,81 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                 onChanged: () => setState(() {}),
               ),
 
-              // -------- Scope-dependent content with smooth transition --------
-              AnimatedSwitcher(
-                duration: Motion.adaptive(context, Motion.expand),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (child, anim) {
-                  final offsetBegin = scope == TxnScope.personal
-                      ? const Offset(-0.08, 0)
-                      : const Offset(0.08, 0);
-                  return FadeTransition(
-                    opacity: anim,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: offsetBegin,
-                        end: Offset.zero,
-                      ).animate(anim),
-                      child: child,
-                    ),
-                  );
-                },
-                child: Column(
-                  key: ValueKey<TxnScope>(scope),
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (availableKinds.length > 1) ...[
-                      const SizedBox(height: 8),
-                      TxnKindStrip(
-                        kinds: availableKinds,
-                        selected: _kind,
-                        onSelect: (k) => setState(() {
-                          _kind = k;
-                          _categoryId = _suggestedCategoryId(repo, scope);
-                        }),
-                      ),
-                    ],
-
-                    // -------- «به حساب» / «از حساب» button + Shortcuts --------
-                    if (categoryKind != null) ...[
-                      const SizedBox(height: 12),
-                      _accountSelectorSection(
-                        repo: repo,
-                        categoryKind: categoryKind,
-                        scope: scope,
-                        shortcuts: shortcuts,
-                      ),
-                    ],
-
-                    // -------- Quick buttons (hidden when empty) --------
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: QuickButtonsRow(
-                        scopeFilter: scope,
-                        incomeFilter: sms.direction == SmsDirection.deposit,
-                        hideWhenEmpty: true,
-                        selectedCategoryId: _categoryId,
-                        onTap: (q) => setState(() {
-                          if (availableKinds.contains(q.kind)) _kind = q.kind;
-                          if (q.categoryId != null) {
-                            _categoryId = q.categoryId;
-                          }
-                        }),
-                        onLongPress: (q) => _openQuickEdit(scope, q),
-                      ),
-                    ),
-
-                    // -------- Contact (Business scope only) --------
-                    if (scope == TxnScope.business) ...[
-                      const SizedBox(height: 10),
-                      const SectionCaption('Contact (optional)'),
-                      const SizedBox(height: 6),
-                      ChipStrip(
-                        chips: [
-                          for (final c in repo.topCustomers(limit: 3))
-                            _contactChip(repo, c),
-                          PresetChip(
-                            icon: Icons.person_search_outlined,
-                            label: 'All contacts'.tr,
-                            onTap: _openContactSheet,
-                          ),
-                          PresetChip(
-                            icon: Icons.person_add_alt_1_rounded,
-                            label: 'New contact'.tr,
-                            onTap: _newContact,
-                          ),
-                        ],
-                      ),
-                      if (_customer != null)
-                        ContactBalanceCard(
-                          customer: _customer!,
-                          balance: repo.balanceOf(_customer!),
+              // -------- Smoothly resized & faded scope section --------
+              AnimatedSize(
+                duration: Motion.adaptive(
+                  context,
+                  const Duration(milliseconds: 200),
+                ),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.topCenter,
+                child: AnimatedContainer(
+                  duration: _horizontalDragDx == 0
+                      ? const Duration(milliseconds: 180)
+                      : Duration.zero,
+                  curve: Curves.easeOutCubic,
+                  transform: Matrix4.translationValues(
+                    _horizontalDragDx * 0.18,
+                    0,
+                    0,
+                  ),
+                  child: Column(
+                    key: ValueKey<String>('${scope.name}-$_isIncome'),
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (availableKinds.length > 1) ...[
+                        const SizedBox(height: 8),
+                        TxnKindStrip(
+                          kinds: availableKinds,
+                          selected: _kind,
+                          onSelect: (k) => setState(() {
+                            _kind = k;
+                            _categoryId = _suggestedCategoryId(repo, scope);
+                          }),
                         ),
+                      ],
+
+                      // -------- «به حساب» / «از حساب» + Shortcuts --------
+                      if (categoryKind != null) ...[
+                        const SizedBox(height: 12),
+                        _accountSelectorSection(
+                          repo: repo,
+                          categoryKind: categoryKind,
+                          scope: scope,
+                          shortcuts: shortcuts,
+                        ),
+                      ],
+
+                      // -------- Contact (Business scope only) --------
+                      if (scope == TxnScope.business) ...[
+                        const SizedBox(height: 12),
+                        const SectionCaption('Contact (optional)'),
+                        const SizedBox(height: 6),
+                        ChipStrip(
+                          chips: [
+                            for (final c in repo.topCustomers(limit: 3))
+                              _contactChip(repo, c),
+                            PresetChip(
+                              icon: Icons.person_search_outlined,
+                              label: 'All contacts'.tr,
+                              onTap: _openContactSheet,
+                            ),
+                            PresetChip(
+                              icon: Icons.person_add_alt_1_rounded,
+                              label: 'New contact'.tr,
+                              onTap: _newContact,
+                            ),
+                          ],
+                        ),
+                        if (_customer != null)
+                          ContactBalanceCard(
+                            customer: _customer!,
+                            balance: repo.balanceOf(_customer!),
+                          ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
 
@@ -392,10 +382,9 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     );
   }
 
-  Widget _header(ParsedSms sms) {
+  Widget _header(AppRepository repo, ParsedSms sms) {
     final scheme = Theme.of(context).colorScheme;
-    final isDeposit = sms.direction == SmsDirection.deposit;
-    final accent = isDeposit ? AppTheme.revenue : AppTheme.expense;
+    final accent = _isIncome ? AppTheme.revenue : AppTheme.expense;
     final bank = sms.bankName?.tr ??
         (sms.message.address.isNotEmpty
             ? sms.message.address
@@ -403,7 +392,9 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
 
     return Row(
       children: [
-        Container(
+        AnimatedContainer(
+          duration: Motion.adaptive(context, Motion.expand),
+          curve: Curves.easeOutCubic,
           width: 36,
           height: 36,
           decoration: BoxDecoration(
@@ -411,7 +402,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
-            isDeposit
+            _isIncome
                 ? Icons.south_west_rounded
                 : Icons.north_east_rounded,
             size: 18,
@@ -442,20 +433,10 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
             ],
           ),
         ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: accent.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            (isDeposit ? 'Income' : 'Expense').tr,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: accent,
-            ),
-          ),
+        const SizedBox(width: 8),
+        _DirectionToggle(
+          isIncome: _isIncome,
+          onSelect: (inc) => _changeDirection(repo, inc),
         ),
       ],
     );
@@ -606,6 +587,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                     ? null
                     : repo.categoryById(sc.parentId)?.name.tr,
                 selected: sc.id == _categoryId,
+                accent: accent,
                 onTap: () {
                   Haptics.selection();
                   setState(() => _categoryId = sc.id);
@@ -624,10 +606,10 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: scheme.onSurface.withValues(alpha: 0.04),
+                  color: accent.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(9),
                   border: Border.all(
-                    color: scheme.onSurface.withValues(alpha: 0.12),
+                    color: accent.withValues(alpha: 0.22),
                   ),
                 ),
                 child: Row(
@@ -636,7 +618,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                     Icon(
                       Icons.push_pin_outlined,
                       size: 13,
-                      color: scheme.primary,
+                      color: accent,
                     ),
                     const SizedBox(width: 3),
                     Text(
@@ -646,7 +628,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
                       style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
-                        color: scheme.primary,
+                        color: accent,
                       ),
                     ),
                   ],
@@ -705,24 +687,109 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   }
 }
 
-/// Pinned shortcut chip for a subcategory or category on the main sheet.
+/// Compact two-button pill in the header to switch between Income («درآمد»)
+/// and Expense («هزینه»).
+class _DirectionToggle extends StatelessWidget {
+  const _DirectionToggle({
+    required this.isIncome,
+    required this.onSelect,
+  });
+
+  final bool isIncome;
+  final ValueChanged<bool> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(2.5),
+      decoration: BoxDecoration(
+        color: scheme.onSurface.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: scheme.onSurface.withValues(alpha: 0.09),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _pill(
+            context: context,
+            label: 'Income'.tr,
+            selected: isIncome,
+            color: AppTheme.revenue,
+            onTap: () => onSelect(true),
+          ),
+          const SizedBox(width: 2),
+          _pill(
+            context: context,
+            label: 'Expense'.tr,
+            selected: !isIncome,
+            color: AppTheme.expense,
+            onTap: () => onSelect(false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pill({
+    required BuildContext context,
+    required String label,
+    required bool selected,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return InkWell(
+      borderRadius: BorderRadius.circular(7),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: Motion.adaptive(context, Motion.expand),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(7),
+          border: Border.all(
+            color: selected
+                ? color.withValues(alpha: 0.55)
+                : Colors.transparent,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+            color: selected ? color : onSurface.withValues(alpha: 0.60),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Pinned shortcut chip for a subcategory or category on the main sheet,
+/// color-coded by transaction direction ([accent]).
 class _ShortcutCategoryChip extends StatelessWidget {
   const _ShortcutCategoryChip({
     required this.category,
     required this.parentName,
     required this.selected,
+    required this.accent,
     required this.onTap,
   });
 
   final Category category;
   final String? parentName;
   final bool selected;
+  final Color accent;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final onSurface = scheme.onSurface;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Tooltip(
       message: parentName == null
           ? category.name.tr
@@ -736,12 +803,12 @@ class _ShortcutCategoryChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5.5),
           decoration: BoxDecoration(
             color: selected
-                ? scheme.primary.withValues(alpha: 0.15)
+                ? accent.withValues(alpha: 0.14)
                 : onSurface.withValues(alpha: 0.04),
             borderRadius: BorderRadius.circular(9),
             border: Border.all(
               color: selected
-                  ? scheme.primary.withValues(alpha: 0.65)
+                  ? accent.withValues(alpha: 0.65)
                   : onSurface.withValues(alpha: 0.14),
               width: selected ? 1.4 : 1,
             ),
@@ -753,7 +820,7 @@ class _ShortcutCategoryChip extends StatelessWidget {
                 selected ? Icons.check_rounded : Icons.bolt_rounded,
                 size: 13.5,
                 color: selected
-                    ? scheme.primary
+                    ? accent
                     : onSurface.withValues(alpha: 0.55),
               ),
               const SizedBox(width: 4),
@@ -763,7 +830,7 @@ class _ShortcutCategoryChip extends StatelessWidget {
                   fontSize: 12,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                   color: selected
-                      ? scheme.primary
+                      ? accent
                       : onSurface.withValues(alpha: 0.85),
                 ),
               ),
@@ -985,12 +1052,12 @@ class _AccountCategorySheetState extends State<_AccountCategorySheet> {
                   curve: Curves.easeOutCubic,
                   decoration: BoxDecoration(
                     color: expanded
-                        ? scheme.primary.withValues(alpha: 0.05)
+                        ? accent.withValues(alpha: 0.05)
                         : scheme.onSurface.withValues(alpha: 0.03),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: parentSelected
-                          ? scheme.primary.withValues(alpha: 0.45)
+                          ? accent.withValues(alpha: 0.45)
                           : scheme.onSurface.withValues(alpha: 0.10),
                     ),
                   ),
@@ -1018,7 +1085,7 @@ class _AccountCategorySheetState extends State<_AccountCategorySheet> {
                                     : Icons.folder_outlined,
                                 size: 18,
                                 color: parentSelected
-                                    ? scheme.primary
+                                    ? accent
                                     : scheme.onSurface.withValues(alpha: 0.65),
                               ),
                               const SizedBox(width: 10),
@@ -1040,8 +1107,8 @@ class _AccountCategorySheetState extends State<_AccountCategorySheet> {
                                     vertical: 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: scheme.primary.withValues(
-                                      alpha: 0.10,
+                                    color: accent.withValues(
+                                      alpha: 0.12,
                                     ),
                                     borderRadius: BorderRadius.circular(99),
                                   ),
@@ -1050,7 +1117,7 @@ class _AccountCategorySheetState extends State<_AccountCategorySheet> {
                                     style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w700,
-                                      color: scheme.primary,
+                                      color: accent,
                                     ),
                                   ),
                                 ),
@@ -1079,6 +1146,7 @@ class _AccountCategorySheetState extends State<_AccountCategorySheet> {
                               for (final sub in subs)
                                 _SubcategoryTile(
                                   category: sub,
+                                  accent: accent,
                                   selected:
                                       sub.id == widget.selectedCategoryId,
                                   onSelect: () => Navigator.pop(context, sub),
@@ -1090,6 +1158,7 @@ class _AccountCategorySheetState extends State<_AccountCategorySheet> {
                               // Select the parent category directly
                               _SubcategoryTile(
                                 category: parent,
+                                accent: accent,
                                 labelOverride:
                                     'General ({name})'.trArgs({
                                       'name': parent.name.tr,
@@ -1108,6 +1177,7 @@ class _AccountCategorySheetState extends State<_AccountCategorySheet> {
                                 child: TextButton.icon(
                                   style: TextButton.styleFrom(
                                     visualDensity: VisualDensity.compact,
+                                    foregroundColor: accent,
                                   ),
                                   onPressed: () => _addSubcategoryDialog(
                                     repo,
@@ -1138,6 +1208,7 @@ class _AccountCategorySheetState extends State<_AccountCategorySheet> {
 class _SubcategoryTile extends StatelessWidget {
   const _SubcategoryTile({
     required this.category,
+    required this.accent,
     required this.selected,
     required this.onSelect,
     required this.onToggleShortcut,
@@ -1145,6 +1216,7 @@ class _SubcategoryTile extends StatelessWidget {
   });
 
   final Category category;
+  final Color accent;
   final String? labelOverride;
   final bool selected;
   final VoidCallback onSelect;
@@ -1152,8 +1224,7 @@ class _SubcategoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final onSurface = scheme.onSurface;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return InkWell(
       borderRadius: BorderRadius.circular(9),
       onTap: onSelect,
@@ -1162,12 +1233,12 @@ class _SubcategoryTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
           color: selected
-              ? scheme.primary.withValues(alpha: 0.14)
+              ? accent.withValues(alpha: 0.14)
               : Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(9),
           border: Border.all(
             color: selected
-                ? scheme.primary.withValues(alpha: 0.55)
+                ? accent.withValues(alpha: 0.55)
                 : onSurface.withValues(alpha: 0.08),
           ),
         ),
@@ -1179,7 +1250,7 @@ class _SubcategoryTile extends StatelessWidget {
                   : Icons.subdirectory_arrow_left_rounded,
               size: 16,
               color: selected
-                  ? scheme.primary
+                  ? accent
                   : onSurface.withValues(alpha: 0.5),
             ),
             const SizedBox(width: 8),
@@ -1189,7 +1260,7 @@ class _SubcategoryTile extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  color: selected ? scheme.primary : onSurface,
+                  color: selected ? accent : onSurface,
                 ),
               ),
             ),
@@ -1210,7 +1281,7 @@ class _SubcategoryTile extends StatelessWidget {
                           : Icons.push_pin_outlined,
                       size: 15,
                       color: category.isShortcut
-                          ? scheme.primary
+                          ? accent
                           : onSurface.withValues(alpha: 0.4),
                     ),
                     const SizedBox(width: 3),
@@ -1222,7 +1293,7 @@ class _SubcategoryTile extends StatelessWidget {
                             ? FontWeight.w700
                             : FontWeight.w500,
                         color: category.isShortcut
-                            ? scheme.primary
+                            ? accent
                             : onSurface.withValues(alpha: 0.45),
                       ),
                     ),

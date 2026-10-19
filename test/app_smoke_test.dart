@@ -704,6 +704,13 @@ void main() {
         find.text('Transport and fuel › Taxi and ride-share'),
         findsOneWidget,
       );
+
+      // Tapping "Income" («درآمد») in the top header switches the sheet from
+      // Expense ("To account") to Income ("From account").
+      await tester.tap(find.text('Income'));
+      await tester.pumpAndSettle();
+      expect(find.text('From account'), findsOneWidget);
+      expect(find.text('To account'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
