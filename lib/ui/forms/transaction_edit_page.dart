@@ -4,39 +4,27 @@ import 'package:provider/provider.dart';
 import '../../core/format_utils.dart';
 import '../../core/haptics.dart';
 import '../../core/jalali_utils.dart';
+import '../../core/localization.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
-import '../../data/store.dart';
 import '../design.dart';
 import '../motion_kit.dart';
-import '../personal_page.dart';
-import '../settings_page.dart';
 import '../widgets/date_picker.dart';
-import '../widgets/quick_buttons.dart';
 import '../widgets/widgets.dart';
 import 'contact_edit_page.dart';
+import 'sms_review_sheet.dart';
 
-import '../../core/localization.dart';
-
-/// Record or edit a transaction (income, expense, receipt, or payment).
+/// Record or edit a transaction (income, expense, receipt, refund, or payment).
 ///
-/// The form is organized in three zones, in the order a person states a
-/// transaction out loud:
-///
-/// 1. **Intent** — the kind tiles (color-coded exactly like the ledger
-///    rows) and the business/personal scope, plus one-tap quick-fill strips:
-///    recent entries to repeat and the saved quick buttons.
-/// 2. **The numbers** — the amount, auto-focused and full width, then one
-///    compact row with the date (it reads "Today" until changed) and the
-///    currency. With the keyboard open, the user still sees the kind
-///    selection above the field they are typing in.
-/// 3. **Details** — the contact as chips with a live balance, the category
-///    as chips, the cash/credit mode with its consequence spelled out, and
-///    the description.
-///
-/// The record button mirrors the amount, so the entered value stays visible
-/// without scrolling back to the top.
+/// Unified with the SMS transaction recording sheet:
+/// - Interactive `درآمد` (`Income`) / `هزینه` (`Expense`) direction toggle in
+///   Personal scope, or the full business kind strip in Business scope.
+/// - 1:1 finger-tracking horizontal drag + magnetic snap between `کسب‌وکار`
+///   (`Business`) and `شخصی` (`Personal`).
+/// - «به حساب» (Expense) / «از حساب» (Income) button opening the hierarchical
+///   Category -> Subcategory picker window (`AccountCategorySheet`), plus
+///   color-coded 1-tap pinned subcategory shortcuts (`میان‌بر`).
 class TransactionEditPage extends StatefulWidget {
   const TransactionEditPage({
     super.key,
@@ -50,37 +38,24 @@ class TransactionEditPage extends StatefulWidget {
   });
 
   final Txn? existing;
-
-  /// Prefills this form from an existing entry **without** editing it, so
-  /// saving records a second, separate transaction ("same as last time").
-  ///
-  /// Everything is copied except the parts that would make it the same entry:
-  /// the date becomes today, the received/prepaid amount is left empty, and no
-  /// subscription is linked (a duplicate must not silently count as another
-  /// sale of the same subscription).
   final Txn? duplicateOf;
   final TxnKind initialKind;
   final TxnScope initialScope;
   final Customer? customer;
   final String? categoryId;
-
-  /// Opens the keyboard on the amount field right away, so a new entry can be
-  /// typed without a tap. Ignored while editing (and turned off by flows such
-  /// as SMS review, where the details are being checked first).
   final bool autofocusAmount;
 
   @override
   State<TransactionEditPage> createState() => _TransactionEditPageState();
 }
 
-class _TransactionEditPageState extends State<TransactionEditPage> {
+class _TransactionEditPageState extends State<TransactionEditPage>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _amount = TextEditingController();
   final _settled = TextEditingController();
   final _note = TextEditingController();
 
-  /// Anchors the cash/credit section so the form can scroll it into view
-  /// after the section is inserted (see [_revealPayModeSection]).
   final GlobalKey _payModeAnchor = GlobalKey();
 
   late TxnKind _kind;
@@ -93,24 +68,26 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
   Category? _category;
   bool _credit = false;
 
-  /// One-shot autofocus guard. The list re-mounts whenever its structure
-  /// changes (see the ListView key / _revealPayModeSection), and a plain
-  /// `autofocus` on the amount field would then steal focus back from the
-  /// user mid-entry.
   bool _autofocusDone = false;
+
+  // Magnetic horizontal scope transition state
+  late final AnimationController _scopeAnim;
+  TxnScope _fromScope = TxnScope.business;
+  TxnScope _toScope = TxnScope.personal;
+  bool _isDragging = false;
+  bool _magnetTriggered = false;
+  double _dragDx = 0;
+  double _dragDir = 0;
+  double _slideDir = 1.0;
 
   bool get isEdit => widget.existing != null;
 
-  /// A duplicate is a new entry, but the title says so, so it is obvious that
-  /// the original is not being changed.
   String get _pageTitle => isEdit
       ? 'Edit transaction'
       : widget.duplicateOf != null
       ? 'Duplicate transaction'
       : 'New transaction';
 
-  /// Chip text for "repeat this recent entry": the note when there is one,
-  /// otherwise the category or a safe kind name, plus the plain amount.
   String _presetLabel(Txn t, AppRepository repo) {
     final name = t.note.isNotEmpty
         ? t.note
@@ -122,17 +99,23 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
   bool get _needsCategory =>
       _kind == TxnKind.income || _kind == TxnKind.expense;
 
-  /// Re-mounts the scrolling list with a fresh layout whenever the structure
-  /// changes (contact picked, scope/kind switched, credit toggled) and then
-  /// scrolls the newly inserted cash/credit section into view.
-  ///
-  /// Why a re-mount: when children are inserted in the middle of a sliver
-  /// list, the viewport keeps the *old* max scroll extent for the rest of
-  /// the list's life on Flutter 3.38 — the tail of the form (the pay-mode
-  /// hint, the settle field, the note) becomes unreachable, and scrolling
-  /// does not repair it. A freshly mounted list computes the correct
-  /// extent, and the follow-up scroll shows the user the new section right
-  /// where their thumb is.
+  TxnKind? get _categoryKind => switch (_kind) {
+    TxnKind.income || TxnKind.receive => TxnKind.income,
+    TxnKind.expense => TxnKind.expense,
+    _ => null,
+  };
+
+  bool get _isTransitioning =>
+      _isDragging || _magnetTriggered || _scopeAnim.isAnimating;
+
+  double get _personalProgress {
+    if (!_isTransitioning) {
+      return _scope == TxnScope.personal ? 1.0 : 0.0;
+    }
+    final t = _scopeAnim.value.clamp(0.0, 1.0);
+    return _fromScope == TxnScope.business ? t : 1.0 - t;
+  }
+
   void _revealPayModeSection() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -147,17 +130,8 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
     });
   }
 
-  /// Re-validates the selected category after the kind or the section
-  /// changes. Without this the form silently saves a category that belongs
-  /// to the *other* kind or scope (an income category on an expense, a
-  /// personal one on a business entry), which corrupts the per-category
-  /// reports. Falls back to the default category of the new list.
   void _syncCategory(AppRepository repo) {
-    final kindForCats = switch (_kind) {
-      TxnKind.income || TxnKind.receive => TxnKind.income,
-      TxnKind.expense => TxnKind.expense,
-      _ => null,
-    };
+    final kindForCats = _categoryKind;
     if (kindForCats == null) {
       _category = null;
       return;
@@ -197,8 +171,6 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
       _credit = t.credit;
       _scope = t.scope;
     } else if (copy != null) {
-      // Same as last time: everything is filled in, but the date is today and
-      // the entry stays separate from the one it was copied from.
       _kind = copy.kind;
       _amount.text = groupedNumber(
         copy.amount,
@@ -223,6 +195,17 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
                   repo.defaultCategoryId(TxnKind.income, scope: _scope),
                 ));
     }
+
+    _fromScope = _scope;
+    _toScope = _scope == TxnScope.business
+        ? TxnScope.personal
+        : TxnScope.business;
+    _scopeAnim = AnimationController(
+      vsync: this,
+      value: 0.0,
+      duration: const Duration(milliseconds: 240),
+    );
+
     if (widget.autofocusAmount && !isEdit) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _autofocusDone = true;
@@ -232,48 +215,191 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
 
   @override
   void dispose() {
+    _scopeAnim.dispose();
     _amount.dispose();
     _settled.dispose();
     _note.dispose();
     super.dispose();
   }
 
-  /// Prefill the form from a quick-entry button; everything stays editable.
-  void _applyQuick(QuickExpense q) {
-    final repo = context.read<AppRepository>();
+  void _applyScope(AppRepository repo, TxnScope sc) {
+    _scope = sc;
+    if (_scope == TxnScope.personal) {
+      _customer = null;
+      _subscription = null;
+      _credit = false;
+      if (_kind != TxnKind.income && _kind != TxnKind.expense) {
+        _kind = _kind == TxnKind.receive ? TxnKind.income : TxnKind.expense;
+      }
+    }
+    _syncCategory(repo);
+  }
+
+  void _changeScopeByTap(AppRepository repo, TxnScope target) {
+    if (_scope == target && !_isTransitioning) return;
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    final dirForTarget = target == TxnScope.personal
+        ? (isRtl ? 1.0 : -1.0)
+        : (isRtl ? -1.0 : 1.0);
     Haptics.selection();
     setState(() {
-      _scope = q.scope;
-      _kind = q.kind == TxnKind.income ? TxnKind.income : TxnKind.expense;
-      if (q.scope == TxnScope.personal) {
-        _customer = null;
-        _subscription = null;
-        _credit = false;
-      }
-      if (q.categoryId != null) {
-        _category = repo.categoryById(q.categoryId);
-      }
-      // The button may have moved the form to another section or direction;
-      // the category must belong to the new combination.
-      _syncCategory(repo);
-      if (q.hasFixedAmount) {
-        _amount.text = groupedNumber(
-          q.amount,
-          decimals: Money.decimals(_currency),
-        );
-      }
+      _fromScope = _scope;
+      _toScope = target;
+      _slideDir = dirForTarget;
+      _isDragging = false;
+      _magnetTriggered = true;
+      _scopeAnim.value = 0.0;
+    });
+    _scopeAnim
+        .animateTo(
+          1.0,
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
+        )
+        .then((_) {
+          if (!mounted) return;
+          setState(() {
+            _applyScope(repo, target);
+            _fromScope = _scope;
+            _magnetTriggered = false;
+            _scopeAnim.value = 0.0;
+          });
+        });
+  }
+
+  void _handleHorizontalDragStart(DragStartDetails details) {
+    if (_scopeAnim.isAnimating) {
+      _scopeAnim.stop();
+    }
+    _dragDx = 0;
+    _dragDir = 0;
+    _magnetTriggered = false;
+    _scopeAnim.value = 0.0;
+    setState(() {
+      _fromScope = _scope;
+      _toScope = _scope == TxnScope.business
+          ? TxnScope.personal
+          : TxnScope.business;
+      _isDragging = true;
     });
   }
 
-  /// One-tap repeat of a recent entry: the whole combination (kind, section,
-  /// amount, currency, contact, category, note) comes across, but the date is
-  /// today and no settled amount is carried over — a repeat is a fresh entry,
-  /// exactly like the duplicate action.
+  void _handleHorizontalDragUpdate(
+    AppRepository repo,
+    DragUpdateDetails details,
+  ) {
+    if (_magnetTriggered) return;
+    final width = (context.size?.width ?? 360.0).clamp(240.0, 680.0);
+    _dragDx += details.delta.dx;
+    if (_dragDir == 0 && _dragDx.abs() > 2.0) {
+      _dragDir = _dragDx.sign;
+      _slideDir = _dragDir;
+    }
+    if (_dragDir == 0) return;
+
+    final progress = (_dragDx * _dragDir).clamp(0.0, width);
+    final fraction = (progress / width).clamp(0.0, 1.0);
+    // Require dragging nearly half the screen (~45%) before the mid-drag
+    // magnet automatically pulls the page to the end.
+    final magnetThreshold = width * 0.45;
+    if (progress >= magnetThreshold) {
+      _triggerMagneticSnap(repo, fromFraction: fraction);
+    } else {
+      _scopeAnim.value = fraction;
+    }
+  }
+
+  void _triggerMagneticSnap(
+    AppRepository repo, {
+    required double fromFraction,
+  }) {
+    _magnetTriggered = true;
+    _isDragging = false;
+    _scopeAnim.value = fromFraction;
+    Haptics.selection();
+    final remaining = (1.0 - fromFraction).clamp(0.15, 1.0);
+    final durationMs = (240 * remaining).round().clamp(120, 240);
+    _scopeAnim
+        .animateTo(
+          1.0,
+          duration: Duration(milliseconds: durationMs),
+          curve: Curves.easeOutCubic,
+        )
+        .then((_) {
+          if (!mounted) return;
+          setState(() {
+            _applyScope(repo, _toScope);
+            _fromScope = _scope;
+            _magnetTriggered = false;
+            _scopeAnim.value = 0.0;
+          });
+        });
+  }
+
+  void _handleHorizontalDragEnd(
+    AppRepository repo,
+    DragEndDetails details,
+  ) {
+    if (_magnetTriggered) return;
+    _isDragging = false;
+    final width = (context.size?.width ?? 360.0).clamp(240.0, 680.0);
+    final velocity = details.primaryVelocity ?? 0;
+    if (_dragDir == 0 && velocity.abs() > 1) {
+      _dragDir = velocity.sign;
+      _slideDir = _dragDir;
+    }
+    final progress = _dragDir == 0
+        ? _dragDx.abs()
+        : (_dragDx * _dragDir).clamp(0.0, width);
+    final fraction = (progress / width).clamp(0.0, 1.0);
+    final flingInSameDir =
+        _dragDir == 0 ? velocity.abs() > 240 : (velocity * _dragDir) > 240;
+    final shouldSnapToTarget = progress >= width * 0.32 || flingInSameDir;
+
+    if (shouldSnapToTarget) {
+      _triggerMagneticSnap(repo, fromFraction: fraction);
+    } else {
+      _scopeAnim
+          .animateTo(
+            0.0,
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+          )
+          .then((_) {
+            if (!mounted) return;
+            setState(() {
+              _fromScope = _scope;
+              _magnetTriggered = false;
+              _scopeAnim.value = 0.0;
+            });
+          });
+    }
+  }
+
+  void _handleHorizontalDragCancel() {
+    if (_magnetTriggered) return;
+    _isDragging = false;
+    _scopeAnim
+        .animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+        )
+        .then((_) {
+          if (!mounted) return;
+          setState(() {
+            _fromScope = _scope;
+            _scopeAnim.value = 0.0;
+          });
+        });
+  }
+
   void _applyRecent(Txn t, AppRepository repo) {
     Haptics.selection();
     setState(() {
       _kind = t.kind;
       _scope = t.scope;
+      _fromScope = _scope;
       _amount.text = groupedNumber(
         t.amount,
         decimals: Money.decimals(t.currency),
@@ -295,82 +421,6 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
     });
   }
 
-  Future<void> _openQuickEdit([QuickExpense? q]) async {
-    await showLedgerSheet<void>(
-      context,
-      builder: (_) => QuickEditSheet(
-        initial: q,
-        presetScope: _scope,
-        presetKind: _kind == TxnKind.income || _kind == TxnKind.receive
-            ? TxnKind.income
-            : TxnKind.expense,
-      ),
-    );
-  }
-
-  /// The "+ quick button" chip: pinning a button means choosing one of the
-  /// existing categories in the same searchable list — no typing a name.
-  /// The chip then records that category in one tap.
-  Widget _addQuickChip() => ActionChip(
-    avatar: const Icon(Icons.add_rounded, size: 16),
-    label: Text('Quick button'.tr),
-    onPressed: () => _addQuickFromCategory(),
-  );
-
-  Future<void> _addQuickFromCategory() async {
-    final repo = context.read<AppRepository>();
-    final categoryKind = switch (_kind) {
-      TxnKind.income || TxnKind.receive => TxnKind.income,
-      TxnKind.expense => TxnKind.expense,
-      _ => null,
-    };
-    if (categoryKind == null) {
-      // No categories to pin (e.g. a transfer): fall back to the editor.
-      await _openQuickEdit();
-      return;
-    }
-    final all = repo.categoriesOf(categoryKind, scope: _scope);
-    if (all.isEmpty) {
-      await _openQuickEdit();
-      return;
-    }
-    final res = await showPickSheet<Category>(
-      context,
-      title: 'Choose a category for the button',
-      items: repo.pickOrderCategories(categoryKind, scope: _scope),
-      current: null,
-      labelOf: (c) => c.name,
-      searchHint: 'Category name...',
-      isChild: (c) => c.parentId != null,
-    );
-    if (res == null || res.value == null) return;
-    final c = res.value!;
-    if (!mounted) return;
-    if (repo.quickExpenses.any((q) => q.categoryId == c.id)) {
-      // A rejection, not a confirmation: it says the tap did nothing, so it
-      // has to look like a warning rather than a green tick.
-      showSnack(
-        context,
-        'This category is already a quick button',
-        error: true,
-      );
-      return;
-    }
-    Haptics.selection();
-    await repo.addQuickButton(QuickExpense(
-      id: LocalStore.newId(),
-      label: c.name,
-      kind: c.kind,
-      scope: _scope,
-      categoryId: c.id,
-      iconCodePoint: 0,
-      sortOrder: repo.quickExpenses.isEmpty
-          ? 0
-          : repo.quickExpenses.last.sortOrder + 1,
-    ));
-  }
-
-  /// Opens the contact form and selects the saved result in the form.
   Future<void> _newContact() async {
     final created = await Navigator.push<Customer>(
       context,
@@ -382,8 +432,6 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
     }
   }
 
-  /// The full, searchable contact sheet behind the "all contacts" chip, for
-  /// customers who are not among the frequent ones.
   Future<void> _openContactSheet() async {
     final repo = context.read<AppRepository>();
     final res = await showPickSheet<Customer>(
@@ -406,11 +454,6 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
 
   Future<void> _save() async {
     final repo = context.read<AppRepository>();
-    // Resolved before the first await. Writing an entry takes real time, and
-    // the page can be closed while it is in flight (back button, predictive
-    // back, a system gesture). Popping again after that would not pop *this*
-    // page — it is already on its way out — it would take the page underneath
-    // it with it, and `mounted` stays true for the whole exit transition.
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final route = ModalRoute.of(context);
@@ -459,7 +502,6 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
       );
       await repo.addTxn(base);
 
-      // Any amount paid or received immediately is recorded separately.
       if (_needsCategory && _customer != null && _credit && settled > 0) {
         await repo.addTxn(
           repo.buildTxn(
@@ -479,16 +521,12 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
       }
     }
     if (!mounted) return;
-    // The entry is written either way, and the messenger belongs to the app
-    // rather than to this page, so the confirmation is shown even when the
-    // page is already leaving.
     showMessengerSnack(
       messenger,
       isEdit ? 'Transaction updated' : 'Transaction recorded',
     );
     if (route != null && !route.isCurrent) return;
     if (!isEdit) {
-      // A new record gets the coin + stamp moment; edits stay quiet.
       MoneyCelebration.recorded(context);
     }
     navigator.pop();
@@ -512,15 +550,24 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
       appBar: AppBar(
         title: Text(_pageTitle.tr),
         actions: [
+          if (_scope == TxnScope.personal)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: Center(
+                child: DirectionToggle(
+                  isIncome: _kind == TxnKind.income,
+                  onSelect: (inc) => setState(() {
+                    _kind = inc ? TxnKind.income : TxnKind.expense;
+                    _syncCategory(repo);
+                  }),
+                ),
+              ),
+            ),
           if (isEdit)
             IconButton(
               tooltip: 'Delete'.tr,
               icon: const Icon(Icons.delete_outline_rounded),
               onPressed: () async {
-                // Resolved before the first await, for the same reason as in
-                // _save: this handler awaits twice (the confirmation dialog
-                // and the write), and either window is long enough for the
-                // page to be closed from under it.
                 final navigator = Navigator.of(context);
                 final messenger = ScaffoldMessenger.of(context);
                 final route = ModalRoute.of(context);
@@ -546,21 +593,13 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
         builder: (context, _) {
           final amt = parseAmount(_amount.text);
           return FormActionBar(
-            // The button mirrors the amount: while the field is scrolled
-            // away or covered, the value about to be recorded stays visible.
             label: isEdit
                 ? 'Save changes'.tr
                 : amt > 0
-                    ? 'Record {amount}'.trArgs({
-                        'amount': Money.text(amt, currency: _currency),
-                      })
-                    : 'Record'.tr,
-            // Disabled until there is an amount. `validate()` refuses the very
-            // same empty amount, but its message renders next to a field that
-            // is usually scrolled out of view by then — so the tap looked
-            // ignored and the page just refused to close, with nothing on
-            // screen to say why. The hint says it where the question is
-            // asked: on the button that refused to act.
+                ? 'Record {amount}'.trArgs({
+                    'amount': Money.text(amt, currency: _currency),
+                  })
+                : 'Record'.tr,
             hint: amt > 0
                 ? null
                 : (isEdit ? 'Enter an amount' : 'Enter an amount to record')
@@ -573,294 +612,395 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
         key: _formKey,
         child: FormPageContent(
           maxWidth: 760,
-          child: ListView(
-            // The key changes whenever a *structural* change inserts or
-            // removes a whole section of the form (scope switches which
-            // contact row is shown; kind switches which category row is
-            // shown; contact changes whether the cash/credit row exists at
-            // all). Toggling cash/credit only inserts the settle field —
-            // the follow-up [Scrollable.ensureVisible] in
-            // [_revealPayModeSection] brings it into view without
-            // re-mounting the list and losing the keyboard.
-            key: ValueKey('form-${_customer?.id ?? 'none'}-${_scope.name}-'
-                '${_kind.name}'),
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
-            children: [
-              // ---------------- 1. Intent ----------------
-              // Kind tiles: one line, color-coded like the ledger rows, so
-              // the selection is confirmed at a glance while the keyboard is
-              // open on the amount.
-              TxnKindStrip(
-                kinds: TxnKind.values,
-                selected: _kind,
-                onSelect: (k) => setState(() {
-                  _kind = k;
-                  _syncCategory(repo);
-                }),
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragStart: _handleHorizontalDragStart,
+            onHorizontalDragUpdate: (d) =>
+                _handleHorizontalDragUpdate(repo, d),
+            onHorizontalDragCancel: _handleHorizontalDragCancel,
+            onHorizontalDragEnd: (d) => _handleHorizontalDragEnd(repo, d),
+            child: ListView(
+              key: ValueKey(
+                'form-${_customer?.id ?? 'none'}-${_scope.name}-${_kind.name}',
               ),
-              const SizedBox(height: 10),
-              ScopeSegment(
-                selected: _scope,
-                onSelect: (sc) => setState(() {
-                  _scope = sc;
-                  if (_scope == TxnScope.personal) {
-                    _customer = null;
-                    _subscription = null;
-                    _credit = false;
-                  }
-                  _syncCategory(repo);
-                }),
-              ),
-              if (!isEdit) ...[
-                // Presets from the ledger's own habits: repeat a recent
-                // entry with one tap, right at the top of the form.
-                if (recents.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                  SectionCaption('Recent'),
-                  const SizedBox(height: 6),
-                  ChipStrip(chips: [
-                    for (final t in recents)
-                      PresetChip(
-                        icon: t.kind.icon,
-                        label: _presetLabel(t, repo),
-                        onTap: () => _applyRecent(t, repo),
-                      ),
-                  ]),
-                ],
-                // Quick-entry buttons matching the current section and
-                // direction; tapping one prefills this form (still
-                // editable), long-press edits it, the trailing chip adds a
-                // new button for exactly this case.
-                Padding(
-                  padding: EdgeInsets.only(top: recents.isNotEmpty ? 8 : 14),
-                  child: QuickButtonsRow(
-                    scopeFilter: _scope,
-                    incomeFilter: _kind == TxnKind.income ||
-                        _kind == TxnKind.receive,
-                    hideWhenEmpty: true,
-                    selectedCategoryId: _category?.id,
-                    onTap: _applyQuick,
-                    onLongPress: (q) => _openQuickEdit(q),
-                    trailing: _addQuickChip(),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
+              children: [
+                // -------- 1. Magnetic Scope Switcher (Business / Personal) --------
+                AnimatedBuilder(
+                  animation: _scopeAnim,
+                  builder: (context, _) => ScopeMagneticBar(
+                    personalProgress: _personalProgress,
+                    onSelectScope: (sc) => _changeScopeByTap(repo, sc),
                   ),
                 ),
-              ],
-              // ---------------- 2. The numbers ----------------
-              const SizedBox(height: 16),
-              AmountField(
-                controller: _amount,
-                label: 'Amount'.tr,
-                currency: _currency,
-                autofocus: widget.autofocusAmount && !isEdit && !_autofocusDone,
-                textInputAction: TextInputAction.next,
-              ),
-              // Typing the amount does not rebuild the page, so the
-              // equivalent is computed inside a listener; the spacer keeps
-              // the layout stable while it is hidden.
-              ListenableBuilder(
-                listenable: _amount,
-                builder: (context, _) {
-                  final amt = parseAmount(_amount.text);
-                  if (_currency == baseCode || amt <= 0) {
-                    return const SizedBox.shrink();
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      'Base-currency equivalent at {rate} = {amount}'.trArgs({
-                        'rate': Money.text(
-                          repo.settings.currency(_currency).rateToBase,
-                        ),
-                        'amount': Money.text(
-                          amt *
-                              repo.settings.currency(_currency).rateToBase,
-                        ),
-                      }),
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: onSurface.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: _datePill(context)),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 96,
-                    child: SelectField<String>(
-                      label: 'Currency'.tr,
-                      value: _currency,
-                      items: currencies.map((c) => c.code).toList(),
-                      labelOf: (c) => Money.symbol(c),
-                      onChanged: (c) => setState(() {
-                        _currency = c ?? _currency;
-                        _settleCurrency = _currency;
-                      }),
-                    ),
+
+                // -------- 2. Business Kind Strip (when in Business scope) --------
+                if (_scope == TxnScope.business) ...[
+                  const SizedBox(height: 10),
+                  TxnKindStrip(
+                    kinds: TxnKind.values,
+                    selected: _kind,
+                    onSelect: (k) => setState(() {
+                      _kind = k;
+                      _syncCategory(repo);
+                    }),
                   ),
                 ],
-              ),
-              // ---------------- 3. Details ----------------
-              // Business contact. Personal spending is kept out of customer
-              // accounts. The frequent ones are one tap away as chips; the
-              // rest live in the searchable sheet behind "all contacts".
-              if (_scope == TxnScope.business) ...[
-                const SizedBox(height: 16),
-                SectionCaption('Contact (optional)'),
-                const SizedBox(height: 6),
-                ChipStrip(chips: [
-                  for (final c in contactChips) _contactChip(c),
-                  PresetChip(
-                    icon: Icons.person_search_outlined,
-                    label: 'All contacts'.tr,
-                    onTap: _openContactSheet,
-                  ),
-                  PresetChip(
-                    icon: Icons.person_add_alt_1_rounded,
-                    label: 'New contact'.tr,
-                    onTap: _newContact,
-                  ),
-                ]),
-                if (_customer != null)
-                  ContactBalanceCard(
-                    customer: _customer!,
-                    balance: repo.balanceOf(_customer!),
-                  ),
-              ],
-              if (_needsCategory) ...[
-                const SizedBox(height: 16),
-                // Every category lives in one searchable list — frequent
-                // ones lead, so a long catalog is never a scrolling hunt.
-                SelectField<Category>(
-                  label: 'Category'.tr,
-                  icon: Icons.category_outlined,
-                  value: _category,
-                  items: repo.pickOrderCategories(_kind, scope: _scope),
-                  labelOf: (c) => c.name,
-                  searchHint: 'Category name...'.tr,
-                  sheetTitle: 'Select category'.tr,
-                  isChild: (c) => c.parentId != null,
-                  extraActionLabel: 'Manage'.tr,
-                  onExtraAction: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const CategoriesPage(),
-                    ),
-                  ),
-                  onChanged: (c) {
-                    Haptics.selection();
-                    setState(() => _category = c);
+
+                // -------- 3. Amount & Date/Currency --------
+                const SizedBox(height: 12),
+                AmountField(
+                  controller: _amount,
+                  label: 'Amount'.tr,
+                  currency: _currency,
+                  autofocus:
+                      widget.autofocusAmount && !isEdit && !_autofocusDone,
+                  textInputAction: TextInputAction.next,
+                ),
+                ListenableBuilder(
+                  listenable: _amount,
+                  builder: (context, _) {
+                    final amt = parseAmount(_amount.text);
+                    if (_currency == baseCode || amt <= 0) {
+                      return const SizedBox.shrink();
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Base-currency equivalent at {rate} = {amount}'.trArgs({
+                          'rate': Money.text(
+                            repo.settings.currency(_currency).rateToBase,
+                          ),
+                          'amount': Money.text(
+                            amt * repo.settings.currency(_currency).rateToBase,
+                          ),
+                        }),
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: onSurface.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    );
                   },
                 ),
-              ],
-              if (_needsCategory && _customer != null) ...[
-                // Anchor: the list re-mounts when this section is inserted
-                // (see the ListView key), and the section is scrolled into
-                // view through this context.
-                SizedBox(key: _payModeAnchor, height: 16),
-                // Cash or credit: the one choice that changes where the money
-                // lands, so it is a labeled two-state control with the
-                // consequence spelled out right below it.
-                SegmentedButton<bool>(
-                  segments: [
-                    ButtonSegment(
-                      value: false,
-                      icon: const Icon(
-                        Icons.account_balance_wallet_outlined,
-                        size: 18,
+
+                // -------- 4. Date & Currency --------
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: _datePill(context)),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 96,
+                      child: SelectField<String>(
+                        label: 'Currency'.tr,
+                        value: _currency,
+                        items: currencies.map((c) => c.code).toList(),
+                        labelOf: (c) => Money.symbol(c),
+                        onChanged: (c) => setState(() {
+                          _currency = c ?? _currency;
+                          _settleCurrency = _currency;
+                        }),
                       ),
-                      label: Text('Cash'.tr),
-                    ),
-                    ButtonSegment(
-                      value: true,
-                      icon: const Icon(
-                        Icons.receipt_long_outlined,
-                        size: 18,
-                      ),
-                      label: Text('Credit'.tr),
                     ),
                   ],
-                  selected: {_credit},
-                  onSelectionChanged: (s) {
-                    Haptics.selection();
-                    setState(() => _credit = s.first);
-                    _revealPayModeSection();
-                  },
-                  style: SegmentedButton.styleFrom(
-                    minimumSize: const Size(0, Taps.minHeight),
-                    textStyle: const TextStyle(fontSize: 12),
-                  ),
                 ),
-                const SizedBox(height: 6),
-                // The consequence line depends on both the amount and the
-                // settled part, and neither edit rebuilds the page — listen
-                // to the controllers so it updates as the user types.
-                ListenableBuilder(
-                  listenable: Listenable.merge([_amount, _settled]),
-                  builder: (context, _) => Text(
-                    _payModeHint,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: onSurface.withValues(alpha: 0.65),
-                    ),
-                  ),
-                ),
-                if (showSettle) ...[
-                  const SizedBox(height: 10),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: AmountField(
-                          controller: _settled,
-                          label: _kind == TxnKind.income
-                              ? 'Cash received now'
-                              : 'Cash paid now',
-                          currency: _settleCurrency,
-                          textInputAction: TextInputAction.next,
-                          validator: (_) => null,
+
+                // -------- 5. Repeat Recent Entries (compact strip) --------
+                if (!isEdit && recents.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const SectionCaption('Recent'),
+                  const SizedBox(height: 6),
+                  ChipStrip(
+                    chips: [
+                      for (final t in recents)
+                        PresetChip(
+                          icon: t.kind.icon,
+                          label: _presetLabel(t, repo),
+                          onTap: () => _applyRecent(t, repo),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        width: 96,
-                        child: SelectField<String>(
-                          label: 'Currency'.tr,
-                          value: _settleCurrency,
-                          items: currencies.map((c) => c.code).toList(),
-                          labelOf: (c) => Money.symbol(c),
-                          onChanged: (c) => setState(
-                            () => _settleCurrency = c ?? _settleCurrency,
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ],
+
+                // -------- 6. Magnetic 2-Page Scope Details («به حساب» / «از حساب», Shortcuts, Contact) --------
+                if (!_isTransitioning)
+                  ..._buildScopeChildren(
+                    repo: repo,
+                    pageScope: _scope,
+                    contactChips: contactChips,
+                    showSettle: showSettle,
+                    currencies: currencies,
+                    onSurface: onSurface,
+                  )
+                else
+                  _buildMagneticScopeSection(
+                    repo: repo,
+                    contactChips: contactChips,
+                    showSettle: showSettle,
+                    currencies: currencies,
+                    onSurface: onSurface,
+                  ),
+
+                // -------- 7. Description --------
+                const SizedBox(height: 12),
+                AppTextField(
+                  controller: _note,
+                  label: 'Description'.tr,
+                  icon: Icons.notes_rounded,
+                  maxLines: 2,
+                ),
               ],
-              const SizedBox(height: 16),
-              AppTextField(
-                controller: _note,
-                label: 'Description'.tr,
-                icon: Icons.notes_rounded,
-                maxLines: 2,
-              ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // ---------------- Layout helpers ----------------
+  Widget _buildMagneticScopeSection({
+    required AppRepository repo,
+    required List<Customer> contactChips,
+    required bool showSettle,
+    required List<CurrencyDef> currencies,
+    required Color onSurface,
+  }) {
+    if (!_isTransitioning) {
+      return _buildScopeDetails(
+        repo: repo,
+        pageScope: _scope,
+        contactChips: contactChips,
+        showSettle: showSettle,
+        currencies: currencies,
+        onSurface: onSurface,
+      );
+    }
 
-  /// Contact chip: one tap selects the customer, a second tap clears the
-  /// selection — faster than a sheet for the regulars.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width - 32;
+        final fromChild = RepaintBoundary(
+          child: IgnorePointer(
+            child: _buildScopeDetails(
+              repo: repo,
+              pageScope: _fromScope,
+              contactChips: contactChips,
+              showSettle: showSettle,
+              currencies: currencies,
+              onSurface: onSurface,
+            ),
+          ),
+        );
+        final toChild = RepaintBoundary(
+          child: IgnorePointer(
+            child: _buildScopeDetails(
+              repo: repo,
+              pageScope: _toScope,
+              contactChips: contactChips,
+              showSettle: showSettle,
+              currencies: currencies,
+              onSurface: onSurface,
+            ),
+          ),
+        );
+
+        return ClipRect(
+          child: AnimatedBuilder(
+            animation: _scopeAnim,
+            builder: (context, _) {
+              final t = _scopeAnim.value.clamp(0.0, 1.0);
+              final fromDx = _slideDir * width * t;
+              final toDx = fromDx - _slideDir * width;
+
+              return Stack(
+                alignment: Alignment.topCenter,
+                children: [
+                  Transform.translate(
+                    offset: Offset(fromDx, 0),
+                    child: Opacity(
+                      opacity: (1.0 - t * 0.35).clamp(0.0, 1.0),
+                      child: fromChild,
+                    ),
+                  ),
+                  Transform.translate(
+                    offset: Offset(toDx, 0),
+                    child: Opacity(
+                      opacity: (0.65 + t * 0.35).clamp(0.0, 1.0),
+                      child: toChild,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildScopeDetails({
+    required AppRepository repo,
+    required TxnScope pageScope,
+    required List<Customer> contactChips,
+    required bool showSettle,
+    required List<CurrencyDef> currencies,
+    required Color onSurface,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: _buildScopeChildren(
+        repo: repo,
+        pageScope: pageScope,
+        contactChips: contactChips,
+        showSettle: showSettle,
+        currencies: currencies,
+        onSurface: onSurface,
+      ),
+    );
+  }
+
+  List<Widget> _buildScopeChildren({
+    required AppRepository repo,
+    required TxnScope pageScope,
+    required List<Customer> contactChips,
+    required bool showSettle,
+    required List<CurrencyDef> currencies,
+    required Color onSurface,
+  }) {
+    final categoryKind = _categoryKind;
+    final isCurrentScope = pageScope == _scope;
+    final selectedCatId = isCurrentScope
+        ? _category?.id
+        : (categoryKind == null
+              ? null
+              : repo.defaultCategoryId(categoryKind, scope: pageScope));
+    final shortcuts = categoryKind == null
+        ? const <Category>[]
+        : repo.shortcutCategories(categoryKind, scope: pageScope);
+
+    return <Widget>[
+        // -------- «به حساب» / «از حساب» + Pinned Subcategory Shortcuts --------
+        if (categoryKind != null) ...[
+          const SizedBox(height: 12),
+          AccountSelectorSection(
+            repo: repo,
+            categoryKind: categoryKind,
+            scope: pageScope,
+            selectedCategoryId: selectedCatId,
+            shortcuts: shortcuts,
+            onSelectCategory: (cat) => setState(() => _category = cat),
+          ),
+        ],
+
+        // -------- Business Contact & Cash/Credit --------
+        if (pageScope == TxnScope.business) ...[
+          const SizedBox(height: 12),
+          const SectionCaption('Contact (optional)'),
+          const SizedBox(height: 6),
+          ChipStrip(
+            chips: [
+              for (final c in contactChips) _contactChip(c),
+              PresetChip(
+                icon: Icons.person_search_outlined,
+                label: 'All contacts'.tr,
+                onTap: _openContactSheet,
+              ),
+              PresetChip(
+                icon: Icons.person_add_alt_1_rounded,
+                label: 'New contact'.tr,
+                onTap: _newContact,
+              ),
+            ],
+          ),
+          if (_customer != null)
+            ContactBalanceCard(
+              customer: _customer!,
+              balance: repo.balanceOf(_customer!),
+            ),
+          if (_needsCategory && _customer != null) ...[
+            SizedBox(key: _payModeAnchor, height: 14),
+            SegmentedButton<bool>(
+              segments: [
+                ButtonSegment(
+                  value: false,
+                  icon: const Icon(
+                    Icons.account_balance_wallet_outlined,
+                    size: 18,
+                  ),
+                  label: Text('Cash'.tr),
+                ),
+                ButtonSegment(
+                  value: true,
+                  icon: const Icon(
+                    Icons.receipt_long_outlined,
+                    size: 18,
+                  ),
+                  label: Text('Credit'.tr),
+                ),
+              ],
+              selected: {_credit},
+              onSelectionChanged: (s) {
+                Haptics.selection();
+                setState(() => _credit = s.first);
+                _revealPayModeSection();
+              },
+              style: SegmentedButton.styleFrom(
+                minimumSize: const Size(0, Taps.minHeight),
+                textStyle: const TextStyle(fontSize: 12),
+              ),
+            ),
+            const SizedBox(height: 6),
+            ListenableBuilder(
+              listenable: Listenable.merge([_amount, _settled]),
+              builder: (context, _) => Text(
+                _payModeHint,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: onSurface.withValues(alpha: 0.65),
+                ),
+              ),
+            ),
+            if (showSettle) ...[
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: AmountField(
+                      controller: _settled,
+                      label: _kind == TxnKind.income
+                          ? 'Cash received now'
+                          : 'Cash paid now',
+                      currency: _settleCurrency,
+                      textInputAction: TextInputAction.next,
+                      validator: (_) => null,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 96,
+                    child: SelectField<String>(
+                      label: 'Currency'.tr,
+                      value: _settleCurrency,
+                      items: currencies.map((c) => c.code).toList(),
+                      labelOf: (c) => Money.symbol(c),
+                      onChanged: (c) => setState(
+                        () => _settleCurrency = c ?? _settleCurrency,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ],
+      ];
+  }
+
   Widget _contactChip(Customer c) {
     final selected = _customer?.id == c.id;
     return PresetChip(
@@ -876,8 +1016,6 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
     );
   }
 
-  /// The date as a compact field that reads "Today" until it is changed, so
-  /// the common case never opens a calendar at all.
   Widget _datePill(BuildContext context) {
     final isToday = J.sameDay(_date, J.today);
     return Semantics(
@@ -904,8 +1042,6 @@ class _TransactionEditPageState extends State<TransactionEditPage> {
     );
   }
 
-  /// One line of consequence under the cash/credit control: what saving will
-  /// actually do to the box and to the contact's account.
   String get _payModeHint {
     final amount = parseAmount(_amount.text);
     final isIncome = _kind == TxnKind.income;

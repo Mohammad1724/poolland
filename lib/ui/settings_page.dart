@@ -1366,6 +1366,19 @@ class _CategoriesPageState extends State<CategoriesPage> {
             ),
           ),
           IconButton(
+            tooltip: 'Shortcut'.tr,
+            icon: Icon(
+              c.isShortcut
+                  ? Icons.push_pin_rounded
+                  : Icons.push_pin_outlined,
+              size: 18,
+              color: c.isShortcut
+                  ? Theme.of(context).colorScheme.primary
+                  : onSurface.withValues(alpha: 0.45),
+            ),
+            onPressed: () => repo.toggleCategoryShortcut(c.id),
+          ),
+          IconButton(
             tooltip: 'Edit'.tr,
             icon: const Icon(Icons.edit_outlined, size: 18),
             onPressed: () => _categoryDialog(context, kind, existing: c),

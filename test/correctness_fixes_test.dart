@@ -261,11 +261,11 @@ void main() {
 
       // The redesigned sheet uses _ScopeChip instead of SegmentedButton.
       // Verify Business is selected by checking the chip is present.
-      expect(find.text('کسب‌وکار'), findsOneWidget);
-      expect(find.text('شخصی'), findsOneWidget);
+      expect(find.text('Business'), findsOneWidget);
+      expect(find.text('Personal'), findsOneWidget);
 
       // Still one tap from being recorded, as the review queue promises.
-      final record = find.widgetWithText(FilledButton, 'ثبت تراکنش');
+      final record = find.widgetWithText(FilledButton, 'Record transaction');
       expect(tester.widget<FilledButton>(record).onPressed, isNotNull);
       expect(tester.takeException(), isNull);
     });
