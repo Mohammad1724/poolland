@@ -353,19 +353,23 @@ void main() {
 
       // Switch between Daily, Weekly, and All ranges.
       await tester.tap(find.widgetWithText(ChoiceChip, 'Daily'));
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(tester.takeException(), isNull);
 
       await tester.tap(find.widgetWithText(ChoiceChip, 'Weekly'));
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(tester.takeException(), isNull);
 
       await tester.tap(find.widgetWithText(ChoiceChip, 'All').last);
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(tester.takeException(), isNull);
 
       // Scroll down to verify the category breakdown and specialist insights.
       await tester.drag(find.byType(ListView).first, const Offset(0, -450));
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('Category income and expense report'), findsOneWidget);
       expect(tester.takeException(), isNull);

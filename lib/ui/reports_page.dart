@@ -274,8 +274,6 @@ class _ReportsPageState extends State<ReportsPage> {
     );
     final debtors = repo.debtorsList();
     final margin = s.income > 0 ? s.profit / s.income : 0.0;
-    final dailyAvgIncome = s.income / daysSpan;
-    final dailyAvgExpense = s.expense / daysSpan;
 
     return ListView(
       controller: widget.controller,
@@ -346,8 +344,6 @@ class _ReportsPageState extends State<ReportsPage> {
           summary: s,
           prevSummary: prevSummary,
           margin: margin,
-          dailyAvgIncome: dailyAvgIncome,
-          dailyAvgExpense: dailyAvgExpense,
           scope: scope,
         ),
 
@@ -577,8 +573,6 @@ class _ReportsPageState extends State<ReportsPage> {
     required Summary summary,
     required Summary? prevSummary,
     required double margin,
-    required double dailyAvgIncome,
-    required double dailyAvgExpense,
     required TxnScope? scope,
   }) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
@@ -586,9 +580,6 @@ class _ReportsPageState extends State<ReportsPage> {
     final incomeShare = totalFlow > 0
         ? (summary.income / totalFlow).clamp(0.0, 1.0)
         : 0.5;
-    final expenseRatio = summary.income > 0
-        ? (summary.expense / summary.income).clamp(0.0, 2.0)
-        : (summary.expense > 0 ? 1.0 : 0.0);
 
     final (healthLabel, healthColor) = summary.income <= 0 && summary.expense <= 0
         ? ('Balanced', const Color(0xFF64748B))
@@ -632,13 +623,13 @@ class _ReportsPageState extends State<ReportsPage> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
           // Visual Income vs Expense bar
           ClipRRect(
             borderRadius: BorderRadius.circular(99),
             child: SizedBox(
-              height: 8,
+              height: 7,
               child: Row(
                 children: [
                   Expanded(
@@ -654,7 +645,7 @@ class _ReportsPageState extends State<ReportsPage> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
           Row(
             children: [
@@ -718,29 +709,7 @@ class _ReportsPageState extends State<ReportsPage> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-
-          Row(
-            children: [
-              Expanded(
-                child: _kv(
-                  context,
-                  'Daily average income',
-                  Money.text(dailyAvgIncome, compact: true),
-                  const Color(0xFF15803D),
-                ),
-              ),
-              Expanded(
-                child: _kv(
-                  context,
-                  'Daily average expense',
-                  Money.text(dailyAvgExpense, compact: true),
-                  const Color(0xFFBE123C),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
           Row(
             children: [
@@ -762,35 +731,11 @@ class _ReportsPageState extends State<ReportsPage> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-
-          Row(
-            children: [
-              Expanded(
-                child: _kv(
-                  context,
-                  'Expense to income ratio',
-                  Fmt.percent(expenseRatio),
-                  expenseRatio <= 0.8
-                      ? const Color(0xFF0F766E)
-                      : const Color(0xFFE11D48),
-                ),
-              ),
-              Expanded(
-                child: _kv(
-                  context,
-                  'Transactions count',
-                  Fmt.number(summary.txnCount),
-                  onSurface,
-                ),
-              ),
-            ],
-          ),
 
           if (scope != TxnScope.personal) ...[
-            const SizedBox(height: 12),
-            Divider(color: Theme.of(context).dividerColor),
             const SizedBox(height: 10),
+            Divider(color: Theme.of(context).dividerColor),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
@@ -1464,6 +1409,11 @@ class _ReportsPageState extends State<ReportsPage> {
         ? summary.expense / expenseCount
         : 0.0;
     final avgIncomeTxn = incomeCount > 0 ? summary.income / incomeCount : 0.0;
+    final dailyAvgIncome = summary.income / daysSpan;
+    final dailyAvgExpense = summary.expense / daysSpan;
+    final expenseRatio = summary.income > 0
+        ? (summary.expense / summary.income).clamp(0.0, 2.0)
+        : (summary.expense > 0 ? 1.0 : 0.0);
 
     const weekdayNames = [
       'Saturday',
@@ -1494,6 +1444,50 @@ class _ReportsPageState extends State<ReportsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _kv(
+                      context,
+                      'Daily average income',
+                      Money.text(dailyAvgIncome, compact: true),
+                      const Color(0xFF15803D),
+                    ),
+                  ),
+                  Expanded(
+                    child: _kv(
+                      context,
+                      'Daily average expense',
+                      Money.text(dailyAvgExpense, compact: true),
+                      const Color(0xFFBE123C),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _kv(
+                      context,
+                      'Expense to income ratio',
+                      Fmt.percent(expenseRatio),
+                      expenseRatio <= 0.8
+                          ? const Color(0xFF0F766E)
+                          : const Color(0xFFE11D48),
+                    ),
+                  ),
+                  Expanded(
+                    child: _kv(
+                      context,
+                      'Transactions count',
+                      Fmt.number(summary.txnCount),
+                      onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
