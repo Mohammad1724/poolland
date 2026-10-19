@@ -331,7 +331,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
   ) async {
     final picked = await showLedgerSheet<Category>(
       context,
-      builder: (_) => _AccountCategorySheet(
+      builder: (_) => AccountCategorySheet(
         kind: categoryKind,
         scope: scope,
         selectedCategoryId: _categoryId,
@@ -556,12 +556,13 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
         // -------- «به حساب» / «از حساب» + Shortcuts --------
         if (categoryKind != null) ...[
           const SizedBox(height: 12),
-          _accountSelectorSection(
+          AccountSelectorSection(
             repo: repo,
             categoryKind: categoryKind,
             scope: pageScope,
             selectedCategoryId: pageCategoryId,
             shortcuts: shortcuts,
+            onSelectCategory: (cat) => setState(() => _categoryId = cat.id),
           ),
         ],
 
@@ -648,7 +649,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
           ),
         ),
         const SizedBox(width: 8),
-        _DirectionToggle(
+        DirectionToggle(
           isIncome: _isIncome,
           onSelect: (inc) => _changeDirection(repo, inc),
         ),
@@ -659,12 +660,163 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
   /// Segmented bar whose highlight pill tracks `_personalProgress` continuously
   /// during finger drag and snaps magnetically to the active tab.
   Widget _scopeRow(AppRepository repo) {
+    return ScopeMagneticBar(
+      personalProgress: _personalProgress,
+      onSelectScope: (sc) => _changeScopeByTap(repo, sc),
+    );
+  }
+
+  Widget _actionBar(AppRepository repo, ParsedSms sms) {
+    final value = parseAmount(_amount.text);
+    final ready = value > 0;
+    return Row(
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: 46,
+            child: OutlinedButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel'.tr),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          flex: 2,
+          child: SizedBox(
+            height: 46,
+            child: FilledButton.icon(
+              onPressed: ready
+                  ? () async {
+                      await repo.approveSms(
+                        sms,
+                        customer: _customer,
+                        kind: _kind,
+                        categoryId: _categoryId,
+                        amount: value,
+                        scope: _scope,
+                      );
+                      if (mounted) {
+                        MoneyCelebration.recorded(context);
+                        Navigator.pop(context, true);
+                      }
+                    }
+                  : null,
+              icon: const Icon(Icons.check_rounded, size: 18),
+              label: Text('Record transaction'.tr),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Compact two-button pill in the header to switch between Income («درآمد»)
+/// and Expense («هزینه»).
+class DirectionToggle extends StatelessWidget {
+  const DirectionToggle({
+    super.key,
+    required this.isIncome,
+    required this.onSelect,
+  });
+
+  final bool isIncome;
+  final ValueChanged<bool> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final p = _personalProgress;
+    return Container(
+      padding: const EdgeInsets.all(2.5),
+      decoration: BoxDecoration(
+        color: scheme.onSurface.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: scheme.onSurface.withValues(alpha: 0.09),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _pill(
+            context: context,
+            label: 'Income'.tr,
+            selected: isIncome,
+            color: AppTheme.revenue,
+            onTap: () => onSelect(true),
+          ),
+          const SizedBox(width: 2),
+          _pill(
+            context: context,
+            label: 'Expense'.tr,
+            selected: !isIncome,
+            color: AppTheme.expense,
+            onTap: () => onSelect(false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pill({
+    required BuildContext context,
+    required String label,
+    required bool selected,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return InkWell(
+      borderRadius: BorderRadius.circular(7),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: Motion.adaptive(context, Motion.expand),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(7),
+          border: Border.all(
+            color: selected
+                ? color.withValues(alpha: 0.55)
+                : Colors.transparent,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+            color: selected ? color : onSurface.withValues(alpha: 0.60),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Magnetic segmented bar for switching between Business (`کسب‌وکار`) and
+/// Personal (`شخصی`) scopes with a continuous sliding pill.
+class ScopeMagneticBar extends StatelessWidget {
+  const ScopeMagneticBar({
+    super.key,
+    required this.personalProgress,
+    required this.onSelectScope,
+  });
+
+  final double personalProgress;
+  final ValueChanged<TxnScope> onSelectScope;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final p = personalProgress.clamp(0.0, 1.0);
     final alignX = -1.0 + 2.0 * p;
 
     return Container(
-      height: 42,
+      key: const ValueKey('txn_scope_switcher'),
+      height: 44,
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: scheme.onSurface.withValues(alpha: 0.05),
@@ -707,7 +859,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
                   label: 'Business'.tr,
                   icon: Icons.business_center_outlined,
                   selected: p < 0.5,
-                  onTap: () => _changeScopeByTap(repo, TxnScope.business),
+                  onTap: () => onSelectScope(TxnScope.business),
                 ),
               ),
               const SizedBox(width: 4),
@@ -716,7 +868,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
                   label: 'Personal'.tr,
                   icon: Icons.person_outline_rounded,
                   selected: p >= 0.5,
-                  onTap: () => _changeScopeByTap(repo, TxnScope.personal),
+                  onTap: () => onSelectScope(TxnScope.personal),
                 ),
               ),
             ],
@@ -725,16 +877,44 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
       ),
     );
   }
+}
 
-  /// Renders the «به حساب» (for expenses) / «از حساب» (for incomes) button
-  /// alongside the user's pinned subcategory shortcuts (`میان‌برها`).
-  Widget _accountSelectorSection({
-    required AppRepository repo,
-    required TxnKind categoryKind,
-    required TxnScope scope,
-    required String? selectedCategoryId,
-    required List<Category> shortcuts,
-  }) {
+/// Renders the «به حساب» (for expenses) / «از حساب» (for incomes) button
+/// alongside the user's pinned subcategory shortcuts (`میان‌برها`).
+class AccountSelectorSection extends StatelessWidget {
+  const AccountSelectorSection({
+    super.key,
+    required this.repo,
+    required this.categoryKind,
+    required this.scope,
+    required this.selectedCategoryId,
+    required this.shortcuts,
+    required this.onSelectCategory,
+  });
+
+  final AppRepository repo;
+  final TxnKind categoryKind;
+  final TxnScope scope;
+  final String? selectedCategoryId;
+  final List<Category> shortcuts;
+  final ValueChanged<Category> onSelectCategory;
+
+  Future<void> _openSheet(BuildContext context) async {
+    final picked = await showLedgerSheet<Category>(
+      context,
+      builder: (_) => AccountCategorySheet(
+        kind: categoryKind,
+        scope: scope,
+        selectedCategoryId: selectedCategoryId,
+      ),
+    );
+    if (!context.mounted || picked == null) return;
+    Haptics.selection();
+    onSelectCategory(picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final isExpense = categoryKind == TxnKind.expense;
     final buttonLabel = (isExpense ? 'To account' : 'From account').tr;
@@ -756,7 +936,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
         // Main «به حساب» / «از حساب» button
         InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => _openAccountCategorySheet(repo, categoryKind, scope),
+          onTap: () => _openSheet(context),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
@@ -840,16 +1020,12 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
                 accent: accent,
                 onTap: () {
                   Haptics.selection();
-                  setState(() => _categoryId = sc.id);
+                  onSelectCategory(sc);
                 },
               ),
             InkWell(
               borderRadius: BorderRadius.circular(9),
-              onTap: () => _openAccountCategorySheet(
-                repo,
-                categoryKind,
-                scope,
-              ),
+              onTap: () => _openSheet(context),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 8,
@@ -888,134 +1064,6 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
           ],
         ),
       ],
-    );
-  }
-
-  Widget _actionBar(AppRepository repo, ParsedSms sms) {
-    final value = parseAmount(_amount.text);
-    final ready = value > 0;
-    return Row(
-      children: [
-        Expanded(
-          child: SizedBox(
-            height: 46,
-            child: OutlinedButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancel'.tr),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          flex: 2,
-          child: SizedBox(
-            height: 46,
-            child: FilledButton.icon(
-              onPressed: ready
-                  ? () async {
-                      await repo.approveSms(
-                        sms,
-                        customer: _customer,
-                        kind: _kind,
-                        categoryId: _categoryId,
-                        amount: value,
-                        scope: _scope,
-                      );
-                      if (mounted) {
-                        MoneyCelebration.recorded(context);
-                        Navigator.pop(context, true);
-                      }
-                    }
-                  : null,
-              icon: const Icon(Icons.check_rounded, size: 18),
-              label: Text('Record transaction'.tr),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Compact two-button pill in the header to switch between Income («درآمد»)
-/// and Expense («هزینه»).
-class _DirectionToggle extends StatelessWidget {
-  const _DirectionToggle({
-    required this.isIncome,
-    required this.onSelect,
-  });
-
-  final bool isIncome;
-  final ValueChanged<bool> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(2.5),
-      decoration: BoxDecoration(
-        color: scheme.onSurface.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: scheme.onSurface.withValues(alpha: 0.09),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _pill(
-            context: context,
-            label: 'Income'.tr,
-            selected: isIncome,
-            color: AppTheme.revenue,
-            onTap: () => onSelect(true),
-          ),
-          const SizedBox(width: 2),
-          _pill(
-            context: context,
-            label: 'Expense'.tr,
-            selected: !isIncome,
-            color: AppTheme.expense,
-            onTap: () => onSelect(false),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _pill({
-    required BuildContext context,
-    required String label,
-    required bool selected,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    final onSurface = Theme.of(context).colorScheme.onSurface;
-    return InkWell(
-      borderRadius: BorderRadius.circular(7),
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: Motion.adaptive(context, Motion.expand),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        decoration: BoxDecoration(
-          color: selected ? color.withValues(alpha: 0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(7),
-          border: Border.all(
-            color: selected
-                ? color.withValues(alpha: 0.55)
-                : Colors.transparent,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 11.5,
-            fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-            color: selected ? color : onSurface.withValues(alpha: 0.60),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -1097,8 +1145,9 @@ class _ShortcutCategoryChip extends StatelessWidget {
 /// Shows top-level categories; tapping any category expands its subcategories
 /// and allows selecting a subcategory, adding a new subcategory, or pinning
 /// subcategories as 1-tap shortcuts on the main transaction sheet.
-class _AccountCategorySheet extends StatefulWidget {
-  const _AccountCategorySheet({
+class AccountCategorySheet extends StatefulWidget {
+  const AccountCategorySheet({
+    super.key,
     required this.kind,
     required this.scope,
     required this.selectedCategoryId,
@@ -1109,11 +1158,18 @@ class _AccountCategorySheet extends StatefulWidget {
   final String? selectedCategoryId;
 
   @override
-  State<_AccountCategorySheet> createState() => _AccountCategorySheetState();
+  State<AccountCategorySheet> createState() => _AccountCategorySheetState();
 }
 
-class _AccountCategorySheetState extends State<_AccountCategorySheet> {
+class _AccountCategorySheetState extends State<AccountCategorySheet> {
   String? _expandedParentId;
+  final _searchCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   void didChangeDependencies() {
@@ -1283,8 +1339,45 @@ class _AccountCategorySheetState extends State<_AccountCategorySheet> {
             ],
           ),
           const SizedBox(height: 10),
+          SearchField(
+            controller: _searchCtrl,
+            hint: 'Category name...'.tr,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 10),
           Flexible(
-            child: ListView.separated(
+            child: _searchCtrl.text.trim().isNotEmpty
+                ? Builder(
+                    builder: (context) {
+                      final q = _searchCtrl.text.trim().toLowerCase();
+                      final matches = all.where((c) {
+                        return c.name.tr.toLowerCase().contains(q) ||
+                            c.name.toLowerCase().contains(q);
+                      }).toList();
+                      return ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: matches.length,
+                        itemBuilder: (context, index) {
+                          final c = matches[index];
+                          final selected = c.id == widget.selectedCategoryId;
+                          return ListTile(
+                            dense: true,
+                            selected: selected,
+                            leading: Icon(
+                              c.parentId == null
+                                  ? Icons.folder_outlined
+                                  : Icons.subdirectory_arrow_left_rounded,
+                              size: 18,
+                              color: selected ? accent : null,
+                            ),
+                            title: Text(c.name.tr),
+                            onTap: () => Navigator.pop(context, c),
+                          );
+                        },
+                      );
+                    },
+                  )
+                : ListView.separated(
               shrinkWrap: true,
               physics: const AlwaysScrollableScrollPhysics(),
               itemCount: parents.length,

@@ -375,19 +375,7 @@ void main() {
       wrap(const TransactionEditPage(initialKind: TxnKind.expense)),
     );
     await tester.pumpAndSettle();
-    // The form is a lazy ListView: scroll so below-the-fold fields build.
-    await tester.scrollUntilVisible(
-      find.text('Category'),
-      200,
-      scrollable: find
-          .descendant(
-            of: find.byType(ListView),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Category'), findsOneWidget);
+    expect(find.text('To account'), findsOneWidget);
     expect(find.byType(FormActionBar), findsOneWidget);
     expect(tester.takeException(), isNull);
 
@@ -445,25 +433,11 @@ void main() {
     await tester.tap(find.text('Expense').last);
     await tester.pumpAndSettle();
 
-    // Reveal the category row: the selected chip must be the default expense
-    // category for the business scope, re-derived after the direction switch
-    // instead of silently keeping the income category (which would corrupt
-    // per-category reports on save).
-    await tester.scrollUntilVisible(
-      find.text('Category'),
-      200,
-      scrollable: find
-          .descendant(
-            of: find.byType(ListView),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
-    await tester.pumpAndSettle();
     final expected = repo.categoryById(
       repo.defaultCategoryId(TxnKind.expense, scope: TxnScope.business),
     );
     expect(expected, isNotNull);
+    expect(find.text('To account'), findsOneWidget);
     // The category row now carries the re-derived default for the new kind.
     expect(find.text(expected!.name), findsOneWidget);
     expect(expected.kind, TxnKind.expense);

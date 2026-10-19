@@ -304,11 +304,8 @@ void main() {
     ) async {
       await tester.pumpWidget(wrap(const TransactionEditPage()));
       await tester.pumpAndSettle();
-      // The lazy form list can keep the selector alive offstage depending
-      // on scroll state; the touch-target contract is about its size, so
-      // measure it wherever it currently lives.
       final size = tester.getSize(
-        find.byType(SegmentedButton<TxnScope>, skipOffstage: false),
+        find.byKey(const ValueKey('txn_scope_switcher'), skipOffstage: false),
       );
       expect(size.height, greaterThanOrEqualTo(44));
       expect(tester.takeException(), isNull);
