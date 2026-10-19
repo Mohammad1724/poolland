@@ -281,7 +281,7 @@ void main() {
       await tester.pumpWidget(wrapShell());
       await settleShell(tester);
 
-      final top = find.text('This month');
+      final top = find.text('Hello 👋');
       expect(top, findsOneWidget);
 
       await tester.drag(find.byType(ListView).first, const Offset(0, -500));

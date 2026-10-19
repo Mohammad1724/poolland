@@ -273,7 +273,10 @@ class _DashboardPageState extends State<DashboardPage>
                 ],
 
                 // -------- Magnetic 2-Page Scope Content --------
-                _buildMagneticScopeBody(context, repo),
+                if (!_isTransitioning)
+                  ..._buildScopeChildren(context, repo, _scope)
+                else
+                  _buildMagneticScopeBody(context, repo),
               ],
             ),
           ),
@@ -529,6 +532,18 @@ class _DashboardPageState extends State<DashboardPage>
     AppRepository repo,
     TxnScope pageScope,
   ) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: _buildScopeChildren(context, repo, pageScope),
+    );
+  }
+
+  List<Widget> _buildScopeChildren(
+    BuildContext context,
+    AppRepository repo,
+    TxnScope pageScope,
+  ) {
     final monthStart = J.startOfMonth(DateTime.now());
     final monthEnd = J.endOfMonth(DateTime.now());
     final monthSummary = repo.summary(
@@ -557,10 +572,7 @@ class _DashboardPageState extends State<DashboardPage>
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final compactLayout = MediaQuery.sizeOf(context).width < 360;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
+    return <Widget>[
         // -------- 1. Hero Monthly Summary Card --------
         _monthlyHeroCard(
           context: context,
@@ -591,6 +603,7 @@ class _DashboardPageState extends State<DashboardPage>
             context: context,
             repo: repo,
             onSurface: onSurface,
+            compactLayout: compactLayout,
           ),
 
         // -------- 4. Six-Month Trend Bar Chart --------
@@ -660,8 +673,7 @@ class _DashboardPageState extends State<DashboardPage>
               ],
             ),
           ),
-      ],
-    );
+      ];
   }
 
   Widget _monthlyHeroCard({
@@ -841,6 +853,7 @@ class _DashboardPageState extends State<DashboardPage>
     required BuildContext context,
     required AppRepository repo,
     required Color onSurface,
+    required bool compactLayout,
   }) {
     final usages = repo.budgetUsages();
     if (usages.isEmpty) {
@@ -933,28 +946,54 @@ class _DashboardPageState extends State<DashboardPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          u.categoryName.tr,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
+                  if (compactLayout) ...[
+                    Text(
+                      u.categoryName.tr,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${Money.text(u.spent, compact: true)} / ${Money.text(u.budget.limit, compact: true)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: onSurface.withValues(alpha: 0.65),
+                      ),
+                    ),
+                  ] else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            u.categoryName.tr,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                      ),
-                      Text(
-                        '${Money.text(u.spent, compact: true)} / ${Money.text(u.budget.limit, compact: true)}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: onSurface.withValues(alpha: 0.65),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            '${Money.text(u.spent, compact: true)} / ${Money.text(u.budget.limit, compact: true)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: onSurface.withValues(alpha: 0.65),
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
                   const SizedBox(height: 5),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(99),
