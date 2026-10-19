@@ -324,24 +324,6 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
     );
   }
 
-  Future<void> _openAccountCategorySheet(
-    AppRepository repo,
-    TxnKind categoryKind,
-    TxnScope scope,
-  ) async {
-    final picked = await showLedgerSheet<Category>(
-      context,
-      builder: (_) => AccountCategorySheet(
-        kind: categoryKind,
-        scope: scope,
-        selectedCategoryId: _categoryId,
-      ),
-    );
-    if (!mounted || picked == null) return;
-    Haptics.selection();
-    setState(() => _categoryId = picked.id);
-  }
-
   Widget _contactChip(AppRepository repo, Customer c) {
     final selected = _customer?.id == c.id;
     return PresetChip(

@@ -10,6 +10,7 @@ import '../../core/localization.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
+import '../design.dart';
 import '../motion_kit.dart';
 import '../widgets/date_picker.dart';
 import '../widgets/widgets.dart';

@@ -62,6 +62,13 @@ void main() {
     );
   }
 
+  Finder formScrollable() => find
+      .descendant(
+        of: find.byType(ListView),
+        matching: find.byType(Scrollable),
+      )
+      .first;
+
   group('pickOrderCategories', () {
     test('a child sits directly under its parent', () async {
       final parent = repo
