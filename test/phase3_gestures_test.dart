@@ -113,7 +113,7 @@ void main() {
   Future<void> tapTab(WidgetTester tester, int index) async {
     final rect = tester.getRect(find.byType(LedgerNavBar));
     await tester.tapAt(
-      Offset(rect.left + rect.width * (index + 0.5) / 4, rect.center.dy),
+      Offset(rect.left + rect.width * (index + 0.5) / 5, rect.center.dy),
     );
     await tester.pumpAndSettle();
   }

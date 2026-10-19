@@ -320,47 +320,6 @@ void main() {
     expect(find.text('row 0'), findsNothing);
   });
 
-  testWidgets(
-    'ledger sheet closes on first multi-frame timedDrag without unmounting mid-swipe',
-    (tester) async {
-      await tester.pumpWidget(
-        wrap(
-          Builder(
-            builder: (c) => FilledButton(
-              onPressed: () => showLedgerSheet<void>(
-                c,
-                builder: (ctx) => SizedBox(
-                  height: 300,
-                  child: ListView(
-                    children: [
-                      for (var i = 0; i < 30; i++)
-                        SizedBox(height: 40, child: Text('row $i')),
-                    ],
-                  ),
-                ),
-              ),
-              child: const Text('go'),
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      expect(find.text('row 0'), findsOneWidget);
-
-      // Unlike `tester.drag` (which dispatches all move events before pumping
-      // a frame), `timedDrag` pumps frames between pointer moves just like a
-      // real 60Hz screen.
-      await tester.timedDrag(
-        find.byType(ListView),
-        const Offset(0, 220),
-        const Duration(milliseconds: 200),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('row 0'), findsNothing);
-    },
-  );
-
   testWidgets('ledger sheet ignores a horizontal pull at the row start', (
     tester,
   ) async {

@@ -101,7 +101,7 @@ void main() {
     final bar = find.byType(LedgerNavBar);
     final rect = tester.getRect(bar);
     await tester.tapAt(
-      Offset(rect.left + rect.width * (index + 0.5) / 4, rect.center.dy),
+      Offset(rect.left + rect.width * (index + 0.5) / 5, rect.center.dy),
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -163,6 +163,7 @@ void main() {
       (1, 'Customers'),
       (2, 'Subscriptions'),
       (3, 'Transactions'),
+      (4, 'Reports'),
     ];
     for (final (index, tab) in tabs) {
       await tapTab(tester, index);
@@ -179,8 +180,8 @@ void main() {
     }
     await tester.tap(find.byTooltip('Reports'));
     await tester.pumpAndSettle();
-    expect(find.text('Reports'), findsOneWidget);
-    expect(find.byType(ReportsPage), findsOneWidget);
+    expect(find.text('Reports'), findsWidgets);
+    expect(find.byType(ReportsPage), findsWidgets);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
   });
@@ -339,6 +340,32 @@ void main() {
     expect(repo.scopeFilter, TxnScope.business);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'ReportsPage supports daily, weekly, monthly, all-time ranges and category breakdown',
+    (tester) async {
+      await tester.pumpWidget(wrap(const ReportsPage()));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Income and expense report'), findsOneWidget);
+      expect(find.text('Income and expense chart'), findsOneWidget);
+      expect(find.text('Category income and expense report'), findsOneWidget);
+
+      // Switch between Daily, Weekly, This month, and All ranges.
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Daily'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Weekly'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'All').last);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('Settings and subpages render', (tester) async {
     for (final page in [

@@ -198,15 +198,28 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('To account'));
+      await tester.scrollUntilVisible(
+        find.text('Category'),
+        200,
+        scrollable: formScrollable(),
+      );
       await tester.pumpAndSettle();
 
-      // The subcategory is in the list under its expanded parent.
+      await tester.tap(find.byType(SelectField<Category>));
+      await tester.pumpAndSettle();
+
+      // The subcategory is in the list, next to its parent.
       expect(find.text('Fuel and oil'), findsOneWidget);
 
       await tester.tap(find.text('Fuel and oil'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Fuel and oil'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(SelectField<Category>),
+          matching: find.text('Fuel and oil'),
+        ),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     });
 

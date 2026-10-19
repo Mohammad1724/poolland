@@ -418,7 +418,7 @@ class PersonalPage extends StatelessWidget {
   Future<void> _editBudget(BuildContext context, Budget? b) async {
     await showLedgerSheet<void>(
       context,
-      builder: (_) => BudgetEditSheet(initial: b),
+      builder: (_) => _BudgetSheet(initial: b),
     );
   }
 
@@ -775,16 +775,16 @@ class _PeriodChartCardState extends State<_PeriodChartCard> {
 }
 
 /// ---------------- Budget sheet ----------------
-class BudgetEditSheet extends StatefulWidget {
-  const BudgetEditSheet({super.key, this.initial});
+class _BudgetSheet extends StatefulWidget {
+  const _BudgetSheet({this.initial});
 
   final Budget? initial;
 
   @override
-  State<BudgetEditSheet> createState() => _BudgetSheetState();
+  State<_BudgetSheet> createState() => _BudgetSheetState();
 }
 
-class _BudgetSheetState extends State<BudgetEditSheet> {
+class _BudgetSheetState extends State<_BudgetSheet> {
   final _limit = TextEditingController();
   String? _categoryId;
   bool _enabled = true;

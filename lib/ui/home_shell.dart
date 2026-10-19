@@ -81,6 +81,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     'Customers',
     'Subscriptions',
     'Transactions',
+    'Reports',
   ];
 
   /// The repository this shell keeps a handle on, so lifecycle callbacks and
@@ -745,6 +746,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       CustomersPage(controller: _controllerFor(1)),
       SubscriptionsPage(controller: _controllerFor(2)),
       TransactionsPage(controller: _controllerFor(3)),
+      ReportsPage(controller: _controllerFor(4)),
     ];
     final content = !isReady
         ? const Center(child: CircularProgressIndicator())
@@ -839,6 +841,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                         selectedIcon: const Icon(Icons.receipt_long_rounded),
                         label: Text('Transactions'.tr),
                       ),
+                      NavigationRailDestination(
+                        icon: const Icon(Icons.insights_outlined),
+                        selectedIcon: const Icon(Icons.insights_rounded),
+                        label: Text('Reports'.tr),
+                      ),
                     ],
                   ),
                   const VerticalDivider(width: 1),
@@ -925,6 +932,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                     icon: Icons.receipt_long_outlined,
                     selectedIcon: Icons.receipt_long_rounded,
                     label: 'Transactions'.tr,
+                  ),
+                  LedgerNavDestination(
+                    icon: Icons.insights_outlined,
+                    selectedIcon: Icons.insights_rounded,
+                    label: 'Reports'.tr,
                   ),
                 ],
               ),
