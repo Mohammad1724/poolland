@@ -113,7 +113,7 @@ void main() {
   Future<void> tapTab(WidgetTester tester, int index) async {
     final rect = tester.getRect(find.byType(LedgerNavBar));
     await tester.tapAt(
-      Offset(rect.left + rect.width * (index + 0.5) / 5, rect.center.dy),
+      Offset(rect.left + rect.width * (index + 0.5) / 4, rect.center.dy),
     );
     await tester.pumpAndSettle();
   }
@@ -258,7 +258,7 @@ void main() {
       await settleShell(tester);
 
       // The shortcut lives on the subscriptions tab, where sales happen.
-      await tapTab(tester, 3);
+      await tapTab(tester, 2);
       final repeat = find.byTooltip('Repeat last sale');
       expect(repeat, findsOneWidget);
 
@@ -281,7 +281,7 @@ void main() {
       await tester.pumpWidget(wrapShell());
       await settleShell(tester);
 
-      final top = find.textContaining('Personal summary');
+      final top = find.text('This month');
       expect(top, findsOneWidget);
 
       await tester.drag(find.byType(ListView).first, const Offset(0, -500));

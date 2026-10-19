@@ -101,17 +101,26 @@ void main() {
     final bar = find.byType(LedgerNavBar);
     final rect = tester.getRect(bar);
     await tester.tapAt(
-      Offset(rect.left + rect.width * (index + 0.5) / 5, rect.center.dy),
+      Offset(rect.left + rect.width * (index + 0.5) / 4, rect.center.dy),
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
   }
 
   testWidgets('Dashboard renders with sample data', (tester) async {
-    await tester.pumpWidget(wrap(DashboardPage(onNavigate: (_) {})));
+    await tester.pumpWidget(
+      wrap(
+        DashboardPage(
+          onNavigate: (_) {},
+          initialScope: TxnScope.business,
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('This month'), findsOneWidget);
+    expect(find.text('Total expense'), findsOneWidget);
+    expect(find.text('Total income'), findsOneWidget);
     expect(find.text('Business receivables'), findsOneWidget);
     expect(find.text('Business cash balance'), findsOneWidget);
   });
@@ -119,14 +128,15 @@ void main() {
   testWidgets('Personal-only dashboard hides business-only balances', (
     tester,
   ) async {
-    repo.setScopeFilter(TxnScope.personal);
     await tester.pumpWidget(wrap(DashboardPage(onNavigate: (_) {})));
     await tester.pumpAndSettle();
 
     expect(find.text('Business receivables'), findsNothing);
     expect(find.text('Business payables'), findsNothing);
     expect(find.text('Business cash balance'), findsNothing);
-    expect(find.text('Personal'), findsOneWidget);
+    expect(find.text('Total expense'), findsOneWidget);
+    expect(find.text('Total income'), findsOneWidget);
+    expect(find.text('Personal'), findsWidgets);
   });
 
   testWidgets('Main shell navigates between tabs', (tester) async {
@@ -140,17 +150,19 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(tester.takeException(), isNull);
     expect(
-      find.descendant(of: find.byType(AppBar), matching: find.text('Personal')),
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('Dashboard'),
+      ),
       findsOneWidget,
-      reason: 'Personal finance should be the first screen for daily use',
+      reason: 'Unified Dashboard should be the first screen for daily use',
     );
 
     const tabs = <(int, String)>[
-      (0, 'Personal'),
-      (2, 'Customers'),
-      (3, 'Subscriptions'),
-      (4, 'Transactions'),
-      (1, 'Dashboard'),
+      (0, 'Dashboard'),
+      (1, 'Customers'),
+      (2, 'Subscriptions'),
+      (3, 'Transactions'),
     ];
     for (final (index, tab) in tabs) {
       await tapTab(tester, index);
@@ -183,9 +195,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tester.tap(
-      find.widgetWithText(FloatingActionButton, 'Add personal entry'),
-    );
+    await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Personal expense').last);
     await tester.pumpAndSettle();
@@ -226,7 +236,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tapTab(tester, 3);
+    await tapTab(tester, 2);
     expect(
       find.descendant(
         of: find.byType(AppBar),
@@ -238,7 +248,10 @@ void main() {
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(
-      find.descendant(of: find.byType(AppBar), matching: find.text('Personal')),
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('Dashboard'),
+      ),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
@@ -254,7 +267,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tapTab(tester, 2);
+    await tapTab(tester, 1);
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
     expect(find.text('Settings'), findsOneWidget);

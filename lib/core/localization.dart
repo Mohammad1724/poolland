@@ -929,6 +929,10 @@ class AppLocalization {
     'Water bill': 'قبض آب',
     'Gas bill': 'قبض گاز',
     'Building charge': 'شارژ ساختمان',
+    'Total expense': 'هزینهٔ کل',
+    'Total income': 'درآمد کل',
+    'Set a spending cap for categories like Food or Transport.':
+        'تعیین سقف هزینهٔ ماهانه برای دسته‌بندی‌ها مثل خوراک یا حمل و نقل.',
   };
 
   static String text(String source, {String? languageCode}) =>
