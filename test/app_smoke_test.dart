@@ -342,12 +342,15 @@ void main() {
   });
 
   testWidgets(
-    'ReportsPage supports daily, weekly, monthly, all-time ranges and category breakdown',
+    'ReportsPage supports 3 tabs, date ranges, category breakdown, and sources report',
     (tester) async {
       await tester.pumpWidget(wrap(const ReportsPage()));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
+      expect(find.text('Statistics'), findsOneWidget);
+      expect(find.text('Categories'), findsOneWidget);
+      expect(find.text('Sources & balances'), findsOneWidget);
       expect(find.text('Income and expense report'), findsOneWidget);
       expect(find.text('Income and expense chart'), findsOneWidget);
 
@@ -367,11 +370,19 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       expect(tester.takeException(), isNull);
 
-      // Scroll down to verify the category breakdown and specialist insights.
-      await tester.drag(find.byType(ListView).first, const Offset(0, -450));
+      // Switch to Categories tab and verify category breakdown & summary.
+      await tester.tap(find.text('Categories'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('Category income and expense report'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      // Switch to Sources & balances tab and verify balances & sources report.
+      await tester.tap(find.text('Sources & balances'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Balances report'), findsOneWidget);
+      expect(find.text('Bank and payment sources'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

@@ -1327,8 +1327,10 @@ class TxnTile extends StatelessWidget {
     // SMS', ...) are localization keys; free-typed user notes simply miss
     // the map and render as-is.
     final title = txn.note.isNotEmpty ? txn.note.tr : categoryName.tr;
+    final hasTime = txn.date.hour != 0 || txn.date.minute != 0;
     final sub = <String>[
       J.d(txn.date),
+      if (hasTime) Fmt.clock(txn.date),
       if (showCustomer && customerName != null) customerName!,
       if (txn.kind.isProfitKind) (txn.credit ? 'Credit'.tr : 'Cash'.tr),
     ].join(' • ');

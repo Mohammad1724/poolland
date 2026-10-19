@@ -985,6 +985,23 @@ class AppLocalization {
     'Thursday': 'پنجشنبه',
     'Friday': 'جمعه',
     'Budget used: {used} of {limit}': 'مصرف بودجه: {used} از {limit}',
+    'Statistics': 'آمار',
+    'Sources & balances': 'منابع و مانده‌ها',
+    'Select date range': 'انتخاب تاریخ',
+    'From date': 'از تاریخ',
+    'To date': 'تا تاریخ',
+    'Apply': 'اعمال',
+    'All transactions': 'تمام تراکنش‌ها',
+    'Outflows': 'پرداخت‌ها',
+    'Inflows': 'دریافت‌ها',
+    'Bank and payment sources': 'گردش بانک‌ها و منابع',
+    'Balances report': 'گزارش مانده حساب‌ها',
+    'Cash and wallet': 'صندوق و نقد',
+    'Customer credit accounts': 'حساب نسیه مشتریان',
+    'Net balance': 'مانده',
+    'Category summary': 'خلاصه گزارش دسته‌بندی‌ها',
+    'Blu Bank': 'بلوبانک',
+    'Creditors': 'بستانکاران',
   };
 
   static String text(String source, {String? languageCode}) =>

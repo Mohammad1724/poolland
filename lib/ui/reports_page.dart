@@ -9,6 +9,8 @@ import '../core/format_utils.dart';
 import '../core/jalali_utils.dart';
 import '../core/localization.dart';
 import '../core/money.dart';
+import '../core/sms/bank_rules.dart';
+import '../core/sms/sms_models.dart';
 import '../data/ledger.dart';
 import '../data/models.dart';
 import '../data/pdf_service.dart';
@@ -17,6 +19,7 @@ import 'customer_detail_page.dart';
 import 'motion_kit.dart';
 import 'theme.dart';
 import 'widgets/common_charts.dart';
+import 'widgets/date_picker.dart';
 import 'widgets/period_chart.dart';
 import 'widgets/widgets.dart';
 
@@ -38,9 +41,12 @@ enum _Range {
   threeMonths,
   sixMonths,
   thisYear,
+  custom,
 }
 
-enum _CategoryFilter { expense, income, all }
+enum _ReportTab { stats, categories, sources }
+
+enum _CategoryFilter { all, expense, income }
 
 class _CategoryStat {
   final String id;
@@ -62,9 +68,38 @@ class _CategoryStat {
   });
 }
 
+class _SourceStat {
+  final String key;
+  final String title;
+  final String? cardMask;
+  final IconData icon;
+  final Color accent;
+  final double inflow;
+  final double outflow;
+  final int txnCount;
+  final List<Txn> transactions;
+
+  const _SourceStat({
+    required this.key,
+    required this.title,
+    this.cardMask,
+    required this.icon,
+    required this.accent,
+    required this.inflow,
+    required this.outflow,
+    required this.txnCount,
+    required this.transactions,
+  });
+
+  double get net => inflow - outflow;
+}
+
 class _ReportsPageState extends State<ReportsPage> {
   _Range _range = _Range.thisMonth;
-  int _periodOffset = 0; // <= 0; allows stepping back/forward in daily/weekly/monthly
+  _ReportTab _tab = _ReportTab.stats;
+  int _periodOffset = 0;
+  DateTime? _customFrom;
+  DateTime? _customTo;
   // Default to "All" so a user who only tracks personal finances does not
   // land on an empty report with no explanation. The scope chips below let
   // the user narrow it down as needed.
@@ -110,6 +145,13 @@ class _ReportsPageState extends State<ReportsPage> {
         return (J.startOfMonth(J.addMonths(now, -5)), J.endOfMonth(now));
       case _Range.thisYear:
         return (J.startOfYear(now), J.endOfMonth(now));
+      case _Range.custom:
+        final from = _customFrom ?? J.startOfMonth(now);
+        final to = _customTo ?? J.endOfDay(now);
+        if (to.isBefore(from)) {
+          return (J.startOfDay(to), J.endOfDay(from));
+        }
+        return (J.startOfDay(from), J.endOfDay(to));
       case _Range.all:
         if (repo.transactions.isEmpty) {
           return (J.startOfMonth(now), J.endOfMonth(now));
@@ -201,6 +243,282 @@ class _ReportsPageState extends State<ReportsPage> {
     return list;
   }
 
+  static final RegExp _cardMaskRe = RegExp(r'(\d{4}[*•xX\-]+\d{4}|\d{4}\s*\d{4})');
+
+  List<_SourceStat> _computeSourceStats(
+    AppRepository repo, {
+    required DateTime from,
+    required DateTime to,
+    required TxnScope? scope,
+  }) {
+    final smsByTxnId = <String, SmsHistoryEntry>{
+      for (final h in repo.smsHistory)
+        if (h.transactionId != null && h.transactionId!.isNotEmpty)
+          h.transactionId!: h,
+    };
+
+    final inflows = <String, double>{};
+    final outflows = <String, double>{};
+    final titles = <String, String>{};
+    final masks = <String, String>{};
+    final icons = <String, IconData>{};
+    final accents = <String, Color>{};
+    final txnsByKey = <String, List<Txn>>{};
+
+    (String key, String title, IconData icon, Color accent) detectBank(Txn t) {
+      final sms = smsByTxnId[t.id];
+      if (sms?.bankName != null && sms!.bankName!.trim().isNotEmpty) {
+        final b = sms.bankName!.trim();
+        return ('bank:$b', b.tr, Icons.account_balance_rounded, const Color(0xFF0EA5A4));
+      }
+      final noteLower = t.note.toLowerCase();
+      if (noteLower.contains('بلوبانک') ||
+          noteLower.contains('بلو') ||
+          noteLower.contains('blu')) {
+        return (
+          'bank:Blu Bank',
+          'Blu Bank'.tr,
+          Icons.account_balance_rounded,
+          const Color(0xFF2563EB),
+        );
+      }
+      for (final rule in builtinBankRules) {
+        final faName = rule.bankName.tr.toLowerCase();
+        final enName = rule.bankName.toLowerCase();
+        if (noteLower.contains(faName) ||
+            noteLower.contains(enName) ||
+            rule.bodyHints.any((h) => noteLower.contains(h.toLowerCase()))) {
+          return (
+            'bank:${rule.id}',
+            rule.bankName.tr,
+            Icons.account_balance_rounded,
+            const Color(0xFF0F766E),
+          );
+        }
+      }
+      if (t.credit) {
+        return (
+          'source:credit',
+          'Customer credit accounts'.tr,
+          Icons.switch_account_rounded,
+          const Color(0xFF6366F1),
+        );
+      }
+      return (
+        'source:cash',
+        'Cash and wallet'.tr,
+        Icons.account_balance_wallet_rounded,
+        const Color(0xFF087F78),
+      );
+    }
+
+    for (final t in Ledger.filter(
+      repo.transactions,
+      from: from,
+      to: to,
+      scope: scope,
+    )) {
+      final isIn = Ledger.isRecognizedIncome(t) ||
+          (t.kind == TxnKind.income && t.credit);
+      final isOut = t.kind == TxnKind.expense ||
+          t.kind == TxnKind.refund ||
+          t.kind == TxnKind.payablePayment;
+      if (!isIn && !isOut) continue;
+
+      final (key, title, icon, accent) = detectBank(t);
+      final v = Ledger.base(t);
+      titles[key] = title;
+      icons[key] = icon;
+      accents[key] = accent;
+      if (isIn) {
+        inflows[key] = (inflows[key] ?? 0) + v;
+      } else {
+        outflows[key] = (outflows[key] ?? 0) + v;
+      }
+      (txnsByKey[key] ??= <Txn>[]).add(t);
+
+      if (!masks.containsKey(key)) {
+        final match = _cardMaskRe.firstMatch(t.note);
+        if (match != null) {
+          masks[key] = match.group(0)!;
+        }
+      }
+    }
+
+    final allKeys = {...inflows.keys, ...outflows.keys};
+    final out = <_SourceStat>[
+      for (final k in allKeys)
+        _SourceStat(
+          key: k,
+          title: titles[k] ?? k,
+          cardMask: masks[k],
+          icon: icons[k] ?? Icons.account_balance_rounded,
+          accent: accents[k] ?? AppTheme.seed,
+          inflow: inflows[k] ?? 0,
+          outflow: outflows[k] ?? 0,
+          txnCount: txnsByKey[k]?.length ?? 0,
+          transactions: (txnsByKey[k] ?? const <Txn>[])
+            ..sort((a, b) => b.date.compareTo(a.date)),
+        ),
+    ]..sort((a, b) => (b.inflow + b.outflow).compareTo(a.inflow + a.outflow));
+    return out;
+  }
+
+  Future<void> _pickCustomDateRange(
+    BuildContext context,
+    DateTime currentFrom,
+    DateTime currentTo,
+  ) async {
+    var tempFrom = _customFrom ?? currentFrom;
+    var tempTo = _customTo ?? currentTo;
+
+    final applied = await showLedgerSheet<bool>(
+      context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            final onSurface = Theme.of(ctx).colorScheme.onSurface;
+            return Container(
+              decoration: BoxDecoration(
+                color: Theme.of(ctx).cardColor,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+              ),
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SheetHandle(),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Select date range'.tr,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _dateBox(
+                          ctx,
+                          label: 'From date'.tr,
+                          date: tempFrom,
+                          onSurface: onSurface,
+                          onTap: () async {
+                            final picked = await showJalaliPicker(
+                              ctx,
+                              initial: tempFrom,
+                            );
+                            if (picked != null) {
+                              setSheetState(() => tempFrom = picked);
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _dateBox(
+                          ctx,
+                          label: 'To date'.tr,
+                          date: tempTo,
+                          onSurface: onSurface,
+                          onTap: () async {
+                            final picked = await showJalaliPicker(
+                              ctx,
+                              initial: tempTo,
+                            );
+                            if (picked != null) {
+                              setSheetState(() => tempTo = picked);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: Text('Apply'.tr),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (applied == true && mounted) {
+      setState(() {
+        _customFrom = tempFrom;
+        _customTo = tempTo;
+        _range = _Range.custom;
+        _periodOffset = 0;
+        _chartModeOverride = null;
+      });
+    }
+  }
+
+  Widget _dateBox(
+    BuildContext context, {
+    required String label,
+    required DateTime date,
+    required Color onSurface,
+    required VoidCallback onTap,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: scheme.primary.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: scheme.primary.withValues(alpha: 0.22)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: onSurface.withValues(alpha: 0.62),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(
+                  Icons.calendar_today_rounded,
+                  size: 14,
+                  color: scheme.primary,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    J.d(date),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
@@ -227,8 +545,8 @@ class _ReportsPageState extends State<ReportsPage> {
       endDay: to,
       scope: scope,
     );
-    final weeklyChartWeeks = (_range == _Range.weekly ? 8 : (daysSpan / 7).ceil())
-        .clamp(4, 12);
+    final weeklyChartWeeks =
+        (_range == _Range.weekly ? 8 : (daysSpan / 7).ceil()).clamp(4, 12);
     final weeklyPoints = Ledger.weeklySeries(
       repo.transactions,
       weeks: weeklyChartWeeks,
@@ -306,7 +624,7 @@ class _ReportsPageState extends State<ReportsPage> {
         ),
         const SizedBox(height: 8),
 
-        // 2. Time range selector (Daily, Weekly, Monthly, 3M, 6M, Year, All)
+        // 2. Time range selector (Daily, Weekly, Monthly, All, ..., Custom)
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -316,199 +634,286 @@ class _ReportsPageState extends State<ReportsPage> {
                   label: Text(_rangeLabel(r).tr),
                   showCheckmark: false,
                   selected: _range == r,
-                  onSelected: (_) => setState(() {
-                    _range = r;
-                    _periodOffset = 0;
-                    _chartModeOverride = null;
-                  }),
+                  onSelected: (_) {
+                    if (r == _Range.custom) {
+                      _pickCustomDateRange(context, from, to);
+                    } else {
+                      setState(() {
+                        _range = r;
+                        _periodOffset = 0;
+                        _chartModeOverride = null;
+                      });
+                    }
+                  },
                 ),
                 const SizedBox(width: 8),
               ],
             ],
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
 
         // Period date indicator + stepper for Daily / Weekly / Monthly
         _buildPeriodNavigator(context, from, to),
+        const SizedBox(height: 10),
+
+        // 3. Three-Tab Report Switcher (Statistics | Categories | Sources & Balances)
+        _buildReportTabBar(context),
         const SizedBox(height: 12),
 
-        // 3. Executive Income & Expense Report Card
-        SectionTitle(
-          'Income and expense report',
-          icon: Icons.analytics_outlined,
-        ),
-        _buildIncomeExpenseSummaryCard(
-          context,
-          repo: repo,
-          summary: s,
-          prevSummary: prevSummary,
-          margin: margin,
-          scope: scope,
-        ),
-
-        // 4. Interactive Daily / Weekly / Monthly Trend Chart
-        SectionTitle(
-          'Income and expense chart',
-          icon: Icons.bar_chart_rounded,
-        ),
-        _buildTrendChartCard(
-          context,
-          dailyPoints: dailyPoints,
-          weeklyPoints: weeklyPoints,
-          monthlyPoints: monthlyPoints,
-        ),
-
-        // 5. Category & Subcategory Income & Expense Report
-        SectionTitle(
-          'Category income and expense report',
-          icon: Icons.donut_large_rounded,
-        ),
-        _buildDualCategoryDonutCard(
-          context,
-          expenseData: expenseCatsMap,
-          incomeData: incomeCatsMap,
-          totalExpense: s.expense,
-          totalIncome: s.income,
-        ),
-        const SizedBox(height: 10),
-        _buildCategoryBreakdownSection(
-          context,
-          repo: repo,
-          expenseStats: expenseStats,
-          incomeStats: incomeStats,
-          totalExpense: s.expense,
-          totalIncome: s.income,
-          from: from,
-          to: to,
-        ),
-
-        // 6. Specialist Financial Insights
-        SectionTitle(
-          'Specialist financial insights',
-          icon: Icons.auto_graph_rounded,
-        ),
-        _buildSpecialistInsightsSection(
-          context,
-          repo: repo,
-          from: from,
-          to: to,
-          scope: scope,
-          summary: s,
-          daysSpan: daysSpan,
-        ),
-
-        // 7. Top customers (when business scope is included)
-        if (top.isNotEmpty) ...[
-          const SectionTitle(
-            'Top customers this period',
-            icon: Icons.emoji_events_outlined,
+        // Tab 0: Statistics & Trend
+        if (_tab == _ReportTab.stats) ...[
+          SectionTitle(
+            'Income and expense report',
+            icon: Icons.analytics_outlined,
           ),
-          CardBox(
-            child: Column(
-              children: [
-                for (var i = 0; i < top.length; i++)
-                  InfoRow(
-                    '{rank}. {customer}'.trArgs({
-                      'rank': i + 1,
-                      'customer': top[i].key.name,
-                    }),
-                    MoneyText(top[i].value),
-                  ),
-              ],
-            ),
+          _buildIncomeExpenseSummaryCard(
+            context,
+            repo: repo,
+            summary: s,
+            prevSummary: prevSummary,
+            margin: margin,
+            scope: scope,
           ),
-        ],
-
-        // 8. Business debtors (excluded from personal-only reports)
-        if (scope != TxnScope.personal) ...[
-          const SectionTitle(
-            'Debtors',
+          SectionTitle(
+            'Income and expense chart',
+            icon: Icons.bar_chart_rounded,
+          ),
+          _buildTrendChartCard(
+            context,
+            dailyPoints: dailyPoints,
+            weeklyPoints: weeklyPoints,
+            monthlyPoints: monthlyPoints,
+          ),
+          SectionTitle(
+            'Specialist financial insights',
+            icon: Icons.auto_graph_rounded,
+          ),
+          _buildSpecialistInsightsSection(
+            context,
+            repo: repo,
+            from: from,
+            to: to,
+            scope: scope,
+            summary: s,
+            daysSpan: daysSpan,
+          ),
+          const SectionTitle('Export', icon: Icons.ios_share_rounded),
+          _buildExportCard(context, repo, from, to),
+        ]
+        // Tab 1: Categories & Subcategories Breakdown
+        else if (_tab == _ReportTab.categories) ...[
+          SectionTitle(
+            'Category income and expense report',
+            icon: Icons.donut_large_rounded,
+          ),
+          _buildDualCategoryDonutCard(
+            context,
+            expenseData: expenseCatsMap,
+            incomeData: incomeCatsMap,
+            totalExpense: s.expense,
+            totalIncome: s.income,
+          ),
+          const SizedBox(height: 10),
+          _buildCategoryBreakdownSection(
+            context,
+            repo: repo,
+            expenseStats: expenseStats,
+            incomeStats: incomeStats,
+            totalExpense: s.expense,
+            totalIncome: s.income,
+          ),
+        ]
+        // Tab 2: Sources (Banks) & Account Balances
+        else ...[
+          SectionTitle(
+            'Bank and payment sources',
+            icon: Icons.account_balance_rounded,
+          ),
+          _buildSourcesSection(
+            context,
+            repo: repo,
+            from: from,
+            to: to,
+            scope: scope,
+          ),
+          SectionTitle(
+            'Balances report',
             icon: Icons.account_balance_wallet_outlined,
           ),
-          if (debtors.isEmpty)
+          _buildBalancesReportCard(
+            context,
+            repo: repo,
+            summary: s,
+            scope: scope,
+          ),
+          if (top.isNotEmpty) ...[
+            const SectionTitle(
+              'Top customers this period',
+              icon: Icons.emoji_events_outlined,
+            ),
             CardBox(
-              child: Text(
-                'All accounts are settled ✅'.tr,
-                style: const TextStyle(fontSize: 12.5),
+              child: Column(
+                children: [
+                  for (var i = 0; i < top.length; i++)
+                    InfoRow(
+                      '{rank}. {customer}'.trArgs({
+                        'rank': i + 1,
+                        'customer': top[i].key.name,
+                      }),
+                      MoneyText(top[i].value),
+                    ),
+                ],
               ),
-            )
-          else
-            Column(
-              children: [
-                for (final e in debtors)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: CardBox(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 11,
-                      ),
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => CustomerDetailPage(customer: e.key),
+            ),
+          ],
+          if (scope != TxnScope.personal) ...[
+            const SectionTitle(
+              'Debtors',
+              icon: Icons.people_outline_rounded,
+            ),
+            if (debtors.isEmpty)
+              CardBox(
+                child: Text(
+                  'All accounts are settled ✅'.tr,
+                  style: const TextStyle(fontSize: 12.5),
+                ),
+              )
+            else
+              Column(
+                children: [
+                  for (final e in debtors)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: CardBox(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 11,
                         ),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              e.key.name.tr,
-                              style: const TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CustomerDetailPage(customer: e.key),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                e.key.name.tr,
+                                style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
-                          ),
-                          MoneyText(
-                            e.value,
-                            style: const TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF0F766E),
+                            MoneyText(
+                              e.value,
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F766E),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
+                ],
+              ),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Widget _buildReportTabBar(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final items = <(_ReportTab, String, IconData)>[
+      (_ReportTab.stats, 'Statistics'.tr, Icons.bar_chart_rounded),
+      (_ReportTab.categories, 'Categories'.tr, Icons.donut_large_rounded),
+      (
+        _ReportTab.sources,
+        'Sources & balances'.tr,
+        Icons.account_balance_rounded,
+      ),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: scheme.onSurface.withValues(alpha: 0.055),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: scheme.onSurface.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        children: [
+          for (final (tab, label, icon) in items)
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => setState(() => _tab = tab),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 8,
                   ),
-              ],
+                  decoration: BoxDecoration(
+                    color: _tab == tab
+                        ? Theme.of(context).cardColor
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10.5),
+                    border: Border.all(
+                      color: _tab == tab
+                          ? scheme.primary.withValues(alpha: 0.42)
+                          : Colors.transparent,
+                    ),
+                    boxShadow: _tab == tab
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : const [],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 15,
+                        color: _tab == tab
+                            ? scheme.primary
+                            : scheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: _tab == tab
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                            color: _tab == tab
+                                ? scheme.primary
+                                : scheme.onSurface.withValues(alpha: 0.68),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
         ],
-
-        // 9. Exports
-        const SectionTitle('Export', icon: Icons.ios_share_rounded),
-        CardBox(
-          child: Column(
-            children: [
-              _exportTile(
-                context,
-                icon: Icons.picture_as_pdf_rounded,
-                title: 'PDF report'.tr,
-                subtitle: 'Full period report with charts and transactions'.tr,
-                onTap: () => _exportPdf(repo, from, to),
-              ),
-              Divider(color: Theme.of(context).dividerColor),
-              _exportTile(
-                context,
-                icon: Icons.table_chart_outlined,
-                title: 'Export CSV (spreadsheet)'.tr,
-                subtitle: 'Transactions for this period'.tr,
-                onTap: () => _exportCsv(repo, from, to),
-              ),
-              Divider(color: Theme.of(context).dividerColor),
-              _exportTile(
-                context,
-                icon: Icons.groups_outlined,
-                title: 'Export customers CSV'.tr,
-                subtitle: 'Name, contact, and balance',
-                onTap: () => _exportCustomersCsv(repo),
-              ),
-            ],
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -518,27 +923,48 @@ class _ReportsPageState extends State<ReportsPage> {
     DateTime to,
   ) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    final scheme = Theme.of(context).colorScheme;
     final dateText = _range == _Range.daily
         ? J.d(from)
         : '{from} to {to}'.trArgs({'from': J.d(from), 'to': J.d(to)});
 
     return Row(
       children: [
-        if (_canStepPeriod) ...[
+        if (_canStepPeriod)
           IconButton(
             visualDensity: VisualDensity.compact,
             tooltip: 'Previous period'.tr,
             icon: const Icon(Icons.chevron_left_rounded, size: 20),
             onPressed: () => setState(() => _periodOffset -= 1),
           ),
-        ],
         Expanded(
-          child: Text(
-            dateText,
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-              color: onSurface.withValues(alpha: 0.72),
+          child: InkWell(
+            onTap: () => _pickCustomDateRange(context, from, to),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.date_range_rounded,
+                    size: 15,
+                    color: scheme.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      dateText,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: onSurface.withValues(alpha: 0.78),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -581,7 +1007,8 @@ class _ReportsPageState extends State<ReportsPage> {
         ? (summary.income / totalFlow).clamp(0.0, 1.0)
         : 0.5;
 
-    final (healthLabel, healthColor) = summary.income <= 0 && summary.expense <= 0
+    final (healthLabel, healthColor) =
+        summary.income <= 0 && summary.expense <= 0
         ? ('Balanced', const Color(0xFF64748B))
         : summary.profit < 0
         ? ('Deficit', AppTheme.expense)
@@ -624,8 +1051,6 @@ class _ReportsPageState extends State<ReportsPage> {
             ],
           ),
           const SizedBox(height: 10),
-
-          // Visual Income vs Expense bar
           ClipRRect(
             borderRadius: BorderRadius.circular(99),
             child: SizedBox(
@@ -646,7 +1071,6 @@ class _ReportsPageState extends State<ReportsPage> {
             ),
           ),
           const SizedBox(height: 10),
-
           Row(
             children: [
               Expanded(
@@ -710,7 +1134,6 @@ class _ReportsPageState extends State<ReportsPage> {
             ],
           ),
           const SizedBox(height: 10),
-
           Row(
             children: [
               Expanded(
@@ -731,7 +1154,6 @@ class _ReportsPageState extends State<ReportsPage> {
               ),
             ],
           ),
-
           if (scope != TxnScope.personal) ...[
             const SizedBox(height: 10),
             Divider(color: Theme.of(context).dividerColor),
@@ -863,28 +1285,14 @@ class _ReportsPageState extends State<ReportsPage> {
           total: totalExpense,
           accentColor: AppTheme.expense,
           data: expenseData,
-          palette: const [
-            Color(0xFFE11D48),
-            Color(0xFFF97316),
-            Color(0xFFF59E0B),
-            Color(0xFFEC4899),
-            Color(0xFF8B5CF6),
-            Color(0xFF6366F1),
-          ],
+          palette: _expensePalette,
         );
         final incomeChart = _MiniCategoryDonutCard(
           title: 'Total income'.tr,
           total: totalIncome,
           accentColor: AppTheme.revenue,
           data: incomeData,
-          palette: const [
-            Color(0xFF16A34A),
-            Color(0xFF0EA5A4),
-            Color(0xFF38BDF8),
-            Color(0xFF22C55E),
-            Color(0xFF84CC16),
-            Color(0xFF14B8A6),
-          ],
+          palette: _incomePalette,
         );
 
         if (isNarrow) {
@@ -915,8 +1323,6 @@ class _ReportsPageState extends State<ReportsPage> {
     required List<_CategoryStat> incomeStats,
     required double totalExpense,
     required double totalIncome,
-    required DateTime from,
-    required DateTime to,
   }) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final budgetsByCat = {
@@ -1079,8 +1485,11 @@ class _ReportsPageState extends State<ReportsPage> {
         onTap: () => _showCategoryTransactionsSheet(
           context,
           repo: repo,
-          stat: stat,
+          title: stat.name.tr,
+          total: stat.amount,
           color: color,
+          subEntries: subEntries,
+          transactions: stat.transactions,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1088,14 +1497,21 @@ class _ReportsPageState extends State<ReportsPage> {
             Row(
               children: [
                 Container(
-                  width: 11,
-                  height: 11,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Icon(
+                    stat.kind == TxnKind.income
+                        ? Icons.trending_up_rounded
+                        : Icons.trending_down_rounded,
+                    size: 17,
                     color: color,
-                    borderRadius: BorderRadius.circular(3),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     stat.name.tr,
@@ -1148,7 +1564,7 @@ class _ReportsPageState extends State<ReportsPage> {
               borderRadius: BorderRadius.circular(99),
               child: LinearProgressIndicator(
                 value: share,
-                minHeight: 5,
+                minHeight: 6,
                 backgroundColor: color.withValues(alpha: 0.12),
                 valueColor: AlwaysStoppedAnimation<Color>(color),
               ),
@@ -1206,15 +1622,326 @@ class _ReportsPageState extends State<ReportsPage> {
     );
   }
 
-  void _showCategoryTransactionsSheet(
+  Widget _buildSourcesSection(
     BuildContext context, {
     required AppRepository repo,
-    required _CategoryStat stat,
+    required DateTime from,
+    required DateTime to,
+    required TxnScope? scope,
+  }) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final sources = _computeSourceStats(
+      repo,
+      from: from,
+      to: to,
+      scope: scope,
+    );
+
+    if (sources.isEmpty) {
+      return CardBox(
+        child: Text(
+          'No transactions recorded in this period'.tr,
+          style: TextStyle(
+            fontSize: 12.5,
+            color: onSurface.withValues(alpha: 0.65),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        for (final src in sources)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: CardBox(
+              padding: const EdgeInsets.all(14),
+              onTap: () => _showCategoryTransactionsSheet(
+                context,
+                repo: repo,
+                title: src.title,
+                total: src.net,
+                color: src.accent,
+                subEntries: const [],
+                transactions: src.transactions,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: src.accent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                        child: Icon(src.icon, size: 19, color: src.accent),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              src.title,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            if (src.cardMask != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                src.cardMask!,
+                                textDirection: TextDirection.ltr,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: onSurface.withValues(alpha: 0.58),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: onSurface.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          '{count} txns'.trArgs({
+                            'count': Fmt.number(src.txnCount),
+                          }),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: onSurface.withValues(alpha: 0.65),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _sourcePill(
+                          context,
+                          label: 'Paid out'.tr,
+                          amount: src.outflow,
+                          color: AppTheme.expense,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _sourcePill(
+                          context,
+                          label: 'Received'.tr,
+                          amount: src.inflow,
+                          color: AppTheme.revenue,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _sourcePill(
+                          context,
+                          label: 'Net balance'.tr,
+                          amount: src.net,
+                          color: const Color(0xFF4F46E5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _sourcePill(
+    BuildContext context, {
+    required String label,
+    required double amount,
     required Color color,
   }) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
-    final subEntries = stat.subcategories.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              color: onSurface.withValues(alpha: 0.68),
+            ),
+          ),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              Money.text(amount, compact: true),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBalancesReportCard(
+    BuildContext context, {
+    required AppRepository repo,
+    required Summary summary,
+    required TxnScope? scope,
+  }) {
+    final rows = <(String, double, IconData, Color)>[
+      (
+        'Expense'.tr,
+        summary.expense,
+        Icons.trending_down_rounded,
+        AppTheme.expense,
+      ),
+      (
+        'Income'.tr,
+        summary.income,
+        Icons.trending_up_rounded,
+        AppTheme.revenue,
+      ),
+      (
+        'Cash + bank'.tr,
+        scope == TxnScope.personal ? summary.netCash : repo.cashBalance,
+        Icons.account_balance_rounded,
+        const Color(0xFF0EA5A4),
+      ),
+      if (scope != TxnScope.personal) ...[
+        (
+          'Debtors'.tr,
+          repo.totals.receivable,
+          Icons.person_add_alt_1_rounded,
+          AppTheme.receivable,
+        ),
+        (
+          'Creditors'.tr,
+          repo.totals.payable,
+          Icons.person_remove_alt_1_rounded,
+          AppTheme.payable,
+        ),
+      ],
+    ];
+
+    return Column(
+      children: [
+        for (final (title, value, icon, color) in rows)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: CardBox(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Icon(icon, size: 19, color: color),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  MoneyText(
+                    value,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildExportCard(
+    BuildContext context,
+    AppRepository repo,
+    DateTime from,
+    DateTime to,
+  ) {
+    return CardBox(
+      child: Column(
+        children: [
+          _exportTile(
+            context,
+            icon: Icons.picture_as_pdf_rounded,
+            title: 'PDF report'.tr,
+            subtitle: 'Full period report with charts and transactions'.tr,
+            onTap: () => _exportPdf(repo, from, to),
+          ),
+          Divider(color: Theme.of(context).dividerColor),
+          _exportTile(
+            context,
+            icon: Icons.table_chart_outlined,
+            title: 'Export CSV (spreadsheet)'.tr,
+            subtitle: 'Transactions for this period'.tr,
+            onTap: () => _exportCsv(repo, from, to),
+          ),
+          Divider(color: Theme.of(context).dividerColor),
+          _exportTile(
+            context,
+            icon: Icons.groups_outlined,
+            title: 'Export customers CSV'.tr,
+            subtitle: 'Name, contact, and balance',
+            onTap: () => _exportCustomersCsv(repo),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCategoryTransactionsSheet(
+    BuildContext context, {
+    required AppRepository repo,
+    required String title,
+    required double total,
+    required Color color,
+    required List<MapEntry<String, double>> subEntries,
+    required List<Txn> transactions,
+  }) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
 
     showLedgerSheet<void>(
       context,
@@ -1246,7 +1973,7 @@ class _ReportsPageState extends State<ReportsPage> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    stat.name.tr,
+                    title,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -1254,7 +1981,7 @@ class _ReportsPageState extends State<ReportsPage> {
                   ),
                 ),
                 Text(
-                  Money.text(stat.amount),
+                  Money.text(total),
                   style: TextStyle(
                     fontSize: 14.5,
                     fontWeight: FontWeight.w800,
@@ -1294,11 +2021,11 @@ class _ReportsPageState extends State<ReportsPage> {
             Flexible(
               child: ListView.separated(
                 shrinkWrap: true,
-                itemCount: stat.transactions.length,
+                itemCount: transactions.length,
                 separatorBuilder: (_, _) =>
                     Divider(height: 1, color: Theme.of(ctx).dividerColor),
                 itemBuilder: (_, index) {
-                  final t = stat.transactions[index];
+                  final t = transactions[index];
                   final catLabel = repo.categoryName(t.categoryId);
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 10),
@@ -1365,17 +2092,14 @@ class _ReportsPageState extends State<ReportsPage> {
       scope: scope,
     ).toList();
 
-    // Find largest single expense & income count / expense count
     Txn? largestExpenseTxn;
     var expenseCount = 0;
     var incomeCount = 0;
     final dayExpenses = <DateTime, double>{};
-    // Iranian week order: Saturday (6) -> Sunday (7) -> Monday (1) ... -> Friday (5)
     final weekdayExpense = List<double>.filled(7, 0);
     final weekdayIncome = List<double>.filled(7, 0);
 
     int iranianWeekdayIndex(DateTime d) {
-      // DateTime.saturday == 6 -> 0, sunday == 7 -> 1, monday == 1 -> 2, ..., friday == 5 -> 6
       return (d.weekday + 1) % 7;
     }
 
@@ -1429,7 +2153,6 @@ class _ReportsPageState extends State<ReportsPage> {
       ...weekdayIncome,
     ].fold<double>(0, (a, b) => a > b ? a : b);
 
-    // Personal vs Business comparison when viewing All scopes
     final personalSummary = scope == null
         ? repo.summary(from: from, to: to, scope: TxnScope.personal)
         : null;
@@ -1539,7 +2262,6 @@ class _ReportsPageState extends State<ReportsPage> {
             ],
           ),
         ),
-
         if (personalSummary != null && businessSummary != null) ...[
           const SizedBox(height: 10),
           CardBox(
@@ -1581,7 +2303,6 @@ class _ReportsPageState extends State<ReportsPage> {
             ),
           ),
         ],
-
         if (maxWeekdayFlow > 0) ...[
           const SizedBox(height: 10),
           CardBox(
@@ -1742,6 +2463,7 @@ class _ReportsPageState extends State<ReportsPage> {
     _Range.sixMonths => 'Last 6 months',
     _Range.thisYear => 'This year',
     _Range.all => 'All',
+    _Range.custom => 'Select date range',
   };
 
   int _monthsBetween(DateTime a, DateTime b) {

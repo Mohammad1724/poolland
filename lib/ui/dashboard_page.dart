@@ -21,8 +21,18 @@ import 'personal_page.dart';
 import 'sms_page.dart';
 import 'theme.dart';
 import 'widgets/common_charts.dart';
+import 'widgets/date_picker.dart';
 import 'widgets/txn_actions.dart';
 import 'widgets/widgets.dart';
+
+enum _DashboardPeriod {
+  thisMonth,
+  today,
+  thisWeek,
+  thisYear,
+  all,
+  custom,
+}
 
 /// Unified home dashboard with Personal (`شخصی`) first and Business (`کسب‌وکار`)
 /// second, connected by a 1:1 finger-tracking magnetic horizontal slider and
@@ -61,6 +71,282 @@ class _DashboardPageState extends State<DashboardPage>
   double _dragDx = 0;
   double _dragDir = 0;
   double _slideDir = 1.0;
+
+  _DashboardPeriod _period = _DashboardPeriod.thisMonth;
+  DateTime? _customFrom;
+  DateTime? _customTo;
+
+  (DateTime?, DateTime?) _dashboardBounds() {
+    final now = DateTime.now();
+    return switch (_period) {
+      _DashboardPeriod.thisMonth => (J.startOfMonth(now), J.endOfMonth(now)),
+      _DashboardPeriod.today => (J.startOfDay(now), J.endOfDay(now)),
+      _DashboardPeriod.thisWeek => (
+        J.startOfDay(J.addDays(now, -6)),
+        J.endOfDay(now),
+      ),
+      _DashboardPeriod.thisYear => (J.startOfYear(now), J.endOfMonth(now)),
+      _DashboardPeriod.all => (null, null),
+      _DashboardPeriod.custom => (
+        J.startOfDay(_customFrom ?? J.startOfMonth(now)),
+        J.endOfDay(_customTo ?? now),
+      ),
+    };
+  }
+
+  String _periodLabel() => switch (_period) {
+    _DashboardPeriod.thisMonth => 'This month'.tr,
+    _DashboardPeriod.today => 'Today'.tr,
+    _DashboardPeriod.thisWeek => 'This week'.tr,
+    _DashboardPeriod.thisYear => 'This year'.tr,
+    _DashboardPeriod.all => 'All transactions'.tr,
+    _DashboardPeriod.custom =>
+      '{from} to {to}'.trArgs({
+        'from': J.d(_customFrom ?? J.startOfMonth(DateTime.now())),
+        'to': J.d(_customTo ?? DateTime.now()),
+      }),
+  };
+
+  Future<void> _showDashboardPeriodSheet(BuildContext context) async {
+    final options = <(_DashboardPeriod, String, IconData)>[
+      (_DashboardPeriod.all, 'All transactions'.tr, Icons.all_inclusive_rounded),
+      (_DashboardPeriod.today, 'Today'.tr, Icons.today_rounded),
+      (_DashboardPeriod.thisWeek, 'This week'.tr, Icons.date_range_rounded),
+      (
+        _DashboardPeriod.thisMonth,
+        'This month'.tr,
+        Icons.calendar_month_rounded,
+      ),
+      (
+        _DashboardPeriod.thisYear,
+        'This year'.tr,
+        Icons.calendar_view_month_rounded,
+      ),
+      (
+        _DashboardPeriod.custom,
+        'Select date range'.tr,
+        Icons.edit_calendar_rounded,
+      ),
+    ];
+
+    final picked = await showLedgerSheet<_DashboardPeriod>(
+      context,
+      builder: (ctx) {
+        final scheme = Theme.of(ctx).colorScheme;
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(ctx).cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SheetHandle(),
+              const SizedBox(height: 10),
+              for (final (period, label, icon) in options)
+                ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  leading: Icon(
+                    icon,
+                    size: 20,
+                    color: _period == period
+                        ? scheme.primary
+                        : scheme.onSurface.withValues(alpha: 0.65),
+                  ),
+                  title: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: _period == period
+                          ? FontWeight.w800
+                          : FontWeight.w600,
+                      color: _period == period
+                          ? scheme.primary
+                          : scheme.onSurface,
+                    ),
+                  ),
+                  trailing: _period == period
+                      ? Icon(
+                          Icons.check_circle_rounded,
+                          size: 19,
+                          color: scheme.primary,
+                        )
+                      : null,
+                  onTap: () => Navigator.pop(ctx, period),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (picked == null || !mounted) return;
+    if (picked == _DashboardPeriod.custom) {
+      await _pickCustomDashboardRange(context);
+    } else {
+      setState(() => _period = picked);
+    }
+  }
+
+  Future<void> _pickCustomDashboardRange(BuildContext context) async {
+    var tempFrom = _customFrom ?? J.startOfMonth(DateTime.now());
+    var tempTo = _customTo ?? DateTime.now();
+
+    final applied = await showLedgerSheet<bool>(
+      context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            final scheme = Theme.of(ctx).colorScheme;
+            return Container(
+              decoration: BoxDecoration(
+                color: Theme.of(ctx).cardColor,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+              ),
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SheetHandle(),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Select date range'.tr,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(14),
+                          onTap: () async {
+                            final d = await showJalaliPicker(
+                              ctx,
+                              initial: tempFrom,
+                            );
+                            if (d != null) {
+                              setSheetState(() => tempFrom = d);
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: scheme.primary.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: scheme.primary.withValues(alpha: 0.22),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'From date'.tr,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: scheme.onSurface.withValues(
+                                      alpha: 0.62,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  J.d(tempFrom),
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(14),
+                          onTap: () async {
+                            final d = await showJalaliPicker(
+                              ctx,
+                              initial: tempTo,
+                            );
+                            if (d != null) {
+                              setSheetState(() => tempTo = d);
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: scheme.primary.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: scheme.primary.withValues(alpha: 0.22),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'To date'.tr,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: scheme.onSurface.withValues(
+                                      alpha: 0.62,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  J.d(tempTo),
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: Text('Apply'.tr),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (applied == true && mounted) {
+      setState(() {
+        if (tempTo.isBefore(tempFrom)) {
+          _customFrom = tempTo;
+          _customTo = tempFrom;
+        } else {
+          _customFrom = tempFrom;
+          _customTo = tempTo;
+        }
+        _period = _DashboardPeriod.custom;
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -591,22 +877,25 @@ class _DashboardPageState extends State<DashboardPage>
     AppRepository repo,
     TxnScope pageScope,
   ) {
-    final monthStart = J.startOfMonth(DateTime.now());
-    final monthEnd = J.endOfMonth(DateTime.now());
+    final (rangeFrom, rangeTo) = _dashboardBounds();
     final monthSummary = repo.summary(
-      from: monthStart,
-      to: monthEnd,
+      from: rangeFrom,
+      to: rangeTo,
       scope: pageScope,
     );
     final expenseByCategory = Ledger.byCategory(
       repo.transactions,
       repo.categories,
+      from: rangeFrom,
+      to: rangeTo,
       kind: TxnKind.expense,
       scope: pageScope,
     );
     final incomeByCategory = Ledger.byCategory(
       repo.transactions,
       repo.categories,
+      from: rangeFrom,
+      to: rangeTo,
       kind: TxnKind.income,
       scope: pageScope,
     );
@@ -749,25 +1038,39 @@ class _DashboardPageState extends State<DashboardPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.calendar_month_rounded,
-                  size: 16,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'This month'.tr,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                      color: onSurface.withValues(alpha: 0.72),
+            InkWell(
+              onTap: () => _showDashboardPeriodSheet(context),
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_month_rounded,
+                      size: 16,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
-                  ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _periodLabel(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: onSurface.withValues(alpha: 0.78),
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.expand_more_rounded,
+                      size: 18,
+                      color: onSurface.withValues(alpha: 0.58),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
             const SizedBox(height: 12),
             if (compactLayout)
