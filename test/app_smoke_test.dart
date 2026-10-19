@@ -200,10 +200,10 @@ void main() {
     await tester.tap(find.text('Personal expense').last);
     await tester.pumpAndSettle();
 
-    final scopeSelector = tester.widget<SegmentedButton<TxnScope>>(
-      find.byType(SegmentedButton<TxnScope>),
+    final scopeSelector = tester.widget<ScopeMagneticBar>(
+      find.byType(ScopeMagneticBar),
     );
-    expect(scopeSelector.selected, {TxnScope.personal});
+    expect(scopeSelector.personalProgress, 1.0);
     expect(find.byType(FormActionBar), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

@@ -32,9 +32,10 @@ jobs:
           cat /tmp/analyze.log
       - name: Run flutter test
         run: |
-          if ! flutter test --concurrency=1 > /tmp/test.log 2>&1; then
+          if ! flutter test --concurrency=1 --timeout 30s > /tmp/test.log 2>&1; then
             cat /tmp/test.log
-            grep -E "FAILED|Exception|══╡|Error:|-\s*\[" /tmp/test.log | tail -15 | sed 's/^/::error::/'
+            grep -E "FAILED|Exception|══╡|Error:|TimeoutException|-\s*\[" /tmp/test.log | tail -20 | sed 's/^/::error::/'
+            tail -25 /tmp/test.log | sed 's/^/::error::/'
             exit 1
           fi
           cat /tmp/test.log
