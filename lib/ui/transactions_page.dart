@@ -99,7 +99,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
     ];
 
     return Container(
-      height: 38,
+      constraints: const BoxConstraints(minHeight: 38),
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
@@ -115,6 +115,10 @@ class _TransactionsPageState extends State<TransactionsPage> {
                 onTap: () => setState(() => _directionTab = tab),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 6,
+                    horizontal: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: _directionTab == tab
                         ? color.withValues(alpha: 0.14)
@@ -436,32 +440,24 @@ class _TransactionsPageState extends State<TransactionsPage> {
                           padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
                           child: Row(
                             children: [
-                              Text(
-                                J.dFull(entry.value.first.date),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: onSurface.withValues(alpha: 0.72),
-                                ),
-                              ),
                               Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                  ),
-                                  child: Divider(
-                                    height: 1,
-                                    color: Theme.of(context).dividerColor,
+                                child: Text(
+                                  J.dFull(entry.value.first.date),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: onSurface.withValues(alpha: 0.72),
                                   ),
                                 ),
                               ),
+                              const SizedBox(width: 8),
                               ConstrainedBox(
                                 constraints: BoxConstraints(
                                   maxWidth:
                                       MediaQuery.sizeOf(context).width < 360
-                                      ? 120
+                                      ? 110
                                       : 180,
                                 ),
                                 child: Text(
