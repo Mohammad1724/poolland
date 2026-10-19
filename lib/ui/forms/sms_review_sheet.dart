@@ -1336,26 +1336,29 @@ class _AccountCategorySheetState extends State<AccountCategorySheet> {
                         return c.name.tr.toLowerCase().contains(q) ||
                             c.name.toLowerCase().contains(q);
                       }).toList();
-                      return ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: matches.length,
-                        itemBuilder: (context, index) {
-                          final c = matches[index];
-                          final selected = c.id == widget.selectedCategoryId;
-                          return ListTile(
-                            dense: true,
-                            selected: selected,
-                            leading: Icon(
-                              c.parentId == null
-                                  ? Icons.folder_outlined
-                                  : Icons.subdirectory_arrow_left_rounded,
-                              size: 18,
-                              color: selected ? accent : null,
-                            ),
-                            title: Text(c.name.tr),
-                            onTap: () => Navigator.pop(context, c),
-                          );
-                        },
+                      return Material(
+                        type: MaterialType.transparency,
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: matches.length,
+                          itemBuilder: (context, index) {
+                            final c = matches[index];
+                            final selected = c.id == widget.selectedCategoryId;
+                            return ListTile(
+                              dense: true,
+                              selected: selected,
+                              leading: Icon(
+                                c.parentId == null
+                                    ? Icons.folder_outlined
+                                    : Icons.subdirectory_arrow_left_rounded,
+                                size: 18,
+                                color: selected ? accent : null,
+                              ),
+                              title: Text(c.name.tr),
+                              onTap: () => Navigator.pop(context, c),
+                            );
+                          },
+                        ),
                       );
                     },
                   )
