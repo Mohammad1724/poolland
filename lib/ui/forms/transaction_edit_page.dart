@@ -79,6 +79,7 @@ class _TransactionEditPageState extends State<TransactionEditPage>
   bool _isDragging = false;
   bool _magnetTriggered = false;
   double _dragDx = 0;
+  double _dragDir = 0;
   double _slideDir = 1.0;
 
   bool get isEdit => widget.existing != null;
@@ -107,13 +108,13 @@ class _TransactionEditPageState extends State<TransactionEditPage>
   };
 
   bool get _isTransitioning =>
-      _isDragging || (_scopeAnim.isAnimating && _scopeAnim.value > 0.001);
+      _isDragging || _magnetTriggered || _scopeAnim.isAnimating;
 
   double get _personalProgress {
     if (!_isTransitioning) {
       return _scope == TxnScope.personal ? 1.0 : 0.0;
     }
-    final t = Curves.easeOutCubic.transform(_scopeAnim.value.clamp(0.0, 1.0));
+    final t = _scopeAnim.value.clamp(0.0, 1.0);
     return _fromScope == TxnScope.business ? t : 1.0 - t;
   }
 
@@ -205,9 +206,7 @@ class _TransactionEditPageState extends State<TransactionEditPage>
       vsync: this,
       value: 0.0,
       duration: const Duration(milliseconds: 240),
-    )..addListener(() {
-      if (mounted) setState(() {});
-    });
+    );
 
     if (widget.autofocusAmount && !isEdit) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -244,36 +243,47 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     final dirForTarget = target == TxnScope.personal
         ? (isRtl ? 1.0 : -1.0)
         : (isRtl ? -1.0 : 1.0);
-    _fromScope = _scope;
-    _toScope = target;
-    _slideDir = dirForTarget;
-    _isDragging = false;
-    _magnetTriggered = true;
     Haptics.selection();
     setState(() {
-      _applyScope(repo, target);
+      _fromScope = _scope;
+      _toScope = target;
+      _slideDir = dirForTarget;
+      _isDragging = false;
+      _magnetTriggered = true;
+      _scopeAnim.value = 0.0;
     });
-    _scopeAnim.forward(from: 0.0).then((_) {
-      if (!mounted) return;
-      setState(() {
-        _fromScope = _scope;
-        _scopeAnim.value = 0.0;
-      });
-    });
+    _scopeAnim
+        .animateTo(
+          1.0,
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
+        )
+        .then((_) {
+          if (!mounted) return;
+          setState(() {
+            _applyScope(repo, target);
+            _fromScope = _scope;
+            _magnetTriggered = false;
+            _scopeAnim.value = 0.0;
+          });
+        });
   }
 
   void _handleHorizontalDragStart(DragStartDetails details) {
     if (_scopeAnim.isAnimating) {
       _scopeAnim.stop();
     }
-    _fromScope = _scope;
-    _toScope = _scope == TxnScope.business
-        ? TxnScope.personal
-        : TxnScope.business;
     _dragDx = 0;
-    _isDragging = true;
+    _dragDir = 0;
     _magnetTriggered = false;
     _scopeAnim.value = 0.0;
+    setState(() {
+      _fromScope = _scope;
+      _toScope = _scope == TxnScope.business
+          ? TxnScope.personal
+          : TxnScope.business;
+      _isDragging = true;
+    });
   }
 
   void _handleHorizontalDragUpdate(
@@ -283,12 +293,16 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     if (_magnetTriggered) return;
     final width = (context.size?.width ?? 360.0).clamp(240.0, 680.0);
     _dragDx += details.delta.dx;
-    if (_dragDx.abs() > 0.5) {
-      _slideDir = _dragDx.sign;
+    if (_dragDir == 0 && _dragDx.abs() > 2.0) {
+      _dragDir = _dragDx.sign;
+      _slideDir = _dragDir;
     }
-    final fraction = (_dragDx.abs() / width).clamp(0.0, 1.0);
-    final magnetThreshold = math.min(width * 0.25, 95.0);
-    if (_dragDx.abs() >= magnetThreshold) {
+    if (_dragDir == 0) return;
+
+    final progress = (_dragDx * _dragDir).clamp(0.0, width);
+    final fraction = (progress / width).clamp(0.0, 1.0);
+    final magnetThreshold = width * 0.48;
+    if (progress >= magnetThreshold) {
       _triggerMagneticSnap(repo, fromFraction: fraction);
     } else {
       _scopeAnim.value = fraction;
@@ -303,19 +317,20 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     _isDragging = false;
     _scopeAnim.value = fromFraction;
     Haptics.selection();
-    setState(() {
-      _applyScope(repo, _toScope);
-    });
+    final remaining = (1.0 - fromFraction).clamp(0.15, 1.0);
+    final durationMs = (240 * remaining).round().clamp(120, 240);
     _scopeAnim
         .animateTo(
           1.0,
-          duration: const Duration(milliseconds: 220),
+          duration: Duration(milliseconds: durationMs),
           curve: Curves.easeOutCubic,
         )
         .then((_) {
           if (!mounted) return;
           setState(() {
+            _applyScope(repo, _toScope);
             _fromScope = _scope;
+            _magnetTriggered = false;
             _scopeAnim.value = 0.0;
           });
         });
@@ -329,13 +344,18 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     _isDragging = false;
     final width = (context.size?.width ?? 360.0).clamp(240.0, 680.0);
     final velocity = details.primaryVelocity ?? 0;
-    if (_dragDx.abs() < 1 && velocity.abs() > 1) {
-      _slideDir = velocity.sign;
+    if (_dragDir == 0 && velocity.abs() > 1) {
+      _dragDir = velocity.sign;
+      _slideDir = _dragDir;
     }
-    final fraction = (_dragDx.abs() / width).clamp(0.0, 1.0);
+    final progress = _dragDir == 0
+        ? _dragDx.abs()
+        : (_dragDx * _dragDir).clamp(0.0, width);
+    final fraction = (progress / width).clamp(0.0, 1.0);
+    final flingInSameDir =
+        _dragDir == 0 ? velocity.abs() > 240 : (velocity * _dragDir) > 240;
     final shouldSnapToTarget =
-        _dragDx.abs() >= math.min(width * 0.15, 65.0) ||
-        velocity.abs() > 180;
+        progress >= math.min(width * 0.30, 110.0) || flingInSameDir;
 
     if (shouldSnapToTarget) {
       _triggerMagneticSnap(repo, fromFraction: fraction);
@@ -343,13 +363,14 @@ class _TransactionEditPageState extends State<TransactionEditPage>
       _scopeAnim
           .animateTo(
             0.0,
-            duration: const Duration(milliseconds: 170),
+            duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
           )
           .then((_) {
             if (!mounted) return;
             setState(() {
               _fromScope = _scope;
+              _magnetTriggered = false;
               _scopeAnim.value = 0.0;
             });
           });
@@ -359,11 +380,19 @@ class _TransactionEditPageState extends State<TransactionEditPage>
   void _handleHorizontalDragCancel() {
     if (_magnetTriggered) return;
     _isDragging = false;
-    _scopeAnim.animateTo(
-      0.0,
-      duration: const Duration(milliseconds: 160),
-      curve: Curves.easeOutCubic,
-    );
+    _scopeAnim
+        .animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+        )
+        .then((_) {
+          if (!mounted) return;
+          setState(() {
+            _fromScope = _scope;
+            _scopeAnim.value = 0.0;
+          });
+        });
   }
 
   void _applyRecent(Txn t, AppRepository repo) {
@@ -598,9 +627,12 @@ class _TransactionEditPageState extends State<TransactionEditPage>
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
               children: [
                 // -------- 1. Magnetic Scope Switcher (Business / Personal) --------
-                ScopeMagneticBar(
-                  personalProgress: _personalProgress,
-                  onSelectScope: (sc) => _changeScopeByTap(repo, sc),
+                AnimatedBuilder(
+                  animation: _scopeAnim,
+                  builder: (context, _) => ScopeMagneticBar(
+                    personalProgress: _personalProgress,
+                    onSelectScope: (sc) => _changeScopeByTap(repo, sc),
+                  ),
                 ),
 
                 // -------- 2. Business Kind Strip (when in Business scope) --------
@@ -751,50 +783,59 @@ class _TransactionEditPageState extends State<TransactionEditPage>
         final width = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : MediaQuery.sizeOf(context).width - 32;
-        final rawT = _scopeAnim.value.clamp(0.0, 1.0);
-        final t = _isDragging
-            ? rawT
-            : Curves.easeOutCubic.transform(rawT);
-        final fromDx = _slideDir * width * t;
-        final toDx = fromDx - _slideDir * width;
+        final fromChild = RepaintBoundary(
+          child: IgnorePointer(
+            child: _buildScopeDetails(
+              repo: repo,
+              pageScope: _fromScope,
+              contactChips: contactChips,
+              showSettle: showSettle,
+              currencies: currencies,
+              onSurface: onSurface,
+            ),
+          ),
+        );
+        final toChild = RepaintBoundary(
+          child: IgnorePointer(
+            child: _buildScopeDetails(
+              repo: repo,
+              pageScope: _toScope,
+              contactChips: contactChips,
+              showSettle: showSettle,
+              currencies: currencies,
+              onSurface: onSurface,
+            ),
+          ),
+        );
 
         return ClipRect(
-          child: Stack(
-            alignment: Alignment.topCenter,
-            children: [
-              Transform.translate(
-                offset: Offset(fromDx, 0),
-                child: Opacity(
-                  opacity: (1.0 - t * 0.35).clamp(0.0, 1.0),
-                  child: IgnorePointer(
-                    child: _buildScopeDetails(
-                      repo: repo,
-                      pageScope: _fromScope,
-                      contactChips: contactChips,
-                      showSettle: showSettle,
-                      currencies: currencies,
-                      onSurface: onSurface,
+          child: AnimatedBuilder(
+            animation: _scopeAnim,
+            builder: (context, _) {
+              final t = _scopeAnim.value.clamp(0.0, 1.0);
+              final fromDx = _slideDir * width * t;
+              final toDx = fromDx - _slideDir * width;
+
+              return Stack(
+                alignment: Alignment.topCenter,
+                children: [
+                  Transform.translate(
+                    offset: Offset(fromDx, 0),
+                    child: Opacity(
+                      opacity: (1.0 - t * 0.35).clamp(0.0, 1.0),
+                      child: fromChild,
                     ),
                   ),
-                ),
-              ),
-              Transform.translate(
-                offset: Offset(toDx, 0),
-                child: Opacity(
-                  opacity: (0.65 + t * 0.35).clamp(0.0, 1.0),
-                  child: IgnorePointer(
-                    child: _buildScopeDetails(
-                      repo: repo,
-                      pageScope: _toScope,
-                      contactChips: contactChips,
-                      showSettle: showSettle,
-                      currencies: currencies,
-                      onSurface: onSurface,
+                  Transform.translate(
+                    offset: Offset(toDx, 0),
+                    child: Opacity(
+                      opacity: (0.65 + t * 0.35).clamp(0.0, 1.0),
+                      child: toChild,
                     ),
                   ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
         );
       },

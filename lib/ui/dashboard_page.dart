@@ -59,6 +59,7 @@ class _DashboardPageState extends State<DashboardPage>
   bool _isDragging = false;
   bool _magnetTriggered = false;
   double _dragDx = 0;
+  double _dragDir = 0;
   double _slideDir = 1.0;
 
   @override
@@ -72,10 +73,8 @@ class _DashboardPageState extends State<DashboardPage>
     _scopeAnim = AnimationController(
       vsync: this,
       value: 0.0,
-      duration: const Duration(milliseconds: 240),
-    )..addListener(() {
-      if (mounted) setState(() {});
-    });
+      duration: const Duration(milliseconds: 250),
+    );
   }
 
   @override
@@ -85,7 +84,7 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   bool get _isTransitioning =>
-      _isDragging || (_scopeAnim.isAnimating && _scopeAnim.value > 0.001);
+      _isDragging || _magnetTriggered || _scopeAnim.isAnimating;
 
   /// Continuous 0.0 (Personal, first tab) -> 1.0 (Business, second tab)
   /// progress for the top segmented pill indicator.
@@ -93,7 +92,7 @@ class _DashboardPageState extends State<DashboardPage>
     if (!_isTransitioning) {
       return _scope == TxnScope.business ? 1.0 : 0.0;
     }
-    final t = Curves.easeOutCubic.transform(_scopeAnim.value.clamp(0.0, 1.0));
+    final t = _scopeAnim.value.clamp(0.0, 1.0);
     return _fromScope == TxnScope.personal ? t : 1.0 - t;
   }
 
@@ -109,36 +108,47 @@ class _DashboardPageState extends State<DashboardPage>
     final dirForTarget = target == TxnScope.business
         ? (isRtl ? 1.0 : -1.0)
         : (isRtl ? -1.0 : 1.0);
-    _fromScope = _scope;
-    _toScope = target;
-    _slideDir = dirForTarget;
-    _isDragging = false;
-    _magnetTriggered = true;
     Haptics.selection();
     setState(() {
-      _applyScope(repo, target);
+      _fromScope = _scope;
+      _toScope = target;
+      _slideDir = dirForTarget;
+      _isDragging = false;
+      _magnetTriggered = true;
+      _scopeAnim.value = 0.0;
     });
-    _scopeAnim.forward(from: 0.0).then((_) {
-      if (!mounted) return;
-      setState(() {
-        _fromScope = _scope;
-        _scopeAnim.value = 0.0;
-      });
-    });
+    _scopeAnim
+        .animateTo(
+          1.0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+        )
+        .then((_) {
+          if (!mounted) return;
+          setState(() {
+            _applyScope(repo, target);
+            _fromScope = _scope;
+            _magnetTriggered = false;
+            _scopeAnim.value = 0.0;
+          });
+        });
   }
 
   void _handleHorizontalDragStart(DragStartDetails details) {
     if (_scopeAnim.isAnimating) {
       _scopeAnim.stop();
     }
-    _fromScope = _scope;
-    _toScope = _scope == TxnScope.personal
-        ? TxnScope.business
-        : TxnScope.personal;
     _dragDx = 0;
-    _isDragging = true;
+    _dragDir = 0;
     _magnetTriggered = false;
     _scopeAnim.value = 0.0;
+    setState(() {
+      _fromScope = _scope;
+      _toScope = _scope == TxnScope.personal
+          ? TxnScope.business
+          : TxnScope.personal;
+      _isDragging = true;
+    });
   }
 
   void _handleHorizontalDragUpdate(
@@ -148,12 +158,18 @@ class _DashboardPageState extends State<DashboardPage>
     if (_magnetTriggered) return;
     final width = (context.size?.width ?? 360.0).clamp(240.0, 700.0);
     _dragDx += details.delta.dx;
-    if (_dragDx.abs() > 0.5) {
-      _slideDir = _dragDx.sign;
+    if (_dragDir == 0 && _dragDx.abs() > 2.0) {
+      _dragDir = _dragDx.sign;
+      _slideDir = _dragDir;
     }
-    final fraction = (_dragDx.abs() / width).clamp(0.0, 1.0);
-    final magnetThreshold = math.min(width * 0.25, 95.0);
-    if (_dragDx.abs() >= magnetThreshold) {
+    if (_dragDir == 0) return;
+
+    final progress = (_dragDx * _dragDir).clamp(0.0, width);
+    final fraction = (progress / width).clamp(0.0, 1.0);
+    // Let the user drag almost half the screen (~48%) 1:1 with their finger
+    // before the magnet automatically pulls it to the end mid-drag.
+    final magnetThreshold = width * 0.48;
+    if (progress >= magnetThreshold) {
       _triggerMagneticSnap(repo, fromFraction: fraction);
     } else {
       _scopeAnim.value = fraction;
@@ -168,19 +184,20 @@ class _DashboardPageState extends State<DashboardPage>
     _isDragging = false;
     _scopeAnim.value = fromFraction;
     Haptics.selection();
-    setState(() {
-      _applyScope(repo, _toScope);
-    });
+    final remaining = (1.0 - fromFraction).clamp(0.15, 1.0);
+    final durationMs = (240 * remaining).round().clamp(120, 240);
     _scopeAnim
         .animateTo(
           1.0,
-          duration: const Duration(milliseconds: 220),
+          duration: Duration(milliseconds: durationMs),
           curve: Curves.easeOutCubic,
         )
         .then((_) {
           if (!mounted) return;
           setState(() {
+            _applyScope(repo, _toScope);
             _fromScope = _scope;
+            _magnetTriggered = false;
             _scopeAnim.value = 0.0;
           });
         });
@@ -194,13 +211,18 @@ class _DashboardPageState extends State<DashboardPage>
     _isDragging = false;
     final width = (context.size?.width ?? 360.0).clamp(240.0, 700.0);
     final velocity = details.primaryVelocity ?? 0;
-    if (_dragDx.abs() < 1 && velocity.abs() > 1) {
-      _slideDir = velocity.sign;
+    if (_dragDir == 0 && velocity.abs() > 1) {
+      _dragDir = velocity.sign;
+      _slideDir = _dragDir;
     }
-    final fraction = (_dragDx.abs() / width).clamp(0.0, 1.0);
+    final progress = _dragDir == 0
+        ? _dragDx.abs()
+        : (_dragDx * _dragDir).clamp(0.0, width);
+    final fraction = (progress / width).clamp(0.0, 1.0);
+    final flingInSameDir =
+        _dragDir == 0 ? velocity.abs() > 240 : (velocity * _dragDir) > 240;
     final shouldSnapToTarget =
-        _dragDx.abs() >= math.min(width * 0.15, 65.0) ||
-        velocity.abs() > 180;
+        progress >= math.min(width * 0.30, 110.0) || flingInSameDir;
 
     if (shouldSnapToTarget) {
       _triggerMagneticSnap(repo, fromFraction: fraction);
@@ -208,13 +230,14 @@ class _DashboardPageState extends State<DashboardPage>
       _scopeAnim
           .animateTo(
             0.0,
-            duration: const Duration(milliseconds: 170),
+            duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
           )
           .then((_) {
             if (!mounted) return;
             setState(() {
               _fromScope = _scope;
+              _magnetTriggered = false;
               _scopeAnim.value = 0.0;
             });
           });
@@ -224,11 +247,19 @@ class _DashboardPageState extends State<DashboardPage>
   void _handleHorizontalDragCancel() {
     if (_magnetTriggered) return;
     _isDragging = false;
-    _scopeAnim.animateTo(
-      0.0,
-      duration: const Duration(milliseconds: 160),
-      curve: Curves.easeOutCubic,
-    );
+    _scopeAnim
+        .animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+        )
+        .then((_) {
+          if (!mounted) return;
+          setState(() {
+            _fromScope = _scope;
+            _scopeAnim.value = 0.0;
+          });
+        });
   }
 
   @override
@@ -344,69 +375,74 @@ class _DashboardPageState extends State<DashboardPage>
   /// magnetically into place.
   Widget _scopeSwitchBar(AppRepository repo) {
     final scheme = Theme.of(context).colorScheme;
-    final p = _businessProgress;
-    final alignX = -1.0 + 2.0 * p;
+    return AnimatedBuilder(
+      animation: _scopeAnim,
+      builder: (context, _) {
+        final p = _businessProgress;
+        final alignX = -1.0 + 2.0 * p;
 
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.all(3.5),
-      decoration: BoxDecoration(
-        color: scheme.onSurface.withValues(alpha: 0.055),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: scheme.onSurface.withValues(alpha: 0.08),
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: Align(
-              alignment: AlignmentDirectional(alignX, 0),
-              child: FractionallySizedBox(
-                widthFactor: 0.5,
-                heightFactor: 1.0,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(10.5),
-                    border: Border.all(
-                      color: scheme.primary.withValues(alpha: 0.42),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
+        return Container(
+          height: 44,
+          padding: const EdgeInsets.all(3.5),
+          decoration: BoxDecoration(
+            color: scheme.onSurface.withValues(alpha: 0.055),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: scheme.onSurface.withValues(alpha: 0.08),
+            ),
+          ),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Align(
+                  alignment: AlignmentDirectional(alignX, 0),
+                  child: FractionallySizedBox(
+                    widthFactor: 0.5,
+                    heightFactor: 1.0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor,
+                        borderRadius: BorderRadius.circular(10.5),
+                        border: Border.all(
+                          color: scheme.primary.withValues(alpha: 0.42),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: _DashboardScopeTab(
-                  label: 'Personal'.tr,
-                  icon: Icons.person_outline_rounded,
-                  selected: p < 0.5,
-                  onTap: () => _changeScopeByTap(repo, TxnScope.personal),
-                ),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: _DashboardScopeTab(
-                  label: 'Business'.tr,
-                  icon: Icons.business_center_outlined,
-                  selected: p >= 0.5,
-                  onTap: () => _changeScopeByTap(repo, TxnScope.business),
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: _DashboardScopeTab(
+                      label: 'Personal'.tr,
+                      icon: Icons.person_outline_rounded,
+                      selected: p < 0.5,
+                      onTap: () => _changeScopeByTap(repo, TxnScope.personal),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: _DashboardScopeTab(
+                      label: 'Business'.tr,
+                      icon: Icons.business_center_outlined,
+                      selected: p >= 0.5,
+                      onTap: () => _changeScopeByTap(repo, TxnScope.business),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -491,36 +527,48 @@ class _DashboardPageState extends State<DashboardPage>
           return _buildScopeContent(context, repo, _scope);
         }
 
-        final rawT = _scopeAnim.value.clamp(0.0, 1.0);
-        final t = _isDragging
-            ? rawT
-            : Curves.easeOutCubic.transform(rawT);
-        final fromDx = _slideDir * width * t;
-        final toDx = fromDx - _slideDir * width;
+        // Pre-build and cache both scope pages in RepaintBoundaries so finger
+        // dragging and magnetic snapping translate GPU textures at 60–120 FPS
+        // without rebuilding any charts or cards.
+        final fromChild = RepaintBoundary(
+          child: IgnorePointer(
+            child: _buildScopeContent(context, repo, _fromScope),
+          ),
+        );
+        final toChild = RepaintBoundary(
+          child: IgnorePointer(
+            child: _buildScopeContent(context, repo, _toScope),
+          ),
+        );
 
         return ClipRect(
-          child: Stack(
-            alignment: Alignment.topCenter,
-            children: [
-              Transform.translate(
-                offset: Offset(fromDx, 0),
-                child: Opacity(
-                  opacity: (1.0 - t * 0.35).clamp(0.0, 1.0),
-                  child: IgnorePointer(
-                    child: _buildScopeContent(context, repo, _fromScope),
+          child: AnimatedBuilder(
+            animation: _scopeAnim,
+            builder: (context, _) {
+              final t = _scopeAnim.value.clamp(0.0, 1.0);
+              final fromDx = _slideDir * width * t;
+              final toDx = fromDx - _slideDir * width;
+
+              return Stack(
+                alignment: Alignment.topCenter,
+                children: [
+                  Transform.translate(
+                    offset: Offset(fromDx, 0),
+                    child: Opacity(
+                      opacity: (1.0 - t * 0.35).clamp(0.0, 1.0),
+                      child: fromChild,
+                    ),
                   ),
-                ),
-              ),
-              Transform.translate(
-                offset: Offset(toDx, 0),
-                child: Opacity(
-                  opacity: (0.65 + t * 0.35).clamp(0.0, 1.0),
-                  child: IgnorePointer(
-                    child: _buildScopeContent(context, repo, _toScope),
+                  Transform.translate(
+                    offset: Offset(toDx, 0),
+                    child: Opacity(
+                      opacity: (0.65 + t * 0.35).clamp(0.0, 1.0),
+                      child: toChild,
+                    ),
                   ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
         );
       },
