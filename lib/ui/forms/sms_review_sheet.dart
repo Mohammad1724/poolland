@@ -19,10 +19,12 @@ import 'contact_edit_page.dart';
 
 /// Compact, one-screen sheet for reviewing and approving a bank SMS.
 ///
-/// Designed around the app's shared visual tokens ([Insets], [FontSizes],
-/// [Radii], [AppTheme]) so the entire review flow — scope, amount, category,
-/// contact, and action buttons — fits comfortably on a single screen without
-/// scrolling or oversized cards.
+/// Supports:
+/// - Horizontal swipe between Business (`کسب‌وکار`) and Personal (`شخصی`).
+/// - «به حساب» (Expense) / «از حساب» (Income) button that opens a hierarchical
+///   category -> subcategory picker window.
+/// - One-tap subcategory shortcuts (`میان‌بر`) pinned directly on the sheet,
+///   recording under the parent category and selected subcategory.
 class SmsReviewSheet extends StatefulWidget {
   const SmsReviewSheet({super.key, required this.sms, this.initialCustomer});
 
@@ -40,6 +42,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   TxnScope _scope = TxnScope.business;
   String? _categoryId;
   bool _presetDone = false;
+  double _horizontalDragDx = 0;
 
   @override
   void didChangeDependencies() {
@@ -121,12 +124,27 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
 
   void _changeScope(AppRepository repo, TxnScope scope) {
     if (_scope == scope) return;
+    Haptics.selection();
     setState(() {
       _scope = scope;
       _customer = scope == TxnScope.business ? widget.initialCustomer : null;
       _kind = _suggestedKind(repo, scope);
       _categoryId = _suggestedCategoryId(repo, scope);
     });
+  }
+
+  void _handleHorizontalSwipeEnd(
+    AppRepository repo,
+    DragEndDetails details,
+  ) {
+    final velocity = details.primaryVelocity ?? 0;
+    final swipedEnough = _horizontalDragDx.abs() > 28 || velocity.abs() > 160;
+    _horizontalDragDx = 0;
+    if (!swipedEnough) return;
+    final nextScope = _scope == TxnScope.business
+        ? TxnScope.personal
+        : TxnScope.business;
+    _changeScope(repo, nextScope);
   }
 
   Future<void> _openQuickEdit(TxnScope scope, [QuickExpense? q]) async {
@@ -140,6 +158,24 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
             : TxnKind.expense,
       ),
     );
+  }
+
+  Future<void> _openAccountCategorySheet(
+    AppRepository repo,
+    TxnKind categoryKind,
+    TxnScope scope,
+  ) async {
+    final picked = await showLedgerSheet<Category>(
+      context,
+      builder: (_) => _AccountCategorySheet(
+        kind: categoryKind,
+        scope: scope,
+        selectedCategoryId: _categoryId,
+      ),
+    );
+    if (!mounted || picked == null) return;
+    Haptics.selection();
+    setState(() => _categoryId = picked.id);
   }
 
   Widget _contactChip(AppRepository repo, Customer c) {
@@ -204,9 +240,9 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     final sms = widget.sms;
     final scope = _scope;
     final categoryKind = _categoryKind(_kind);
-    final categories = categoryKind == null
+    final shortcuts = categoryKind == null
         ? const <Category>[]
-        : repo.pickOrderCategories(categoryKind, scope: scope);
+        : repo.shortcutCategories(categoryKind, scope: scope);
     final availableKinds = _availableKinds(repo, scope);
 
     return Container(
@@ -217,96 +253,140 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
         ),
       ),
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SheetHandle(),
-            const SizedBox(height: 10),
-
-            // -------- Header --------
-            _header(sms),
-            const SizedBox(height: 12),
-
-            // -------- Scope toggle --------
-            _scopeRow(repo, scope),
-            if (availableKinds.length > 1) ...[
-              const SizedBox(height: 8),
-              TxnKindStrip(
-                kinds: availableKinds,
-                selected: _kind,
-                onSelect: (k) => setState(() {
-                  _kind = k;
-                  _categoryId = _suggestedCategoryId(repo, scope);
-                }),
-              ),
-            ],
-            const SizedBox(height: 10),
-
-            // -------- Amount (single compact field, no duplicate display) ----
-            AmountField(
-              controller: _amount,
-              label: 'Amount',
-              currency: sms.currency,
-              livePreview: false,
-              onChanged: () => setState(() {}),
-            ),
-            const SizedBox(height: 12),
-
-            // -------- Quick buttons (hidden when empty) --------
-            QuickButtonsRow(
-              scopeFilter: scope,
-              incomeFilter: sms.direction == SmsDirection.deposit,
-              hideWhenEmpty: true,
-              selectedCategoryId: _categoryId,
-              onTap: (q) => setState(() {
-                if (availableKinds.contains(q.kind)) _kind = q.kind;
-                if (q.categoryId != null) _categoryId = q.categoryId;
-              }),
-              onLongPress: (q) => _openQuickEdit(scope, q),
-            ),
-
-            // -------- Compact Category Chips --------
-            if (categoryKind != null) ...[
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragStart: (_) => _horizontalDragDx = 0,
+        onHorizontalDragUpdate: (d) => _horizontalDragDx += d.delta.dx,
+        onHorizontalDragEnd: (d) => _handleHorizontalSwipeEnd(repo, d),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SheetHandle(),
               const SizedBox(height: 10),
-              _categorySection(categories),
-            ],
 
-            // -------- Contact (Business scope only) --------
-            if (scope == TxnScope.business) ...[
+              // -------- Header --------
+              _header(sms),
               const SizedBox(height: 12),
-              const SectionCaption('Contact (optional)'),
-              const SizedBox(height: 6),
-              ChipStrip(
-                chips: [
-                  for (final c in repo.topCustomers(limit: 3))
-                    _contactChip(repo, c),
-                  PresetChip(
-                    icon: Icons.person_search_outlined,
-                    label: 'All contacts'.tr,
-                    onTap: _openContactSheet,
-                  ),
-                  PresetChip(
-                    icon: Icons.person_add_alt_1_rounded,
-                    label: 'New contact'.tr,
-                    onTap: _newContact,
-                  ),
-                ],
+
+              // -------- Scope toggle (tap or swipe horizontally) --------
+              _scopeRow(repo, scope),
+              const SizedBox(height: 10),
+
+              // -------- Amount (single compact field) --------
+              AmountField(
+                controller: _amount,
+                label: 'Amount',
+                currency: sms.currency,
+                livePreview: false,
+                onChanged: () => setState(() {}),
               ),
-              if (_customer != null)
-                ContactBalanceCard(
-                  customer: _customer!,
-                  balance: repo.balanceOf(_customer!),
+
+              // -------- Scope-dependent content with smooth transition --------
+              AnimatedSwitcher(
+                duration: Motion.adaptive(context, Motion.expand),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, anim) {
+                  final offsetBegin = scope == TxnScope.personal
+                      ? const Offset(-0.08, 0)
+                      : const Offset(0.08, 0);
+                  return FadeTransition(
+                    opacity: anim,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: offsetBegin,
+                        end: Offset.zero,
+                      ).animate(anim),
+                      child: child,
+                    ),
+                  );
+                },
+                child: Column(
+                  key: ValueKey<TxnScope>(scope),
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (availableKinds.length > 1) ...[
+                      const SizedBox(height: 8),
+                      TxnKindStrip(
+                        kinds: availableKinds,
+                        selected: _kind,
+                        onSelect: (k) => setState(() {
+                          _kind = k;
+                          _categoryId = _suggestedCategoryId(repo, scope);
+                        }),
+                      ),
+                    ],
+
+                    // -------- «به حساب» / «از حساب» button + Shortcuts --------
+                    if (categoryKind != null) ...[
+                      const SizedBox(height: 12),
+                      _accountSelectorSection(
+                        repo: repo,
+                        categoryKind: categoryKind,
+                        scope: scope,
+                        shortcuts: shortcuts,
+                      ),
+                    ],
+
+                    // -------- Quick buttons (hidden when empty) --------
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: QuickButtonsRow(
+                        scopeFilter: scope,
+                        incomeFilter: sms.direction == SmsDirection.deposit,
+                        hideWhenEmpty: true,
+                        selectedCategoryId: _categoryId,
+                        onTap: (q) => setState(() {
+                          if (availableKinds.contains(q.kind)) _kind = q.kind;
+                          if (q.categoryId != null) {
+                            _categoryId = q.categoryId;
+                          }
+                        }),
+                        onLongPress: (q) => _openQuickEdit(scope, q),
+                      ),
+                    ),
+
+                    // -------- Contact (Business scope only) --------
+                    if (scope == TxnScope.business) ...[
+                      const SizedBox(height: 10),
+                      const SectionCaption('Contact (optional)'),
+                      const SizedBox(height: 6),
+                      ChipStrip(
+                        chips: [
+                          for (final c in repo.topCustomers(limit: 3))
+                            _contactChip(repo, c),
+                          PresetChip(
+                            icon: Icons.person_search_outlined,
+                            label: 'All contacts'.tr,
+                            onTap: _openContactSheet,
+                          ),
+                          PresetChip(
+                            icon: Icons.person_add_alt_1_rounded,
+                            label: 'New contact'.tr,
+                            onTap: _newContact,
+                          ),
+                        ],
+                      ),
+                      if (_customer != null)
+                        ContactBalanceCard(
+                          customer: _customer!,
+                          balance: repo.balanceOf(_customer!),
+                        ),
+                    ],
+                  ],
                 ),
+              ),
+
+              const SizedBox(height: 14),
+
+              // -------- Action buttons --------
+              _actionBar(repo, sms),
             ],
-
-            const SizedBox(height: 14),
-
-            // -------- Action buttons --------
-            _actionBar(repo, sms),
-          ],
+          ),
         ),
       ),
     );
@@ -416,33 +496,153 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
     );
   }
 
-  Widget _categorySection(List<Category> categories) {
+  /// Renders the «به حساب» (for expenses) / «از حساب» (for incomes) button
+  /// alongside the user's pinned subcategory shortcuts (`میان‌برها`).
+  Widget _accountSelectorSection({
+    required AppRepository repo,
+    required TxnKind categoryKind,
+    required TxnScope scope,
+    required List<Category> shortcuts,
+  }) {
     final scheme = Theme.of(context).colorScheme;
+    final isExpense = categoryKind == TxnKind.expense;
+    final buttonLabel = (isExpense ? 'To account' : 'From account').tr;
+    final accent = isExpense ? AppTheme.expense : AppTheme.revenue;
+
+    final selectedCat = repo.categoryById(_categoryId);
+    final parentCat = selectedCat?.parentId == null
+        ? null
+        : repo.categoryById(selectedCat!.parentId);
+    final selectedText = selectedCat == null
+        ? 'Select category'.tr
+        : (parentCat == null
+              ? selectedCat.name.tr
+              : '${parentCat.name.tr} › ${selectedCat.name.tr}');
+
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            const Expanded(child: SectionCaption('Category')),
-            InkWell(
-              borderRadius: BorderRadius.circular(6),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const CategoriesPage()),
+        // Main «به حساب» / «از حساب» button
+        InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _openAccountCategorySheet(repo, categoryKind, scope),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: accent.withValues(alpha: 0.28),
+                width: 1.2,
               ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isExpense
+                            ? Icons.account_balance_wallet_outlined
+                            : Icons.savings_outlined,
+                        size: 15,
+                        color: accent,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        buttonLabel,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: accent,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    selectedText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface.withValues(alpha: 0.9),
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 20,
+                  color: scheme.onSurface.withValues(alpha: 0.6),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Pinned subcategory/category shortcuts row («میان‌برها»)
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            for (final sc in shortcuts)
+              _ShortcutCategoryChip(
+                category: sc,
+                parentName: sc.parentId == null
+                    ? null
+                    : repo.categoryById(sc.parentId)?.name.tr,
+                selected: sc.id == _categoryId,
+                onTap: () {
+                  Haptics.selection();
+                  setState(() => _categoryId = sc.id);
+                },
+              ),
+            InkWell(
+              borderRadius: BorderRadius.circular(9),
+              onTap: () => _openAccountCategorySheet(
+                repo,
+                categoryKind,
+                scope,
+              ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: scheme.onSurface.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(9),
+                  border: Border.all(
+                    color: scheme.onSurface.withValues(alpha: 0.12),
+                  ),
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      Icons.tune_rounded,
+                      Icons.push_pin_outlined,
                       size: 13,
                       color: scheme.primary,
                     ),
                     const SizedBox(width: 3),
                     Text(
-                      'Manage'.tr,
+                      shortcuts.isEmpty
+                          ? 'Choose shortcuts'.tr
+                          : '+ Shortcut'.tr,
                       style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
@@ -455,32 +655,6 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
             ),
           ],
         ),
-        const SizedBox(height: 6),
-        if (categories.isEmpty)
-          OutlinedButton.icon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const CategoriesPage()),
-            ),
-            icon: const Icon(Icons.add_rounded, size: 16),
-            label: Text('Manage'.tr),
-          )
-        else
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final c in categories)
-                _CategoryChip(
-                  category: c,
-                  selected: c.id == _categoryId,
-                  onTap: () {
-                    Haptics.selection();
-                    setState(() => _categoryId = c.id);
-                  },
-                ),
-            ],
-          ),
       ],
     );
   }
@@ -531,15 +705,17 @@ class _SmsReviewSheetState extends State<SmsReviewSheet> {
   }
 }
 
-/// Compact pill for selecting a category in one tap.
-class _CategoryChip extends StatelessWidget {
-  const _CategoryChip({
+/// Pinned shortcut chip for a subcategory or category on the main sheet.
+class _ShortcutCategoryChip extends StatelessWidget {
+  const _ShortcutCategoryChip({
     required this.category,
+    required this.parentName,
     required this.selected,
     required this.onTap,
   });
 
   final Category category;
+  final String? parentName;
   final bool selected;
   final VoidCallback onTap;
 
@@ -547,44 +723,511 @@ class _CategoryChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final onSurface = scheme.onSurface;
+    return Tooltip(
+      message: parentName == null
+          ? category.name.tr
+          : '$parentName › ${category.name.tr}',
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: Motion.adaptive(context, Motion.expand),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5.5),
+          decoration: BoxDecoration(
+            color: selected
+                ? scheme.primary.withValues(alpha: 0.15)
+                : onSurface.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(
+              color: selected
+                  ? scheme.primary.withValues(alpha: 0.65)
+                  : onSurface.withValues(alpha: 0.14),
+              width: selected ? 1.4 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                selected ? Icons.check_rounded : Icons.bolt_rounded,
+                size: 13.5,
+                color: selected
+                    ? scheme.primary
+                    : onSurface.withValues(alpha: 0.55),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                category.name.tr,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                  color: selected
+                      ? scheme.primary
+                      : onSurface.withValues(alpha: 0.85),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Hierarchical sheet opened by the «به حساب» / «از حساب» button.
+///
+/// Shows top-level categories; tapping any category expands its subcategories
+/// and allows selecting a subcategory, adding a new subcategory, or pinning
+/// subcategories as 1-tap shortcuts on the main transaction sheet.
+class _AccountCategorySheet extends StatefulWidget {
+  const _AccountCategorySheet({
+    required this.kind,
+    required this.scope,
+    required this.selectedCategoryId,
+  });
+
+  final TxnKind kind;
+  final TxnScope scope;
+  final String? selectedCategoryId;
+
+  @override
+  State<_AccountCategorySheet> createState() => _AccountCategorySheetState();
+}
+
+class _AccountCategorySheetState extends State<_AccountCategorySheet> {
+  String? _expandedParentId;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_expandedParentId != null) return;
+    final repo = context.read<AppRepository>();
+    final selected = repo.categoryById(widget.selectedCategoryId);
+    if (selected != null) {
+      _expandedParentId = selected.parentId ?? selected.id;
+    }
+  }
+
+  Future<void> _addSubcategoryDialog(
+    AppRepository repo,
+    Category parent,
+  ) async {
+    final ctrl = TextEditingController();
+    var pinAsShortcut = true;
+    final created = await showDialog<Category>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) => AlertDialog(
+          title: Text(
+            'New subcategory under "{name}"'.trArgs({'name': parent.name.tr}),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'e.g. Fuel'.tr,
+                ),
+              ),
+              const SizedBox(height: 10),
+              CheckboxListTile(
+                value: pinAsShortcut,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(
+                  'Pin as shortcut on main sheet'.tr,
+                  style: const TextStyle(fontSize: 13),
+                ),
+                onChanged: (v) =>
+                    setDialog(() => pinAsShortcut = v ?? true),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancel'.tr),
+            ),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: ctrl,
+              builder: (context, value, _) => FilledButton(
+                onPressed: value.text.trim().isEmpty
+                    ? null
+                    : () async {
+                        final sub = await repo.addCategory(
+                          value.text.trim(),
+                          widget.kind,
+                          scope: widget.scope,
+                          parentId: parent.id,
+                          isShortcut: pinAsShortcut,
+                        );
+                        if (ctx.mounted) Navigator.pop(ctx, sub);
+                      },
+                child: Text('Save'.tr),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || created == null) return;
+    Navigator.pop(context, created);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = context.watch<AppRepository>();
+    final scheme = Theme.of(context).colorScheme;
+    final isExpense = widget.kind == TxnKind.expense;
+    final title = (isExpense ? 'To account' : 'From account').tr;
+    final accent = isExpense ? AppTheme.expense : AppTheme.revenue;
+
+    final all = repo.pickOrderCategories(widget.kind, scope: widget.scope);
+    final byId = {for (final c in all) c.id: c};
+    final parents = <Category>[];
+    final childrenOf = <String, List<Category>>{};
+    for (final c in all) {
+      final parent = c.parentId == null ? null : byId[c.parentId];
+      if (parent == null) {
+        parents.add(c);
+      } else {
+        (childrenOf[parent.id] ??= <Category>[]).add(c);
+      }
+    }
+
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.78,
+      ),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(Radii.sheet),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SheetHandle(),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  isExpense
+                      ? Icons.account_balance_wallet_outlined
+                      : Icons.savings_outlined,
+                  size: 18,
+                  color: accent,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: FontSizes.title,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      'Tap a category to view its subcategories or pin shortcuts'
+                          .tr,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: scheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CategoriesPage()),
+                ),
+                icon: const Icon(Icons.tune_rounded, size: 15),
+                label: Text('Manage'.tr),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Flexible(
+            child: ListView.separated(
+              shrinkWrap: true,
+              physics: const AlwaysScrollableScrollPhysics(),
+              itemCount: parents.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 6),
+              itemBuilder: (context, index) {
+                final parent = parents[index];
+                final subs = childrenOf[parent.id] ?? const <Category>[];
+                final expanded = _expandedParentId == parent.id;
+                final parentSelected =
+                    widget.selectedCategoryId == parent.id ||
+                    subs.any((s) => s.id == widget.selectedCategoryId);
+
+                return AnimatedContainer(
+                  duration: Motion.adaptive(context, Motion.expand),
+                  curve: Curves.easeOutCubic,
+                  decoration: BoxDecoration(
+                    color: expanded
+                        ? scheme.primary.withValues(alpha: 0.05)
+                        : scheme.onSurface.withValues(alpha: 0.03),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: parentSelected
+                          ? scheme.primary.withValues(alpha: 0.45)
+                          : scheme.onSurface.withValues(alpha: 0.10),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          Haptics.selection();
+                          setState(() {
+                            _expandedParentId = expanded ? null : parent.id;
+                          });
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                expanded
+                                    ? Icons.folder_open_rounded
+                                    : Icons.folder_outlined,
+                                size: 18,
+                                color: parentSelected
+                                    ? scheme.primary
+                                    : scheme.onSurface.withValues(alpha: 0.65),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  parent.name.tr,
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: parentSelected
+                                        ? FontWeight.w800
+                                        : FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              if (subs.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: scheme.primary.withValues(
+                                      alpha: 0.10,
+                                    ),
+                                    borderRadius: BorderRadius.circular(99),
+                                  ),
+                                  child: Text(
+                                    '${subs.length}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: scheme.primary,
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(width: 6),
+                              Icon(
+                                expanded
+                                    ? Icons.keyboard_arrow_up_rounded
+                                    : Icons.keyboard_arrow_down_rounded,
+                                size: 20,
+                                color: scheme.onSurface.withValues(
+                                  alpha: 0.55,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (expanded)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Divider(height: 8),
+                              // Subcategory items
+                              for (final sub in subs)
+                                _SubcategoryTile(
+                                  category: sub,
+                                  selected:
+                                      sub.id == widget.selectedCategoryId,
+                                  onSelect: () => Navigator.pop(context, sub),
+                                  onToggleShortcut: () {
+                                    Haptics.selection();
+                                    repo.toggleCategoryShortcut(sub.id);
+                                  },
+                                ),
+                              // Select the parent category directly
+                              _SubcategoryTile(
+                                category: parent,
+                                labelOverride:
+                                    'General ({name})'.trArgs({
+                                      'name': parent.name.tr,
+                                    }),
+                                selected:
+                                    parent.id == widget.selectedCategoryId,
+                                onSelect: () => Navigator.pop(context, parent),
+                                onToggleShortcut: () {
+                                  Haptics.selection();
+                                  repo.toggleCategoryShortcut(parent.id);
+                                },
+                              ),
+                              const SizedBox(height: 4),
+                              Align(
+                                alignment: AlignmentDirectional.centerStart,
+                                child: TextButton.icon(
+                                  style: TextButton.styleFrom(
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                  onPressed: () => _addSubcategoryDialog(
+                                    repo,
+                                    parent,
+                                  ),
+                                  icon: const Icon(
+                                    Icons.add_rounded,
+                                    size: 16,
+                                  ),
+                                  label: Text('Add subcategory'.tr),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SubcategoryTile extends StatelessWidget {
+  const _SubcategoryTile({
+    required this.category,
+    required this.selected,
+    required this.onSelect,
+    required this.onToggleShortcut,
+    this.labelOverride,
+  });
+
+  final Category category;
+  final String? labelOverride;
+  final bool selected;
+  final VoidCallback onSelect;
+  final VoidCallback onToggleShortcut;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final onSurface = scheme.onSurface;
     return InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: Motion.adaptive(context, Motion.expand),
-        curve: Curves.easeOutCubic,
+      borderRadius: BorderRadius.circular(9),
+      onTap: onSelect,
+      child: Container(
+        margin: const EdgeInsets.only(top: 4),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
           color: selected
               ? scheme.primary.withValues(alpha: 0.14)
-              : onSurface.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(10),
+              : Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(9),
           border: Border.all(
             color: selected
-                ? scheme.primary.withValues(alpha: 0.65)
-                : onSurface.withValues(alpha: 0.13),
-            width: selected ? 1.4 : 1,
+                ? scheme.primary.withValues(alpha: 0.55)
+                : onSurface.withValues(alpha: 0.08),
           ),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            if (selected) ...[
-              Icon(
-                Icons.check_rounded,
-                size: 14,
-                color: scheme.primary,
+            Icon(
+              selected
+                  ? Icons.radio_button_checked_rounded
+                  : Icons.subdirectory_arrow_left_rounded,
+              size: 16,
+              color: selected
+                  ? scheme.primary
+                  : onSurface.withValues(alpha: 0.5),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                labelOverride ?? category.name.tr,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? scheme.primary : onSurface,
+                ),
               ),
-              const SizedBox(width: 4),
-            ],
-            Text(
-              category.name.tr,
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected
-                    ? scheme.primary
-                    : onSurface.withValues(alpha: 0.82),
+            ),
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: onToggleShortcut,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 4,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      category.isShortcut
+                          ? Icons.push_pin_rounded
+                          : Icons.push_pin_outlined,
+                      size: 15,
+                      color: category.isShortcut
+                          ? scheme.primary
+                          : onSurface.withValues(alpha: 0.4),
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      'Shortcut'.tr,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: category.isShortcut
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: category.isShortcut
+                            ? scheme.primary
+                            : onSurface.withValues(alpha: 0.45),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -614,10 +1257,7 @@ class _ScopeChip extends StatelessWidget {
     final onSurface = scheme.onSurface;
     return InkWell(
       borderRadius: BorderRadius.circular(9),
-      onTap: () {
-        Haptics.selection();
-        onTap();
-      },
+      onTap: onTap,
       child: AnimatedContainer(
         duration: Motion.adaptive(context, Motion.expand),
         curve: Curves.easeOutCubic,

@@ -907,6 +907,28 @@ class AppLocalization {
     'Monthly salary': 'حقوق ماهانه',
     'Home rent': 'اجارهٔ خانه',
     'Subscription': 'اشتراک',
+    'To account': 'به حساب',
+    'From account': 'از حساب',
+    'Shortcut': 'میان‌بر',
+    '+ Shortcut': '+ میان‌بر',
+    'Choose shortcuts': 'انتخاب میان‌بر',
+    'Add subcategory': 'افزودن زیرمجموعه',
+    'New subcategory under "{name}"': 'زیرمجموعهٔ جدید در «{name}»',
+    'e.g. Fuel': 'مثلاً بنزین',
+    'Pin as shortcut on main sheet': 'افزودن به میان‌برهای صفحهٔ اصلی',
+    'Tap a category to view its subcategories or pin shortcuts':
+        'برای مشاهدهٔ زیرمجموعه‌ها یا انتخاب میان‌بر، روی دسته‌بندی بزنید',
+    'General ({name})': 'کلی ({name})',
+    'Fuel': 'بنزین',
+    'Taxi and ride-share': 'تاکسی و اسنپ',
+    'Car maintenance': 'تعمیرات و سرویس خودرو',
+    'Restaurant and fast food': 'رستوران و فست‌فود',
+    'Cafe and snacks': 'کافه و میان‌وعده',
+    'Groceries and bakery': 'سوپرمارکت و نانوایی',
+    'Electricity bill': 'قبض برق',
+    'Water bill': 'قبض آب',
+    'Gas bill': 'قبض گاز',
+    'Building charge': 'شارژ ساختمان',
   };
 
   static String text(String source, {String? languageCode}) =>

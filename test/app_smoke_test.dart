@@ -648,6 +648,66 @@ void main() {
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
   });
 
+  testWidgets(
+    'SMS review supports horizontal scope swipe, To/From account picker, and subcategory shortcuts',
+    (tester) async {
+      final withdrawSms = ParsedSms(
+        message: SmsMessage(
+          id: 'review-withdraw-sms',
+          address: 'BANK',
+          body: 'برداشت مبلغ 250,000 تومان',
+          date: DateTime.now(),
+        ),
+        bankName: 'Test Bank',
+        amount: 250000,
+        direction: SmsDirection.withdraw,
+        confident: true,
+      );
+
+      await tester.pumpWidget(wrap(SmsReviewSheet(sms: withdrawSms)));
+      await tester.pumpAndSettle();
+
+      // Opens on Business scope with "To account" («به حساب») button for expense.
+      expect(find.text('To account'), findsOneWidget);
+      expect(find.text('Contact (optional)'), findsOneWidget);
+
+      // Horizontal swipe switches from Business to Personal scope.
+      await tester.drag(find.byType(SmsReviewSheet), const Offset(-120, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('Contact (optional)'), findsNothing);
+
+      // In Personal expense scope, the seeded "Fuel" («بنزین») shortcut chip
+      // is shown directly on the main sheet.
+      expect(find.text('Fuel'), findsOneWidget);
+      await tester.tap(find.text('Fuel'));
+      await tester.pumpAndSettle();
+
+      // Selecting the "Fuel" shortcut updates the "To account" button to
+      // show "Transport and fuel › Fuel".
+      expect(find.text('Transport and fuel › Fuel'), findsOneWidget);
+
+      // Tapping "To account" opens the hierarchical category -> subcategory sheet.
+      await tester.tap(find.text('To account'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          'Tap a category to view its subcategories or pin shortcuts',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Taxi and ride-share'), findsOneWidget);
+
+      // Selecting another subcategory updates the main sheet selection.
+      await tester.tap(find.text('Taxi and ride-share'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Transport and fuel › Taxi and ride-share'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('Onboarding page renders', (tester) async {
     await tester.pumpWidget(wrap(const OnboardingPage()));
     await tester.pump();

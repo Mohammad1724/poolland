@@ -474,13 +474,23 @@ class Ledger {
       J.addMonths(start, months);
 
   /// Total expenses for a category and date range (in the base currency).
+  ///
+  /// When [categories] is supplied, expenses recorded under direct
+  /// subcategories of [categoryId] also count toward the parent category.
   static double spentIn(
     List<Txn> txns,
     String categoryId, {
     DateTime? from,
     DateTime? to,
     TxnScope? scope,
+    List<Category>? categories,
   }) {
+    final childIds = categories == null
+        ? const <String>{}
+        : categories
+              .where((c) => c.parentId == categoryId)
+              .map((c) => c.id)
+              .toSet();
     var total = 0.0;
     for (final t in filter(
       txns,
@@ -489,7 +499,8 @@ class Ledger {
       kind: TxnKind.expense,
       scope: scope,
     )) {
-      if (t.categoryId != categoryId) continue;
+      final cid = t.categoryId;
+      if (cid != categoryId && !childIds.contains(cid)) continue;
       total += base(t);
     }
     return total;
