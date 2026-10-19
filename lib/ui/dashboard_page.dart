@@ -666,7 +666,7 @@ class _DashboardPageState extends State<DashboardPage>
 
   Widget _monthlyHeroCard({
     required BuildContext context,
-    required PeriodSummary monthSummary,
+    required Summary monthSummary,
     required Color onSurface,
     required bool compactLayout,
   }) {
@@ -980,7 +980,7 @@ class _DashboardPageState extends State<DashboardPage>
   Widget _businessMetricsSection({
     required BuildContext context,
     required AppRepository repo,
-    required PeriodSummary monthSummary,
+    required Summary monthSummary,
     required Color onSurface,
     required bool compactLayout,
   }) {

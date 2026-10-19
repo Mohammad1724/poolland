@@ -30,7 +30,14 @@ jobs:
             exit 1
           fi
           cat /tmp/analyze.log
-      - run: flutter test --concurrency=1
+      - name: Run flutter test
+        run: |
+          if ! flutter test --concurrency=1 > /tmp/test.log 2>&1; then
+            cat /tmp/test.log
+            grep -E "FAILED|Exception|══╡|Error:|-\s*\[" /tmp/test.log | tail -15 | sed 's/^/::error::/'
+            exit 1
+          fi
+          cat /tmp/test.log
 
   build-apk:
     name: Build APK and check it stays installable
