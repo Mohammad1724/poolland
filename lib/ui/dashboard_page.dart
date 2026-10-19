@@ -186,13 +186,13 @@ class _DashboardPageState extends State<DashboardPage>
 
     if (picked == null || !mounted) return;
     if (picked == _DashboardPeriod.custom) {
-      await _pickCustomDashboardRange(context);
+      await _pickCustomDashboardRange();
     } else {
       setState(() => _period = picked);
     }
   }
 
-  Future<void> _pickCustomDashboardRange(BuildContext context) async {
+  Future<void> _pickCustomDashboardRange() async {
     var tempFrom = _customFrom ?? J.startOfMonth(DateTime.now());
     var tempTo = _customTo ?? DateTime.now();
 
