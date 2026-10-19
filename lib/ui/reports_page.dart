@@ -951,15 +951,13 @@ class _ReportsPageState extends State<ReportsPage> {
             ],
           );
         }
-        return IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: expenseChart),
-              const SizedBox(width: 10),
-              Expanded(child: incomeChart),
-            ],
-          ),
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: expenseChart),
+            const SizedBox(width: 10),
+            Expanded(child: incomeChart),
+          ],
         );
       },
     );
