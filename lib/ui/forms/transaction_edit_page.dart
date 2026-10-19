@@ -595,7 +595,6 @@ class _TransactionEditPageState extends State<TransactionEditPage>
               key: ValueKey(
                 'form-${_customer?.id ?? 'none'}-${_scope.name}-${_kind.name}',
               ),
-              cacheExtent: 0,
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
               children: [
                 // -------- 1. Magnetic Scope Switcher (Business / Personal) --------
@@ -859,7 +858,7 @@ class _TransactionEditPageState extends State<TransactionEditPage>
 
         // -------- Business Contact & Cash/Credit --------
         if (pageScope == TxnScope.business) ...[
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           const SectionCaption('Contact (optional)'),
           const SizedBox(height: 6),
           ChipStrip(
