@@ -166,9 +166,9 @@ class _DashboardPageState extends State<DashboardPage>
 
     final progress = (_dragDx * _dragDir).clamp(0.0, width);
     final fraction = (progress / width).clamp(0.0, 1.0);
-    // Let the user drag almost half the screen (~48%) 1:1 with their finger
-    // before the magnet automatically pulls it to the end mid-drag.
-    final magnetThreshold = width * 0.48;
+    // Require dragging nearly half the screen (~45%) before the mid-drag
+    // magnet automatically pulls the page to the end.
+    final magnetThreshold = width * 0.45;
     if (progress >= magnetThreshold) {
       _triggerMagneticSnap(repo, fromFraction: fraction);
     } else {
@@ -221,8 +221,7 @@ class _DashboardPageState extends State<DashboardPage>
     final fraction = (progress / width).clamp(0.0, 1.0);
     final flingInSameDir =
         _dragDir == 0 ? velocity.abs() > 240 : (velocity * _dragDir) > 240;
-    final shouldSnapToTarget =
-        progress >= math.min(width * 0.30, 110.0) || flingInSameDir;
+    final shouldSnapToTarget = progress >= width * 0.32 || flingInSameDir;
 
     if (shouldSnapToTarget) {
       _triggerMagneticSnap(repo, fromFraction: fraction);

@@ -659,9 +659,14 @@ void main() {
       expect(find.text('Contact (optional)'), findsOneWidget);
       final businessHeight = tester.getSize(find.byType(SmsReviewSheet)).height;
 
-      // Horizontal swipe switches from Business to Personal scope while
-      // keeping the sheet height locked.
-      await tester.drag(find.byType(SmsReviewSheet), const Offset(-120, 0));
+      // A short drag (~1/5 of the sheet) springs back without switching scopes.
+      await tester.drag(find.byType(SmsReviewSheet), const Offset(-80, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('Contact (optional)'), findsOneWidget);
+
+      // Horizontal swipe past the magnetic threshold switches from Business to
+      // Personal scope while keeping the sheet height locked.
+      await tester.drag(find.byType(SmsReviewSheet), const Offset(-260, 0));
       await tester.pumpAndSettle();
       expect(find.text('Contact (optional)'), findsNothing);
       final personalHeight = tester.getSize(find.byType(SmsReviewSheet)).height;
