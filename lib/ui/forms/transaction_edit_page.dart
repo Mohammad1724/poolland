@@ -595,6 +595,7 @@ class _TransactionEditPageState extends State<TransactionEditPage>
               key: ValueKey(
                 'form-${_customer?.id ?? 'none'}-${_scope.name}-${_kind.name}',
               ),
+              cacheExtent: 0,
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
               children: [
                 // -------- 1. Magnetic Scope Switcher (Business / Personal) --------
@@ -694,13 +695,23 @@ class _TransactionEditPageState extends State<TransactionEditPage>
                 ],
 
                 // -------- 6. Magnetic 2-Page Scope Details («به حساب» / «از حساب», Shortcuts, Contact) --------
-                _buildMagneticScopeSection(
-                  repo: repo,
-                  contactChips: contactChips,
-                  showSettle: showSettle,
-                  currencies: currencies,
-                  onSurface: onSurface,
-                ),
+                if (!_isTransitioning)
+                  ..._buildScopeChildren(
+                    repo: repo,
+                    pageScope: _scope,
+                    contactChips: contactChips,
+                    showSettle: showSettle,
+                    currencies: currencies,
+                    onSurface: onSurface,
+                  )
+                else
+                  _buildMagneticScopeSection(
+                    repo: repo,
+                    contactChips: contactChips,
+                    showSettle: showSettle,
+                    currencies: currencies,
+                    onSurface: onSurface,
+                  ),
 
                 // -------- 7. Description --------
                 const SizedBox(height: 12),
@@ -799,6 +810,28 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     required List<CurrencyDef> currencies,
     required Color onSurface,
   }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: _buildScopeChildren(
+        repo: repo,
+        pageScope: pageScope,
+        contactChips: contactChips,
+        showSettle: showSettle,
+        currencies: currencies,
+        onSurface: onSurface,
+      ),
+    );
+  }
+
+  List<Widget> _buildScopeChildren({
+    required AppRepository repo,
+    required TxnScope pageScope,
+    required List<Customer> contactChips,
+    required bool showSettle,
+    required List<CurrencyDef> currencies,
+    required Color onSurface,
+  }) {
     final categoryKind = _categoryKind;
     final isCurrentScope = pageScope == _scope;
     final selectedCatId = isCurrentScope
@@ -810,10 +843,7 @@ class _TransactionEditPageState extends State<TransactionEditPage>
         ? const <Category>[]
         : repo.shortcutCategories(categoryKind, scope: pageScope);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
+    return <Widget>[
         // -------- «به حساب» / «از حساب» + Pinned Subcategory Shortcuts --------
         if (categoryKind != null) ...[
           const SizedBox(height: 12),
@@ -929,8 +959,7 @@ class _TransactionEditPageState extends State<TransactionEditPage>
             ],
           ],
         ],
-      ],
-    );
+      ];
   }
 
   Widget _contactChip(Customer c) {
