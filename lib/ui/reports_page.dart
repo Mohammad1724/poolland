@@ -137,6 +137,10 @@ class _ReportsPageState extends State<ReportsPage> {
     required TxnScope? scope,
   }) {
     final byId = {for (final c in repo.categories) c.id: c};
+    final parentsWithChildren = {
+      for (final c in repo.categories)
+        if (c.parentId != null) c.parentId!,
+    };
     final amounts = <String, double>{};
     final counts = <String, int>{};
     final names = <String, String>{};
@@ -172,7 +176,7 @@ class _ReportsPageState extends State<ReportsPage> {
         final map = subcats[rootKey] ??= <String, double>{};
         map[rawCat.name] = (map[rawCat.name] ?? 0) + v;
       } else if (rootCat != null &&
-          repo.subcategoriesOf(rootCat.id).isNotEmpty) {
+          parentsWithChildren.contains(rootCat.id)) {
         final map = subcats[rootKey] ??= <String, double>{};
         final generalLabel = 'General ({name})'.trArgs({
           'name': rootCat.name.tr,
