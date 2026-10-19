@@ -350,9 +350,8 @@ void main() {
 
       expect(find.text('Income and expense report'), findsOneWidget);
       expect(find.text('Income and expense chart'), findsOneWidget);
-      expect(find.text('Category income and expense report'), findsOneWidget);
 
-      // Switch between Daily, Weekly, This month, and All ranges.
+      // Switch between Daily, Weekly, and All ranges.
       await tester.tap(find.widgetWithText(ChoiceChip, 'Daily'));
       await tester.pump(const Duration(milliseconds: 300));
       expect(tester.takeException(), isNull);
@@ -363,6 +362,12 @@ void main() {
 
       await tester.tap(find.widgetWithText(ChoiceChip, 'All').last);
       await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull);
+
+      // Scroll down to verify the category breakdown and specialist insights.
+      await tester.drag(find.byType(ListView).first, const Offset(0, -450));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Category income and expense report'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

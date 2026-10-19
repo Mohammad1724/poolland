@@ -33,11 +33,11 @@ enum _Range {
   daily,
   weekly,
   thisMonth,
+  all,
   lastMonth,
   threeMonths,
   sixMonths,
   thisYear,
-  all,
 }
 
 enum _CategoryFilter { expense, income, all }
