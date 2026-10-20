@@ -222,7 +222,8 @@ internal object SmsCandidateDetector {
             hint.isNotEmpty() && normalizedBody.contains(hint)
         }
         if (!senderMatched && !bodyMatched) return false
-        if (ignoredPhrases.any { normalizedBody.contains(normalize(it)) }) return false
+        val cleanedForIgnore = normalizedBody.replace("کارمزد", "")
+        if (ignoredPhrases.any { cleanedForIgnore.contains(normalize(it)) }) return false
         if (directionWords.none { normalizedBody.contains(normalize(it)) }) return false
 
         // Match the same ordered amount paths as SmsParser: an amount label,

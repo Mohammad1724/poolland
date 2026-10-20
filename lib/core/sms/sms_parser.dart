@@ -279,8 +279,11 @@ class SmsParser {
   // Filter non-financial messages
   // ---------------------------------------------------------
   static bool isIgnored(String body) {
+    // Strip "کارمزد" (fee) first because its middle letters ("کا-رمز-د")
+    // contain the substring "رمز" (password).
+    final cleaned = body.replaceAll('کارمزد', '');
     for (final w in ignoreKeywords) {
-      if (body.contains(w)) return true;
+      if (cleaned.contains(w)) return true;
     }
     return false;
   }
