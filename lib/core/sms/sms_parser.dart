@@ -41,6 +41,10 @@ class SmsParser {
     'کد ورود',
     'کد فعالسازی',
     'ورود به',
+    'وارد همراه بانک',
+    'وارد اینترنت بانک',
+    'کسر خواهد گردید',
+    'کسر خواهد شد',
   ];
 
   static const List<String> withdrawWords = <String>[
@@ -513,14 +517,18 @@ class SmsParser {
     if (start > 0 && body[start - 1] == '*') return true;
     if (end < body.length && body[end] == '*') return true;
 
-    // Part of a date, such as 1405/07/12 or 0724-10:35.
+    // Part of a date, time, or dotted deposit number (e.g. 1405/07/12,
+    // 0724-10:35, 11/18_00:43, 10.10001439.1, 777.800.12345678.1).
     final after = end < body.length ? body[end] : '';
     final before = start > 0 ? body[start - 1] : '';
-    if ((after == '/' || after == '-') && end + 1 < body.length) {
+    if ((after == '/' || after == '-' || after == '.' || after == ':') &&
+        end + 1 < body.length) {
       if (_isDigitChar(body[end + 1])) return true;
     }
-    if (before == '/') return true;
-    if (before == '-' && start >= 2 && _isDigitChar(body[start - 2])) {
+    if (before == '/' || before == '_' || after == '_') return true;
+    if ((before == '-' || before == '.' || before == ':') &&
+        start >= 2 &&
+        _isDigitChar(body[start - 2])) {
       return true;
     }
 

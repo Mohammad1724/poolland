@@ -136,6 +136,10 @@ internal object SmsCandidateDetector {
         "کد ورود",
         "کد فعالسازی",
         "ورود به",
+        "وارد همراه بانک",
+        "وارد اینترنت بانک",
+        "کسر خواهد گردید",
+        "کسر خواهد شد",
     )
 
     private val directionWords = listOf(
@@ -325,13 +329,16 @@ internal object SmsCandidateDetector {
 
         val after = body.getOrNull(end)
         val before = body.getOrNull(start - 1)
-        if ((after == '/' || after == '-') &&
+        if ((after == '/' || after == '-' || after == '.' || after == ':') &&
             body.getOrNull(end + 1)?.isDigit() == true
         ) {
             return true
         }
-        if (before == '/') return true
-        if (before == '-' && start >= 2 && body.getOrNull(start - 2)?.isDigit() == true) {
+        if (before == '/' || before == '_' || after == '_') return true
+        if ((before == '-' || before == '.' || before == ':') &&
+            start >= 2 &&
+            body.getOrNull(start - 2)?.isDigit() == true
+        ) {
             return true
         }
 
