@@ -2064,6 +2064,7 @@ class ArchivedCustomersPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
+    final balances = repo.balancesMap();
     final archived = repo.customers.where((c) => c.archived).toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     final onSurface = Theme.of(context).colorScheme.onSurface;
@@ -2075,7 +2076,7 @@ class ArchivedCustomersPage extends StatelessWidget {
           ? EmptyState(
               icon: Icons.inventory_2_outlined,
               title: 'No archived customers'.tr,
-              message:
+              text:
                   'Archived customers appear here so you can restore them anytime.'
                       .tr,
             )
@@ -2086,7 +2087,7 @@ class ArchivedCustomersPage extends StatelessWidget {
                 separatorBuilder: (context, index) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final c = archived[index];
-                  final debt = repo.debtOf(c.id);
+                  final debt = balances[c.id] ?? 0;
                   return CardBox(
                     onTap: () => Navigator.push(
                       context,
@@ -2190,7 +2191,7 @@ class BudgetsManagePage extends StatelessWidget {
           ? EmptyState(
               icon: Icons.pie_chart_outline_rounded,
               title: 'Monthly budgets'.tr,
-              message:
+              text:
                   'Set a monthly limit for each category (such as food or transport); this page will show how much of each limit remains.'
                       .tr,
             )
@@ -2298,7 +2299,7 @@ class RecurringManagePage extends StatelessWidget {
           ? EmptyState(
               icon: Icons.autorenew_rounded,
               title: 'Recurring transactions'.tr,
-              message:
+              text:
                   'Set up rent, internet, subscriptions, and salary once; the app will record them automatically on schedule.'
                       .tr,
             )
