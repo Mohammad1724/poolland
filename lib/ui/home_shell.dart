@@ -788,19 +788,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                 onPressed: _repeatLastSale,
               ),
             IconButton(
-              tooltip: 'Reports'.tr,
-              icon: const Icon(Icons.insights_outlined),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => Scaffold(
-                    appBar: AppBar(title: Text('Reports'.tr)),
-                    body: const ReportsPage(),
-                  ),
-                ),
-              ),
-            ),
-            IconButton(
               tooltip: 'Settings'.tr,
               icon: const Icon(Icons.settings_outlined),
               onPressed: () => Navigator.push(

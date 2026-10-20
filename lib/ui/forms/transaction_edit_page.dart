@@ -76,8 +76,8 @@ class _TransactionEditPageState extends State<TransactionEditPage>
   TxnScope _toScope = TxnScope.personal;
   bool _isDragging = false;
   bool _magnetTriggered = false;
+  bool _gestureConsumed = false;
   double _dragDx = 0;
-  double _dragDir = 0;
   double _slideDir = 1.0;
 
   bool get isEdit => widget.existing != null;
@@ -248,6 +248,7 @@ class _TransactionEditPageState extends State<TransactionEditPage>
       _slideDir = dirForTarget;
       _isDragging = false;
       _magnetTriggered = true;
+      _gestureConsumed = true;
       _scopeAnim.value = 0.0;
     });
     _scopeAnim
@@ -261,6 +262,9 @@ class _TransactionEditPageState extends State<TransactionEditPage>
           setState(() {
             _applyScope(repo, target);
             _fromScope = _scope;
+            _toScope = _scope == TxnScope.business
+                ? TxnScope.personal
+                : TxnScope.business;
             _magnetTriggered = false;
             _scopeAnim.value = 0.0;
           });
@@ -272,8 +276,8 @@ class _TransactionEditPageState extends State<TransactionEditPage>
       _scopeAnim.stop();
     }
     _dragDx = 0;
-    _dragDir = 0;
     _magnetTriggered = false;
+    _gestureConsumed = false;
     _scopeAnim.value = 0.0;
     setState(() {
       _fromScope = _scope;
@@ -288,16 +292,16 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     AppRepository repo,
     DragUpdateDetails details,
   ) {
-    if (_magnetTriggered) return;
+    if (_gestureConsumed || _magnetTriggered || !_isDragging) return;
     final width = (context.size?.width ?? 360.0).clamp(240.0, 680.0);
     _dragDx += details.delta.dx;
-    if (_dragDir == 0 && _dragDx.abs() > 2.0) {
-      _dragDir = _dragDx.sign;
-      _slideDir = _dragDir;
+    if (_dragDx.abs() < 2.0) {
+      _scopeAnim.value = 0.0;
+      return;
     }
-    if (_dragDir == 0) return;
 
-    final progress = (_dragDx * _dragDir).clamp(0.0, width);
+    _slideDir = _dragDx >= 0 ? 1.0 : -1.0;
+    final progress = _dragDx.abs().clamp(0.0, width);
     final fraction = (progress / width).clamp(0.0, 1.0);
     // Require dragging nearly half the screen (~45%) before the mid-drag
     // magnet automatically pulls the page to the end.
@@ -313,6 +317,7 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     AppRepository repo, {
     required double fromFraction,
   }) {
+    _gestureConsumed = true;
     _magnetTriggered = true;
     _isDragging = false;
     _scopeAnim.value = fromFraction;
@@ -330,6 +335,9 @@ class _TransactionEditPageState extends State<TransactionEditPage>
           setState(() {
             _applyScope(repo, _toScope);
             _fromScope = _scope;
+            _toScope = _scope == TxnScope.business
+                ? TxnScope.personal
+                : TxnScope.business;
             _magnetTriggered = false;
             _scopeAnim.value = 0.0;
           });
@@ -340,20 +348,22 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     AppRepository repo,
     DragEndDetails details,
   ) {
-    if (_magnetTriggered) return;
+    if (_gestureConsumed || _magnetTriggered || !_isDragging) {
+      _isDragging = false;
+      return;
+    }
     _isDragging = false;
+    _gestureConsumed = true;
     final width = (context.size?.width ?? 360.0).clamp(240.0, 680.0);
     final velocity = details.primaryVelocity ?? 0;
-    if (_dragDir == 0 && velocity.abs() > 1) {
-      _dragDir = velocity.sign;
-      _slideDir = _dragDir;
-    }
-    final progress = _dragDir == 0
-        ? _dragDx.abs()
-        : (_dragDx * _dragDir).clamp(0.0, width);
+    final dir = _dragDx.abs() >= 2.0
+        ? (_dragDx >= 0 ? 1.0 : -1.0)
+        : (velocity >= 0 ? 1.0 : -1.0);
+    _slideDir = dir;
+    final progress = _dragDx.abs().clamp(0.0, width);
     final fraction = (progress / width).clamp(0.0, 1.0);
     final flingInSameDir =
-        _dragDir == 0 ? velocity.abs() > 240 : (velocity * _dragDir) > 240;
+        _dragDx.abs() < 2.0 ? velocity.abs() > 240 : (velocity * dir) > 240;
     final shouldSnapToTarget = progress >= width * 0.32 || flingInSameDir;
 
     if (shouldSnapToTarget) {
@@ -377,8 +387,12 @@ class _TransactionEditPageState extends State<TransactionEditPage>
   }
 
   void _handleHorizontalDragCancel() {
-    if (_magnetTriggered) return;
+    if (_gestureConsumed || _magnetTriggered || !_isDragging) {
+      _isDragging = false;
+      return;
+    }
     _isDragging = false;
+    _gestureConsumed = true;
     _scopeAnim
         .animateTo(
           0.0,
@@ -820,17 +834,11 @@ class _TransactionEditPageState extends State<TransactionEditPage>
                 children: [
                   Transform.translate(
                     offset: Offset(fromDx, 0),
-                    child: Opacity(
-                      opacity: (1.0 - t * 0.35).clamp(0.0, 1.0),
-                      child: fromChild,
-                    ),
+                    child: fromChild,
                   ),
                   Transform.translate(
                     offset: Offset(toDx, 0),
-                    child: Opacity(
-                      opacity: (0.65 + t * 0.35).clamp(0.0, 1.0),
-                      child: toChild,
-                    ),
+                    child: toChild,
                   ),
                 ],
               );

@@ -38,20 +38,18 @@ class SmsReviewSheet extends StatefulWidget {
 class _SmsReviewSheetState extends State<SmsReviewSheet>
     with SingleTickerProviderStateMixin {
   late TextEditingController _amount;
-  late AnimationController _scopeAnim;
+  late AnimationController _pos;
   Customer? _customer;
   late bool _isIncome;
   TxnKind _kind = TxnKind.income;
   TxnScope _scope = TxnScope.business;
 
-  // Magnetic pager state
-  TxnScope _fromScope = TxnScope.business;
-  TxnScope _toScope = TxnScope.personal;
+  // Magnetic pager state: 0.0 = Business (first tab), 1.0 = Personal (second tab).
   bool _isDragging = false;
-  bool _magnetTriggered = false;
-  double _dragDx = 0;
-  double _dragDir = 0;
-  double _slideDir = 1.0;
+  bool _gestureConsumed = false;
+  double _startPos = 0.0;
+  double _dragDx = 0.0;
+  double _signedDir = 1.0;
 
   // Locked height so switching between Business and Personal never changes
   // the bottom sheet's vertical size.
@@ -73,7 +71,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
         decimals: Money.decimals(widget.sms.currency),
       ),
     );
-    _scopeAnim = AnimationController(
+    _pos = AnimationController(
       vsync: this,
       value: 0.0,
       duration: const Duration(milliseconds: 240),
@@ -87,8 +85,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
     _presetDone = true;
     final repo = context.read<AppRepository>();
     _scope = TxnScope.business;
-    _fromScope = TxnScope.business;
-    _toScope = TxnScope.personal;
+    _startPos = 0.0;
     _customer = widget.initialCustomer;
     _kind = _suggestedKind(repo, _scope);
     _categoryId = _suggestedCategoryId(repo, _scope);
@@ -96,22 +93,13 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
 
   @override
   void dispose() {
-    _scopeAnim.dispose();
+    _pos.dispose();
     _amount.dispose();
     super.dispose();
   }
 
-  bool get _isTransitioning =>
-      _isDragging || _magnetTriggered || _scopeAnim.isAnimating;
-
   /// Continuous 0.0 (Business) -> 1.0 (Personal) progress for the top tab pill.
-  double get _personalProgress {
-    if (!_isTransitioning) {
-      return _scope == TxnScope.personal ? 1.0 : 0.0;
-    }
-    final t = _scopeAnim.value.clamp(0.0, 1.0);
-    return _fromScope == TxnScope.business ? t : 1.0 - t;
-  }
+  double get _personalProgress => _pos.value.clamp(0.0, 1.0);
 
   void _measureBusinessHeight() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -188,165 +176,139 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
   }
 
   void _changeScopeByTap(AppRepository repo, TxnScope target) {
-    if (_scope == target && !_isTransitioning) return;
+    final targetPos = target == TxnScope.personal ? 1.0 : 0.0;
+    if (_scope == target && (_pos.value - targetPos).abs() < 0.001) return;
     final isRtl = Directionality.of(context) == TextDirection.rtl;
-    // In RTL, Business is on the right and Personal is on the left:
-    // switching to Personal pulls the left page rightward (+1), and switching
-    // to Business pulls the right page leftward (-1).
     final dirForTarget = target == TxnScope.personal
         ? (isRtl ? 1.0 : -1.0)
         : (isRtl ? -1.0 : 1.0);
+    _signedDir = target == TxnScope.personal ? dirForTarget : -dirForTarget;
+    _isDragging = false;
+    _gestureConsumed = true;
     Haptics.selection();
     setState(() {
-      _fromScope = _scope;
-      _toScope = target;
-      _slideDir = dirForTarget;
-      _isDragging = false;
-      _magnetTriggered = true;
-      _scopeAnim.value = 0.0;
+      _applyScopeState(repo, target);
     });
-    _scopeAnim
-        .animateTo(
-          1.0,
-          duration: const Duration(milliseconds: 240),
-          curve: Curves.easeOutCubic,
-        )
-        .then((_) {
-          if (!mounted) return;
-          setState(() {
-            _applyScopeState(repo, target);
-            _fromScope = _scope;
-            _magnetTriggered = false;
-            _scopeAnim.value = 0.0;
-          });
-        });
+    _pos.animateTo(
+      targetPos,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _handleHorizontalDragStart(DragStartDetails details) {
-    if (_scopeAnim.isAnimating) {
-      _scopeAnim.stop();
+    if (_pos.isAnimating) {
+      _pos.stop();
     }
-    _dragDx = 0;
-    _dragDir = 0;
-    _magnetTriggered = false;
-    _scopeAnim.value = 0.0;
-    setState(() {
-      _fromScope = _scope;
-      _toScope = _scope == TxnScope.business
-          ? TxnScope.personal
-          : TxnScope.business;
-      _isDragging = true;
-    });
+    _scope = _pos.value >= 0.5 ? TxnScope.personal : TxnScope.business;
+    _startPos = _scope == TxnScope.personal ? 1.0 : 0.0;
+    _pos.value = _startPos;
+    _dragDx = 0.0;
+    _isDragging = true;
+    _gestureConsumed = false;
   }
 
   void _handleHorizontalDragUpdate(
     AppRepository repo,
     DragUpdateDetails details,
   ) {
-    if (_magnetTriggered) return;
+    if (_gestureConsumed || !_isDragging) return;
     final width = (context.size?.width ?? 360.0).clamp(240.0, 600.0);
     _dragDx += details.delta.dx;
-    if (_dragDir == 0 && _dragDx.abs() > 2.0) {
-      _dragDir = _dragDx.sign;
-      _slideDir = _dragDir;
+    if (_dragDx.abs() < 2.0) {
+      _pos.value = _startPos;
+      return;
     }
-    if (_dragDir == 0) return;
 
-    final progress = (_dragDx * _dragDir).clamp(0.0, width);
+    final dir = _dragDx >= 0 ? 1.0 : -1.0;
+    _signedDir = _startPos < 0.5 ? dir : -dir;
+    final progress = _dragDx.abs().clamp(0.0, width);
     final fraction = (progress / width).clamp(0.0, 1.0);
-    // Require dragging nearly half the sheet (~45%) before the mid-drag
-    // magnet automatically pulls it to the end.
-    final magnetThreshold = width * 0.45;
-    if (progress >= magnetThreshold) {
-      _triggerMagneticSnap(repo, fromFraction: fraction);
+    // Require dragging ~45% of the sheet before the mid-drag magnet
+    // automatically pulls it to the end and locks out the rest of the hold.
+    if (fraction >= 0.45) {
+      _triggerMagneticSnap(
+        repo,
+        toPersonal: _startPos < 0.5,
+        fromFraction: fraction,
+      );
     } else {
-      _scopeAnim.value = fraction;
+      _pos.value = _startPos < 0.5 ? fraction : (1.0 - fraction);
     }
   }
 
   void _triggerMagneticSnap(
     AppRepository repo, {
+    required bool toPersonal,
     required double fromFraction,
   }) {
-    _magnetTriggered = true;
+    _gestureConsumed = true;
     _isDragging = false;
-    _scopeAnim.value = fromFraction;
+    final target = toPersonal ? TxnScope.personal : TxnScope.business;
+    final targetPos = toPersonal ? 1.0 : 0.0;
     Haptics.selection();
+    setState(() {
+      _applyScopeState(repo, target);
+    });
     final remaining = (1.0 - fromFraction).clamp(0.15, 1.0);
-    final durationMs = (240 * remaining).round().clamp(120, 240);
-    _scopeAnim
-        .animateTo(
-          1.0,
-          duration: Duration(milliseconds: durationMs),
-          curve: Curves.easeOutCubic,
-        )
-        .then((_) {
-          if (!mounted) return;
-          setState(() {
-            _applyScopeState(repo, _toScope);
-            _fromScope = _scope;
-            _magnetTriggered = false;
-            _scopeAnim.value = 0.0;
-          });
-        });
+    final durationMs = (230 * remaining).round().clamp(110, 230);
+    _pos.animateTo(
+      targetPos,
+      duration: Duration(milliseconds: durationMs),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _handleHorizontalDragEnd(
     AppRepository repo,
     DragEndDetails details,
   ) {
-    if (_magnetTriggered) return;
-    _isDragging = false;
-    final width = (context.size?.width ?? 360.0).clamp(240.0, 600.0);
-    final velocity = details.primaryVelocity ?? 0;
-    if (_dragDir == 0 && velocity.abs() > 1) {
-      _dragDir = velocity.sign;
-      _slideDir = _dragDir;
+    if (_gestureConsumed || !_isDragging) {
+      _isDragging = false;
+      return;
     }
-    final progress = _dragDir == 0
-        ? _dragDx.abs()
-        : (_dragDx * _dragDir).clamp(0.0, width);
+    _isDragging = false;
+    _gestureConsumed = true;
+    final width = (context.size?.width ?? 360.0).clamp(240.0, 600.0);
+    final velocity = details.primaryVelocity ?? 0.0;
+    final dir = _dragDx.abs() >= 2.0
+        ? (_dragDx >= 0 ? 1.0 : -1.0)
+        : (velocity >= 0 ? 1.0 : -1.0);
+    _signedDir = _startPos < 0.5 ? dir : -dir;
+    final progress = _dragDx.abs().clamp(0.0, width);
     final fraction = (progress / width).clamp(0.0, 1.0);
-    final flingInSameDir =
-        _dragDir == 0 ? velocity.abs() > 240 : (velocity * _dragDir) > 240;
+    final flingInSameDir = _dragDx.abs() < 2.0
+        ? velocity.abs() > 240
+        : (velocity * dir) > 240;
     final shouldSnapToTarget = progress >= width * 0.32 || flingInSameDir;
 
     if (shouldSnapToTarget) {
-      _triggerMagneticSnap(repo, fromFraction: fraction);
+      _triggerMagneticSnap(
+        repo,
+        toPersonal: _startPos < 0.5,
+        fromFraction: fraction,
+      );
     } else {
-      _scopeAnim
-          .animateTo(
-            0.0,
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
-          )
-          .then((_) {
-            if (!mounted) return;
-            setState(() {
-              _fromScope = _scope;
-              _magnetTriggered = false;
-              _scopeAnim.value = 0.0;
-            });
-          });
+      _pos.animateTo(
+        _startPos,
+        duration: const Duration(milliseconds: 170),
+        curve: Curves.easeOutCubic,
+      );
     }
   }
 
   void _handleHorizontalDragCancel() {
-    if (_magnetTriggered) return;
+    if (_gestureConsumed || !_isDragging) {
+      _isDragging = false;
+      return;
+    }
     _isDragging = false;
-    _scopeAnim
-        .animateTo(
-          0.0,
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOutCubic,
-        )
-        .then((_) {
-          if (!mounted) return;
-          setState(() {
-            _fromScope = _scope;
-            _scopeAnim.value = 0.0;
-          });
-        });
+    _gestureConsumed = true;
+    _pos.animateTo(
+      _startPos,
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   Widget _contactChip(AppRepository repo, Customer c) {
@@ -478,50 +440,52 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
           final width = constraints.maxWidth.isFinite
               ? constraints.maxWidth
               : MediaQuery.sizeOf(context).width - 32;
-          if (!_isTransitioning) {
-            return _buildScopePage(
-              repo,
-              _scope,
-              measureKey: _scope == TxnScope.business
-                  ? _businessMeasureKey
-                  : null,
-            );
-          }
 
-          final fromChild = RepaintBoundary(
-            child: IgnorePointer(
-              child: _buildScopePage(repo, _fromScope),
+          final businessChild = RepaintBoundary(
+            child: _buildScopePage(
+              repo,
+              TxnScope.business,
+              measureKey: _businessMeasureKey,
             ),
           );
-          final toChild = RepaintBoundary(
-            child: IgnorePointer(
-              child: _buildScopePage(repo, _toScope),
-            ),
+          final personalChild = RepaintBoundary(
+            child: _buildScopePage(repo, TxnScope.personal),
           );
 
           return ClipRect(
             child: AnimatedBuilder(
-              animation: _scopeAnim,
+              animation: _pos,
               builder: (context, _) {
-                final t = _scopeAnim.value.clamp(0.0, 1.0);
-                final fromDx = _slideDir * width * t;
-                final toDx = fromDx - _slideDir * width;
+                final p = _pos.value.clamp(0.0, 1.0);
+                final isPureBusiness = p <= 0.001;
+                final isPurePersonal = p >= 0.999;
+                final isMoving = !isPureBusiness && !isPurePersonal;
+                final tab0Dx = isPureBusiness ? 0.0 : _signedDir * width * p;
+                final tab1Dx = isPurePersonal
+                    ? 0.0
+                    : _signedDir * width * (p - 1.0);
 
                 return Stack(
                   alignment: Alignment.topCenter,
                   children: [
-                    Transform.translate(
-                      offset: Offset(fromDx, 0),
-                      child: Opacity(
-                        opacity: (1.0 - t * 0.35).clamp(0.0, 1.0),
-                        child: fromChild,
+                    Offstage(
+                      offstage: isPurePersonal,
+                      child: IgnorePointer(
+                        ignoring: isMoving || isPurePersonal,
+                        child: Transform.translate(
+                          offset: Offset(tab0Dx, 0),
+                          child: businessChild,
+                        ),
                       ),
                     ),
-                    Transform.translate(
-                      offset: Offset(toDx, 0),
-                      child: Opacity(
-                        opacity: (0.65 + t * 0.35).clamp(0.0, 1.0),
-                        child: toChild,
+                    Offstage(
+                      offstage: isPureBusiness,
+                      child: IgnorePointer(
+                        ignoring: isMoving || isPureBusiness,
+                        child: Transform.translate(
+                          offset: Offset(tab1Dx, 0),
+                          child: personalChild,
+                        ),
                       ),
                     ),
                   ],
@@ -677,7 +641,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
   /// during finger drag and snaps magnetically to the active tab.
   Widget _scopeRow(AppRepository repo) {
     return AnimatedBuilder(
-      animation: _scopeAnim,
+      animation: _pos,
       builder: (context, _) => ScopeMagneticBar(
         personalProgress: _personalProgress,
         onSelectScope: (sc) => _changeScopeByTap(repo, sc),

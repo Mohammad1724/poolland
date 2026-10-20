@@ -178,12 +178,8 @@ void main() {
         reason: 'Tab $tab threw an exception',
       );
     }
-    await tester.tap(find.byTooltip('Reports'));
-    await tester.pumpAndSettle();
-    expect(find.text('Reports'), findsWidgets);
-    expect(find.byType(ReportsPage), findsWidgets);
-    await tester.binding.handlePopRoute();
-    await tester.pumpAndSettle();
+    expect(find.byType(ReportsPage), findsOneWidget);
+    expect(find.byTooltip('Reports'), findsNothing);
   });
 
   testWidgets('Personal quick add opens a personal expense form', (

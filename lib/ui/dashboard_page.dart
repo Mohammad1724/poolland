@@ -62,15 +62,16 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage>
     with SingleTickerProviderStateMixin {
   late TxnScope _scope;
-  TxnScope _fromScope = TxnScope.personal;
-  TxnScope _toScope = TxnScope.business;
-  late final AnimationController _scopeAnim;
+
+  /// Continuous position controller: 0.0 = Personal (first tab),
+  /// 1.0 = Business (second tab).
+  late final AnimationController _pos;
 
   bool _isDragging = false;
-  bool _magnetTriggered = false;
-  double _dragDx = 0;
-  double _dragDir = 0;
-  double _slideDir = 1.0;
+  bool _gestureConsumed = false;
+  double _startPos = 0.0;
+  double _dragDx = 0.0;
+  double _signedDir = 1.0;
 
   _DashboardPeriod _period = _DashboardPeriod.thisMonth;
   DateTime? _customFrom;
@@ -352,199 +353,153 @@ class _DashboardPageState extends State<DashboardPage>
   void initState() {
     super.initState();
     _scope = widget.initialScope;
-    _fromScope = _scope;
-    _toScope = _scope == TxnScope.personal
-        ? TxnScope.business
-        : TxnScope.personal;
-    _scopeAnim = AnimationController(
+    _startPos = _scope == TxnScope.business ? 1.0 : 0.0;
+    _pos = AnimationController(
       vsync: this,
-      value: 0.0,
-      duration: const Duration(milliseconds: 250),
+      value: _startPos,
+      duration: const Duration(milliseconds: 240),
     );
   }
 
   @override
   void dispose() {
-    _scopeAnim.dispose();
+    _pos.dispose();
     super.dispose();
   }
 
-  bool get _isTransitioning =>
-      _isDragging || _magnetTriggered || _scopeAnim.isAnimating;
-
   /// Continuous 0.0 (Personal, first tab) -> 1.0 (Business, second tab)
   /// progress for the top segmented pill indicator.
-  double get _businessProgress {
-    if (!_isTransitioning) {
-      return _scope == TxnScope.business ? 1.0 : 0.0;
-    }
-    final t = _scopeAnim.value.clamp(0.0, 1.0);
-    return _fromScope == TxnScope.personal ? t : 1.0 - t;
-  }
-
-  void _applyScope(AppRepository repo, TxnScope next) {
-    _scope = next;
-    repo.setScopeFilter(next);
-  }
+  double get _businessProgress => _pos.value.clamp(0.0, 1.0);
 
   void _changeScopeByTap(AppRepository repo, TxnScope target) {
-    if (_scope == target && !_isTransitioning) return;
+    final targetPos = target == TxnScope.business ? 1.0 : 0.0;
+    if (_scope == target && (_pos.value - targetPos).abs() < 0.001) return;
     final isRtl = Directionality.of(context) == TextDirection.rtl;
-    // Personal is first (right in RTL, left in LTR); Business is second.
     final dirForTarget = target == TxnScope.business
         ? (isRtl ? 1.0 : -1.0)
         : (isRtl ? -1.0 : 1.0);
+    _signedDir = target == TxnScope.business ? dirForTarget : -dirForTarget;
+    _isDragging = false;
+    _gestureConsumed = true;
+    _scope = target;
     Haptics.selection();
-    setState(() {
-      _fromScope = _scope;
-      _toScope = target;
-      _slideDir = dirForTarget;
-      _isDragging = false;
-      _magnetTriggered = true;
-      _scopeAnim.value = 0.0;
-    });
-    _scopeAnim
-        .animateTo(
-          1.0,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOutCubic,
-        )
-        .then((_) {
-          if (!mounted) return;
-          setState(() {
-            _applyScope(repo, target);
-            _fromScope = _scope;
-            _magnetTriggered = false;
-            _scopeAnim.value = 0.0;
-          });
-        });
+    _pos.animateTo(
+      targetPos,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _handleHorizontalDragStart(DragStartDetails details) {
-    if (_scopeAnim.isAnimating) {
-      _scopeAnim.stop();
+    if (_pos.isAnimating) {
+      _pos.stop();
     }
-    _dragDx = 0;
-    _dragDir = 0;
-    _magnetTriggered = false;
-    _scopeAnim.value = 0.0;
-    setState(() {
-      _fromScope = _scope;
-      _toScope = _scope == TxnScope.personal
-          ? TxnScope.business
-          : TxnScope.personal;
-      _isDragging = true;
-    });
+    _scope = _pos.value >= 0.5 ? TxnScope.business : TxnScope.personal;
+    _startPos = _scope == TxnScope.business ? 1.0 : 0.0;
+    _pos.value = _startPos;
+    _dragDx = 0.0;
+    _isDragging = true;
+    _gestureConsumed = false;
   }
 
   void _handleHorizontalDragUpdate(
     AppRepository repo,
     DragUpdateDetails details,
   ) {
-    if (_magnetTriggered) return;
+    if (_gestureConsumed || !_isDragging) return;
     final width = (context.size?.width ?? 360.0).clamp(240.0, 700.0);
     _dragDx += details.delta.dx;
-    if (_dragDir == 0 && _dragDx.abs() > 2.0) {
-      _dragDir = _dragDx.sign;
-      _slideDir = _dragDir;
+    if (_dragDx.abs() < 2.0) {
+      _pos.value = _startPos;
+      return;
     }
-    if (_dragDir == 0) return;
 
-    final progress = (_dragDx * _dragDir).clamp(0.0, width);
+    final dir = _dragDx >= 0 ? 1.0 : -1.0;
+    _signedDir = _startPos < 0.5 ? dir : -dir;
+    final progress = _dragDx.abs().clamp(0.0, width);
     final fraction = (progress / width).clamp(0.0, 1.0);
-    // Require dragging nearly half the screen (~45%) before the mid-drag
-    // magnet automatically pulls the page to the end.
-    final magnetThreshold = width * 0.45;
-    if (progress >= magnetThreshold) {
-      _triggerMagneticSnap(repo, fromFraction: fraction);
+
+    // Require dragging ~45% of the screen before the mid-drag magnet
+    // automatically pulls the page to the end and locks out the rest of the
+    // finger hold.
+    if (fraction >= 0.45) {
+      _triggerMagneticSnap(
+        toBusiness: _startPos < 0.5,
+        fromFraction: fraction,
+      );
     } else {
-      _scopeAnim.value = fraction;
+      _pos.value = _startPos < 0.5 ? fraction : (1.0 - fraction);
     }
   }
 
-  void _triggerMagneticSnap(
-    AppRepository repo, {
+  void _triggerMagneticSnap({
+    required bool toBusiness,
     required double fromFraction,
   }) {
-    _magnetTriggered = true;
+    _gestureConsumed = true;
     _isDragging = false;
-    _scopeAnim.value = fromFraction;
+    final target = toBusiness ? TxnScope.business : TxnScope.personal;
+    final targetPos = toBusiness ? 1.0 : 0.0;
+    _scope = target;
     Haptics.selection();
     final remaining = (1.0 - fromFraction).clamp(0.15, 1.0);
-    final durationMs = (240 * remaining).round().clamp(120, 240);
-    _scopeAnim
-        .animateTo(
-          1.0,
-          duration: Duration(milliseconds: durationMs),
-          curve: Curves.easeOutCubic,
-        )
-        .then((_) {
-          if (!mounted) return;
-          setState(() {
-            _applyScope(repo, _toScope);
-            _fromScope = _scope;
-            _magnetTriggered = false;
-            _scopeAnim.value = 0.0;
-          });
-        });
+    final durationMs = (230 * remaining).round().clamp(110, 230);
+    _pos.animateTo(
+      targetPos,
+      duration: Duration(milliseconds: durationMs),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _handleHorizontalDragEnd(
     AppRepository repo,
     DragEndDetails details,
   ) {
-    if (_magnetTriggered) return;
-    _isDragging = false;
-    final width = (context.size?.width ?? 360.0).clamp(240.0, 700.0);
-    final velocity = details.primaryVelocity ?? 0;
-    if (_dragDir == 0 && velocity.abs() > 1) {
-      _dragDir = velocity.sign;
-      _slideDir = _dragDir;
+    if (_gestureConsumed || !_isDragging) {
+      _isDragging = false;
+      return;
     }
-    final progress = _dragDir == 0
-        ? _dragDx.abs()
-        : (_dragDx * _dragDir).clamp(0.0, width);
+    _isDragging = false;
+    _gestureConsumed = true;
+    final width = (context.size?.width ?? 360.0).clamp(240.0, 700.0);
+    final velocity = details.primaryVelocity ?? 0.0;
+    final dir = _dragDx.abs() >= 2.0
+        ? (_dragDx >= 0 ? 1.0 : -1.0)
+        : (velocity >= 0 ? 1.0 : -1.0);
+    _signedDir = _startPos < 0.5 ? dir : -dir;
+    final progress = _dragDx.abs().clamp(0.0, width);
     final fraction = (progress / width).clamp(0.0, 1.0);
-    final flingInSameDir =
-        _dragDir == 0 ? velocity.abs() > 240 : (velocity * _dragDir) > 240;
+    final flingInSameDir = _dragDx.abs() < 2.0
+        ? velocity.abs() > 240
+        : (velocity * dir) > 240;
     final shouldSnapToTarget = progress >= width * 0.32 || flingInSameDir;
 
     if (shouldSnapToTarget) {
-      _triggerMagneticSnap(repo, fromFraction: fraction);
+      _triggerMagneticSnap(
+        toBusiness: _startPos < 0.5,
+        fromFraction: fraction,
+      );
     } else {
-      _scopeAnim
-          .animateTo(
-            0.0,
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
-          )
-          .then((_) {
-            if (!mounted) return;
-            setState(() {
-              _fromScope = _scope;
-              _magnetTriggered = false;
-              _scopeAnim.value = 0.0;
-            });
-          });
+      _pos.animateTo(
+        _startPos,
+        duration: const Duration(milliseconds: 170),
+        curve: Curves.easeOutCubic,
+      );
     }
   }
 
   void _handleHorizontalDragCancel() {
-    if (_magnetTriggered) return;
+    if (_gestureConsumed || !_isDragging) {
+      _isDragging = false;
+      return;
+    }
     _isDragging = false;
-    _scopeAnim
-        .animateTo(
-          0.0,
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOutCubic,
-        )
-        .then((_) {
-          if (!mounted) return;
-          setState(() {
-            _fromScope = _scope;
-            _scopeAnim.value = 0.0;
-          });
-        });
+    _gestureConsumed = true;
+    _pos.animateTo(
+      _startPos,
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   @override
@@ -589,10 +544,7 @@ class _DashboardPageState extends State<DashboardPage>
                 ],
 
                 // -------- Magnetic 2-Page Scope Content --------
-                if (!_isTransitioning)
-                  ..._buildScopeChildren(context, repo, _scope)
-                else
-                  _buildMagneticScopeBody(context, repo),
+                _buildMagneticScopeBody(context, repo),
               ],
             ),
           ),
@@ -637,20 +589,25 @@ class _DashboardPageState extends State<DashboardPage>
             ],
           ),
         ),
-        if (_scope == TxnScope.business)
-          TagChip(
-            '{count} active subscriptions'.trArgs({
-              'count': repo.activeSubsCount,
-            }),
-            color: const Color(0xFF16A34A),
-            icon: Icons.check_circle_rounded,
-          )
-        else
-          TagChip(
-            'Personal'.tr,
-            color: Theme.of(context).colorScheme.primary,
-            icon: Icons.person_rounded,
-          ),
+        AnimatedBuilder(
+          animation: _pos,
+          builder: (context, _) {
+            if (_pos.value >= 0.5) {
+              return TagChip(
+                '{count} active subscriptions'.trArgs({
+                  'count': repo.activeSubsCount,
+                }),
+                color: const Color(0xFF16A34A),
+                icon: Icons.check_circle_rounded,
+              );
+            }
+            return TagChip(
+              'Personal'.tr,
+              color: Theme.of(context).colorScheme.primary,
+              icon: Icons.person_rounded,
+            );
+          },
+        ),
       ],
     );
   }
@@ -661,7 +618,7 @@ class _DashboardPageState extends State<DashboardPage>
   Widget _scopeSwitchBar(AppRepository repo) {
     final scheme = Theme.of(context).colorScheme;
     return AnimatedBuilder(
-      animation: _scopeAnim,
+      animation: _pos,
       builder: (context, _) {
         final p = _businessProgress;
         final alignX = -1.0 + 2.0 * p;
@@ -808,47 +765,51 @@ class _DashboardPageState extends State<DashboardPage>
         final width = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : MediaQuery.sizeOf(context).width - 32;
-        if (!_isTransitioning) {
-          return _buildScopeContent(context, repo, _scope);
-        }
 
-        // Pre-build and cache both scope pages in RepaintBoundaries so finger
-        // dragging and magnetic snapping translate GPU textures at 60–120 FPS
-        // without rebuilding any charts or cards.
-        final fromChild = RepaintBoundary(
-          child: IgnorePointer(
-            child: _buildScopeContent(context, repo, _fromScope),
-          ),
+        // Pre-build and keep both scope pages mounted inside RepaintBoundaries
+        // and Offstage so finger dragging and magnetic snapping translate GPU
+        // layers at 60–120 FPS with zero widget tree teardown or rebuilds.
+        final personalChild = RepaintBoundary(
+          child: _buildScopeContent(context, repo, TxnScope.personal),
         );
-        final toChild = RepaintBoundary(
-          child: IgnorePointer(
-            child: _buildScopeContent(context, repo, _toScope),
-          ),
+        final businessChild = RepaintBoundary(
+          child: _buildScopeContent(context, repo, TxnScope.business),
         );
 
         return ClipRect(
           child: AnimatedBuilder(
-            animation: _scopeAnim,
+            animation: _pos,
             builder: (context, _) {
-              final t = _scopeAnim.value.clamp(0.0, 1.0);
-              final fromDx = _slideDir * width * t;
-              final toDx = fromDx - _slideDir * width;
+              final p = _pos.value.clamp(0.0, 1.0);
+              final isPurePersonal = p <= 0.001;
+              final isPureBusiness = p >= 0.999;
+              final isMoving = !isPurePersonal && !isPureBusiness;
+              final tab0Dx = isPurePersonal ? 0.0 : _signedDir * width * p;
+              final tab1Dx = isPureBusiness
+                  ? 0.0
+                  : _signedDir * width * (p - 1.0);
 
               return Stack(
                 alignment: Alignment.topCenter,
                 children: [
-                  Transform.translate(
-                    offset: Offset(fromDx, 0),
-                    child: Opacity(
-                      opacity: (1.0 - t * 0.35).clamp(0.0, 1.0),
-                      child: fromChild,
+                  Offstage(
+                    offstage: isPureBusiness,
+                    child: IgnorePointer(
+                      ignoring: isMoving || isPureBusiness,
+                      child: Transform.translate(
+                        offset: Offset(tab0Dx, 0),
+                        child: personalChild,
+                      ),
                     ),
                   ),
-                  Transform.translate(
-                    offset: Offset(toDx, 0),
-                    child: Opacity(
-                      opacity: (0.65 + t * 0.35).clamp(0.0, 1.0),
-                      child: toChild,
+                  Offstage(
+                    offstage: isPurePersonal,
+                    child: IgnorePointer(
+                      ignoring: isMoving || isPurePersonal,
+                      child: Transform.translate(
+                        offset: Offset(tab1Dx, 0),
+                        child: businessChild,
+                      ),
                     ),
                   ),
                 ],
