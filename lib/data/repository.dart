@@ -974,6 +974,32 @@ class AppRepository extends ChangeNotifier {
     await reload();
   }
 
+  /// Atomically updates name, parent, and shortcut pin for [c] in a single
+  /// store transaction + reload.
+  Future<void> updateCategoryDetails(
+    Category c, {
+    required String name,
+    String? parentId,
+    bool? isShortcut,
+  }) async {
+    final parent = _validParent(parentId, c.kind, c.scope);
+    if (parent == null && parentId != null) return;
+    await store.putCategory(
+      c.copyWith(
+        name: name.trim(),
+        parentId: parent?.id,
+        clearParentId: parent == null,
+        isShortcut: isShortcut ?? c.isShortcut,
+      ),
+    );
+    if (parent != null) {
+      for (final child in categories.where((k) => k.parentId == c.id).toList()) {
+        await store.putCategory(child.copyWith(clearParentId: true));
+      }
+    }
+    await reload();
+  }
+
   Future<void> deleteCategory(String id) async {
     for (final t in transactions.where((t) => t.categoryId == id).toList()) {
       await store.putTxn(t.copyWith(clearCategory: true));

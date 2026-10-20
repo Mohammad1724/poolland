@@ -103,6 +103,16 @@ class PlansPage extends StatelessWidget {
                               ],
                             ),
                           ),
+                          if (p.archived)
+                            IconButton(
+                              tooltip: 'Unarchive'.tr,
+                              icon: const Icon(
+                                Icons.unarchive_outlined,
+                                size: 19,
+                              ),
+                              onPressed: () =>
+                                  repo.updatePlan(p.copyWith(archived: false)),
+                            ),
                           const Icon(Icons.chevron_right_rounded, size: 20),
                         ],
                       ),
@@ -133,6 +143,7 @@ class _PlanEditPageState extends State<PlanEditPage> {
   late String _currency;
   int _duration = 1;
   PlanDurationUnit _unit = PlanDurationUnit.month;
+  bool _archived = false;
 
   bool get isEdit => widget.existing != null;
 
@@ -151,6 +162,7 @@ class _PlanEditPageState extends State<PlanEditPage> {
       _duration = p.durationValue;
       _unit = p.durationUnit;
       _note.text = p.note;
+      _archived = p.archived;
     }
   }
 
@@ -174,7 +186,7 @@ class _PlanEditPageState extends State<PlanEditPage> {
       durationValue: _duration,
       durationUnit: _unit,
       note: _note.text.trim(),
-      archived: widget.existing?.archived ?? false,
+      archived: _archived,
     );
     // Resolved before the write: the page pops itself right after it, and
     // the confirmation has to outlive the page.
@@ -331,6 +343,18 @@ class _PlanEditPageState extends State<PlanEditPage> {
                 label: 'Description (optional)'.tr,
                 maxLines: 2,
               ),
+              if (isEdit) ...[
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _archived,
+                  onChanged: (v) => setState(() => _archived = v),
+                  title: Text(
+                    'Archived (inactive)'.tr,
+                    style: const TextStyle(fontSize: 13.5),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

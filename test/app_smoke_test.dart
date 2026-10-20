@@ -389,6 +389,9 @@ void main() {
       const PlansPage(),
       const CategoriesPage(),
       const RatesPage(),
+      const ArchivedCustomersPage(),
+      const BudgetsManagePage(),
+      const RecurringManagePage(),
       const SmsRulesPage(),
       const SmsRuleEditPage(),
     ]) {

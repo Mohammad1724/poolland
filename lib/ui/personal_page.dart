@@ -425,7 +425,7 @@ class PersonalPage extends StatelessWidget {
   Future<void> _editRecurring(BuildContext context, RecurringRule? r) async {
     await showLedgerSheet<void>(
       context,
-      builder: (_) => _RecurringSheet(initial: r),
+      builder: (_) => RecurringEditSheet(initial: r),
     );
   }
 }
@@ -913,16 +913,16 @@ class _BudgetSheetState extends State<BudgetEditSheet> {
 }
 
 /// ---------------- Recurring rule sheet ----------------
-class _RecurringSheet extends StatefulWidget {
-  const _RecurringSheet({this.initial});
+class RecurringEditSheet extends StatefulWidget {
+  const RecurringEditSheet({super.key, this.initial});
 
   final RecurringRule? initial;
 
   @override
-  State<_RecurringSheet> createState() => _RecurringSheetState();
+  State<RecurringEditSheet> createState() => _RecurringSheetState();
 }
 
-class _RecurringSheetState extends State<_RecurringSheet> {
+class _RecurringSheetState extends State<RecurringEditSheet> {
   final _title = TextEditingController();
   final _amount = TextEditingController();
   TxnKind _kind = TxnKind.expense;

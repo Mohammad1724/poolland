@@ -1020,6 +1020,22 @@ class AppLocalization {
     'Hello {name} 👋\nSubscription: {plan}\nExpiry date: {date} ({status})\nRenewal amount: {amount}':
         'سلام {name} عزیز 👋\nاشتراک: {plan}\nتاریخ انقضا: {date} ({status})\nمبلغ تمدید: {amount}',
     'Previous balance due: {debt}': 'مانده بدهی قبلی: {debt}',
+    'Archived customers': 'مشتریان بایگانی‌شده',
+    '{count} archived customers': '{count} مشتری بایگانی‌شده',
+    'No archived customers': 'مشتری بایگانی‌شده‌ای وجود ندارد',
+    'Archived customers appear here so you can restore them anytime.':
+        'مشتریان بایگانی‌شده در این بخش قرار می‌گیرند تا هر زمان خواستید آن‌ها را بازگردانی کنید.',
+    'Unarchive': 'خروج از بایگانی',
+    'Customer unarchived': 'مشتری از بایگانی خارج شد',
+    'Archived (inactive)': 'بایگانی‌شده (غیرفعال)',
+    '{count} monthly budgets': '{count} بودجهٔ ماهانه',
+    '{count} recurring rules': '{count} تراکنش تکرارشونده',
+    'Decimals': 'تعداد اعشار',
+    'No decimals (0)': 'بدون اعشار (۰)',
+    'Two decimals (0.00)': 'دو رقم اعشار (۰.۰۰)',
+    'Export full PDF report': 'خروجی گزارش کامل PDF',
+    'Generate and share a complete PDF summary of your ledger':
+        'ساخت و اشتراک‌گذاری گزارش جامع PDF از دفتر کل',
   };
 
   static String text(String source, {String? languageCode}) =>
