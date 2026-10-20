@@ -662,7 +662,7 @@ class _SummaryBalancePill extends StatelessWidget {
             const SizedBox(width: 6),
             Expanded(
               child: Text(
-                '$label (${Fmt.n(count)})',
+                '$label ($count)',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
