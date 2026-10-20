@@ -582,13 +582,14 @@ void main() {
   });
 
   test('A backup file never carries the app-lock PIN', () async {
-    await repo.setPin('2468');
+    await repo.setPin('24681357');
 
     final backup = repo.exportData();
     final exported = backup['settings'] as Map<String, dynamic>;
 
     expect(exported.containsKey('pinHash'), isFalse);
-    expect(backup.toString(), isNot(contains('2468')));
+    expect(backup.toString(), isNot(contains('24681357')));
+    expect(backup.toString(), isNot(contains(repo.settings.pinHash!)));
   });
 
   test('Restoring a backup leaves this device\'s lock alone', () async {
