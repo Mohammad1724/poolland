@@ -73,6 +73,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     final repo = context.watch<AppRepository>();
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final reminder = repo.settings.reminderDays;
+    final compact = MediaQuery.sizeOf(context).width < 360;
 
     final query = _q.trim().toLowerCase();
     var list = [...repo.subscriptions];
@@ -208,10 +209,11 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                         )
                       : _clearSearchAndFilters,
                 )
-              : RefreshIndicator(
-                  onRefresh: () => repo.refreshAll(),
-                  color: Theme.of(context).colorScheme.primary,
-                  child: ListView.separated(
+              : RepaintBoundary(
+                  child: RefreshIndicator(
+                    onRefresh: () => repo.refreshAll(),
+                    color: Theme.of(context).colorScheme.primary,
+                    child: ListView.separated(
                   controller: widget.controller,
                   padding: const EdgeInsets.fromLTRB(16, 6, 16, 100),
                   itemCount: list.length,
@@ -222,8 +224,8 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                     final status = Ledger.subStatus(s, reminderDays: reminder);
                     final days = Ledger.daysLeft(s);
                     final progress = _progress(s);
-                    final compact = MediaQuery.sizeOf(context).width < 360;
-                    return CardBox(
+                    return RepaintBoundary(
+                      child: CardBox(
                       onTap: c == null
                           ? null
                           : () => Navigator.push(
@@ -358,8 +360,10 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                           ),
                         ],
                       ),
+                    ),
                     );
                   },
+                ),
                 ),
                 ),
         ),

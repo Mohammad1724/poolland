@@ -33,7 +33,7 @@ class TransactionEditPage extends StatefulWidget {
     this.initialScope = TxnScope.business,
     this.customer,
     this.categoryId,
-    this.autofocusAmount = true,
+    this.autofocusAmount = false,
     this.duplicateOf,
   });
 

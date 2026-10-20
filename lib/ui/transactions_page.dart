@@ -410,10 +410,11 @@ class _TransactionsPageState extends State<TransactionsPage> {
                       : null,
                   onAction: hasActiveFilters ? _clearSearchAndFilters : null,
                 )
-              : RefreshIndicator(
-                  onRefresh: () => repo.refreshAll(),
-                  color: Theme.of(context).colorScheme.primary,
-                  child: ListView.builder(
+              : RepaintBoundary(
+                  child: RefreshIndicator(
+                    onRefresh: () => repo.refreshAll(),
+                    color: Theme.of(context).colorScheme.primary,
+                    child: ListView.builder(
                   controller: widget.controller,
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
                   // Build a bit beyond the viewport so fast flings over long
@@ -433,7 +434,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
                               ? -Ledger.base(t)
                               : Ledger.base(t)),
                     );
-                    return Column(
+                    return RepaintBoundary(
+                      child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Padding(
@@ -539,8 +541,10 @@ class _TransactionsPageState extends State<TransactionsPage> {
                           ),
                         ),
                       ],
+                    ),
                     );
                   },
+                ),
                 ),
                 ),
         ),

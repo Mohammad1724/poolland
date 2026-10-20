@@ -145,10 +145,12 @@ class SettingsPage extends StatelessWidget {
     ].join('\n');
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(title: Text('Settings'.tr)),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-        children: [
+      body: RepaintBoundary(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+          children: [
           // ---------- Business ----------
           const SectionTitle('Business', icon: Icons.storefront_outlined),
           CardBox(
@@ -732,6 +734,7 @@ class SettingsPage extends StatelessWidget {
           const SizedBox(height: 20),
         ],
       ),
+      ),
     );
   }
 
@@ -820,7 +823,6 @@ class SettingsPage extends StatelessWidget {
         title: Text(title.tr),
         content: TextField(
           controller: ctrl,
-          autofocus: true,
           decoration: InputDecoration(hintText: hint?.tr),
         ),
         actions: [
@@ -852,7 +854,6 @@ class SettingsPage extends StatelessWidget {
         title: Text(title.tr),
         content: TextField(
           controller: ctrl,
-          autofocus: true,
           keyboardType: TextInputType.number,
           decoration: InputDecoration(suffixText: 'Toman'.tr),
         ),
@@ -887,7 +888,6 @@ class SettingsPage extends StatelessWidget {
         title: Text(title.tr),
         content: TextField(
           controller: ctrl,
-          autofocus: true,
           keyboardType: TextInputType.number,
           decoration: InputDecoration(suffixText: 'day'.tr),
         ),
@@ -981,15 +981,17 @@ class RatesPage extends StatelessWidget {
     final repo = context.watch<AppRepository>();
     final s = repo.settings;
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(title: Text('Currencies and exchange rates'.tr)),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addCurrency(context, repo),
         icon: const Icon(Icons.add_rounded),
         label: Text('Add currency'.tr),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
-        children: [
+      body: RepaintBoundary(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
+          children: [
           CardBox(
             child: Row(
               children: [
@@ -1086,6 +1088,7 @@ class RatesPage extends StatelessWidget {
           ],
         ],
       ),
+      ),
     );
   }
 
@@ -1103,7 +1106,6 @@ class RatesPage extends StatelessWidget {
         ),
         content: TextField(
           controller: ctrl,
-          autofocus: true,
           keyboardType: TextInputType.number,
           decoration: InputDecoration(suffixText: 'Toman'.tr),
         ),
@@ -1221,6 +1223,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         appBar: AppBar(
           title: Text('Categories'.tr),
           bottom: TabBar(
@@ -1447,7 +1450,6 @@ class _CategoriesPageState extends State<CategoriesPage> {
                 children: [
                   TextField(
                     controller: nameCtrl,
-                    autofocus: existing == null,
                     decoration: InputDecoration(
                       hintText: 'e.g. Server purchase'.tr,
                     ),

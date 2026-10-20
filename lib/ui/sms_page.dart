@@ -1063,7 +1063,6 @@ class _ImportSmsSheetState extends State<_ImportSmsSheet> {
             const SizedBox(height: 12),
             TextField(
               controller: _text,
-              autofocus: true,
               minLines: 4,
               maxLines: 8,
               textAlignVertical: TextAlignVertical.top,

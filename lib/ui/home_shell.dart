@@ -738,7 +738,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     // Only readiness is needed here; watching the whole repository would
     // rebuild the shell (and therefore every open tab) on each data change.
     final isReady = context.select<AppRepository, bool>((r) => r.isReady);
-    final width = MediaQuery.of(context).size.width;
+    final width = MediaQuery.sizeOf(context).width;
     final isWide = width >= 840;
     final isExtended = width >= 1120;
     final pages = <Widget>[
@@ -750,19 +750,21 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     ];
     final content = !isReady
         ? const Center(child: CircularProgressIndicator())
-        : IndexedStack(
-            index: _index,
-            children: [
-              for (var i = 0; i < pages.length; i++)
-                if (_visited.contains(i))
-                  _TabPane(
-                    active: _index == i,
-                    forward: _dirForward,
-                    child: pages[i],
-                  )
-                else
-                  const SizedBox.shrink(),
-            ],
+        : RepaintBoundary(
+            child: IndexedStack(
+              index: _index,
+              children: [
+                for (var i = 0; i < pages.length; i++)
+                  if (_visited.contains(i))
+                    _TabPane(
+                      active: _index == i,
+                      forward: _dirForward,
+                      child: pages[i],
+                    )
+                  else
+                    const SizedBox.shrink(),
+              ],
+            ),
           );
 
     return PopScope<Object?>(
@@ -776,6 +778,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         }
       },
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         appBar: AppBar(
           title: Text(_titles[_index].tr),
           actions: [
@@ -978,13 +981,14 @@ class _TabPaneState extends State<_TabPane>
   Widget build(BuildContext context) {
     if (!Motion.motionEnabled ||
         (MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
-      return widget.child;
+      return RepaintBoundary(child: widget.child);
     }
     final rtl = Directionality.of(context) == TextDirection.rtl;
     final dir = (widget.forward ? 1 : -1) * (rtl ? -1 : 1);
     return AnimatedBuilder(
       animation: _c,
       builder: (context, child) {
+        if (_c.value >= 0.999) return child!;
         final t = Curves.easeOutCubic.transform(_c.value);
         return Opacity(
           opacity: t.clamp(0.0, 1.0),
@@ -994,7 +998,7 @@ class _TabPaneState extends State<_TabPane>
           ),
         );
       },
-      child: widget.child,
+      child: RepaintBoundary(child: widget.child),
     );
   }
 }

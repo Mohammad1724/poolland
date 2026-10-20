@@ -78,13 +78,6 @@ class _LedgerPageTurnState extends State<_LedgerPageTurn> {
     reverseCurve: Curves.easeInCubic,
   );
 
-  /// Both animations, merged once so the [AnimatedBuilder] below keeps the
-  /// same [Listenable] across rebuilds.
-  late final Listenable _listenable = Listenable.merge([
-    _enter,
-    widget.secondaryAnimation,
-  ]);
-
   @override
   void dispose() {
     _enter.dispose();
@@ -94,32 +87,16 @@ class _LedgerPageTurnState extends State<_LedgerPageTurn> {
   @override
   Widget build(BuildContext context) {
     final rtl = Directionality.of(context) == TextDirection.rtl;
-    return AnimatedBuilder(
-      animation: _listenable,
-      builder: (context, inner) {
-        final t = _enter.value;
-        final s = Curves.easeOutCubic.transform(
-          widget.secondaryAnimation.value,
-        );
-        final back = Matrix4.diagonal3Values(1 - 0.03 * s, 1 - 0.03 * s, 1);
-        final turn =
-            Matrix4.diagonal3Values(0.95 + 0.05 * t, 0.95 + 0.05 * t, 1)
-              ..setEntry(3, 2, 0.0012)
-              ..rotateY((rtl ? -1 : 1) * (1 - t) * 0.10);
-        return Transform(
-          alignment: Alignment.center,
-          transform: back,
-          child: Transform(
-            alignment: rtl ? Alignment.centerLeft : Alignment.centerRight,
-            transform: turn,
-            child: FractionalTranslation(
-              translation: Offset((rtl ? -0.06 : 0.06) * (1 - t), 0),
-              child: Opacity(opacity: t.clamp(0.0, 1.0), child: inner),
-            ),
-          ),
-        );
-      },
-      child: widget.child,
+    final slide = Tween<Offset>(
+      begin: Offset(rtl ? -0.04 : 0.04, 0),
+      end: Offset.zero,
+    ).animate(_enter);
+    return SlideTransition(
+      position: slide,
+      child: FadeTransition(
+        opacity: _enter,
+        child: RepaintBoundary(child: widget.child),
+      ),
     );
   }
 }
@@ -127,9 +104,8 @@ class _LedgerPageTurnState extends State<_LedgerPageTurn> {
 /// Receipt-style bottom sheet.
 ///
 /// Drop-in replacement for `showModalBottomSheet` with the app's signature
-/// motion: the sheet rises like a printed receipt while its top edge tilts
-/// back a few degrees and settles flat. On dismiss the same animation plays
-/// in reverse — the receipt folds back down.
+/// motion: the sheet rises cleanly from the bottom and folds back down on
+/// dismiss.
 ///
 /// Every way out of a sheet works the same everywhere in the app:
 ///  * drag the grab strip at the top edge down ([_SheetDismiss]),
@@ -158,7 +134,7 @@ Future<T?> showLedgerSheet<T>(
       context,
     ).modalBarrierDismissLabel,
     barrierColor: Colors.black54,
-    transitionDuration: const Duration(milliseconds: 300),
+    transitionDuration: const Duration(milliseconds: 220),
     routeSettings: const RouteSettings(name: 'ledger-sheet'),
     pageBuilder: (ctx, _, _) =>
         _LedgerSheetFrame(dismissible: isDismissible, builder: builder),
@@ -253,15 +229,14 @@ class _LedgerSheetTransitionState extends State<_LedgerSheetTransition> {
     curve: Curves.easeOutCubic,
     reverseCurve: Curves.easeInCubic,
   );
-  late final CurvedAnimation _settle = CurvedAnimation(
-    parent: widget.animation,
-    curve: Curves.easeOutQuint,
-  );
+  late final Animation<Offset> _offset = Tween<Offset>(
+    begin: const Offset(0, 1),
+    end: Offset.zero,
+  ).animate(_slide);
 
   @override
   void dispose() {
     _slide.dispose();
-    _settle.dispose();
     super.dispose();
   }
 
@@ -270,23 +245,9 @@ class _LedgerSheetTransitionState extends State<_LedgerSheetTransition> {
     if (!Motion.motionEnabled || Motion.reduced(context)) {
       return FadeTransition(opacity: widget.animation, child: widget.child);
     }
-    return AnimatedBuilder(
-      animation: widget.animation,
-      builder: (ctx, inner) {
-        final tilt =
-            Matrix4.identity()
-              ..setEntry(3, 2, 0.001)
-              ..rotateX((1 - _settle.value) * 0.09);
-        return FractionalTranslation(
-          translation: Offset(0, 1 - _slide.value),
-          child: Transform(
-            alignment: Alignment.bottomCenter,
-            transform: tilt,
-            child: inner,
-          ),
-        );
-      },
-      child: widget.child,
+    return SlideTransition(
+      position: _offset,
+      child: RepaintBoundary(child: widget.child),
     );
   }
 }
@@ -1256,23 +1217,7 @@ class _SheetDismissState extends State<_SheetDismiss>
       animation: _spring,
       builder: (context, child) {
         final now = pull;
-        // Always keep the same Transform wrapper depth even when `now == 0`.
-        // Returning `child!` directly at `now == 0` and wrapping it in
-        // `Transform` as soon as `now > 0` changes the element depth of
-        // `child` on the first frame of a real-device drag, which unmounts
-        // and recreates the sheet's Scrollable and gesture recognizers
-        // mid-swipe.
-        final tilted = _animated
-            ? Transform(
-                alignment: Alignment.topCenter,
-                transform:
-                    Matrix4.identity()
-                      ..setEntry(3, 2, 0.001)
-                      ..rotateX(now == 0 ? 0.0 : math.min(now / 3200, 0.05)),
-                child: child,
-              )
-            : child!;
-        return Transform.translate(offset: Offset(0, now), child: tilted);
+        return Transform.translate(offset: Offset(0, now), child: child!);
       },
       child: sheet,
     );

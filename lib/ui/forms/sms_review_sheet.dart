@@ -1199,7 +1199,6 @@ class _AccountCategorySheetState extends State<AccountCategorySheet> {
             children: [
               TextField(
                 controller: ctrl,
-                autofocus: true,
                 decoration: InputDecoration(
                   hintText: 'e.g. Fuel'.tr,
                 ),

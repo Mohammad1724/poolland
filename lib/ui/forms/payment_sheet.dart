@@ -179,9 +179,6 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                       controller: _amount,
                       label: 'Amount'.tr,
                       currency: _currency,
-                      // The amount is the only thing this sheet really needs,
-                      // so start there instead of asking for an extra tap.
-                      autofocus: true,
                       textInputAction: TextInputAction.next,
                     ),
                   ),

@@ -964,47 +964,30 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
                 ),
               ),
             Expanded(
-              child: ListView(
+              child: ListView.builder(
                 controller: controller,
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                children: [
-                  if (widget.clearable)
-                    ListTile(
-                      leading: const Icon(Icons.block_rounded, size: 20),
-                      title: Text('None'.tr),
-                      onTap: () => Navigator.pop(
-                        context,
-                        const PickResult(null, cleared: true),
-                      ),
-                    ),
-                  for (final item in items)
-                    ListTile(
-                      leading: widget.iconOf == null
-                          ? null
-                          : Icon(widget.iconOf!(item), size: 20),
-                      title: isChild != null && isChild(item)
-                          ? Padding(
-                              padding:
-                                  const EdgeInsetsDirectional.only(
-                                    start: 24,
-                                  ),
-                              child: Text(widget.labelOf(item).tr),
-                            )
-                          : Text(widget.labelOf(item).tr),
-                      subtitle: widget.subOf == null
-                          ? null
-                          : Text(widget.subOf!(item)),
-                      trailing: widget.current == item
-                          ? Icon(
-                              Icons.check_circle_rounded,
-                              size: 20,
-                              color: theme.colorScheme.primary,
-                            )
-                          : null,
-                      onTap: () => Navigator.pop(context, PickResult(item)),
-                    ),
-                  if (widget.extraActionLabel != null)
-                    Padding(
+                itemCount:
+                    items.length +
+                    (widget.clearable ? 1 : 0) +
+                    (widget.extraActionLabel != null ? 1 : 0),
+                itemBuilder: (context, index) {
+                  var itemIndex = index;
+                  if (widget.clearable) {
+                    if (index == 0) {
+                      return ListTile(
+                        leading: const Icon(Icons.block_rounded, size: 20),
+                        title: Text('None'.tr),
+                        onTap: () => Navigator.pop(
+                          context,
+                          const PickResult(null, cleared: true),
+                        ),
+                      );
+                    }
+                    itemIndex--;
+                  }
+                  if (itemIndex >= items.length) {
+                    return Padding(
                       padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
                       child: FilledButton.tonalIcon(
                         onPressed: () => Navigator.pop(
@@ -1014,8 +997,34 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
                         icon: const Icon(Icons.add_rounded, size: 18),
                         label: Text(widget.extraActionLabel!.tr),
                       ),
-                    ),
-                ],
+                    );
+                  }
+                  final item = items[itemIndex];
+                  return ListTile(
+                    leading: widget.iconOf == null
+                        ? null
+                        : Icon(widget.iconOf!(item), size: 20),
+                    title: isChild != null && isChild(item)
+                        ? Padding(
+                            padding: const EdgeInsetsDirectional.only(
+                              start: 24,
+                            ),
+                            child: Text(widget.labelOf(item).tr),
+                          )
+                        : Text(widget.labelOf(item).tr),
+                    subtitle: widget.subOf == null
+                        ? null
+                        : Text(widget.subOf!(item)),
+                    trailing: widget.current == item
+                        ? Icon(
+                            Icons.check_circle_rounded,
+                            size: 20,
+                            color: theme.colorScheme.primary,
+                          )
+                        : null,
+                    onTap: () => Navigator.pop(context, PickResult(item)),
+                  );
+                },
               ),
             ),
           ],

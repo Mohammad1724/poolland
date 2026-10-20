@@ -17,6 +17,7 @@ class PlansPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(title: Text('Plans'.tr)),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.push(
@@ -32,77 +33,83 @@ class PlansPage extends StatelessWidget {
               title: 'No plans yet',
               text: 'Plans are reusable sales templates (for example, “1 month, 50 GB”).\nCreate a plan to record a sale in seconds.',
             )
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
-              itemCount: repo.plans.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 10),
-              itemBuilder: (context, i) {
-                final p = repo.plans[i];
-                return CardBox(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => PlanEditPage(existing: p),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary
-                              .withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.local_offer_outlined,
-                          size: 18,
-                          color: Theme.of(context).colorScheme.primary,
+          : RepaintBoundary(
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                itemCount: repo.plans.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (context, i) {
+                  final p = repo.plans[i];
+                  return RepaintBoundary(
+                    child: CardBox(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PlanEditPage(existing: p),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primary
+                                  .withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.local_offer_outlined,
+                              size: 18,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: Text(
-                                    p.name.tr,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        p.name.tr,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    if (p.archived)
+                                      TagChip(
+                                        'Archived',
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                        dense: true,
+                                      ),
+                                  ],
                                 ),
-                                if (p.archived)
-                                  TagChip(
-                                    'Archived',
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${Money.text(p.price, currency: p.currency)} • ${p.durationLabel}',
+                                  style: TextStyle(
+                                    fontSize: 12,
                                     color: Theme.of(context)
                                         .colorScheme
-                                        .onSurfaceVariant,
-                                    dense: true,
+                                        .onSurface
+                                        .withValues(alpha: 0.6),
                                   ),
+                                ),
                               ],
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${Money.text(p.price, currency: p.currency)} • ${p.durationLabel}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context).colorScheme.onSurface
-                                    .withValues(alpha: 0.6),
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                          const Icon(Icons.chevron_right_rounded, size: 20),
+                        ],
                       ),
-                      const Icon(Icons.chevron_right_rounded, size: 20),
-                    ],
-                  ),
-                );
-              },
+                    ),
+                  );
+                },
+              ),
             ),
     );
   }

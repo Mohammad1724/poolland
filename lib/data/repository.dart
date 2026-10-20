@@ -304,7 +304,8 @@ class AppRepository extends ChangeNotifier {
   List<Txn> txnsOfCustomer(String customerId) =>
       Ledger.forCustomer(businessTxns, customerId);
 
-  double balanceOf(Customer c) => Ledger.customerBalance(c, businessTxns);
+  double balanceOf(Customer c) =>
+      balancesMap()[c.id] ?? Ledger.customerBalance(c, businessTxns);
 
   Balances get totals {
     _syncCache();
