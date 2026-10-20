@@ -11,6 +11,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.provider.Telephony
 import java.util.Locale
@@ -437,14 +438,8 @@ internal object SmsArrivalNotifications {
 
         val title = context.getString(R.string.sms_arrival_title)
         val message = context.getString(R.string.sms_arrival_body)
-        val largeIcon = BitmapFactory.decodeResource(
-            context.resources,
-            R.mipmap.ic_launcher,
-        )
         val publicVersion = newBuilder(context)
             .setSmallIcon(R.drawable.ic_sms_notification)
-            .setLargeIcon(largeIcon)
-            .setColor(BRAND_COLOR)
             .setContentTitle(title)
             .setContentText(message)
             .setCategory(Notification.CATEGORY_MESSAGE)
@@ -452,8 +447,6 @@ internal object SmsArrivalNotifications {
             .build()
         val notification = newBuilder(context)
             .setSmallIcon(R.drawable.ic_sms_notification)
-            .setLargeIcon(largeIcon)
-            .setColor(BRAND_COLOR)
             .setContentTitle(title)
             .setContentText(message)
             .setContentIntent(pendingIntent)
@@ -468,14 +461,25 @@ internal object SmsArrivalNotifications {
         notificationManager.notify(notificationTag, 0, notification)
     }
 
-    private fun newBuilder(context: Context): Notification.Builder =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    private fun newBuilder(context: Context): Notification.Builder {
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(context, CHANNEL_ID)
         } else {
+            @Suppress("DEPRECATION")
             Notification.Builder(context)
                 .setPriority(Notification.PRIORITY_DEFAULT)
                 .setDefaults(Notification.DEFAULT_ALL)
         }
+        builder.setColor(BRAND_COLOR)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            builder.setLargeIcon(Icon.createWithResource(context, R.mipmap.ic_launcher))
+        } else {
+            BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher)?.let {
+                builder.setLargeIcon(it)
+            }
+        }
+        return builder
+    }
 
     private fun ensureChannel(context: Context, manager: NotificationManager) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return

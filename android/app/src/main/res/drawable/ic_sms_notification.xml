@@ -1,25 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/apk/res/android"
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Left P stem + upper arch -->
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M4.2,21.2V11.2C4.2,7.1 7.4,4.0 11.3,4.0C13.6,4.0 15.6,5.0 16.9,6.7L14.5,8.3C13.7,7.3 12.6,6.8 11.3,6.8C8.9,6.8 7.0,8.7 7.0,11.2V21.2H4.2Z" />
-    <!-- Diagonal growth arrow + lower Pey bowl -->
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M14.8,2.8L21.2,3.0L20.1,9.3L18.2,7.0L11.2,11.6V13.8C11.2,16.1 13.0,17.8 15.2,17.8C17.4,17.8 19.1,16.1 19.1,13.8V11.8L21.8,10.1V13.8C21.8,17.6 18.9,20.5 15.2,20.5C11.5,20.5 8.5,17.6 8.5,13.8V10.1L16.6,4.8L14.8,2.8Z" />
-    <!-- Three rising dots of Pey / coins -->
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M13.3,14.8m-1.25,0a1.25,1.25 0,1 1,2.5 0a1.25,1.25 0,1 1,-2.5 0" />
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M15.1,13.4m-1.25,0a1.25,1.25 0,1 1,2.5 0a1.25,1.25 0,1 1,-2.5 0" />
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M16.9,12.0m-1.25,0a1.25,1.25 0,1 1,2.5 0a1.25,1.25 0,1 1,-2.5 0" />
+        android:pathData="M4.2,21.2V11.2C4.2,7.1 7.4,4.0 11.3,4.0C13.6,4.0 15.6,5.0 16.9,6.7L14.5,8.3C13.7,7.3 12.6,6.8 11.3,6.8C8.9,6.8 7.0,8.7 7.0,11.2V21.2H4.2ZM14.8,2.8L21.2,3.0L20.1,9.3L18.2,7.0L11.2,11.6V13.8C11.2,16.1 13.0,17.8 15.2,17.8C17.4,17.8 19.1,16.1 19.1,13.8V11.8L21.8,10.1V13.8C21.8,17.6 18.9,20.5 15.2,20.5C11.5,20.5 8.5,17.6 8.5,13.8V10.1L16.6,4.8L14.8,2.8ZM13.3,13.6C14.0,13.6 14.5,14.1 14.5,14.8C14.5,15.5 14.0,16.0 13.3,16.0C12.6,16.0 12.1,15.5 12.1,14.8C12.1,14.1 12.6,13.6 13.3,13.6ZM15.1,12.2C15.8,12.2 16.3,12.7 16.3,13.4C16.3,14.1 15.8,14.6 15.1,14.6C14.4,14.6 13.9,14.1 13.9,13.4C13.9,12.7 14.4,12.2 15.1,12.2ZM16.9,10.8C17.6,10.8 18.1,11.3 18.1,12.0C18.1,12.7 17.6,13.2 16.9,13.2C16.2,13.2 15.7,12.7 15.7,12.0C15.7,11.3 16.2,10.8 16.9,10.8Z" />
 </vector>
