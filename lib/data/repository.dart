@@ -1171,12 +1171,38 @@ class AppRepository extends ChangeNotifier {
   /// Number of suggestions awaiting approval.
   int get smsPendingCount => smsSuggestions.length;
 
+  /// Built-in bank rules with any user edits applied.
+  List<BankRule> get effectiveBuiltinRules {
+    final overrides = {for (final r in smsRules) r.id: r};
+    return [
+      for (final b in builtinBankRules)
+        if (overrides.containsKey(b.id))
+          overrides[b.id]!.copyWith(custom: false)
+        else
+          b,
+    ];
+  }
+
+  /// User-created rules (excluding edits to built-in rules).
+  List<BankRule> get customSmsRules {
+    final builtinIds = {for (final b in builtinBankRules) b.id};
+    return smsRules.where((r) => !builtinIds.contains(r.id)).toList();
+  }
+
+  /// Whether a built-in bank rule has user-saved customizations.
+  bool isBuiltinSmsRuleModified(String ruleId) {
+    final builtinIds = {for (final b in builtinBankRules) b.id};
+    return builtinIds.contains(ruleId) &&
+        smsRules.any((r) => r.id == ruleId);
+  }
+
   /// The bank rules that are in effect right now: custom rules first (like
   /// [SmsParser.findRule] prefers them), the built-in ones after, minus the
   /// ones the user turned off.
-  List<BankRule> get activeSmsRules => [...smsRules, ...builtinBankRules]
-      .where((rule) => isSmsRuleEnabled(rule.id))
-      .toList();
+  List<BankRule> get activeSmsRules => [
+    ...customSmsRules,
+    ...effectiveBuiltinRules,
+  ].where((rule) => isSmsRuleEnabled(rule.id)).toList();
 
   /// Built-in rules are enabled unless explicitly disabled in settings.
   bool isSmsRuleEnabled(String ruleId) =>
@@ -1453,6 +1479,23 @@ class AppRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Restore a previously rejected SMS back to the review queue.
+  Future<void> restoreRejectedSms(SmsHistoryEntry entry) async {
+    await store.deleteSmsState(entry.key);
+    final parsed = SmsParser.parse(
+      entry.message,
+      extraRules: smsRules,
+      disabledRuleIds: settings.disabledSmsRuleIds.toSet(),
+    );
+    final queued = parsed.isTransaction ? parsed : parsed.asManual();
+    if (!smsSuggestions.any((s) => s.key == queued.key)) {
+      smsSuggestions = [queued, ...smsSuggestions]
+        ..sort((a, b) => b.message.date.compareTo(a.message.date));
+    }
+    smsHistory = store.loadSmsHistory();
+    notifyListeners();
+  }
+
   SmsHistoryEntry _smsHistoryEntry(
     ParsedSms sms,
     String status, {
@@ -1520,6 +1563,13 @@ class AppRepository extends ChangeNotifier {
 
   Future<void> addSmsRule(BankRule rule) async {
     await store.putSmsRule(rule);
+    await reload();
+    _refreshPendingSms();
+  }
+
+  /// Reset a customized built-in bank rule back to its factory defaults.
+  Future<void> resetBuiltinSmsRule(String id) async {
+    await store.deleteSmsRule(id);
     await reload();
     _refreshPendingSms();
   }

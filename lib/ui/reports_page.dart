@@ -9,7 +9,6 @@ import '../core/format_utils.dart';
 import '../core/jalali_utils.dart';
 import '../core/localization.dart';
 import '../core/money.dart';
-import '../core/sms/bank_rules.dart';
 import '../core/sms/sms_models.dart';
 import '../data/ledger.dart';
 import '../data/models.dart';
@@ -282,7 +281,7 @@ class _ReportsPageState extends State<ReportsPage> {
           const Color(0xFF2563EB),
         );
       }
-      for (final rule in builtinBankRules) {
+      for (final rule in repo.activeSmsRules) {
         final faName = rule.bankName.tr.toLowerCase();
         final enName = rule.bankName.toLowerCase();
         if (noteLower.contains(faName) ||

@@ -124,9 +124,11 @@ internal object SmsCandidateDetector {
         "فعال‌سازی",
         "غیرفعال",
         "خبرنامه",
-        "تبریک",
         "قرعه",
-        "مسدود",
+        "مسدود گردید",
+        "مسدود شد",
+        "حساب شما مسدود",
+        "کارت شما مسدود",
         "احراز هویت",
         "کلمه عبور",
         "کد تایید",
@@ -142,8 +144,12 @@ internal object SmsCandidateDetector {
         "خريد",
         "پرداخت",
         "کاهش موجودی",
+        "حواله",
         "حوله",
         "اقساط",
+        "از حساب شما پرید",
+        "از حساب شما کم شد",
+        "بدهکار",
         "کارمزد",
         "کسر",
         "withdraw",
@@ -158,19 +164,24 @@ internal object SmsCandidateDetector {
         "دريافت وجه",
         "سود سپرده",
         "انتقال ورودی",
+        "انتقال به حساب شما",
+        "به حساب شما نشست",
+        "به حسابتان نشست",
+        "بستانکار",
         "deposit",
         "credited",
         "انتقال",
         "شارژ",
     )
 
+    private val shortAlphaHintPattern = Regex("""^[A-Z\u0600-\u06FF]{3}$""")
     private val numberPattern = Regex("""[0-9][0-9,٬، ]*""")
     private val explicitAmountPattern = Regex(
         """(?:مبلغ|مبلغ کل|amount)[^0-9]{0,10}([0-9][0-9,٬، ]*)""",
         RegexOption.IGNORE_CASE,
     )
     private val verbAmountPattern = Regex(
-        """(?:برداشت|خرید|پرداخت|واریز|وصول|دریافت\s+وجه|withdraw|purchase|debit|deposit|credited)[^0-9]{0,32}([0-9][0-9,٬، ]*)""",
+        """(?:برداشت|خرید|پرداخت|حواله|بدهکار|واریز|وصول|بستانکار|دریافت\s+وجه|withdraw|purchase|debit|deposit|credited)[^0-9]{0,32}([0-9][0-9,٬، ]*)""",
         RegexOption.IGNORE_CASE,
     )
     private val amountUnitPattern = Regex(
@@ -201,7 +212,10 @@ internal object SmsCandidateDetector {
             val hint = normalize(rawHint).uppercase(Locale.ROOT)
             hint.isNotEmpty() &&
                 (normalizedAddress == hint ||
-                    (hint.length >= 4 && normalizedAddress.contains(hint)))
+                    (hint.length >= 4 && normalizedAddress.contains(hint)) ||
+                    (hint.length == 3 &&
+                        shortAlphaHintPattern.matches(hint) &&
+                        normalizedAddress.contains(hint)))
         }
         val bodyMatched = bodyHints.any { rawHint ->
             val hint = normalize(rawHint)

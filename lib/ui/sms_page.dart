@@ -812,6 +812,30 @@ class _SmsCard extends StatelessWidget {
               style: const TextStyle(fontSize: 10.5, color: Color(0xFFB45309)),
             ),
           ],
+          if (sms.bankName == null) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        SmsRuleEditPage(initialMessage: sms.message),
+                  ),
+                ),
+                icon: const Icon(Icons.add_moderator_outlined, size: 16),
+                label: Text(
+                  'Create recognition rule'.tr,
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           Row(
             children: [
@@ -967,6 +991,24 @@ class _SmsHistoryCard extends StatelessWidget {
               ).colorScheme.onSurface.withValues(alpha: 0.68),
             ),
           ),
+          if (entry.wasRejected) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  await context.read<AppRepository>().restoreRejectedSms(entry);
+                  showMessengerSnack(
+                    messenger,
+                    'SMS returned to review queue',
+                  );
+                },
+                icon: const Icon(Icons.restore_rounded, size: 16),
+                label: Text('Return to review queue'.tr),
+              ),
+            ),
+          ],
           if (entry.transactionId != null) ...[
             const SizedBox(height: 6),
             if (transactionToOpen != null)

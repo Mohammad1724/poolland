@@ -1036,6 +1036,22 @@ class AppLocalization {
     'Export full PDF report': 'خروجی گزارش کامل PDF',
     'Generate and share a complete PDF summary of your ledger':
         'ساخت و اشتراک‌گذاری گزارش جامع PDF از دفتر کل',
+    'Sina Bank': 'بانک سینا',
+    'Maskan Bank': 'بانک مسکن',
+    'Eghtesad Novin Bank': 'بانک اقتصاد نوین',
+    'Middle East Bank': 'بانک خاورمیانه',
+    'Wepod': 'ویپاد (پاسارگاد)',
+    'Create recognition rule': 'تعریف قاعدهٔ شناسایی',
+    'Return to review queue': 'بازگردانی به صف بررسی',
+    'SMS returned to review queue': 'پیامک به صف بررسی بازگردانده شد',
+    'Search bank name or sender number…': 'جستجوی نام بانک یا سرشماره…',
+    'Reset to default': 'بازنشانی به پیش‌فرض',
+    'Reset "{bank}" recognition settings back to factory defaults?':
+        'تنظیمات شناسایی «{bank}» به حالت پیش‌فرض بازنشانی شود؟',
+    'Rule reset to default.': 'قاعدهٔ شناسایی به حالت پیش‌فرض بازنشانی شد.',
+    'Edit SMS recognition rule': 'ویرایش قاعدهٔ شناسایی پیامک',
+    'Recognition rule updated.': 'قاعدهٔ شناسایی به‌روزرسانی شد.',
+    'Customized': 'ویرایش‌شده',
   };
 
   static String text(String source, {String? languageCode}) =>

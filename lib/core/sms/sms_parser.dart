@@ -29,9 +29,11 @@ class SmsParser {
     'فعال‌سازی',
     'غیرفعال',
     'خبرنامه',
-    'تبریک',
     'قرعه',
-    'مسدود',
+    'مسدود گردید',
+    'مسدود شد',
+    'حساب شما مسدود',
+    'کارت شما مسدود',
     'احراز هویت',
     'کلمه عبور',
     'کد تایید',
@@ -47,10 +49,14 @@ class SmsParser {
     'خريد',
     'پرداخت',
     'کاهش موجودی',
+    'حواله',
     'حوله',
     'اقساط',
-    'کارمزد',
-    'کسر',
+    'از حساب شما پرید',
+    'از حساب شما کم شد',
+    'بدهکار',
+    'کسر گردید',
+    'کسر شد',
     'withdraw',
     'purchase',
     'debit',
@@ -66,6 +72,10 @@ class SmsParser {
     'دريافت وجه',
     'سود سپرده',
     'انتقال ورودی',
+    'انتقال به حساب شما',
+    'به حساب شما نشست',
+    'به حسابتان نشست',
+    'بستانکار',
     'deposit',
     'credited',
   ];
@@ -83,7 +93,7 @@ class SmsParser {
   );
 
   static final RegExp _verbAmountRe = RegExp(
-    r'(?:برداشت|خرید|خريد|پرداخت|واریز|واريز|وصول|دریافت\s+وجه|دريافت\s+وجه|withdraw|purchase|debit|deposit|credited)[^0-9\u06F0-\u06F9\u0660-\u0669]{0,32}([0-9\u06F0-\u06F9\u0660-\u0669][0-9\u06F0-\u06F9\u0660-\u0669,\u066C\u200c ]*)',
+    r'(?:برداشت|خرید|خريد|پرداخت|حواله|بدهکار|واریز|واريز|وصول|بستانکار|دریافت\s+وجه|دريافت\s+وجه|withdraw|purchase|debit|deposit|credited)[^0-9\u06F0-\u06F9\u0660-\u0669]{0,32}([0-9\u06F0-\u06F9\u0660-\u0669][0-9\u06F0-\u06F9\u0660-\u0669,\u066C\u200c ]*)',
     caseSensitive: false,
   );
 
@@ -226,23 +236,35 @@ class SmsParser {
   // ---------------------------------------------------------
   // Bank identification
   // ---------------------------------------------------------
+  static final RegExp _shortAlphaHintRe = RegExp(
+    r'^[A-Z\u0600-\u06FF]{3}$',
+  );
+
   static BankRule? findRule(
     String upperAddress,
     String body,
     List<BankRule> extraRules, {
     Set<String> disabledRuleIds = const <String>{},
   }) {
-    // Custom user rules take priority, but a disabled rule is never used to
-    // identify a message from either its sender or its body.
-    final rules = [...extraRules, ...builtinBankRules]
-        .where((rule) => !disabledRuleIds.contains(rule.id))
-        .toList();
+    // Custom/edited user rules take priority over built-in defaults with the
+    // same id, and disabled rules are never used.
+    final overriddenIds = {for (final r in extraRules) r.id};
+    final rules = [
+      ...extraRules,
+      ...builtinBankRules.where((b) => !overriddenIds.contains(b.id)),
+    ].where((rule) => !disabledRuleIds.contains(rule.id)).toList();
+
     for (final rule in rules) {
       for (final hint in rule.senderHints) {
         final h = normalize(hint).toUpperCase();
         if (h.isEmpty) continue;
         if (upperAddress == h) return rule;
         if (h.length >= 4 && upperAddress.contains(h)) return rule;
+        if (h.length == 3 &&
+            _shortAlphaHintRe.hasMatch(h) &&
+            upperAddress.contains(h)) {
+          return rule;
+        }
       }
     }
     for (final rule in rules) {
@@ -267,11 +289,35 @@ class SmsParser {
   // Transaction direction
   // ---------------------------------------------------------
   static SmsDirection detectDirection(String body) {
+    // Compare the earliest occurrence of primary deposit vs withdrawal words
+    // so trailing fee lines (e.g. "کارمزد: 0 ریال") or counterparty notes
+    // never override the main transaction verb at the start of the SMS.
+    int? earliestWithdraw;
     for (final w in withdrawWords) {
-      if (body.contains(w)) return SmsDirection.withdraw;
+      final idx = body.indexOf(w);
+      if (idx != -1 && (earliestWithdraw == null || idx < earliestWithdraw)) {
+        earliestWithdraw = idx;
+      }
     }
+
+    int? earliestDeposit;
     for (final w in depositWords) {
-      if (body.contains(w)) return SmsDirection.deposit;
+      final idx = body.indexOf(w);
+      if (idx != -1 && (earliestDeposit == null || idx < earliestDeposit)) {
+        earliestDeposit = idx;
+      }
+    }
+
+    if (earliestDeposit != null && earliestWithdraw != null) {
+      return earliestDeposit <= earliestWithdraw
+          ? SmsDirection.deposit
+          : SmsDirection.withdraw;
+    }
+    if (earliestWithdraw != null) return SmsDirection.withdraw;
+    if (earliestDeposit != null) return SmsDirection.deposit;
+
+    if (body.contains('کسر') || body.contains('کارمزد')) {
+      return SmsDirection.withdraw;
     }
     if (body.contains('انتقال')) return SmsDirection.withdraw;
     if (body.contains('شارژ')) return SmsDirection.deposit;

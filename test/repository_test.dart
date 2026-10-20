@@ -829,5 +829,27 @@ void main() {
           'صندوق اعتباری');
       expect(custom.bodyHints.join(' '), contains('صندوق'));
     });
+
+    test('Built-in rules can be edited and reset to defaults', () async {
+      expect(repo.isBuiltinSmsRuleModified('melli'), isFalse);
+      await repo.addSmsRule(
+        const BankRule(
+          id: 'melli',
+          bankName: 'بانک ملی ویژه',
+          senderHints: ['BANKMELLI', '30009999'],
+          bodyHints: ['بانک ملی'],
+          custom: false,
+        ),
+      );
+      expect(repo.isBuiltinSmsRuleModified('melli'), isTrue);
+      final edited = repo.effectiveBuiltinRules.firstWhere((r) => r.id == 'melli');
+      expect(edited.bankName, 'بانک ملی ویژه');
+      expect(edited.senderHints, contains('30009999'));
+
+      await repo.resetBuiltinSmsRule('melli');
+      expect(repo.isBuiltinSmsRuleModified('melli'), isFalse);
+      final reset = repo.effectiveBuiltinRules.firstWhere((r) => r.id == 'melli');
+      expect(reset.bankName, 'Melli Bank');
+    });
   });
 }

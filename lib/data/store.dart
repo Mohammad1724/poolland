@@ -617,6 +617,8 @@ class LocalStore {
     return smsState.put(key, record);
   }
 
+  Future<void> deleteSmsState(String key) => smsState.delete(key);
+
   Future<void> clearSmsState() => smsState.clear();
 
   /// Custom rules for banks not included in the built-in list.

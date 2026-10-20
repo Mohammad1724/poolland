@@ -56,7 +56,7 @@ void main() {
         address: 'BLUBANK',
       );
 
-      expect(r.bankName, 'Sina Bank / Blu Bank');
+      expect(r.bankName, 'Blu Bank');
       expect(r.direction, SmsDirection.withdraw);
       expect(r.amount, 70000);
       expect(r.balance, closeTo(1022916.6, 0.1));
@@ -74,10 +74,34 @@ void main() {
         address: 'UNKNOWN',
       );
 
-      expect(r.bankName, 'Sina Bank / Blu Bank');
+      expect(r.bankName, 'Blu Bank');
       expect(r.direction, SmsDirection.deposit);
       expect(r.amount, 180000);
       expect(r.balance, closeTo(1094016.6, 0.1));
+      expect(r.isTransaction, isTrue);
+    });
+
+    test('Recognizes Sina Bank separately from Blu Bank', () {
+      final r = p(
+        'بانک سینا\nواریز مبلغ 2,500,000 ریال\nمانده (بدون مسدودی): 8,000,000 ریال',
+        address: 'SINA',
+      );
+
+      expect(r.bankName, 'Sina Bank');
+      expect(r.direction, SmsDirection.deposit);
+      expect(r.amount, 250000);
+      expect(r.isTransaction, isTrue);
+    });
+
+    test('Deposit SMS mentioning trailing fee (کارمزد) stays a deposit', () {
+      final r = p(
+        'بانک ملی\nواریز به حساب\nمبلغ: 5,000,000 ریال\nکارمزد: 0 ریال',
+        address: 'BANKMELLI',
+      );
+
+      expect(r.bankName, 'Melli Bank');
+      expect(r.direction, SmsDirection.deposit);
+      expect(r.amount, 500000);
       expect(r.isTransaction, isTrue);
     });
 
