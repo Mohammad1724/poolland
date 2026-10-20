@@ -86,9 +86,7 @@ void main() {
       expect(find.text(label), findsOneWidget, reason: '$label tile missing');
     }
     // The scope selector stays a real 44dp control (touch-target contract).
-    final scope = tester.getSize(
-      find.byKey(const ValueKey('txn_scope_switcher')),
-    );
+    final scope = tester.getSize(find.byType(SegmentedButton<TxnScope>));
     expect(scope.height, greaterThanOrEqualTo(44));
     expect(tester.takeException(), isNull);
   });
@@ -295,14 +293,25 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // The «به حساب» ("To account") button shows the current selection.
-    expect(find.text('To account'), findsOneWidget);
-
-    // Open the hierarchical category -> subcategory picker.
-    await tester.tap(find.text('To account'));
+    await tester.scrollUntilVisible(
+      find.text('Category'),
+      200,
+      scrollable: formScrollable(),
+    );
     await tester.pumpAndSettle();
 
+    // The field shows the current selection.
+    expect(find.byType(SelectField<Category>), findsOneWidget);
+
+    // Open the picker.
+    await tester.tap(find.byType(SelectField<Category>));
+    await tester.pumpAndSettle();
+
+    // The whole catalog is one list: frequent categories lead, and with a
+    // long catalog a search box appears on top of it.
+    expect(find.text('Select category'), findsOneWidget);
     expect(find.text('Category name...'), findsOneWidget);
+    expect(find.byType(ListTile).evaluate().length, greaterThan(3));
 
     // Searching narrows the list to the one category the name matches.
     final searchField = find.ancestor(
@@ -321,10 +330,18 @@ void main() {
       findsOneWidget,
     );
 
-    // Pick it — the sheet closes and the «به حساب» button shows the new selection.
+    // Pick it — the sheet closes and the field shows the new selection.
     await tester.tap(onlyTile);
     await tester.pumpAndSettle();
-    expect(find.text('Advertising and marketing'), findsOneWidget);
+    final field = find.byType(SelectField<Category>);
+    expect(field, findsOneWidget);
+    expect(
+      find.descendant(
+        of: field,
+        matching: find.text('Advertising and marketing'),
+      ),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -363,9 +380,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Contact (optional)'), findsNothing);
-    // Personal categories are offered instead via the «از حساب» ("From account")
-    // selector (Salary is the seeded default).
-    expect(find.text('From account'), findsOneWidget);
+    // Personal categories are offered instead (Salary is the seeded default).
+    // The save bar now carries a hint above the button until an amount is
+    // typed, which leaves the category field just below the fold: scroll to
+    // it before asserting.
+    await tester.scrollUntilVisible(
+      find.text('Category'),
+      200,
+      scrollable: formScrollable(),
+    );
+    expect(find.text('Category'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Salary'),
+      200,
+      scrollable: formScrollable(),
+    );
     expect(find.text('Salary'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

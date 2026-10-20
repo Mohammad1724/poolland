@@ -186,6 +186,7 @@ class _EnterMotionState extends State<EnterMotion>
     return AnimatedBuilder(
       animation: _c,
       builder: (context, child) {
+        if (_c.value >= 1.0) return child!;
         final t = Curves.easeOutCubic.transform(_c.value);
         return Opacity(
           opacity: t.clamp(0.0, 1.0),
@@ -247,6 +248,7 @@ class _SlipInState extends State<SlipIn> with SingleTickerProviderStateMixin {
     return AnimatedBuilder(
       animation: _c,
       builder: (context, child) {
+        if (_c.value >= 1.0) return child!;
         final t = Curves.easeOutBack.transform(_c.value);
         return Opacity(
           opacity: _c.value.clamp(0.0, 1.0),

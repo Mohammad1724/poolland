@@ -233,76 +233,17 @@ class LocalStore {
     return out;
   }
 
-  /// Default subcategories under personal categories so common items like
-  /// "Fuel" under "Transport and fuel" work out of the box and can be
-  /// pinned as 1-tap shortcuts.
-  static const Map<String, List<(String, bool)>> _personalSubcategories = {
-    'Transport and fuel': [
-      ('Fuel', true),
-      ('Taxi and ride-share', false),
-      ('Car maintenance', false),
-    ],
-    'Food and dining': [
-      ('Restaurant and fast food', false),
-      ('Cafe and snacks', false),
-      ('Groceries and bakery', false),
-    ],
-    'Utilities (water, electricity, gas)': [
-      ('Electricity bill', false),
-      ('Water bill', false),
-      ('Gas bill', false),
-    ],
-    'Housing and rent': [
-      ('Rent', false),
-      ('Building charge', false),
-    ],
-  };
-
-  /// Add personal categories (and their default subcategories) to an
-  /// existing database once.
+  /// Add personal categories to an existing database once.
   Future<void> _seedPersonalCategoriesOnce() async {
-    if (meta.get('personalCategoriesSeeded') != true) {
-      final existing = categories.values
-          .map(
-            (e) => Category.fromMap(Map<String, dynamic>.from(e as Map)).name,
-          )
-          .toSet();
-      for (final c in personalCategories()) {
-        if (existing.contains(c.name)) continue;
-        await categories.put(c.id, c.toMap());
-      }
-      await meta.put('personalCategoriesSeeded', true);
+    if (meta.get('personalCategoriesSeeded') == true) return;
+    final existing = categories.values
+        .map((e) => Category.fromMap(Map<String, dynamic>.from(e as Map)).name)
+        .toSet();
+    for (final c in personalCategories()) {
+      if (existing.contains(c.name)) continue;
+      await categories.put(c.id, c.toMap());
     }
-    if (meta.get('personalSubcategoriesSeeded') != true) {
-      final loaded = categories.values
-          .map((e) => Category.fromMap(Map<String, dynamic>.from(e as Map)))
-          .toList();
-      final existingNames = loaded.map((c) => c.name).toSet();
-      var order = loaded.isEmpty
-          ? 0
-          : loaded.map((c) => c.sortOrder).reduce((a, b) => a > b ? a : b) + 1;
-      for (final entry in _personalSubcategories.entries) {
-        final parent = loaded
-            .where((c) => c.name == entry.key && c.parentId == null)
-            .firstOrNull;
-        if (parent == null) continue;
-        for (final (subName, shortcut) in entry.value) {
-          if (existingNames.contains(subName)) continue;
-          final sub = Category(
-            id: newId(),
-            name: subName,
-            kind: parent.kind,
-            sortOrder: order++,
-            scope: parent.scope,
-            parentId: parent.id,
-            isShortcut: shortcut,
-          );
-          await categories.put(sub.id, sub.toMap());
-          existingNames.add(subName);
-        }
-      }
-      await meta.put('personalSubcategoriesSeeded', true);
-    }
+    await meta.put('personalCategoriesSeeded', true);
   }
 
   /// Default sales plans.

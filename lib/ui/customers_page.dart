@@ -273,70 +273,67 @@ class _CustomersPageState extends State<CustomersPage> {
                     final latest = subs.isEmpty ? null : subs.first;
                     // Swiping a row is a shortcut, never a delete: the row
                     // snaps back and the payment sheet opens instead.
-                    return EnterMotion(
-              index: i,
-              child: Dismissible(
-                      key: ValueKey('customer-swipe-${c.id}'),
-                      direction: DismissDirection.horizontal,
-                      // A shortcut, not a full dismiss: a short swipe is
-                      // enough, because the row is not going anywhere.
-                      dismissThresholds: const {
-                        // The keys are the resolved directions, not
-                        // [DismissDirection.horizontal].
-                        DismissDirection.startToEnd: 0.25,
-                        DismissDirection.endToStart: 0.25,
-                      },
-                      background: SwipeHint(
-                        icon: Icons.south_west_rounded,
-                        label: 'Receive',
-                        color: const Color(0xFF16A34A),
-                        alignment: AlignmentDirectional.centerStart,
-                        borderRadius: BorderRadius.circular(Radii.card),
-                      ),
-                      secondaryBackground: SwipeHint(
-                        icon: Icons.north_east_rounded,
-                        label: 'Payment',
-                        color: const Color(0xFFE11D48),
-                        alignment: AlignmentDirectional.centerEnd,
-                        borderRadius: BorderRadius.circular(Radii.card),
-                      ),
-                      confirmDismiss: (direction) {
-                        Haptics.tap();
-                        final isReceive =
-                            direction == DismissDirection.startToEnd;
-                        // Snap the row home first: awaiting the sheet here
-                        // would leave the row slid off-screen behind the
-                        // sheet's translucent barrier the whole time it is
-                        // open.
-                        afterSwipeSnapBack(
-                          context,
-                          () => showPaymentSheet(
+                    return RepaintBoundary(
+                      child: Dismissible(
+                        key: ValueKey('customer-swipe-${c.id}'),
+                        direction: DismissDirection.horizontal,
+                        // A shortcut, not a full dismiss: a short swipe is
+                        // enough, because the row is not going anywhere.
+                        dismissThresholds: const {
+                          // The keys are the resolved directions, not
+                          // [DismissDirection.horizontal].
+                          DismissDirection.startToEnd: 0.25,
+                          DismissDirection.endToStart: 0.25,
+                        },
+                        background: SwipeHint(
+                          icon: Icons.south_west_rounded,
+                          label: 'Receive',
+                          color: const Color(0xFF16A34A),
+                          alignment: AlignmentDirectional.centerStart,
+                          borderRadius: BorderRadius.circular(Radii.card),
+                        ),
+                        secondaryBackground: SwipeHint(
+                          icon: Icons.north_east_rounded,
+                          label: 'Payment',
+                          color: const Color(0xFFE11D48),
+                          alignment: AlignmentDirectional.centerEnd,
+                          borderRadius: BorderRadius.circular(Radii.card),
+                        ),
+                        confirmDismiss: (direction) {
+                          Haptics.tap();
+                          final isReceive =
+                              direction == DismissDirection.startToEnd;
+                          // Snap the row home first: awaiting the sheet here
+                          // would leave the row slid off-screen behind the
+                          // sheet's translucent barrier the whole time it is
+                          // open.
+                          afterSwipeSnapBack(
                             context,
-                            customer: c,
-                            isReceive: isReceive,
+                            () => showPaymentSheet(
+                              context,
+                              customer: c,
+                              isReceive: isReceive,
+                            ),
+                          );
+                          return Future.value(false);
+                        },
+                        child: CardBox(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
                           ),
-                        );
-                        return Future.value(false);
-                      },
-                      child: CardBox(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => CustomerDetailPage(customer: c),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CustomerDetailPage(customer: c),
+                            ),
                           ),
-                        ),
-                        // Long-press: the money shortcuts without opening the
-                        // detail page first.
-                        onLongPress: () => _customerActions(context, c),
-                        child: Row(
-                          children: [
-                            Hero(
-                              tag: 'cust-avatar-${c.id}',
-                              child: CircleAvatar(
+                          // Long-press: the money shortcuts without opening the
+                          // detail page first.
+                          onLongPress: () => _customerActions(context, c),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
                                 radius: 20,
                                 backgroundColor: Theme.of(context)
                                     .colorScheme
@@ -347,32 +344,31 @@ class _CustomersPageState extends State<CustomersPage> {
                                   style: TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                   ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Flexible(
-                                        child: Hero(
-                                          tag: 'cust-name-${c.id}',
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Flexible(
                                           child: Text(
                                             c.name,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontSize: 14,
                                               fontWeight: FontWeight.w700,
+                                              color: onSurface,
                                             ),
                                           ),
                                         ),
-                                      ),
                                       if (active.isNotEmpty) ...[
                                         const SizedBox(width: Insets.sm),
                                         // A dot says the same thing as the old

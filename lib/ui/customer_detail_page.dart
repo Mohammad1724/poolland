@@ -11,7 +11,6 @@ import '../data/ledger.dart';
 import '../data/models.dart';
 import '../data/pdf_service.dart';
 import '../data/repository.dart';
-import 'motion_kit.dart';
 import 'forms/contact_edit_page.dart';
 import 'forms/payment_sheet.dart';
 import 'forms/sell_subscription_page.dart';
@@ -51,34 +50,27 @@ class CustomerDetailPage extends StatelessWidget {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // The list card's avatar and name fly into the header (Hero).
-            Hero(
-              tag: 'cust-avatar-${c.id}',
-              child: CircleAvatar(
-                radius: 15,
-                backgroundColor: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.13),
-                child: Text(
-                  c.initial,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
+            CircleAvatar(
+              radius: 15,
+              backgroundColor: Theme.of(context)
+                  .colorScheme
+                  .primary
+                  .withValues(alpha: 0.13),
+              child: Text(
+                c.initial,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
             const SizedBox(width: 10),
             Flexible(
-              child: Hero(
-                tag: 'cust-name-${c.id}',
-                child: Text(
-                  c.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+              child: Text(
+                c.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -140,49 +132,53 @@ class CustomerDetailPage extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-        children: [
-          // ---------- Account balance ----------
-          CardBox(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            balance.abs() < 1
-                                ? 'Settled'.tr
-                                : balance > 0
-                                ? 'Owes you'.tr
-                                : 'You owe them'.tr,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: onSurface.withValues(alpha: 0.65),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          CopyMoney(value: balance, child: OdometerMoney(
-                            balance,
-                            signed: true,
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700,
-                              color: balance.abs() < 1
-                                  ? onSurface.withValues(alpha: 0.5)
+      body: RepaintBoundary(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+          children: [
+            // ---------- Account balance ----------
+            CardBox(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              balance.abs() < 1
+                                  ? 'Settled'.tr
                                   : balance > 0
-                                  ? const Color(0xFF0F766E)
-                                  : const Color(0xFF2563EB),
+                                  ? 'Owes you'.tr
+                                  : 'You owe them'.tr,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: onSurface.withValues(alpha: 0.65),
+                              ),
                             ),
-                          )),
-                        ],
+                            const SizedBox(height: 6),
+                            CopyMoney(
+                              value: balance,
+                              child: MoneyText(
+                                balance,
+                                signed: true,
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
+                                  color: balance.abs() < 1
+                                      ? onSurface.withValues(alpha: 0.5)
+                                      : balance > 0
+                                      ? const Color(0xFF0F766E)
+                                      : const Color(0xFF2563EB),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
                     if (c.phone.isNotEmpty)
                       IconButton.filledTonal(
                         tooltip: 'Call'.tr,
@@ -516,7 +512,8 @@ class CustomerDetailPage extends StatelessWidget {
                 ],
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }

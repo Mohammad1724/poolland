@@ -1178,10 +1178,10 @@ class _SheetDismissState extends State<_SheetDismiss>
       onPointerDown: (e) {
         _pointerDown = true;
         _decided = false;
-        // If the pointer went down on the grab strip (top _grabHeight pixels
-        // of the sheet itself), track the origin so we can accumulate pull as
-        // a fallback when the drag recognizer loses the arena.
-        if (e.localPosition.dy < _grabHeight) {
+        // If the pointer went down on the grab strip (top _grabHeight pixels),
+        // track the origin so we can accumulate pull as a fallback when the
+        /// drag recognizer loses the arena.
+        if (e.position.dy < _grabHeight) {
           _grabOrigin = e.position;
         }
         _tracker = VelocityTracker.withKind(e.kind);
@@ -1256,19 +1256,14 @@ class _SheetDismissState extends State<_SheetDismiss>
       animation: _spring,
       builder: (context, child) {
         final now = pull;
-        // Always keep the same Transform wrapper depth even when `now == 0`.
-        // Returning `child!` directly at `now == 0` and wrapping it in
-        // `Transform` as soon as `now > 0` changes the element depth of
-        // `child` on the first frame of a real-device drag, which unmounts
-        // and recreates the sheet's Scrollable and gesture recognizers
-        // mid-swipe.
+        if (now == 0) return child!;
         final tilted = _animated
             ? Transform(
                 alignment: Alignment.topCenter,
                 transform:
                     Matrix4.identity()
                       ..setEntry(3, 2, 0.001)
-                      ..rotateX(now == 0 ? 0.0 : math.min(now / 3200, 0.05)),
+                      ..rotateX(math.min(now / 3200, 0.05)),
                 child: child,
               )
             : child!;

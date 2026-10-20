@@ -68,7 +68,7 @@ class MoneyText extends StatelessWidget {
 }
 
 /// ---------------- Card ----------------
-class CardBox extends StatefulWidget {
+class CardBox extends StatelessWidget {
   const CardBox({
     super.key,
     required this.child,
@@ -83,46 +83,15 @@ class CardBox extends StatefulWidget {
   final VoidCallback? onLongPress;
 
   @override
-  State<CardBox> createState() => _CardBoxState();
-}
-
-class _CardBoxState extends State<CardBox> {
-  bool _down = false;
-
-  bool get _squishy => Motion.motionEnabled && widget.onTap != null;
-
-  void _setDown(bool v) {
-    if (_squishy && _down != v) setState(() => _down = v);
-  }
-
-  @override
   Widget build(BuildContext context) {
-    Widget card = Card(
+    return Card(
       child: InkWell(
-        onTap: widget.onTap,
-        onLongPress: widget.onLongPress,
+        onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(Radii.card),
-        child: Padding(padding: widget.padding, child: widget.child),
+        child: Padding(padding: padding, child: child),
       ),
     );
-    // Tappable cards compress a hair under the finger — the whole app feels
-    // physically pressable without changing any layout.
-    if (_squishy) {
-      card = Listener(
-        onPointerDown: (_) => _setDown(true),
-        onPointerUp: (_) => _setDown(false),
-        onPointerCancel: (_) => _setDown(false),
-        child: AnimatedScale(
-          scale: _down ? 0.982 : 1,
-          duration: const Duration(milliseconds: 110),
-          curve: Curves.easeOut,
-          child: card,
-        ),
-      );
-    }
-    // Every card arrives instead of popping: a light fade + rise the first
-    // time it is mounted (skipped in tests and under reduced motion).
-    return EnterMotion(child: card);
   }
 }
 
