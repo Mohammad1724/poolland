@@ -52,6 +52,7 @@ class SmsParser {
     'حواله',
     'حوله',
     'اقساط',
+    'قسط',
     'از حساب شما پرید',
     'از حساب شما کم شد',
     'بدهکار',
@@ -93,7 +94,7 @@ class SmsParser {
   );
 
   static final RegExp _verbAmountRe = RegExp(
-    r'(?:برداشت|خرید|خريد|پرداخت|حواله|بدهکار|واریز|واريز|وصول|بستانکار|دریافت\s+وجه|دريافت\s+وجه|withdraw|purchase|debit|deposit|credited)[^0-9\u06F0-\u06F9\u0660-\u0669]{0,32}([0-9\u06F0-\u06F9\u0660-\u0669][0-9\u06F0-\u06F9\u0660-\u0669,\u066C\u200c ]*)',
+    r'(?:برداشت|خرید|خريد|پرداخت|حواله|قسط|بدهکار|واریز|واريز|وصول|بستانکار|دریافت\s+وجه|دريافت\s+وجه|withdraw|purchase|debit|deposit|credited)[^0-9\u06F0-\u06F9\u0660-\u0669]{0,32}([0-9\u06F0-\u06F9\u0660-\u0669][0-9\u06F0-\u06F9\u0660-\u0669,\u066C\u200c ]*)',
     caseSensitive: false,
   );
 
@@ -136,10 +137,19 @@ class SmsParser {
         .replaceAll('ك', 'ک')
         .replaceAll('ۀ', 'ه')
         .replaceAll('ة', 'ه')
+        .replaceAll('\u0640', '') // Arabic Tatweel (کشیده، مثل اصـلاحيه)
         .replaceAll('\u200c', ' ')
         .replaceAll('\u200f', '')
         .replaceAll('\ufeff', '');
     return s;
+  }
+
+  static bool _isDigitChar(String c) {
+    if (c.isEmpty) return false;
+    final code = c.codeUnitAt(0);
+    return (code >= 0x30 && code <= 0x39) ||
+        (code >= 0x06F0 && code <= 0x06F9) ||
+        (code >= 0x0660 && code <= 0x0669);
   }
 
   /// Convert Arabic and Persian digits to Latin digits.
@@ -292,7 +302,15 @@ class SmsParser {
   // Transaction direction
   // ---------------------------------------------------------
   static SmsDirection detectDirection(String body) {
-    // Compare the earliest occurrence of primary deposit vs withdrawal words
+    // 1) An explicit + / - sign attached to the transaction amount (common in
+    // Melli Bank, Keshavarzi, Refah, Sepah, etc., e.g. "انتقال:4,000,000+" or
+    // "قسط:18,080,791-") authoritatively sets deposit (+) vs withdrawal (-).
+    final signed = _findSignedAmount(body);
+    if (signed != null) {
+      return signed.direction;
+    }
+
+    // 2) Compare the earliest occurrence of primary deposit vs withdrawal words
     // so trailing fee lines (e.g. "کارمزد: 0 ریال") or counterparty notes
     // never override the main transaction verb at the start of the SMS.
     int? earliestWithdraw;
@@ -327,6 +345,68 @@ class SmsParser {
     return SmsDirection.unknown;
   }
 
+  /// Finds a non-excluded transaction amount (>= 1000) that carries an
+  /// explicit `+` or `-` / `−` sign immediately after or before the number
+  /// (e.g. `انتقال:4,000,000+`, `قسط:18,080,791-`, `اصلاحیه:20,000,000+`).
+  static _SignedMatch? _findSignedAmount(String body) {
+    for (final m in _numberRe.allMatches(body)) {
+      var end = m.end;
+      while (end > m.start &&
+          (body[end - 1] == ' ' || body[end - 1] == '\u200c')) {
+        end--;
+      }
+      final start = m.start;
+      if (_isExcludedRange(body, start, end)) continue;
+      final value = _toDouble(body.substring(start, end));
+      if (value < 1000) continue;
+
+      // Check trailing sign (e.g. "4,000,000+" or "2,600,000-")
+      var signIdx = end;
+      while (signIdx < body.length && body[signIdx] == ' ') {
+        signIdx++;
+      }
+      if (signIdx < body.length) {
+        final ch = body[signIdx];
+        if (ch == '+' || ch == '-' || ch == '−' || ch == '➕' || ch == '➖') {
+          final nextIdx = signIdx + 1;
+          final followedByDigit =
+              nextIdx < body.length && _isDigitChar(body[nextIdx]);
+          if (!followedByDigit) {
+            final dir = (ch == '+' || ch == '➕')
+                ? SmsDirection.deposit
+                : SmsDirection.withdraw;
+            return _SignedMatch(
+              value: value,
+              direction: dir,
+              unitEnd: nextIdx,
+            );
+          }
+        }
+      }
+
+      // Check leading sign (e.g. "+4,000,000" or "-2,600,000")
+      var leadIdx = start - 1;
+      while (leadIdx >= 0 && body[leadIdx] == ' ') {
+        leadIdx--;
+      }
+      if (leadIdx >= 0) {
+        final ch = body[leadIdx];
+        if (ch == '+' || ch == '-' || ch == '−' || ch == '➕' || ch == '➖') {
+          final prevIdx = leadIdx - 1;
+          final precededByDigit =
+              prevIdx >= 0 && _isDigitChar(body[prevIdx]);
+          if (!precededByDigit) {
+            final dir = (ch == '+' || ch == '➕')
+                ? SmsDirection.deposit
+                : SmsDirection.withdraw;
+            return _SignedMatch(value: value, direction: dir, unitEnd: end);
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   // ---------------------------------------------------------
   // Amount
   // ---------------------------------------------------------
@@ -348,7 +428,14 @@ class SmsParser {
       }
     }
 
-    // 3) A number following the transaction verb (e.g. “برداشت 10,000,000”).
+    // 3) Look for a signed transaction amount (e.g. "انتقال:4,000,000+" or
+    // "قسط:18,080,791-").
+    final signed = _findSignedAmount(body);
+    if (signed != null && signed.value > 0) {
+      return _convert(signed.value, _unitAfter(body, signed.unitEnd), rule);
+    }
+
+    // 4) A number following the transaction verb (e.g. “برداشت 10,000,000”).
     // Many banks omit the word “مبلغ” and the currency unit in these messages.
     for (final m in _verbAmountRe.allMatches(body)) {
       final captured = m.group(1)!;
@@ -361,7 +448,7 @@ class SmsParser {
       }
     }
 
-    // 4) A conservative fallback is allowed only when exactly one significant
+    // 5) A conservative fallback is allowed only when exactly one significant
     // number remains and the message has a recognized transaction direction.
     final candidates = <double>[];
     for (final m in _numberRe.allMatches(body)) {
@@ -426,14 +513,16 @@ class SmsParser {
     if (start > 0 && body[start - 1] == '*') return true;
     if (end < body.length && body[end] == '*') return true;
 
-    // Part of a date, such as 1405/07/12 or 12-07.
+    // Part of a date, such as 1405/07/12 or 0724-10:35.
     final after = end < body.length ? body[end] : '';
     final before = start > 0 ? body[start - 1] : '';
     if ((after == '/' || after == '-') && end + 1 < body.length) {
-      final c = body[end + 1];
-      if (c.codeUnitAt(0) >= 48 && c.codeUnitAt(0) <= 57) return true;
+      if (_isDigitChar(body[end + 1])) return true;
     }
-    if (before == '/' || before == '-') return true;
+    if (before == '/') return true;
+    if (before == '-' && start >= 2 && _isDigitChar(body[start - 2])) {
+      return true;
+    }
 
     // Account and card numbers are identifiers, not transaction amounts.
     final headStart = (start - 32).clamp(0, body.length);
@@ -548,4 +637,15 @@ class _Amount {
   final String currency;
   final String unit;
   const _Amount(this.value, this.currency, this.unit);
+}
+
+class _SignedMatch {
+  final double value;
+  final SmsDirection direction;
+  final int unitEnd;
+  const _SignedMatch({
+    required this.value,
+    required this.direction,
+    required this.unitEnd,
+  });
 }

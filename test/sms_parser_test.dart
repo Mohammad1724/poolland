@@ -105,6 +105,56 @@ void main() {
       expect(r.isTransaction, isTrue);
     });
 
+    test('Parses Melli Bank signed (+ / -) SMS formats accurately', () {
+      final transferIn = p(
+        'بانك ملي ايران\nانتقال:4,000,000+\nحساب:*****\nمانده:4,029,368\n0724-10:35',
+      );
+      expect(transferIn.bankName, 'Melli Bank');
+      expect(transferIn.direction, SmsDirection.deposit);
+      expect(transferIn.amount, 400000);
+      expect(transferIn.isTransaction, isTrue);
+
+      final transferOut = p(
+        'بانك ملي ايران\nانتقالي:2,600,000-\nحساب:*****\nمانده:29,368\n0724-09:43',
+      );
+      expect(transferOut.bankName, 'Melli Bank');
+      expect(transferOut.direction, SmsDirection.withdraw);
+      expect(transferOut.amount, 260000);
+      expect(transferOut.isTransaction, isTrue);
+
+      final installment = p(
+        'بانك ملي ايران\nقسط:18,080,791-\nحساب:*****\nمانده:629,368\n0708-14:51',
+      );
+      expect(installment.bankName, 'Melli Bank');
+      expect(installment.direction, SmsDirection.withdraw);
+      expect(installment.amount, closeTo(1808079.1, 0.01));
+      expect(installment.isTransaction, isTrue);
+
+      final adjustmentIn = p(
+        'بانك ملي ايران\nاصـلاحيه:20,000,000+\nحساب:******\nمانده:20,855,098\n0501-14:22',
+      );
+      expect(adjustmentIn.bankName, 'Melli Bank');
+      expect(adjustmentIn.direction, SmsDirection.deposit);
+      expect(adjustmentIn.amount, 2000000);
+      expect(adjustmentIn.isTransaction, isTrue);
+
+      final onlinePurchase = p(
+        'بانك ملي ايران\nخريداينترنتي:1,000,000-\nحساب:*****\nمانده:905,098\n0423-05:16',
+      );
+      expect(onlinePurchase.bankName, 'Melli Bank');
+      expect(onlinePurchase.direction, SmsDirection.withdraw);
+      expect(onlinePurchase.amount, 100000);
+      expect(onlinePurchase.isTransaction, isTrue);
+
+      final withdrawal = p(
+        'بانك ملي ايران\nبرداشت:1,200,000-\nحساب:*****\nمانده:1,905,098\n0422-07:05',
+      );
+      expect(withdrawal.bankName, 'Melli Bank');
+      expect(withdrawal.direction, SmsDirection.withdraw);
+      expect(withdrawal.amount, 120000);
+      expect(withdrawal.isTransaction, isTrue);
+    });
+
     test('Identify a bank from the body when the sender is unknown', () {
       final r = p('بانک سامان\nواریز مبلغ 50,000 ریال', address: '982000');
       expect(r.bankName, 'Saman Bank');

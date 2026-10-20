@@ -147,6 +147,8 @@ internal object SmsCandidateDetector {
         "حواله",
         "حوله",
         "اقساط",
+        "قسط",
+        "اصلاحیه",
         "از حساب شما پرید",
         "از حساب شما کم شد",
         "بدهکار",
@@ -224,7 +226,13 @@ internal object SmsCandidateDetector {
         if (!senderMatched && !bodyMatched) return false
         val cleanedForIgnore = normalizedBody.replace("کارمزد", "")
         if (ignoredPhrases.any { cleanedForIgnore.contains(normalize(it)) }) return false
-        if (directionWords.none { normalizedBody.contains(normalize(it)) }) return false
+        val signedCandidate = hasSignedAmount(amountBody)
+        if (!signedCandidate &&
+            directionWords.none { normalizedBody.contains(normalize(it)) }
+        ) {
+            return false
+        }
+        if (signedCandidate) return true
 
         // Match the same ordered amount paths as SmsParser: an amount label,
         // a currency unit, an amount after a transaction verb, then one
@@ -275,6 +283,39 @@ internal object SmsCandidateDetector {
         return significantNumbers.size == 1
     }
 
+    private fun hasSignedAmount(body: String): Boolean {
+        for (match in numberPattern.findAll(body)) {
+            var end = match.range.last + 1
+            while (end > match.range.first && body[end - 1] == ' ') {
+                end--
+            }
+            val start = match.range.first
+            if (isExcludedRange(body, start, end)) continue
+            if (amountValue(body.substring(start, end)) < 1000.0) continue
+
+            var signIdx = end
+            while (signIdx < body.length && body[signIdx] == ' ') signIdx++
+            if (signIdx < body.length) {
+                val ch = body[signIdx]
+                if (ch == '+' || ch == '-' || ch == '−' || ch == '➕' || ch == '➖') {
+                    val followedByDigit = body.getOrNull(signIdx + 1)?.isDigit() == true
+                    if (!followedByDigit) return true
+                }
+            }
+
+            var leadIdx = start - 1
+            while (leadIdx >= 0 && body[leadIdx] == ' ') leadIdx--
+            if (leadIdx >= 0) {
+                val ch = body[leadIdx]
+                if (ch == '+' || ch == '-' || ch == '−' || ch == '➕' || ch == '➖') {
+                    val precededByDigit = body.getOrNull(leadIdx - 1)?.isDigit() == true
+                    if (!precededByDigit) return true
+                }
+            }
+        }
+        return false
+    }
+
     private fun amountValue(raw: String): Double =
         raw.filter(Char::isDigit).toDoubleOrNull() ?: 0.0
 
@@ -289,7 +330,10 @@ internal object SmsCandidateDetector {
         ) {
             return true
         }
-        if (before == '/' || before == '-') return true
+        if (before == '/') return true
+        if (before == '-' && start >= 2 && body.getOrNull(start - 2)?.isDigit() == true) {
+            return true
+        }
 
         val headStart = (start - 32).coerceAtLeast(0)
         val head = body.substring(headStart, start)
@@ -319,7 +363,7 @@ internal object SmsCandidateDetector {
                 'ك'.code -> 'ک'
                 'ۀ'.code, 'ة'.code -> 'ه'
                 0x200c -> ' '
-                0x200f, 0xfeff -> continue
+                0x0640, 0x200f, 0xfeff -> continue
                 else -> character
             }
             append(normalized)
