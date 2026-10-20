@@ -1002,6 +1002,13 @@ class AppLocalization {
     'Category summary': 'خلاصه گزارش دسته‌بندی‌ها',
     'Blu Bank': 'بلوبانک',
     'Creditors': 'بستانکاران',
+    'Sort by': 'مرتب‌سازی بر اساس',
+    'By name': 'حروف الفبا',
+    'Highest debt': 'بیشترین بدهی',
+    'Nearest expiry': 'نزدیک‌ترین انقضا',
+    'Account statement • {date}': 'صورت‌حساب مشتری • {date}',
+    'Latest subscription: {plan} (until {date})':
+        'آخرین اشتراک: {plan} (تا {date})',
   };
 
   static String text(String source, {String? languageCode}) =>

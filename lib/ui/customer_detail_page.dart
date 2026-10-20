@@ -148,16 +148,52 @@ class CustomerDetailPage extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              balance.abs() < 1
-                                  ? 'Settled'.tr
-                                  : balance > 0
-                                  ? 'Owes you'.tr
-                                  : 'You owe them'.tr,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: onSurface.withValues(alpha: 0.65),
-                              ),
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    balance.abs() < 1
+                                        ? 'Settled'.tr
+                                        : balance > 0
+                                        ? 'Owes you'.tr
+                                        : 'You owe them'.tr,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: onSurface.withValues(alpha: 0.65),
+                                    ),
+                                  ),
+                                ),
+                                if (balance.abs() >= 1) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 7,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: (balance > 0
+                                              ? const Color(0xFFE11D48)
+                                              : const Color(0xFF2563EB))
+                                          .withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      balance > 0
+                                          ? 'Debtor'.tr
+                                          : 'Creditor'.tr,
+                                      style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: balance > 0
+                                            ? const Color(0xFFE11D48)
+                                            : const Color(0xFF2563EB),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                             const SizedBox(height: 6),
                             CopyMoney(
@@ -171,7 +207,7 @@ class CustomerDetailPage extends StatelessWidget {
                                   color: balance.abs() < 1
                                       ? onSurface.withValues(alpha: 0.5)
                                       : balance > 0
-                                      ? const Color(0xFF0F766E)
+                                      ? const Color(0xFFE11D48)
                                       : const Color(0xFF2563EB),
                                 ),
                               ),
@@ -228,7 +264,7 @@ class CustomerDetailPage extends StatelessWidget {
                                   : 'Creditor'.tr,
                             }),
                             color: e.value >= 0
-                                ? const Color(0xFF0F766E)
+                                ? const Color(0xFFE11D48)
                                 : const Color(0xFF2563EB),
                             dense: true,
                           ),
@@ -298,20 +334,30 @@ class CustomerDetailPage extends StatelessWidget {
               IconButton.filledTonal(
                 tooltip: 'Copy summary'.tr,
                 onPressed: () {
+                  final latestSub = subs.isEmpty ? null : subs.first;
+                  final statementLines = <String>[
+                    'Account statement • {date}'.trArgs({
+                      'date': J.d(DateTime.now()),
+                    }),
+                    '{name}\nBalance: {amount} {status}\nSubscriptions: {count}'
+                        .trArgs({
+                          'name': c.name,
+                          'amount': Money.text(balance.abs()),
+                          'status': balance.abs() < 1
+                              ? 'Settled'.tr
+                              : balance > 0
+                              ? 'Debtor'.tr
+                              : 'Creditor'.tr,
+                          'count': subs.length,
+                        }),
+                    if (latestSub != null)
+                      'Latest subscription: {plan} (until {date})'.trArgs({
+                        'plan': latestSub.planName.tr,
+                        'date': J.d(latestSub.endDate),
+                      }),
+                  ];
                   Clipboard.setData(
-                    ClipboardData(
-                      text: '{name}\nBalance: {amount} {status}\nSubscriptions: {count}'
-                          .trArgs({
-                            'name': c.name,
-                            'amount': Money.text(balance.abs()),
-                            'status': balance.abs() < 1
-                                ? 'Settled'.tr
-                                : balance > 0
-                                ? 'Debtor'.tr
-                                : 'Creditor'.tr,
-                            'count': subs.length,
-                          }),
-                    ),
+                    ClipboardData(text: statementLines.join('\n')),
                   );
                   showSnack(context, 'Details copied');
                 },

@@ -2637,7 +2637,15 @@ class ContactBalanceCard extends StatelessWidget {
           MoneyText(
             balance,
             signed: true,
-            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: balance > 0.5
+                  ? const Color(0xFFE11D48)
+                  : balance < -0.5
+                  ? const Color(0xFF2563EB)
+                  : null,
+            ),
           ),
         ],
       ),

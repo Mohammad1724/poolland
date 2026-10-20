@@ -30,11 +30,14 @@ class CustomersPage extends StatefulWidget {
 
 enum _Filter { all, debtors, creditors }
 
+enum _CustomerSort { name, highestDebt, nearestExpiry }
+
 class _CustomersPageState extends State<CustomersPage> {
   final _searchDebouncer = Debouncer();
   final _searchController = TextEditingController();
   String _q = '';
   _Filter _filter = _Filter.all;
+  _CustomerSort _sort = _CustomerSort.name;
   bool _filtersOpen = false;
 
   @override
@@ -119,6 +122,7 @@ class _CustomersPageState extends State<CustomersPage> {
     setState(() {
       _q = '';
       _filter = _Filter.all;
+      _sort = _CustomerSort.name;
     });
   }
 
@@ -150,13 +154,40 @@ class _CustomersPageState extends State<CustomersPage> {
               normalizedPhone.contains(queryDigits));
       return matchesName || matchesPhone;
     }).toList();
-    var list = matchingCustomers;
+
+    final debtorCustomers = matchingCustomers
+        .where((c) => (balances[c.id] ?? 0) > 0.5)
+        .toList();
+    final creditorCustomers = matchingCustomers
+        .where((c) => (balances[c.id] ?? 0) < -0.5)
+        .toList();
+    final totalDebt = debtorCustomers.fold<double>(
+      0,
+      (sum, c) => sum + (balances[c.id] ?? 0),
+    );
+    final totalCredit = creditorCustomers.fold<double>(
+      0,
+      (sum, c) => sum + (balances[c.id] ?? 0).abs(),
+    );
+
+    var list = List<Customer>.from(matchingCustomers);
     if (_filter == _Filter.debtors) {
-      list = list.where((c) => (balances[c.id] ?? 0) > 0.5).toList()
+      list = List<Customer>.from(debtorCustomers)
         ..sort((a, b) => (balances[b.id] ?? 0).compareTo(balances[a.id] ?? 0));
     } else if (_filter == _Filter.creditors) {
-      list = list.where((c) => (balances[c.id] ?? 0) < -0.5).toList()
+      list = List<Customer>.from(creditorCustomers)
         ..sort((a, b) => (balances[a.id] ?? 0).compareTo(balances[b.id] ?? 0));
+    } else if (_sort == _CustomerSort.highestDebt) {
+      list.sort((a, b) => (balances[b.id] ?? 0).compareTo(balances[a.id] ?? 0));
+    } else if (_sort == _CustomerSort.nearestExpiry) {
+      list.sort((a, b) {
+        final subsA = repo.subsOfCustomer(a.id);
+        final subsB = repo.subsOfCustomer(b.id);
+        if (subsA.isEmpty && subsB.isEmpty) return a.name.compareTo(b.name);
+        if (subsA.isEmpty) return 1;
+        if (subsB.isEmpty) return -1;
+        return subsA.first.endDate.compareTo(subsB.first.endDate);
+      });
     }
     final isInitialEmpty = _q.isEmpty && _filter == _Filter.all;
     final noSavedCustomers = repo.customers.isEmpty;
@@ -186,13 +217,51 @@ class _CustomersPageState extends State<CustomersPage> {
                   ),
                   const SizedBox(width: Insets.sm),
                   FilterToggleButton(
-                    activeCount: _filter == _Filter.all ? 0 : 1,
+                    activeCount:
+                        (_filter == _Filter.all ? 0 : 1) +
+                        (_sort == _CustomerSort.name ? 0 : 1),
                     expanded: _filtersOpen,
                     onPressed: () =>
                         setState(() => _filtersOpen = !_filtersOpen),
                   ),
                 ],
               ),
+              if (repo.activeCustomers.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SummaryBalancePill(
+                        label: 'Debtors'.tr,
+                        count: debtorCustomers.length,
+                        amount: totalDebt,
+                        color: const Color(0xFFE11D48),
+                        selected: _filter == _Filter.debtors,
+                        onTap: () => setState(() {
+                          _filter = _filter == _Filter.debtors
+                              ? _Filter.all
+                              : _Filter.debtors;
+                        }),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _SummaryBalancePill(
+                        label: 'Creditors'.tr,
+                        count: creditorCustomers.length,
+                        amount: totalCredit,
+                        color: const Color(0xFF2563EB),
+                        selected: _filter == _Filter.creditors,
+                        onTap: () => setState(() {
+                          _filter = _filter == _Filter.creditors
+                              ? _Filter.all
+                              : _Filter.creditors;
+                        }),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               if (_filter != _Filter.all) ...[
                 const SizedBox(height: Insets.sm),
                 Align(
@@ -211,17 +280,55 @@ class _CustomersPageState extends State<CustomersPage> {
                 child: _filtersOpen
                     ? Padding(
                         padding: const EdgeInsets.only(top: Insets.md),
-                        child: Wrap(
-                          spacing: Insets.sm,
-                          runSpacing: Insets.sm,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _chip(
-                              'All',
-                              _Filter.all,
-                              matchingCustomers.length,
+                            Wrap(
+                              spacing: Insets.sm,
+                              runSpacing: Insets.sm,
+                              children: [
+                                _chip(
+                                  'All',
+                                  _Filter.all,
+                                  matchingCustomers.length,
+                                ),
+                                _chip(
+                                  'Debtors',
+                                  _Filter.debtors,
+                                  debtorCustomers.length,
+                                ),
+                                _chip(
+                                  'Creditors',
+                                  _Filter.creditors,
+                                  creditorCustomers.length,
+                                ),
+                              ],
                             ),
-                            _chip('Debtors', _Filter.debtors, null),
-                            _chip('Creditors', _Filter.creditors, null),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                Text(
+                                  '${'Sort by'.tr}:',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: onSurface.withValues(alpha: 0.6),
+                                  ),
+                                ),
+                                _sortPill('By name', _CustomerSort.name),
+                                _sortPill(
+                                  'Highest debt',
+                                  _CustomerSort.highestDebt,
+                                ),
+                                _sortPill(
+                                  'Nearest expiry',
+                                  _CustomerSort.nearestExpiry,
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       )
@@ -433,7 +540,7 @@ class _CustomersPageState extends State<CustomersPage> {
                                             fontSize: 13.5,
                                             fontWeight: FontWeight.w700,
                                             color: balance > 0
-                                                ? const Color(0xFF0F766E)
+                                                ? const Color(0xFFE11D48)
                                                 : const Color(0xFF2563EB),
                                           ),
                                         ),
@@ -443,12 +550,10 @@ class _CustomersPageState extends State<CustomersPage> {
                                     balance > 0 ? 'Debtor'.tr : 'Creditor'.tr,
                                     style: TextStyle(
                                       fontSize: 10.5,
-                                      fontWeight: balance > 0
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
+                                      fontWeight: FontWeight.w700,
                                       color: balance > 0
                                           ? const Color(0xFFE11D48)
-                                          : onSurface.withValues(alpha: 0.55),
+                                          : const Color(0xFF2563EB),
                                     ),
                                   ),
                               ],
@@ -473,6 +578,116 @@ class _CustomersPageState extends State<CustomersPage> {
       onSelected: (_) => setState(() => _filter = value),
       label: Text(count == null ? label.tr : '${label.tr} ($count)'),
       showCheckmark: false,
+    );
+  }
+
+  Widget _sortPill(String label, _CustomerSort value) {
+    final selected = _sort == value;
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: () => setState(() => _sort = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected
+              ? scheme.primary.withValues(alpha: 0.14)
+              : scheme.onSurface.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected
+                ? scheme.primary.withValues(alpha: 0.35)
+                : scheme.onSurface.withValues(alpha: 0.12),
+          ),
+        ),
+        child: Text(
+          label.tr,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected
+                ? scheme.primary
+                : scheme.onSurface.withValues(alpha: 0.75),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryBalancePill extends StatelessWidget {
+  const _SummaryBalancePill({
+    required this.label,
+    required this.count,
+    required this.amount,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final int count;
+  final double amount;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? color.withValues(alpha: 0.13)
+              : color.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected
+                ? color.withValues(alpha: 0.45)
+                : color.withValues(alpha: 0.18),
+            width: selected ? 1.2 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                '$label (${Fmt.n(count)})',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: onSurface.withValues(alpha: 0.78),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                Money.text(amount, withSymbol: false),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

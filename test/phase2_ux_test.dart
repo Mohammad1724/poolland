@@ -125,7 +125,11 @@ void main() {
       expect(find.byType(ChoiceChip), findsNWidgets(3));
 
       // Picking a filter shows a removable pill.
-      await tester.tap(find.widgetWithText(ChoiceChip, 'Debtors'));
+      final debtorsChip = find.ancestor(
+        of: find.textContaining('Debtors'),
+        matching: find.byType(ChoiceChip),
+      );
+      await tester.tap(debtorsChip);
       await tester.pumpAndSettle();
       expect(find.byType(FilterPill), findsOneWidget);
 
