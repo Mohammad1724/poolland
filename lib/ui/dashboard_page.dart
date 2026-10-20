@@ -71,6 +71,7 @@ class _DashboardPageState extends State<DashboardPage>
   bool _gestureConsumed = false;
   double _startPos = 0.0;
   double _dragDx = 0.0;
+  double _dragDir = 0.0;
   double _signedDir = 1.0;
 
   _DashboardPeriod _period = _DashboardPeriod.thisMonth;
@@ -398,6 +399,7 @@ class _DashboardPageState extends State<DashboardPage>
     _startPos = _scope == TxnScope.business ? 1.0 : 0.0;
     _pos.value = _startPos;
     _dragDx = 0.0;
+    _dragDir = 0.0;
     _isDragging = true;
     _gestureConsumed = false;
   }
@@ -409,14 +411,16 @@ class _DashboardPageState extends State<DashboardPage>
     if (_gestureConsumed || !_isDragging) return;
     final width = (context.size?.width ?? 360.0).clamp(240.0, 700.0);
     _dragDx += details.delta.dx;
-    if (_dragDx.abs() < 2.0) {
-      _pos.value = _startPos;
-      return;
+    if (_dragDir == 0.0) {
+      if (_dragDx.abs() < 8.0) {
+        _pos.value = _startPos;
+        return;
+      }
+      _dragDir = _dragDx.sign;
+      _signedDir = _startPos < 0.5 ? _dragDir : -_dragDir;
     }
 
-    final dir = _dragDx >= 0 ? 1.0 : -1.0;
-    _signedDir = _startPos < 0.5 ? dir : -dir;
-    final progress = _dragDx.abs().clamp(0.0, width);
+    final progress = ((_dragDx * _dragDir) - 8.0).clamp(0.0, width);
     final fraction = (progress / width).clamp(0.0, 1.0);
 
     // Require dragging ~45% of the screen before the mid-drag magnet
@@ -463,16 +467,20 @@ class _DashboardPageState extends State<DashboardPage>
     _gestureConsumed = true;
     final width = (context.size?.width ?? 360.0).clamp(240.0, 700.0);
     final velocity = details.primaryVelocity ?? 0.0;
-    final dir = _dragDx.abs() >= 2.0
-        ? (_dragDx >= 0 ? 1.0 : -1.0)
-        : (velocity >= 0 ? 1.0 : -1.0);
+    final dir = _dragDir != 0.0
+        ? _dragDir
+        : (velocity.abs() > 1.0 ? velocity.sign : 0.0);
+    if (dir == 0.0) {
+      _pos.value = _startPos;
+      return;
+    }
     _signedDir = _startPos < 0.5 ? dir : -dir;
-    final progress = _dragDx.abs().clamp(0.0, width);
+    final progress = _dragDir != 0.0
+        ? ((_dragDx * _dragDir) - 8.0).clamp(0.0, width)
+        : 0.0;
     final fraction = (progress / width).clamp(0.0, 1.0);
-    final flingInSameDir = _dragDx.abs() < 2.0
-        ? velocity.abs() > 240
-        : (velocity * dir) > 240;
-    final shouldSnapToTarget = progress >= width * 0.32 || flingInSameDir;
+    final flingInSameDir = (velocity * dir) > 240;
+    final shouldSnapToTarget = progress >= width * 0.30 || flingInSameDir;
 
     if (shouldSnapToTarget) {
       _triggerMagneticSnap(
@@ -984,22 +992,16 @@ class _DashboardPageState extends State<DashboardPage>
         ? 0.5
         : (monthSummary.income / totalFlow).clamp(0.06, 0.94);
 
-    return BreathingGradient(
+    return ClipRRect(
       borderRadius: BorderRadius.circular(Radii.card),
-      base: [
-        const Color(0xFF087F78).withValues(alpha: 0.030),
-        const Color(0xFF7C3AED).withValues(alpha: 0.018),
-      ],
-      variant: [
-        const Color(0xFF087F78).withValues(alpha: 0.075),
-        const Color(0xFF7C3AED).withValues(alpha: 0.040),
-      ],
-      child: CardBox(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            InkWell(
+      child: Stack(
+        children: [
+          CardBox(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                InkWell(
               onTap: () => _showDashboardPeriodSheet(context),
               borderRadius: BorderRadius.circular(10),
               child: Padding(
@@ -1157,7 +1159,25 @@ class _DashboardPageState extends State<DashboardPage>
           ],
         ),
       ),
-    );
+      Positioned.fill(
+        child: IgnorePointer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF087F78).withValues(alpha: 0.045),
+                  const Color(0xFF7C3AED).withValues(alpha: 0.025),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
+  ),
+);
   }
 
   Widget _personalBudgetsSection({

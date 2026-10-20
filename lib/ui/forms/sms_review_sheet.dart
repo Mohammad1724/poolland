@@ -49,6 +49,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
   bool _gestureConsumed = false;
   double _startPos = 0.0;
   double _dragDx = 0.0;
+  double _dragDir = 0.0;
   double _signedDir = 1.0;
 
   // Locked height so switching between Business and Personal never changes
@@ -186,14 +187,18 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
     _isDragging = false;
     _gestureConsumed = true;
     Haptics.selection();
-    setState(() {
-      _applyScopeState(repo, target);
-    });
-    _pos.animateTo(
-      targetPos,
-      duration: const Duration(milliseconds: 240),
-      curve: Curves.easeOutCubic,
-    );
+    _pos
+        .animateTo(
+          targetPos,
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
+        )
+        .then((_) {
+          if (!mounted) return;
+          setState(() {
+            _applyScopeState(repo, target);
+          });
+        });
   }
 
   void _handleHorizontalDragStart(DragStartDetails details) {
@@ -204,6 +209,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
     _startPos = _scope == TxnScope.personal ? 1.0 : 0.0;
     _pos.value = _startPos;
     _dragDx = 0.0;
+    _dragDir = 0.0;
     _isDragging = true;
     _gestureConsumed = false;
   }
@@ -215,14 +221,16 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
     if (_gestureConsumed || !_isDragging) return;
     final width = (context.size?.width ?? 360.0).clamp(240.0, 600.0);
     _dragDx += details.delta.dx;
-    if (_dragDx.abs() < 2.0) {
-      _pos.value = _startPos;
-      return;
+    if (_dragDir == 0.0) {
+      if (_dragDx.abs() < 8.0) {
+        _pos.value = _startPos;
+        return;
+      }
+      _dragDir = _dragDx.sign;
+      _signedDir = _startPos < 0.5 ? _dragDir : -_dragDir;
     }
 
-    final dir = _dragDx >= 0 ? 1.0 : -1.0;
-    _signedDir = _startPos < 0.5 ? dir : -dir;
-    final progress = _dragDx.abs().clamp(0.0, width);
+    final progress = ((_dragDx * _dragDir) - 8.0).clamp(0.0, width);
     final fraction = (progress / width).clamp(0.0, 1.0);
     // Require dragging ~45% of the sheet before the mid-drag magnet
     // automatically pulls it to the end and locks out the rest of the hold.
@@ -247,16 +255,20 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
     final target = toPersonal ? TxnScope.personal : TxnScope.business;
     final targetPos = toPersonal ? 1.0 : 0.0;
     Haptics.selection();
-    setState(() {
-      _applyScopeState(repo, target);
-    });
     final remaining = (1.0 - fromFraction).clamp(0.15, 1.0);
     final durationMs = (230 * remaining).round().clamp(110, 230);
-    _pos.animateTo(
-      targetPos,
-      duration: Duration(milliseconds: durationMs),
-      curve: Curves.easeOutCubic,
-    );
+    _pos
+        .animateTo(
+          targetPos,
+          duration: Duration(milliseconds: durationMs),
+          curve: Curves.easeOutCubic,
+        )
+        .then((_) {
+          if (!mounted) return;
+          setState(() {
+            _applyScopeState(repo, target);
+          });
+        });
   }
 
   void _handleHorizontalDragEnd(
@@ -271,16 +283,20 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
     _gestureConsumed = true;
     final width = (context.size?.width ?? 360.0).clamp(240.0, 600.0);
     final velocity = details.primaryVelocity ?? 0.0;
-    final dir = _dragDx.abs() >= 2.0
-        ? (_dragDx >= 0 ? 1.0 : -1.0)
-        : (velocity >= 0 ? 1.0 : -1.0);
+    final dir = _dragDir != 0.0
+        ? _dragDir
+        : (velocity.abs() > 1.0 ? velocity.sign : 0.0);
+    if (dir == 0.0) {
+      _pos.value = _startPos;
+      return;
+    }
     _signedDir = _startPos < 0.5 ? dir : -dir;
-    final progress = _dragDx.abs().clamp(0.0, width);
+    final progress = _dragDir != 0.0
+        ? ((_dragDx * _dragDir) - 8.0).clamp(0.0, width)
+        : 0.0;
     final fraction = (progress / width).clamp(0.0, 1.0);
-    final flingInSameDir = _dragDx.abs() < 2.0
-        ? velocity.abs() > 240
-        : (velocity * dir) > 240;
-    final shouldSnapToTarget = progress >= width * 0.32 || flingInSameDir;
+    final flingInSameDir = (velocity * dir) > 240;
+    final shouldSnapToTarget = progress >= width * 0.30 || flingInSameDir;
 
     if (shouldSnapToTarget) {
       _triggerMagneticSnap(

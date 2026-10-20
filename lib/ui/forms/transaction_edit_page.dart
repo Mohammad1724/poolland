@@ -78,6 +78,7 @@ class _TransactionEditPageState extends State<TransactionEditPage>
   bool _magnetTriggered = false;
   bool _gestureConsumed = false;
   double _dragDx = 0;
+  double _dragDir = 0;
   double _slideDir = 1.0;
 
   bool get isEdit => widget.existing != null;
@@ -276,32 +277,36 @@ class _TransactionEditPageState extends State<TransactionEditPage>
       _scopeAnim.stop();
     }
     _dragDx = 0;
+    _dragDir = 0;
     _magnetTriggered = false;
     _gestureConsumed = false;
     _scopeAnim.value = 0.0;
-    setState(() {
-      _fromScope = _scope;
-      _toScope = _scope == TxnScope.business
-          ? TxnScope.personal
-          : TxnScope.business;
-      _isDragging = true;
-    });
+    _fromScope = _scope;
+    _toScope = _scope == TxnScope.business
+        ? TxnScope.personal
+        : TxnScope.business;
   }
 
   void _handleHorizontalDragUpdate(
     AppRepository repo,
     DragUpdateDetails details,
   ) {
-    if (_gestureConsumed || _magnetTriggered || !_isDragging) return;
+    if (_gestureConsumed || _magnetTriggered) return;
     final width = (context.size?.width ?? 360.0).clamp(240.0, 680.0);
     _dragDx += details.delta.dx;
-    if (_dragDx.abs() < 2.0) {
-      _scopeAnim.value = 0.0;
-      return;
+    if (_dragDir == 0.0) {
+      if (_dragDx.abs() < 8.0) {
+        _scopeAnim.value = 0.0;
+        return;
+      }
+      _dragDir = _dragDx.sign;
+      _slideDir = _dragDir;
+      if (!_isDragging) {
+        setState(() => _isDragging = true);
+      }
     }
 
-    _slideDir = _dragDx >= 0 ? 1.0 : -1.0;
-    final progress = _dragDx.abs().clamp(0.0, width);
+    final progress = ((_dragDx * _dragDir) - 8.0).clamp(0.0, width);
     final fraction = (progress / width).clamp(0.0, 1.0);
     // Require dragging nearly half the screen (~45%) before the mid-drag
     // magnet automatically pulls the page to the end.
@@ -348,27 +353,33 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     AppRepository repo,
     DragEndDetails details,
   ) {
-    if (_gestureConsumed || _magnetTriggered || !_isDragging) {
+    if (_gestureConsumed || _magnetTriggered) {
       _isDragging = false;
       return;
     }
-    _isDragging = false;
     _gestureConsumed = true;
     final width = (context.size?.width ?? 360.0).clamp(240.0, 680.0);
     final velocity = details.primaryVelocity ?? 0;
-    final dir = _dragDx.abs() >= 2.0
-        ? (_dragDx >= 0 ? 1.0 : -1.0)
-        : (velocity >= 0 ? 1.0 : -1.0);
+    final dir = _dragDir != 0.0
+        ? _dragDir
+        : (velocity.abs() > 1.0 ? velocity.sign : 0.0);
+    if (dir == 0.0) {
+      if (_isDragging) setState(() => _isDragging = false);
+      return;
+    }
     _slideDir = dir;
-    final progress = _dragDx.abs().clamp(0.0, width);
+    final progress = _dragDir != 0.0
+        ? ((_dragDx * _dragDir) - 8.0).clamp(0.0, width)
+        : 0.0;
     final fraction = (progress / width).clamp(0.0, 1.0);
-    final flingInSameDir =
-        _dragDx.abs() < 2.0 ? velocity.abs() > 240 : (velocity * dir) > 240;
-    final shouldSnapToTarget = progress >= width * 0.32 || flingInSameDir;
+    final flingInSameDir = (velocity * dir) > 240;
+    final shouldSnapToTarget = progress >= width * 0.30 || flingInSameDir;
 
     if (shouldSnapToTarget) {
+      if (!_isDragging) setState(() {});
       _triggerMagneticSnap(repo, fromFraction: fraction);
     } else {
+      _isDragging = false;
       _scopeAnim
           .animateTo(
             0.0,
@@ -387,7 +398,7 @@ class _TransactionEditPageState extends State<TransactionEditPage>
   }
 
   void _handleHorizontalDragCancel() {
-    if (_gestureConsumed || _magnetTriggered || !_isDragging) {
+    if (_gestureConsumed || _magnetTriggered) {
       _isDragging = false;
       return;
     }
@@ -634,9 +645,6 @@ class _TransactionEditPageState extends State<TransactionEditPage>
             onHorizontalDragCancel: _handleHorizontalDragCancel,
             onHorizontalDragEnd: (d) => _handleHorizontalDragEnd(repo, d),
             child: ListView(
-              key: ValueKey(
-                'form-${_customer?.id ?? 'none'}-${_scope.name}-${_kind.name}',
-              ),
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
               children: [
                 // -------- 1. Magnetic Scope Switcher (Business / Personal) --------
