@@ -1009,6 +1009,18 @@ class AppLocalization {
     'Account statement • {date}': 'صورت‌حساب مشتری • {date}',
     'Latest subscription: {plan} (until {date})':
         'آخرین اشتراک: {plan} (تا {date})',
+    'Newest sale': 'جدیدترین خرید',
+    'Highest amount': 'بیشترین مبلغ',
+    'Show renewed history': 'نمایش سوابق تمدیدشده',
+    'Copy renewal reminder': 'کپی پیام یادآوری تمدید',
+    'Reminder message copied': 'پیام یادآوری کپی شد',
+    'Delete subscription': 'حذف اشتراک',
+    'Subscription deleted': 'اشتراک حذف شد',
+    'Delete this subscription? Recorded transactions will stay in the ledger.':
+        'این اشتراک حذف شود؟ تراکنش‌های ثبت‌شده در دفتر باقی می‌مانند.',
+    'Hello {name} 👋\nSubscription: {plan}\nExpiry date: {date} ({status})\nRenewal amount: {amount}':
+        'سلام {name} عزیز 👋\nاشتراک: {plan}\nتاریخ انقضا: {date} ({status})\nمبلغ تمدید: {amount}',
+    'Previous balance due: {debt}': 'مانده بدهی قبلی: {debt}',
   };
 
   static String text(String source, {String? languageCode}) =>

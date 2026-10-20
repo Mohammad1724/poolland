@@ -79,7 +79,9 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
       );
       _currency = old.currency;
       _receiveCurrency = old.currency;
-      _start = J.addDays(old.endDate, 1);
+      final nextDay = J.addDays(old.endDate, 1);
+      final today = J.today;
+      _start = nextDay.isBefore(today) ? today : nextDay;
       _autoRenew = old.autoRenew;
       _note.text = old.note;
       final plan = _plan;

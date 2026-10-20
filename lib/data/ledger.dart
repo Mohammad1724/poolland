@@ -450,6 +450,19 @@ class Ledger {
     return J.daysBetween(n, J.startOfDay(s.endDate));
   }
 
+  /// Whether [s] has been superseded by a newer subscription for the same
+  /// customer and service plan.
+  static bool isSuperseded(Subscription s, List<Subscription> all) {
+    final end = J.startOfDay(s.endDate);
+    for (final other in all) {
+      if (other.id == s.id) continue;
+      if (other.customerId != s.customerId) continue;
+      if (other.planName != s.planName) continue;
+      if (J.startOfDay(other.endDate).isAfter(end)) return true;
+    }
+    return false;
+  }
+
   /// Subscriptions nearing expiry or already expired (for alerts).
   static List<Subscription> alerts(
     List<Subscription> subs, {
@@ -459,6 +472,7 @@ class Ledger {
   }) {
     final n = J.startOfDay(now ?? DateTime.now());
     final out = subs.where((s) {
+      if (isSuperseded(s, subs)) return false;
       final left = J.daysBetween(n, J.startOfDay(s.endDate));
       if (left >= 0) return left <= reminderDays;
       return -left <= expiredWithinDays;

@@ -560,7 +560,10 @@ class AppRepository extends ChangeNotifier {
     final customer = customerById(old.customerId);
     if (customer == null) throw StateError('Customer not found');
     final plan = planById(old.planId);
-    final startDate = start ?? J.addDays(old.endDate, 1);
+    final nextDay = J.addDays(old.endDate, 1);
+    final today = J.today;
+    final startDate =
+        start ?? (nextDay.isBefore(today) ? today : nextDay);
     final end = plan != null
         ? plan.endFrom(startDate)
         : J.addDays(J.addMonths(startDate, months ?? 1), -1);
