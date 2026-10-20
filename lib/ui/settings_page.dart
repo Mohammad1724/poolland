@@ -2075,7 +2075,7 @@ class ArchivedCustomersPage extends StatelessWidget {
           ? EmptyState(
               icon: Icons.inventory_2_outlined,
               title: 'No archived customers'.tr,
-              subtitle:
+              message:
                   'Archived customers appear here so you can restore them anytime.'
                       .tr,
             )
@@ -2086,12 +2086,12 @@ class ArchivedCustomersPage extends StatelessWidget {
                 separatorBuilder: (context, index) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final c = archived[index];
-                  final debt = repo.ledger.debtOf(c.id);
+                  final debt = repo.debtOf(c.id);
                   return CardBox(
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => CustomerDetailPage(contactId: c.id),
+                        builder: (_) => CustomerDetailPage(customer: c),
                       ),
                     ),
                     child: Row(
@@ -2180,7 +2180,7 @@ class BudgetsManagePage extends StatelessWidget {
       appBar: AppBar(title: Text('Monthly budgets'.tr)),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => showLedgerSheet(
-          context: context,
+          context,
           builder: (_) => const BudgetEditSheet(),
         ),
         icon: const Icon(Icons.add_rounded),
@@ -2190,7 +2190,7 @@ class BudgetsManagePage extends StatelessWidget {
           ? EmptyState(
               icon: Icons.pie_chart_outline_rounded,
               title: 'Monthly budgets'.tr,
-              subtitle:
+              message:
                   'Set a monthly limit for each category (such as food or transport); this page will show how much of each limit remains.'
                       .tr,
             )
@@ -2207,7 +2207,7 @@ class BudgetsManagePage extends StatelessWidget {
                       : (pct >= 0.8 ? AppTheme.warning : AppTheme.revenue);
                   return CardBox(
                     onTap: () => showLedgerSheet(
-                      context: context,
+                      context,
                       builder: (_) => BudgetEditSheet(initial: u.budget),
                     ),
                     child: Column(
@@ -2288,7 +2288,7 @@ class RecurringManagePage extends StatelessWidget {
       appBar: AppBar(title: Text('Recurring transactions'.tr)),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => showLedgerSheet(
-          context: context,
+          context,
           builder: (_) => const RecurringEditSheet(),
         ),
         icon: const Icon(Icons.add_rounded),
@@ -2298,7 +2298,7 @@ class RecurringManagePage extends StatelessWidget {
           ? EmptyState(
               icon: Icons.autorenew_rounded,
               title: 'Recurring transactions'.tr,
-              subtitle:
+              message:
                   'Set up rent, internet, subscriptions, and salary once; the app will record them automatically on schedule.'
                       .tr,
             )
@@ -2314,7 +2314,7 @@ class RecurringManagePage extends StatelessWidget {
                   final next = rule.nextDue(DateTime.now());
                   return CardBox(
                     onTap: () => showLedgerSheet(
-                      context: context,
+                      context,
                       builder: (_) => RecurringEditSheet(initial: rule),
                     ),
                     child: Row(
