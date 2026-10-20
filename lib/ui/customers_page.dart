@@ -443,7 +443,12 @@ class _CustomersPageState extends State<CustomersPage> {
                                     balance > 0 ? 'Debtor'.tr : 'Creditor'.tr,
                                     style: TextStyle(
                                       fontSize: 10.5,
-                                      color: onSurface.withValues(alpha: 0.55),
+                                      fontWeight: balance > 0
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                      color: balance > 0
+                                          ? const Color(0xFFE11D48)
+                                          : onSurface.withValues(alpha: 0.55),
                                     ),
                                   ),
                               ],
