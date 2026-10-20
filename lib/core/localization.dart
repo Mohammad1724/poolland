@@ -1014,7 +1014,6 @@ class AppLocalization {
     'Show renewed history': 'نمایش سوابق تمدیدشده',
     'Copy renewal reminder': 'کپی پیام یادآوری تمدید',
     'Reminder message copied': 'پیام یادآوری کپی شد',
-    'Delete subscription': 'حذف اشتراک',
     'Subscription deleted': 'اشتراک حذف شد',
     'Delete this subscription? Recorded transactions will stay in the ledger.':
         'این اشتراک حذف شود؟ تراکنش‌های ثبت‌شده در دفتر باقی می‌مانند.',
