@@ -71,6 +71,9 @@ class ReminderService {
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
       ticker: 'Poolland reminder'.tr,
+      icon: '@drawable/ic_sms_notification',
+      largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+      color: const Color(0xFF0D9488),
       playSound: true,
       sound: customSound,
     );
@@ -96,7 +99,7 @@ class ReminderService {
     } catch (_) {
       // Keep the system default if the time zone is unavailable.
     }
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const android = AndroidInitializationSettings('@drawable/ic_sms_notification');
     const darwin = DarwinInitializationSettings();
     const settings = InitializationSettings(
       android: android,

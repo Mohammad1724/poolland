@@ -10,6 +10,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.os.Build
 import android.provider.Telephony
 import java.util.Locale
@@ -400,6 +401,7 @@ internal object SmsCandidateDetector {
 /** Builds a privacy-preserving notification with an explicit Poolland target. */
 internal object SmsArrivalNotifications {
     private const val CHANNEL_ID = "bank_sms_arrival"
+    private const val BRAND_COLOR = 0xFF0D9488.toInt()
 
     fun show(context: Context, address: String, body: String, receivedAt: Long) {
         if (!SmsArrivalPreferences.isEnabled(context)) return
@@ -435,8 +437,14 @@ internal object SmsArrivalNotifications {
 
         val title = context.getString(R.string.sms_arrival_title)
         val message = context.getString(R.string.sms_arrival_body)
+        val largeIcon = BitmapFactory.decodeResource(
+            context.resources,
+            R.mipmap.ic_launcher,
+        )
         val publicVersion = newBuilder(context)
             .setSmallIcon(R.drawable.ic_sms_notification)
+            .setLargeIcon(largeIcon)
+            .setColor(BRAND_COLOR)
             .setContentTitle(title)
             .setContentText(message)
             .setCategory(Notification.CATEGORY_MESSAGE)
@@ -444,6 +452,8 @@ internal object SmsArrivalNotifications {
             .build()
         val notification = newBuilder(context)
             .setSmallIcon(R.drawable.ic_sms_notification)
+            .setLargeIcon(largeIcon)
+            .setColor(BRAND_COLOR)
             .setContentTitle(title)
             .setContentText(message)
             .setContentIntent(pendingIntent)
