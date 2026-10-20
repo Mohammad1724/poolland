@@ -1831,7 +1831,9 @@ class _CategoryDonutCard extends StatelessWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               final narrow = constraints.maxWidth < 290;
-              final ringSize = narrow ? 104.0 : 114.0;
+              final ringSize = narrow ? 108.0 : 118.0;
+              final centerRadius = ringSize * 0.21;
+              final sectionRadius = ringSize * 0.275;
               final ring = SizedBox(
                 width: ringSize,
                 height: ringSize,
@@ -1840,14 +1842,15 @@ class _CategoryDonutCard extends StatelessWidget {
                   children: [
                     PieChart(
                       PieChartData(
+                        startDegreeOffset: -90,
                         sectionsSpace: entries.length > 1 ? 2.5 : 0,
-                        centerSpaceRadius: ringSize * 0.30,
+                        centerSpaceRadius: centerRadius,
                         sections: entries.isEmpty
                             ? [
                                 PieChartSectionData(
                                   value: 1,
                                   color: onSurface.withValues(alpha: 0.08),
-                                  radius: ringSize * 0.16,
+                                  radius: sectionRadius * 0.85,
                                   showTitle: false,
                                 ),
                               ]
@@ -1856,45 +1859,62 @@ class _CategoryDonutCard extends StatelessWidget {
                                   PieChartSectionData(
                                     value: entries[i].value,
                                     color: palette[i % palette.length],
-                                    radius: ringSize * 0.18,
-                                    showTitle:
+                                    radius: sectionRadius,
+                                    showTitle: false,
+                                    badgePositionPercentageOffset: 0.5,
+                                    badgeWidget:
                                         total > 0 &&
-                                        entries[i].value / total >= 0.14,
-                                    title: Fmt.percent(
-                                      entries[i].value / total,
-                                    ),
-                                    titleStyle: const TextStyle(
-                                      fontFamily: 'Vazirmatn',
-                                      fontSize: 9.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.white,
-                                    ),
+                                            entries[i].value / total >= 0.12
+                                        ? SizedBox(
+                                            width: sectionRadius - 6,
+                                            child: FittedBox(
+                                              fit: BoxFit.scaleDown,
+                                              child: Text(
+                                                Fmt.percent(
+                                                  entries[i].value / total,
+                                                ),
+                                                textDirection:
+                                                    TextDirection.ltr,
+                                                style: const TextStyle(
+                                                  fontFamily: 'Vazirmatn',
+                                                  fontSize: 9.0,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Colors.white,
+                                                  height: 1.0,
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                        : null,
                                   ),
                               ],
                       ),
                     ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.donut_large_rounded,
-                          size: 16,
-                          color: entries.isEmpty
-                              ? onSurface.withValues(alpha: 0.3)
-                              : accent,
-                        ),
-                        if (entries.isNotEmpty)
-                          Text(
-                            Fmt.persianDigits
-                                ? Fmt.toFaDigits('${entries.length}')
-                                : '${entries.length}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: onSurface.withValues(alpha: 0.75),
-                            ),
+                    IgnorePointer(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.donut_large_rounded,
+                            size: 15,
+                            color: entries.isEmpty
+                                ? onSurface.withValues(alpha: 0.3)
+                                : accent,
                           ),
-                      ],
+                          if (entries.isNotEmpty)
+                            Text(
+                              Fmt.persianDigits
+                                  ? Fmt.toFaDigits('${entries.length}')
+                                  : '${entries.length}',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                height: 1.1,
+                                color: onSurface.withValues(alpha: 0.75),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -2000,6 +2020,7 @@ class _DonutLegendRow extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               Fmt.percent(share),
+              textDirection: TextDirection.ltr,
               style: TextStyle(
                 fontSize: 10.5,
                 fontWeight: FontWeight.w700,
