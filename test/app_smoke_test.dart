@@ -108,10 +108,19 @@ void main() {
   }
 
   testWidgets('Dashboard renders with sample data', (tester) async {
-    await tester.pumpWidget(wrap(DashboardPage(onNavigate: (_) {})));
+    await tester.pumpWidget(
+      wrap(
+        DashboardPage(
+          onNavigate: (_) {},
+          initialScope: TxnScope.business,
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('This month'), findsOneWidget);
+    expect(find.text('Total expense'), findsOneWidget);
+    expect(find.text('Total income'), findsOneWidget);
     expect(find.text('Business receivables'), findsOneWidget);
     expect(find.text('Business cash balance'), findsOneWidget);
   });
@@ -119,14 +128,15 @@ void main() {
   testWidgets('Personal-only dashboard hides business-only balances', (
     tester,
   ) async {
-    repo.setScopeFilter(TxnScope.personal);
     await tester.pumpWidget(wrap(DashboardPage(onNavigate: (_) {})));
     await tester.pumpAndSettle();
 
     expect(find.text('Business receivables'), findsNothing);
     expect(find.text('Business payables'), findsNothing);
     expect(find.text('Business cash balance'), findsNothing);
-    expect(find.text('Personal'), findsOneWidget);
+    expect(find.text('Total expense'), findsOneWidget);
+    expect(find.text('Total income'), findsOneWidget);
+    expect(find.text('Personal'), findsWidgets);
   });
 
   testWidgets('Main shell navigates between tabs', (tester) async {
@@ -140,17 +150,20 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(tester.takeException(), isNull);
     expect(
-      find.descendant(of: find.byType(AppBar), matching: find.text('Personal')),
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('Dashboard'),
+      ),
       findsOneWidget,
-      reason: 'Personal finance should be the first screen for daily use',
+      reason: 'Unified Dashboard should be the first screen for daily use',
     );
 
     const tabs = <(int, String)>[
-      (0, 'Personal'),
-      (2, 'Customers'),
-      (3, 'Subscriptions'),
-      (4, 'Transactions'),
-      (1, 'Dashboard'),
+      (0, 'Dashboard'),
+      (1, 'Customers'),
+      (2, 'Subscriptions'),
+      (3, 'Transactions'),
+      (4, 'Reports'),
     ];
     for (final (index, tab) in tabs) {
       await tapTab(tester, index);
@@ -165,12 +178,8 @@ void main() {
         reason: 'Tab $tab threw an exception',
       );
     }
-    await tester.tap(find.byTooltip('Reports'));
-    await tester.pumpAndSettle();
-    expect(find.text('Reports'), findsOneWidget);
     expect(find.byType(ReportsPage), findsOneWidget);
-    await tester.binding.handlePopRoute();
-    await tester.pumpAndSettle();
+    expect(find.byTooltip('Reports'), findsNothing);
   });
 
   testWidgets('Personal quick add opens a personal expense form', (
@@ -183,17 +192,15 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tester.tap(
-      find.widgetWithText(FloatingActionButton, 'Add personal entry'),
-    );
+    await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Personal expense').last);
     await tester.pumpAndSettle();
 
-    final scopeSelector = tester.widget<SegmentedButton<TxnScope>>(
-      find.byType(SegmentedButton<TxnScope>),
+    final scopeSelector = tester.widget<ScopeMagneticBar>(
+      find.byType(ScopeMagneticBar),
     );
-    expect(scopeSelector.selected, {TxnScope.personal});
+    expect(scopeSelector.personalProgress, 1.0);
     expect(find.byType(FormActionBar), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -226,7 +233,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tapTab(tester, 3);
+    await tapTab(tester, 2);
     expect(
       find.descendant(
         of: find.byType(AppBar),
@@ -238,7 +245,10 @@ void main() {
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(
-      find.descendant(of: find.byType(AppBar), matching: find.text('Personal')),
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('Dashboard'),
+      ),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
@@ -254,7 +264,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tapTab(tester, 2);
+    await tapTab(tester, 1);
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
     expect(find.text('Settings'), findsOneWidget);
@@ -327,6 +337,52 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'ReportsPage supports 3 tabs, date ranges, category breakdown, and sources report',
+    (tester) async {
+      await tester.pumpWidget(wrap(const ReportsPage()));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Statistics'), findsOneWidget);
+      expect(find.text('Categories'), findsOneWidget);
+      expect(find.text('Sources & balances'), findsOneWidget);
+      expect(find.text('Income and expense report'), findsOneWidget);
+      expect(find.text('Income and expense chart'), findsOneWidget);
+
+      // Switch between Daily, Weekly, and All ranges.
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Daily'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Weekly'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'All').last);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull);
+
+      // Switch to Categories tab and verify category breakdown & summary.
+      await tester.tap(find.text('Categories'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Category income and expense report'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      // Switch to Sources & balances tab and verify balances & sources report.
+      await tester.tap(find.text('Sources & balances'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Balances report'), findsOneWidget);
+      expect(find.text('Bank and payment sources'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('Settings and subpages render', (tester) async {
     for (final page in [
       const SettingsPage(),
@@ -362,19 +418,7 @@ void main() {
       wrap(const TransactionEditPage(initialKind: TxnKind.expense)),
     );
     await tester.pumpAndSettle();
-    // The form is a lazy ListView: scroll so below-the-fold fields build.
-    await tester.scrollUntilVisible(
-      find.text('Category'),
-      200,
-      scrollable: find
-          .descendant(
-            of: find.byType(ListView),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Category'), findsOneWidget);
+    expect(find.text('To account'), findsOneWidget);
     expect(find.byType(FormActionBar), findsOneWidget);
     expect(tester.takeException(), isNull);
 
@@ -432,25 +476,11 @@ void main() {
     await tester.tap(find.text('Expense').last);
     await tester.pumpAndSettle();
 
-    // Reveal the category row: the selected chip must be the default expense
-    // category for the business scope, re-derived after the direction switch
-    // instead of silently keeping the income category (which would corrupt
-    // per-category reports on save).
-    await tester.scrollUntilVisible(
-      find.text('Category'),
-      200,
-      scrollable: find
-          .descendant(
-            of: find.byType(ListView),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
-    await tester.pumpAndSettle();
     final expected = repo.categoryById(
       repo.defaultCategoryId(TxnKind.expense, scope: TxnScope.business),
     );
     expect(expected, isNotNull);
+    expect(find.text('To account'), findsOneWidget);
     // The category row now carries the re-derived default for the new kind.
     expect(find.text(expected!.name), findsOneWidget);
     expect(expected.kind, TxnKind.expense);
@@ -537,8 +567,8 @@ void main() {
     await tester.pumpWidget(wrap(SmsPage(openReviewKey: reviewKey)));
     await tester.pumpAndSettle();
 
-    expect(find.text('ثبت این تراکنش پیامکی'), findsOneWidget);
-    expect(find.text('ثبت تراکنش'), findsOneWidget);
+    expect(find.text('Record this SMS transaction'), findsOneWidget);
+    expect(find.text('Record transaction'), findsOneWidget);
     expect(repo.transactions.length, initialTransactionCount);
     expect(tester.takeException(), isNull);
 
@@ -551,7 +581,7 @@ void main() {
     );
     await tester.dragFrom(tester.getCenter(handle), const Offset(0, 100));
     await tester.pumpAndSettle();
-    expect(find.text('ثبت این تراکنش پیامکی'), findsNothing);
+    expect(find.text('Record this SMS transaction'), findsNothing);
     expect(repo.transactions.length, initialTransactionCount);
   });
 
@@ -587,7 +617,7 @@ void main() {
     );
     await tester.tap(find.text('Open SMS review'));
     await tester.pumpAndSettle();
-    expect(find.text('ثبت این تراکنش پیامکی'), findsOneWidget);
+    expect(find.text('Record this SMS transaction'), findsOneWidget);
 
     final sheet = tester.getRect(find.byType(SmsReviewSheet));
     await tester.dragFrom(
@@ -595,7 +625,7 @@ void main() {
       const Offset(0, 140),
     );
     await tester.pumpAndSettle();
-    expect(find.text('ثبت این تراکنش پیامکی'), findsNothing);
+    expect(find.text('Record this SMS transaction'), findsNothing);
     expect(repo.transactions.length, initialTransactionCount);
     expect(tester.takeException(), isNull);
   });
@@ -623,13 +653,13 @@ void main() {
     // frequent categories / regular contacts are offered as one-tap chips.
     final buttonFinder = find.widgetWithText(
       FilledButton,
-      'ثبت تراکنش',
+      'Record transaction',
     );
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
-    expect(find.text('مبلغ'), findsOneWidget);
+    expect(find.text('Amount'), findsOneWidget);
     // The redesigned sheet uses _ScopeChip instead of SegmentedButton.
-    expect(find.text('کسب‌وکار'), findsOneWidget);
-    expect(find.text('شخصی'), findsOneWidget);
+    expect(find.text('Business'), findsOneWidget);
+    expect(find.text('Personal'), findsOneWidget);
 
     // It opens on the business side, where regular contacts are shown
     // as a card. The default is fixed, not derived from the newest entry,
@@ -637,16 +667,92 @@ void main() {
     expect(find.byType(ContactBalanceCard), findsNothing);
 
     // Switching the section still re-derives kind and category.
-    await tester.tap(find.text('شخصی'));
+    await tester.tap(find.text('Personal'));
     await tester.pumpAndSettle();
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
 
     // And switching back does not lose the one-tap contacts.
-    await tester.tap(find.text('کسب‌وکار'));
+    await tester.tap(find.text('Business'));
     await tester.pumpAndSettle();
     expect(find.byType(ContactBalanceCard), findsNothing);
     expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNotNull);
   });
+
+  testWidgets(
+    'SMS review supports horizontal scope swipe, To/From account picker, and subcategory shortcuts',
+    (tester) async {
+      final withdrawSms = ParsedSms(
+        message: SmsMessage(
+          id: 'review-withdraw-sms',
+          address: 'BANK',
+          body: 'برداشت مبلغ 250,000 تومان',
+          date: DateTime.now(),
+        ),
+        bankName: 'Test Bank',
+        amount: 250000,
+        direction: SmsDirection.withdraw,
+        confident: true,
+      );
+
+      await tester.pumpWidget(wrap(SmsReviewSheet(sms: withdrawSms)));
+      await tester.pumpAndSettle();
+
+      // Opens on Business scope with "To account" («به حساب») button for expense.
+      expect(find.text('To account'), findsOneWidget);
+      expect(find.text('Contact (optional)'), findsOneWidget);
+      final businessHeight = tester.getSize(find.byType(SmsReviewSheet)).height;
+
+      // A short drag (~1/5 of the sheet) springs back without switching scopes.
+      await tester.drag(find.byType(SmsReviewSheet), const Offset(-80, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('Contact (optional)'), findsOneWidget);
+
+      // Horizontal swipe past the magnetic threshold switches from Business to
+      // Personal scope while keeping the sheet height locked.
+      await tester.drag(find.byType(SmsReviewSheet), const Offset(-260, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('Contact (optional)'), findsNothing);
+      final personalHeight = tester.getSize(find.byType(SmsReviewSheet)).height;
+      expect(personalHeight, closeTo(businessHeight, 1.0));
+
+      // In Personal expense scope, the seeded "Fuel" («بنزین») shortcut chip
+      // is shown directly on the main sheet.
+      expect(find.text('Fuel'), findsOneWidget);
+      await tester.tap(find.text('Fuel'));
+      await tester.pumpAndSettle();
+
+      // Selecting the "Fuel" shortcut updates the "To account" button to
+      // show "Transport and fuel › Fuel".
+      expect(find.text('Transport and fuel › Fuel'), findsOneWidget);
+
+      // Tapping "To account" opens the hierarchical category -> subcategory sheet.
+      await tester.tap(find.text('To account'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          'Tap a category to view its subcategories or pin shortcuts',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Taxi and ride-share'), findsOneWidget);
+
+      // Selecting another subcategory updates the main sheet selection.
+      await tester.tap(find.text('Taxi and ride-share'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Transport and fuel › Taxi and ride-share'),
+        findsOneWidget,
+      );
+
+      // Tapping "Income" («درآمد») in the top header switches the sheet from
+      // Expense ("To account") to Income ("From account").
+      await tester.tap(find.text('Income'));
+      await tester.pumpAndSettle();
+      expect(find.text('From account'), findsOneWidget);
+      expect(find.text('To account'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('Onboarding page renders', (tester) async {
     await tester.pumpWidget(wrap(const OnboardingPage()));

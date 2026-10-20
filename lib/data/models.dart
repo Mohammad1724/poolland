@@ -309,6 +309,10 @@ class Category {
   /// same kind and scope ("car" -> "fuel"). Null means top-level.
   final String? parentId;
 
+  /// Whether this category or subcategory is pinned as a 1-tap shortcut
+  /// on the transaction recording sheet.
+  final bool isShortcut;
+
   const Category({
     required this.id,
     required this.name,
@@ -316,7 +320,26 @@ class Category {
     this.sortOrder = 0,
     this.scope = TxnScope.business,
     this.parentId,
+    this.isShortcut = false,
   });
+
+  Category copyWith({
+    String? name,
+    TxnKind? kind,
+    int? sortOrder,
+    TxnScope? scope,
+    String? parentId,
+    bool clearParentId = false,
+    bool? isShortcut,
+  }) => Category(
+    id: id,
+    name: name ?? this.name,
+    kind: kind ?? this.kind,
+    sortOrder: sortOrder ?? this.sortOrder,
+    scope: scope ?? this.scope,
+    parentId: clearParentId ? null : (parentId ?? this.parentId),
+    isShortcut: isShortcut ?? this.isShortcut,
+  );
 
   Map<String, dynamic> toMap() => {
     'id': id,
@@ -325,6 +348,7 @@ class Category {
     'sortOrder': sortOrder,
     'scope': scope.name,
     'parentId': parentId,
+    'isShortcut': isShortcut,
   };
 
   factory Category.fromMap(Map map) => Category(
@@ -340,6 +364,7 @@ class Category {
       (v) => v.name == map['scope'],
       orElse: () => TxnScope.business,
     ),
+    isShortcut: map['isShortcut'] as bool? ?? false,
   );
 }
 

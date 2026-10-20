@@ -215,8 +215,23 @@ class AppRepository extends ChangeNotifier {
     return null;
   }
 
-  String categoryName(String? id) =>
-      categoryById(id)?.name.tr ?? 'Uncategorized'.tr;
+  String categoryName(String? id) {
+    final c = categoryById(id);
+    if (c == null) return 'Uncategorized'.tr;
+    final parent = c.parentId == null ? null : categoryById(c.parentId);
+    return parent == null ? c.name.tr : '${parent.name.tr} › ${c.name.tr}';
+  }
+
+  /// Categories or subcategories pinned as 1-tap shortcuts for a given
+  /// direction and section.
+  List<Category> shortcutCategories(
+    TxnKind categoryKind, {
+    TxnScope scope = TxnScope.business,
+  }) =>
+      categoriesOf(categoryKind, scope: scope)
+          .where((c) => c.isShortcut)
+          .toList()
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
   /// Categories used the most in real transactions, for preset chips:
   /// usage counts beat any hand-picked default because they follow the
@@ -238,7 +253,14 @@ class AppRepository extends ChangeNotifier {
       counts[id] = (counts[id] ?? 0) + 1;
     }
     final pool = categoriesOf(categoryKind, scope: scope);
-    pool.sort((a, b) => (counts[b.id] ?? 0).compareTo(counts[a.id] ?? 0));
+    pool.sort((a, b) {
+      final d = (counts[b.id] ?? 0).compareTo(counts[a.id] ?? 0);
+      if (d != 0) return d;
+      final p = (a.parentId == null ? 0 : 1).compareTo(
+        b.parentId == null ? 0 : 1,
+      );
+      return p != 0 ? p : a.sortOrder.compareTo(b.sortOrder);
+    });
     return pool.take(limit).toList();
   }
 
@@ -574,7 +596,9 @@ class AppRepository extends ChangeNotifier {
         if (c.name.toLowerCase().contains('subscription')) return c.id;
       }
     }
-    return list.first.id;
+    return list
+        .firstWhere((c) => c.parentId == null, orElse: () => list.first)
+        .id;
   }
 
   // ---------------- Transactions ----------------
@@ -654,6 +678,7 @@ class AppRepository extends ChangeNotifier {
               from: range.start,
               to: range.end,
               scope: b.scope,
+              categories: categories,
             ),
           );
         })
@@ -816,24 +841,35 @@ class AppRepository extends ChangeNotifier {
   );
 
   // ---------------- Categories ----------------
-  Future<void> addCategory(
+  Future<Category> addCategory(
     String name,
     TxnKind kind, {
     TxnScope scope = TxnScope.business,
     String? parentId,
+    bool isShortcut = false,
   }) async {
     final list = categoriesOf(kind, scope: scope);
     final parent = _validParent(parentId, kind, scope);
-    await store.putCategory(
-      Category(
-        id: LocalStore.newId(),
-        name: name.trim(),
-        kind: kind,
-        sortOrder: list.isEmpty ? 0 : list.last.sortOrder + 1,
-        scope: scope,
-        parentId: parent?.id,
-      ),
+    final created = Category(
+      id: LocalStore.newId(),
+      name: name.trim(),
+      kind: kind,
+      sortOrder: list.isEmpty ? 0 : list.last.sortOrder + 1,
+      scope: scope,
+      parentId: parent?.id,
+      isShortcut: isShortcut,
     );
+    await store.putCategory(created);
+    await reload();
+    return created;
+  }
+
+  /// Toggles (or explicitly sets) whether category [id] is pinned as a
+  /// 1-tap shortcut on the transaction recording sheet.
+  Future<void> toggleCategoryShortcut(String id, [bool? value]) async {
+    final c = categoryById(id);
+    if (c == null) return;
+    await store.putCategory(c.copyWith(isShortcut: value ?? !c.isShortcut));
     await reload();
   }
 
@@ -859,14 +895,7 @@ class AppRepository extends ChangeNotifier {
     final parent = _validParent(parentId, c.kind, c.scope);
     if (parent == null && parentId != null) return;
     await store.putCategory(
-      Category(
-        id: c.id,
-        name: c.name,
-        kind: c.kind,
-        sortOrder: c.sortOrder,
-        scope: c.scope,
-        parentId: parent?.id,
-      ),
+      c.copyWith(parentId: parent?.id, clearParentId: parent == null),
     );
     final flattened = <String, String?>{};
     for (final child in categories) {
@@ -875,13 +904,9 @@ class AppRepository extends ChangeNotifier {
     for (final entry in flattened.entries) {
       final child = categoryById(entry.key)!;
       await store.putCategory(
-        Category(
-          id: child.id,
-          name: child.name,
-          kind: child.kind,
-          sortOrder: child.sortOrder,
-          scope: child.scope,
+        child.copyWith(
           parentId: entry.value,
+          clearParentId: entry.value == null,
         ),
       );
     }
@@ -941,16 +966,7 @@ class AppRepository extends ChangeNotifier {
   }
 
   Future<void> renameCategory(Category c, String newName) async {
-    await store.putCategory(
-      Category(
-        id: c.id,
-        name: newName.trim(),
-        kind: c.kind,
-        sortOrder: c.sortOrder,
-        scope: c.scope,
-        parentId: c.parentId,
-      ),
-    );
+    await store.putCategory(c.copyWith(name: newName.trim()));
     await reload();
   }
 
@@ -961,15 +977,7 @@ class AppRepository extends ChangeNotifier {
     // Orphan any children: they keep their data and move to the top level
     // instead of keeping a dangling parent reference.
     for (final child in categories.where((c) => c.parentId == id).toList()) {
-      await store.putCategory(
-        Category(
-          id: child.id,
-          name: child.name,
-          kind: child.kind,
-          sortOrder: child.sortOrder,
-          scope: child.scope,
-        ),
-      );
+      await store.putCategory(child.copyWith(clearParentId: true));
     }
     await store.deleteCategory(id);
     await reload();

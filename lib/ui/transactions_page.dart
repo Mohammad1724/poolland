@@ -9,10 +9,13 @@ import '../data/models.dart';
 import '../data/repository.dart';
 import 'design.dart';
 import 'forms/transaction_edit_page.dart';
+import 'theme.dart';
 import 'widgets/txn_actions.dart';
 import 'widgets/widgets.dart';
 
 import '../core/localization.dart';
+
+enum _TxnDirectionTab { all, outflows, inflows }
 
 class TransactionsPage extends StatefulWidget {
   const TransactionsPage({super.key, this.controller});
@@ -29,6 +32,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
   final _searchController = TextEditingController();
   int _monthOffset = 0; // 0 = current month
   TxnKind? _kind;
+  _TxnDirectionTab _directionTab = _TxnDirectionTab.all;
   String _q = '';
   bool _filtersOpen = false;
 
@@ -58,6 +62,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
     setState(() {
       _q = '';
       _kind = null;
+      _directionTab = _TxnDirectionTab.all;
     });
   }
 
@@ -70,7 +75,10 @@ class _TransactionsPageState extends State<TransactionsPage> {
 
   void _resetFilters() {
     context.read<AppRepository>().setScopeFilter(null);
-    setState(() => _kind = null);
+    setState(() {
+      _kind = null;
+      _directionTab = _TxnDirectionTab.all;
+    });
   }
 
   Widget _filterGroupLabel(String label) => Text(
@@ -81,6 +89,64 @@ class _TransactionsPageState extends State<TransactionsPage> {
       color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
     ),
   );
+
+  Widget _buildDirectionTabBar(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final items = <(_TxnDirectionTab, String, Color)>[
+      (_TxnDirectionTab.all, 'All'.tr, scheme.primary),
+      (_TxnDirectionTab.outflows, 'Outflows'.tr, AppTheme.expense),
+      (_TxnDirectionTab.inflows, 'Inflows'.tr, AppTheme.revenue),
+    ];
+
+    return Container(
+      constraints: const BoxConstraints(minHeight: 38),
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Theme.of(context).dividerColor),
+      ),
+      child: Row(
+        children: [
+          for (final (tab, label, color) in items)
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => setState(() => _directionTab = tab),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 6,
+                    horizontal: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _directionTab == tab
+                        ? color.withValues(alpha: 0.14)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: _directionTab == tab
+                          ? FontWeight.w800
+                          : FontWeight.w600,
+                      color: _directionTab == tab
+                          ? color
+                          : scheme.onSurface.withValues(alpha: 0.65),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -102,6 +168,20 @@ class _TransactionsPageState extends State<TransactionsPage> {
                 : repo.transactions.where((t) => t.scope == repo.scopeFilter))
             .where((t) => Ledger.inRange(t.date, monthStart, monthEnd))
             .toList();
+    if (_directionTab == _TxnDirectionTab.outflows) {
+      list = list
+          .where(
+            (t) =>
+                t.kind == TxnKind.expense ||
+                t.kind == TxnKind.refund ||
+                t.kind == TxnKind.payablePayment,
+          )
+          .toList();
+    } else if (_directionTab == _TxnDirectionTab.inflows) {
+      list = list
+          .where((t) => t.kind == TxnKind.income || t.kind == TxnKind.receive)
+          .toList();
+    }
     if (_kind != null) list = list.where((t) => t.kind == _kind).toList();
     if (_q.isNotEmpty) {
       list = list
@@ -123,7 +203,10 @@ class _TransactionsPageState extends State<TransactionsPage> {
     // Materialized once so the list below can lazily build only the days that
     // are actually on screen.
     final groupList = groups.entries.toList(growable: false);
-    final hasActiveFilters = _q.isNotEmpty || _activeFilterCount > 0;
+    final hasActiveFilters =
+        _q.isNotEmpty ||
+        _activeFilterCount > 0 ||
+        _directionTab != _TxnDirectionTab.all;
 
     return Column(
       children: [
@@ -182,6 +265,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
             children: [
+              _buildDirectionTabBar(context),
+              const SizedBox(height: 8),
               // Search stays in view; the filter chips moved into a panel
               // behind the button below, so the list gets the space instead.
               Row(
@@ -355,25 +440,32 @@ class _TransactionsPageState extends State<TransactionsPage> {
                           padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
                           child: Row(
                             children: [
-                              Text(
-                                entry.key,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: onSurface.withValues(alpha: 0.6),
+                              Expanded(
+                                child: Text(
+                                  J.dFull(entry.value.first.date),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: onSurface.withValues(alpha: 0.72),
+                                  ),
                                 ),
                               ),
-                              const Spacer(),
+                              const SizedBox(width: 8),
                               ConstrainedBox(
                                 constraints: BoxConstraints(
-                                  maxWidth: MediaQuery.sizeOf(context).width < 360
-                                      ? 120
+                                  maxWidth:
+                                      MediaQuery.sizeOf(context).width < 360
+                                      ? 110
                                       : 180,
                                 ),
                                 child: Text(
-                                  Money.text(dayTotal, compact: true),
+                                  Money.text(
+                                    dayTotal,
+                                    compact: true,
+                                    signed: true,
+                                  ),
                                   maxLines: 1,
                                   softWrap: false,
                                   overflow: TextOverflow.ellipsis,
@@ -381,8 +473,12 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                   textAlign: TextAlign.end,
                                   style: TextStyle(
                                     fontSize: 11.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: onSurface.withValues(alpha: 0.6),
+                                    fontWeight: FontWeight.w800,
+                                    color: dayTotal > 0
+                                        ? AppTheme.revenue
+                                        : dayTotal < 0
+                                        ? AppTheme.expense
+                                        : onSurface.withValues(alpha: 0.6),
                                   ),
                                 ),
                               ),
