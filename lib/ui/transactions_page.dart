@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/debounce.dart';
+import '../core/format_utils.dart';
 import '../core/jalali_utils.dart';
 import '../core/money.dart';
 import '../data/ledger.dart';
@@ -162,37 +163,43 @@ class _TransactionsPageState extends State<TransactionsPage> {
       scope: repo.scopeFilter,
     );
 
-    var list =
-        (repo.scopeFilter == null
-                ? repo.transactions
-                : repo.transactions.where((t) => t.scope == repo.scopeFilter))
-            .where((t) => Ledger.inRange(t.date, monthStart, monthEnd))
-            .toList();
-    if (_directionTab == _TxnDirectionTab.outflows) {
-      list = list
-          .where(
-            (t) =>
-                t.kind == TxnKind.expense ||
-                t.kind == TxnKind.refund ||
-                t.kind == TxnKind.payablePayment,
-          )
-          .toList();
-    } else if (_directionTab == _TxnDirectionTab.inflows) {
-      list = list
-          .where((t) => t.kind == TxnKind.income || t.kind == TxnKind.receive)
-          .toList();
-    }
-    if (_kind != null) list = list.where((t) => t.kind == _kind).toList();
-    if (_q.isNotEmpty) {
-      list = list
-          .where(
-            (t) =>
-                t.note.toLowerCase().contains(_q) ||
-                repo.customerName(t.customerId).toLowerCase().contains(_q) ||
-                repo.categoryName(t.categoryId).toLowerCase().contains(_q),
-          )
-          .toList();
-    }
+    final startBound = J.startOfDay(monthStart);
+    final endBound = J.endOfDay(monthEnd);
+    final q = _q.isEmpty ? null : Fmt.normalizeDigits(_q.toLowerCase());
+
+    final list = repo.scopeTxns(repo.scopeFilter).where((t) {
+      if (t.date.isBefore(startBound) || t.date.isAfter(endBound)) {
+        return false;
+      }
+      if (_directionTab == _TxnDirectionTab.outflows &&
+          t.kind != TxnKind.expense &&
+          t.kind != TxnKind.refund &&
+          t.kind != TxnKind.payablePayment) {
+        return false;
+      }
+      if (_directionTab == _TxnDirectionTab.inflows &&
+          t.kind != TxnKind.income &&
+          t.kind != TxnKind.receive) {
+        return false;
+      }
+      if (_kind != null && t.kind != _kind) return false;
+      if (q != null) {
+        final matchNote = Fmt.normalizeDigits(
+          t.note.toLowerCase(),
+        ).contains(q);
+        final matchCustomer = Fmt.normalizeDigits(
+          repo.customerName(t.customerId).toLowerCase(),
+        ).contains(q);
+        final matchCategory = Fmt.normalizeDigits(
+          repo.categoryName(t.categoryId).toLowerCase(),
+        ).contains(q);
+        final matchAmount = t.amount.toStringAsFixed(0).contains(q);
+        if (!matchNote && !matchCustomer && !matchCategory && !matchAmount) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
 
     // Group by date
     final groups = <String, List<Txn>>{};

@@ -143,7 +143,14 @@ class AppRepository extends ChangeNotifier {
 
   int _cacheVersion = -1;
   List<Customer>? _activeCustomers;
+  List<Plan>? _activePlans;
+  Map<String, Customer>? _customersById;
+  Map<String, Subscription>? _subscriptionsById;
+  Map<String, Plan>? _plansById;
+  Map<String, Category>? _categoriesById;
+  Map<String, List<Subscription>>? _subsByCustomer;
   List<Txn>? _businessTxns;
+  List<Txn>? _personalTxns;
   List<Txn>? _visibleTxns;
   Balances? _totals;
   double? _cashBalance;
@@ -154,13 +161,21 @@ class AppRepository extends ChangeNotifier {
   List<MapEntry<Customer, double>>? _creditors;
   final Map<String, Summary> _summaryCache = {};
   final Map<String, List<MonthPoint>> _seriesCache = {};
+  final Map<String, Map<String, double>> _byCategoryCache = {};
 
   /// Clears every cached aggregate when the data version has moved on.
   void _syncCache() {
     if (_cacheVersion == _version) return;
     _cacheVersion = _version;
     _activeCustomers = null;
+    _activePlans = null;
+    _customersById = null;
+    _subscriptionsById = null;
+    _plansById = null;
+    _categoriesById = null;
+    _subsByCustomer = null;
     _businessTxns = null;
+    _personalTxns = null;
     _visibleTxns = null;
     _totals = null;
     _cashBalance = null;
@@ -171,6 +186,7 @@ class AppRepository extends ChangeNotifier {
     _creditors = null;
     _summaryCache.clear();
     _seriesCache.clear();
+    _byCategoryCache.clear();
   }
 
   List<Customer> get activeCustomers {
@@ -179,40 +195,41 @@ class AppRepository extends ChangeNotifier {
         customers.where((c) => !c.archived).toList();
   }
 
-  List<Plan> get activePlans => plans.where((p) => !p.archived).toList();
+  List<Plan> get activePlans {
+    _syncCache();
+    return _activePlans ??= plans.where((p) => !p.archived).toList();
+  }
 
   Customer? customerById(String? id) {
     if (id == null) return null;
-    for (final c in customers) {
-      if (c.id == id) return c;
-    }
-    return null;
+    _syncCache();
+    final map = _customersById ??= {for (final c in customers) c.id: c};
+    return map[id];
   }
 
   String customerName(String? id) => customerById(id)?.name ?? 'No customer'.tr;
 
   Subscription? subscriptionById(String? id) {
     if (id == null) return null;
-    for (final s in subscriptions) {
-      if (s.id == id) return s;
-    }
-    return null;
+    _syncCache();
+    final map = _subscriptionsById ??= {
+      for (final s in subscriptions) s.id: s,
+    };
+    return map[id];
   }
 
   Plan? planById(String? id) {
     if (id == null) return null;
-    for (final p in plans) {
-      if (p.id == id) return p;
-    }
-    return null;
+    _syncCache();
+    final map = _plansById ??= {for (final p in plans) p.id: p};
+    return map[id];
   }
 
   Category? categoryById(String? id) {
     if (id == null) return null;
-    for (final c in categories) {
-      if (c.id == id) return c;
-    }
-    return null;
+    _syncCache();
+    final map = _categoriesById ??= {for (final c in categories) c.id: c};
+    return map[id];
   }
 
   String categoryName(String? id) {
@@ -297,9 +314,20 @@ class AppRepository extends ChangeNotifier {
       .where((c) => c.kind == kind && c.scope == (scope ?? TxnScope.business))
       .toList();
 
-  List<Subscription> subsOfCustomer(String customerId) =>
-      subscriptions.where((s) => s.customerId == customerId).toList()
-        ..sort((a, b) => b.endDate.compareTo(a.endDate));
+  List<Subscription> subsOfCustomer(String customerId) {
+    _syncCache();
+    final map = _subsByCustomer ??= () {
+      final grouped = <String, List<Subscription>>{};
+      // `subscriptions` is sorted ascending by `endDate`; iterating in reverse
+      // builds each customer's list sorted descending by `endDate` in O(S).
+      for (var i = subscriptions.length - 1; i >= 0; i--) {
+        final s = subscriptions[i];
+        (grouped[s.customerId] ??= <Subscription>[]).add(s);
+      }
+      return grouped;
+    }();
+    return map[customerId] ?? const <Subscription>[];
+  }
 
   List<Txn> txnsOfCustomer(String customerId) =>
       Ledger.forCustomer(businessTxns, customerId);
@@ -309,13 +337,37 @@ class AppRepository extends ChangeNotifier {
 
   Balances get totals {
     _syncCache();
-    return _totals ??= Ledger.totals(customers, businessTxns);
+    return _totals ??= () {
+      final map = balancesMap();
+      double rec = 0, pay = 0;
+      int dc = 0, cc = 0;
+      for (final c in activeCustomers) {
+        final b = map[c.id] ?? 0;
+        if (b > 0.5) {
+          rec += b;
+          dc++;
+        } else if (b < -0.5) {
+          pay += -b;
+          cc++;
+        }
+      }
+      return Balances(
+        receivable: rec,
+        payable: pay,
+        debtorsCount: dc,
+        creditorsCount: cc,
+      );
+    }();
   }
 
   /// Transactions in a given scope (all scopes when null).
-  List<Txn> scopeTxns(TxnScope? scope) => scope == null
-      ? transactions
-      : transactions.where((t) => t.scope == scope).toList();
+  List<Txn> scopeTxns(TxnScope? scope) {
+    if (scope == null) return transactions;
+    _syncCache();
+    if (scope == TxnScope.business) return businessTxns;
+    return _personalTxns ??=
+        transactions.where((t) => t.scope == TxnScope.personal).toList();
+  }
 
   /// Business transactions — everything except personal transactions.
   /// All business calculations use this list so personal expenses
@@ -346,6 +398,30 @@ class AppRepository extends ChangeNotifier {
     );
   }
 
+  Map<String, double> byCategory({
+    DateTime? from,
+    DateTime? to,
+    TxnKind? kind,
+    TxnScope? scope,
+  }) {
+    _syncCache();
+    final key =
+        '${from?.millisecondsSinceEpoch ?? '-'}|'
+        '${to?.millisecondsSinceEpoch ?? '-'}|'
+        '${kind?.name ?? '-'}|${scope?.name ?? '-'}';
+    return _byCategoryCache.putIfAbsent(
+      key,
+      () => Ledger.byCategory(
+        scopeTxns(scope),
+        categories,
+        from: from,
+        to: to,
+        kind: kind,
+        scope: scope,
+      ),
+    );
+  }
+
   List<Subscription> get alerts {
     _syncCache();
     return _alerts ??=
@@ -367,7 +443,7 @@ class AppRepository extends ChangeNotifier {
   double get cashBalance {
     _syncCache();
     return _cashBalance ??=
-        settings.openingCash + Ledger.summarize(businessTxns).netCash;
+        settings.openingCash + summary(scope: TxnScope.business).netCash;
   }
 
   /// Sorted list of debtors (contacts who owe us).
@@ -423,7 +499,15 @@ class AppRepository extends ChangeNotifier {
 
   Future<void> updateCustomer(Customer c) async {
     await store.putCustomer(c);
-    await reload();
+    final idx = customers.indexWhere((e) => e.id == c.id);
+    if (idx >= 0) {
+      customers = [...customers]
+        ..[idx] = c
+        ..sort((a, b) => a.name.compareTo(b.name));
+    } else {
+      customers = [...customers, c]..sort((a, b) => a.name.compareTo(b.name));
+    }
+    notifyListeners();
   }
 
   /// Delete a customer; [withData] also deletes their transactions and subscriptions.
@@ -458,7 +542,16 @@ class AppRepository extends ChangeNotifier {
   // ---------------- Subscriptions ----------------
   Future<Subscription> saveSubscription(Subscription s) async {
     await store.putSubscription(s);
-    await reload();
+    final idx = subscriptions.indexWhere((e) => e.id == s.id);
+    if (idx >= 0) {
+      subscriptions = [...subscriptions]
+        ..[idx] = s
+        ..sort((a, b) => a.endDate.compareTo(b.endDate));
+    } else {
+      subscriptions = [...subscriptions, s]
+        ..sort((a, b) => a.endDate.compareTo(b.endDate));
+    }
+    notifyListeners();
     return s;
   }
 
@@ -643,12 +736,22 @@ class AppRepository extends ChangeNotifier {
 
   Future<void> updateTxn(Txn t) async {
     await store.putTxn(t);
-    await reload();
+    final idx = transactions.indexWhere((e) => e.id == t.id);
+    if (idx >= 0) {
+      transactions = [...transactions]
+        ..[idx] = t
+        ..sort((a, b) => b.date.compareTo(a.date));
+    } else {
+      transactions = [...transactions, t]
+        ..sort((a, b) => b.date.compareTo(a.date));
+    }
+    notifyListeners();
   }
 
   Future<void> deleteTxn(String id) async {
     await store.deleteTxn(id);
-    await reload();
+    transactions = transactions.where((t) => t.id != id).toList();
+    notifyListeners();
   }
 
   // ================= Personal finance =================
@@ -672,12 +775,12 @@ class AppRepository extends ChangeNotifier {
     return budgets
         .where((b) => b.enabled)
         .map((b) {
-          final cat = categories.where((c) => c.id == b.categoryId).firstOrNull;
+          final cat = categoryById(b.categoryId);
           return BudgetUsage(
             budget: b,
             categoryName: cat?.name ?? 'Deleted category',
             spent: Ledger.spentIn(
-              transactions,
+              scopeTxns(b.scope),
               b.categoryId,
               from: range.start,
               to: range.end,
@@ -845,6 +948,11 @@ class AppRepository extends ChangeNotifier {
   );
 
   // ---------------- Categories ----------------
+  static int _compareCategories(Category a, Category b) {
+    final k = a.kind.index.compareTo(b.kind.index);
+    return k != 0 ? k : a.sortOrder.compareTo(b.sortOrder);
+  }
+
   Future<Category> addCategory(
     String name,
     TxnKind kind, {
@@ -864,7 +972,8 @@ class AppRepository extends ChangeNotifier {
       isShortcut: isShortcut,
     );
     await store.putCategory(created);
-    await reload();
+    categories = [...categories, created]..sort(_compareCategories);
+    notifyListeners();
     return created;
   }
 
@@ -873,8 +982,10 @@ class AppRepository extends ChangeNotifier {
   Future<void> toggleCategoryShortcut(String id, [bool? value]) async {
     final c = categoryById(id);
     if (c == null) return;
-    await store.putCategory(c.copyWith(isShortcut: value ?? !c.isShortcut));
-    await reload();
+    final updated = c.copyWith(isShortcut: value ?? !c.isShortcut);
+    await store.putCategory(updated);
+    categories = categories.map((e) => e.id == id ? updated : e).toList();
+    notifyListeners();
   }
 
   /// A parent must exist, share the child's kind and scope, and be
@@ -970,8 +1081,10 @@ class AppRepository extends ChangeNotifier {
   }
 
   Future<void> renameCategory(Category c, String newName) async {
-    await store.putCategory(c.copyWith(name: newName.trim()));
-    await reload();
+    final updated = c.copyWith(name: newName.trim());
+    await store.putCategory(updated);
+    categories = categories.map((e) => e.id == c.id ? updated : e).toList();
+    notifyListeners();
   }
 
   /// Atomically updates name, parent, and shortcut pin for [c] in a single
@@ -1025,13 +1138,22 @@ class AppRepository extends ChangeNotifier {
       note: p.note,
     );
     await store.putPlan(created);
-    await reload();
+    plans = [...plans, created]..sort((a, b) => a.name.compareTo(b.name));
+    notifyListeners();
     return created;
   }
 
   Future<void> updatePlan(Plan p) async {
     await store.putPlan(p);
-    await reload();
+    final idx = plans.indexWhere((e) => e.id == p.id);
+    if (idx >= 0) {
+      plans = [...plans]
+        ..[idx] = p
+        ..sort((a, b) => a.name.compareTo(b.name));
+    } else {
+      plans = [...plans, p]..sort((a, b) => a.name.compareTo(b.name));
+    }
+    notifyListeners();
   }
 
   Future<void> deletePlan(String id) async {
@@ -1448,8 +1570,11 @@ class AppRepository extends ChangeNotifier {
         transactionId: txn.id,
       ),
     );
+    transactions = [...transactions, txn]
+      ..sort((a, b) => b.date.compareTo(a.date));
     smsSuggestions = smsSuggestions.where((e) => e.key != sms.key).toList();
-    await reload();
+    smsHistory = store.loadSmsHistory();
+    notifyListeners();
     return txn;
   }
 

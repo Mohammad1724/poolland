@@ -74,44 +74,47 @@ class LocalStore {
     }
   }
 
-  /// Open storage boxes on mobile or web.
-  static Future<LocalStore> open() async {
-    await Hive.initFlutter('vpn_ledger');
+  static Future<LocalStore> _openAllBoxes() async {
+    final boxes = await Future.wait<Box>([
+      _openBox(boxCustomers),
+      _openBox(boxSubscriptions),
+      _openBox(boxTransactions),
+      _openBox(boxCategories),
+      _openBox(boxPlans),
+      _openBox(boxMeta),
+      _openBox(boxSmsState),
+      _openBox(boxSmsRules),
+      _openBox(boxBudgets),
+      _openBox(boxRecurring),
+      _openBox(boxQuick),
+    ]);
     final store = LocalStore._(
-      customers: await _openBox(boxCustomers),
-      subscriptions: await _openBox(boxSubscriptions),
-      transactions: await _openBox(boxTransactions),
-      categories: await _openBox(boxCategories),
-      plans: await _openBox(boxPlans),
-      meta: await _openBox(boxMeta),
-      smsState: await _openBox(boxSmsState),
-      smsRules: await _openBox(boxSmsRules),
-      budgets: await _openBox(boxBudgets),
-      recurring: await _openBox(boxRecurring),
-      quickExpenses: await _openBox(boxQuick),
+      customers: boxes[0],
+      subscriptions: boxes[1],
+      transactions: boxes[2],
+      categories: boxes[3],
+      plans: boxes[4],
+      meta: boxes[5],
+      smsState: boxes[6],
+      smsRules: boxes[7],
+      budgets: boxes[8],
+      recurring: boxes[9],
+      quickExpenses: boxes[10],
     );
     await _ensureSeeded(store);
     return store;
   }
 
+  /// Open storage boxes on mobile or web.
+  static Future<LocalStore> open() async {
+    await Hive.initFlutter('vpn_ledger');
+    return _openAllBoxes();
+  }
+
   /// Open storage boxes at a specific path (for tests).
   static Future<LocalStore> openAt(String path) async {
     Hive.init(path);
-    final store = LocalStore._(
-      customers: await _openBox(boxCustomers),
-      subscriptions: await _openBox(boxSubscriptions),
-      transactions: await _openBox(boxTransactions),
-      categories: await _openBox(boxCategories),
-      plans: await _openBox(boxPlans),
-      meta: await _openBox(boxMeta),
-      smsState: await _openBox(boxSmsState),
-      smsRules: await _openBox(boxSmsRules),
-      budgets: await _openBox(boxBudgets),
-      recurring: await _openBox(boxRecurring),
-      quickExpenses: await _openBox(boxQuick),
-    );
-    await _ensureSeeded(store);
-    return store;
+    return _openAllBoxes();
   }
 
   /// Seed default categories, plans, settings, and quick buttons.

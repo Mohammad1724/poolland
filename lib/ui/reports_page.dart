@@ -155,9 +155,9 @@ class _ReportsPageState extends State<ReportsPage> {
         if (repo.transactions.isEmpty) {
           return (J.startOfMonth(now), J.endOfMonth(now));
         }
-        final first = repo.transactions
-            .map((t) => t.date)
-            .reduce((a, b) => a.isBefore(b) ? a : b);
+        // `repo.transactions` is sorted descending by `date`, so `.last.date`
+        // is the earliest recorded date in O(1).
+        final first = repo.transactions.last.date;
         return (J.dateOnly(first), J.endOfMonth(now));
     }
   }
@@ -523,8 +523,9 @@ class _ReportsPageState extends State<ReportsPage> {
     final repo = context.watch<AppRepository>();
     final (from, to) = _bounds(repo);
     final scope = _scope;
+    final scopedTxns = repo.scopeTxns(scope);
     final s = repo.summary(from: from, to: to, scope: scope);
-    final prevRange = _previousBounds(from, to);
+    final prevRange = _tab == _ReportTab.stats ? _previousBounds(from, to) : null;
     final prevSummary = prevRange == null
         ? null
         : repo.summary(from: prevRange.$1, to: prevRange.$2, scope: scope);
@@ -532,47 +533,58 @@ class _ReportsPageState extends State<ReportsPage> {
     final daysSpan = J.daysBetween(from, to).clamp(1, 3660);
     final monthsSpan = _monthsBetween(from, to);
 
-    // Build chart series for Daily, Weekly, and Monthly views.
+    // Only compute the chart series needed for the active tab & chart mode.
+    final chartMode = _effectiveChartMode;
     final dailyChartDays = _range == _Range.daily
         ? 14
         : _range == _Range.weekly
         ? 7
         : daysSpan.clamp(7, 30);
-    final dailyPoints = Ledger.dailySeries(
-      repo.transactions,
-      days: dailyChartDays,
-      endDay: to,
-      scope: scope,
-    );
+    final dailyPoints = (_tab == _ReportTab.stats && chartMode == 0)
+        ? Ledger.dailySeries(
+            scopedTxns,
+            days: dailyChartDays,
+            endDay: to,
+            scope: scope,
+          )
+        : const <DayPoint>[];
     final weeklyChartWeeks =
         (_range == _Range.weekly ? 8 : (daysSpan / 7).ceil()).clamp(4, 12);
-    final weeklyPoints = Ledger.weeklySeries(
-      repo.transactions,
-      weeks: weeklyChartWeeks,
-      endDay: to,
-      scope: scope,
-    );
-    final monthlyPoints = Ledger.monthlySeries(
-      repo.transactions,
-      months: math.max(monthsSpan, 6),
-      endMonth: to,
-      scope: scope,
-    );
+    final weeklyPoints = (_tab == _ReportTab.stats && chartMode == 1)
+        ? Ledger.weeklySeries(
+            scopedTxns,
+            weeks: weeklyChartWeeks,
+            endDay: to,
+            scope: scope,
+          )
+        : const <DayPoint>[];
+    final monthlyPoints = (_tab == _ReportTab.stats && chartMode == 2)
+        ? Ledger.monthlySeries(
+            scopedTxns,
+            months: math.max(monthsSpan, 6),
+            endMonth: to,
+            scope: scope,
+          )
+        : const <MonthPoint>[];
 
-    final expenseStats = _computeCategoryStats(
-      repo,
-      from: from,
-      to: to,
-      kind: TxnKind.expense,
-      scope: scope,
-    );
-    final incomeStats = _computeCategoryStats(
-      repo,
-      from: from,
-      to: to,
-      kind: TxnKind.income,
-      scope: scope,
-    );
+    final expenseStats = _tab == _ReportTab.categories
+        ? _computeCategoryStats(
+            repo,
+            from: from,
+            to: to,
+            kind: TxnKind.expense,
+            scope: scope,
+          )
+        : const <_CategoryStat>[];
+    final incomeStats = _tab == _ReportTab.categories
+        ? _computeCategoryStats(
+            repo,
+            from: from,
+            to: to,
+            kind: TxnKind.income,
+            scope: scope,
+          )
+        : const <_CategoryStat>[];
 
     final expenseCatsMap = <String, double>{
       for (final c in expenseStats) c.name: c.amount,
@@ -581,15 +593,19 @@ class _ReportsPageState extends State<ReportsPage> {
       for (final c in incomeStats) c.name: c.amount,
     };
 
-    final top = Ledger.topCustomers(
-      repo.customers,
-      repo.transactions,
-      from: from,
-      to: to,
-      limit: 6,
-      scope: scope,
-    );
-    final debtors = repo.debtorsList();
+    final top = _tab == _ReportTab.sources
+        ? Ledger.topCustomers(
+            repo.customers,
+            scopedTxns,
+            from: from,
+            to: to,
+            limit: 6,
+            scope: scope,
+          )
+        : const <MapEntry<Customer, double>>[];
+    final debtors = _tab == _ReportTab.sources
+        ? repo.debtorsList()
+        : const <MapEntry<Customer, double>>[];
     final margin = s.income > 0 ? s.profit / s.income : 0.0;
 
     return ListView(

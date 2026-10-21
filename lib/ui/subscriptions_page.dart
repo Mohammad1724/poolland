@@ -209,23 +209,27 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     final balances = repo.balancesMap();
 
     final allSubs = repo.subscriptions;
-    final hasSuperseded = allSubs.any((s) => Ledger.isSuperseded(s, allSubs));
+    final superseded = Ledger.supersededIds(allSubs);
+    final hasSuperseded = superseded.isNotEmpty;
     final visiblePool = _showHistory
         ? [...allSubs]
-        : allSubs.where((s) => !Ledger.isSuperseded(s, allSubs)).toList();
+        : allSubs.where((s) => !superseded.contains(s.id)).toList();
 
-    final query = _q.trim().toLowerCase();
+    final query = Fmt.normalizeDigits(_q.trim().toLowerCase());
     final matchingSubs = query.isEmpty
         ? visiblePool
         : visiblePool
               .where(
                 (s) =>
-                    repo
-                        .customerName(s.customerId)
-                        .toLowerCase()
-                        .contains(query) ||
-                    s.planName.toLowerCase().contains(query) ||
-                    s.planName.tr.toLowerCase().contains(query),
+                    Fmt.normalizeDigits(
+                      repo.customerName(s.customerId).toLowerCase(),
+                    ).contains(query) ||
+                    Fmt.normalizeDigits(
+                      s.planName.toLowerCase(),
+                    ).contains(query) ||
+                    Fmt.normalizeDigits(
+                      s.planName.tr.toLowerCase(),
+                    ).contains(query),
               )
               .toList();
 

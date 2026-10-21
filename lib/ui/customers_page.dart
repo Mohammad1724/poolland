@@ -33,6 +33,9 @@ enum _Filter { all, debtors, creditors }
 enum _CustomerSort { name, highestDebt, nearestExpiry }
 
 class _CustomersPageState extends State<CustomersPage> {
+  static final RegExp _nonDigitRe = RegExp(r'[^0-9]');
+  static final RegExp _phoneQueryRe = RegExp(r'^[0-9\s()+./-]+$');
+
   final _searchDebouncer = Debouncer();
   final _searchController = TextEditingController();
   String _q = '';
@@ -139,21 +142,21 @@ class _CustomersPageState extends State<CustomersPage> {
     final balances = repo.balancesMap();
 
     final query = Fmt.normalizeDigits(_q.trim().toLowerCase());
-    final queryDigits = query.replaceAll(RegExp(r'[^0-9]'), '');
-    final isPhoneQuery = RegExp(r'^[0-9\s()+./-]+$').hasMatch(query);
-    final matchingCustomers = repo.activeCustomers.where((c) {
-      if (query.isEmpty) return true;
-      final matchesName = c.name.toLowerCase().contains(query);
-      final normalizedPhone = Fmt.normalizeDigits(
-        c.phone,
-      ).replaceAll(RegExp(r'[^0-9]'), '');
-      final matchesPhone =
-          Fmt.normalizeDigits(c.phone.toLowerCase()).contains(query) ||
-          (isPhoneQuery &&
-              queryDigits.isNotEmpty &&
-              normalizedPhone.contains(queryDigits));
-      return matchesName || matchesPhone;
-    }).toList();
+    final queryDigits = query.replaceAll(_nonDigitRe, '');
+    final isPhoneQuery = _phoneQueryRe.hasMatch(query);
+    final matchingCustomers = query.isEmpty
+        ? repo.activeCustomers
+        : repo.activeCustomers.where((c) {
+            final matchesName = c.name.toLowerCase().contains(query);
+            if (matchesName) return true;
+            final normalizedPhone = Fmt.normalizeDigits(
+              c.phone,
+            ).replaceAll(_nonDigitRe, '');
+            return Fmt.normalizeDigits(c.phone.toLowerCase()).contains(query) ||
+                (isPhoneQuery &&
+                    queryDigits.isNotEmpty &&
+                    normalizedPhone.contains(queryDigits));
+          }).toList();
 
     final debtorCustomers = matchingCustomers
         .where((c) => (balances[c.id] ?? 0) > 0.5)

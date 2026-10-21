@@ -852,27 +852,20 @@ class _DashboardPageState extends State<DashboardPage>
       to: rangeTo,
       scope: pageScope,
     );
-    final expenseByCategory = Ledger.byCategory(
-      repo.transactions,
-      repo.categories,
+    final expenseByCategory = repo.byCategory(
       from: rangeFrom,
       to: rangeTo,
       kind: TxnKind.expense,
       scope: pageScope,
     );
-    final incomeByCategory = Ledger.byCategory(
-      repo.transactions,
-      repo.categories,
+    final incomeByCategory = repo.byCategory(
       from: rangeFrom,
       to: rangeTo,
       kind: TxnKind.income,
       scope: pageScope,
     );
     final series = repo.series(months: 6, scope: pageScope);
-    final recent = repo.transactions
-        .where((t) => t.scope == pageScope)
-        .take(5)
-        .toList();
+    final recent = repo.scopeTxns(pageScope).take(5).toList();
     final hasNoTransactions = repo.transactions.isEmpty;
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final compactLayout = MediaQuery.sizeOf(context).width < 360;

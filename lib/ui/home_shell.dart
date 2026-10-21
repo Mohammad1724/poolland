@@ -979,9 +979,13 @@ class _TabPaneState extends State<_TabPane>
 
   @override
   Widget build(BuildContext context) {
+    final pane = TickerMode(
+      enabled: widget.active,
+      child: RepaintBoundary(child: widget.child),
+    );
     if (!Motion.motionEnabled ||
         (MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
-      return RepaintBoundary(child: widget.child);
+      return pane;
     }
     final rtl = Directionality.of(context) == TextDirection.rtl;
     final dir = (widget.forward ? 1 : -1) * (rtl ? -1 : 1);
@@ -998,7 +1002,7 @@ class _TabPaneState extends State<_TabPane>
           ),
         );
       },
-      child: RepaintBoundary(child: widget.child),
+      child: pane,
     );
   }
 }
