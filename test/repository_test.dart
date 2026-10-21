@@ -582,13 +582,14 @@ void main() {
   });
 
   test('A backup file never carries the app-lock PIN', () async {
-    await repo.setPin('2468');
+    await repo.setPin('24681357');
 
     final backup = repo.exportData();
     final exported = backup['settings'] as Map<String, dynamic>;
 
     expect(exported.containsKey('pinHash'), isFalse);
-    expect(backup.toString(), isNot(contains('2468')));
+    expect(backup.toString(), isNot(contains('24681357')));
+    expect(backup.toString(), isNot(contains(repo.settings.pinHash!)));
   });
 
   test('Restoring a backup leaves this device\'s lock alone', () async {
@@ -827,6 +828,28 @@ void main() {
       expect(AppLocalization.text(custom.bankName, languageCode: 'fa'),
           'صندوق اعتباری');
       expect(custom.bodyHints.join(' '), contains('صندوق'));
+    });
+
+    test('Built-in rules can be edited and reset to defaults', () async {
+      expect(repo.isBuiltinSmsRuleModified('melli'), isFalse);
+      await repo.addSmsRule(
+        const BankRule(
+          id: 'melli',
+          bankName: 'بانک ملی ویژه',
+          senderHints: ['BANKMELLI', '30009999'],
+          bodyHints: ['بانک ملی'],
+          custom: false,
+        ),
+      );
+      expect(repo.isBuiltinSmsRuleModified('melli'), isTrue);
+      final edited = repo.effectiveBuiltinRules.firstWhere((r) => r.id == 'melli');
+      expect(edited.bankName, 'بانک ملی ویژه');
+      expect(edited.senderHints, contains('30009999'));
+
+      await repo.resetBuiltinSmsRule('melli');
+      expect(repo.isBuiltinSmsRuleModified('melli'), isFalse);
+      final reset = repo.effectiveBuiltinRules.firstWhere((r) => r.id == 'melli');
+      expect(reset.bankName, 'Melli Bank');
     });
   });
 }

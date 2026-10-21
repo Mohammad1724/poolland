@@ -7,9 +7,11 @@ class AppTheme {
   AppTheme._();
 
   static const seed = Color(0xFF087F78); // Calm, high-contrast teal
+  static const primary = seed;
   static const revenue = Color(0xFF16A34A);
   static const expense = Color(0xFFE11D48);
   static const warning = Color(0xFFF59E0B);
+  static const info = Color(0xFF2563EB);
 
   /// The fill of a destructive button (delete, remove, reset).
   ///

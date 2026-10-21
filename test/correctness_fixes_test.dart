@@ -12,7 +12,7 @@ import 'package:poolland/data/repository.dart';
 import 'package:poolland/data/store.dart';
 import 'package:poolland/ui/customers_page.dart';
 import 'package:poolland/ui/forms/sell_subscription_page.dart';
-import 'package:poolland/ui/sms_page.dart';
+import 'package:poolland/ui/forms/sms_review_sheet.dart';
 import 'package:poolland/ui/theme.dart';
 
 /// Regression tests for the correctness bugs found in the 1.4.0 UX audit
@@ -259,14 +259,10 @@ void main() {
       await tester.pumpWidget(wrap(SmsReviewSheet(sms: sms)));
       await tester.pumpAndSettle();
 
-      expect(
-        tester
-            .widget<SegmentedButton<TxnScope>>(
-              find.byType(SegmentedButton<TxnScope>),
-            )
-            .selected,
-        {TxnScope.business},
-      );
+      // The redesigned sheet uses _ScopeChip instead of SegmentedButton.
+      // Verify Business is selected by checking the chip is present.
+      expect(find.text('Business'), findsOneWidget);
+      expect(find.text('Personal'), findsOneWidget);
 
       // Still one tap from being recorded, as the review queue promises.
       final record = find.widgetWithText(FilledButton, 'Record transaction');

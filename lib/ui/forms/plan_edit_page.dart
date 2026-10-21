@@ -17,6 +17,7 @@ class PlansPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(title: Text('Plans'.tr)),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.push(
@@ -32,77 +33,93 @@ class PlansPage extends StatelessWidget {
               title: 'No plans yet',
               text: 'Plans are reusable sales templates (for example, “1 month, 50 GB”).\nCreate a plan to record a sale in seconds.',
             )
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
-              itemCount: repo.plans.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 10),
-              itemBuilder: (context, i) {
-                final p = repo.plans[i];
-                return CardBox(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => PlanEditPage(existing: p),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary
-                              .withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.local_offer_outlined,
-                          size: 18,
-                          color: Theme.of(context).colorScheme.primary,
+          : RepaintBoundary(
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                itemCount: repo.plans.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (context, i) {
+                  final p = repo.plans[i];
+                  return RepaintBoundary(
+                    child: CardBox(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PlanEditPage(existing: p),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primary
+                                  .withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.local_offer_outlined,
+                              size: 18,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: Text(
-                                    p.name.tr,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        p.name.tr,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    if (p.archived)
+                                      TagChip(
+                                        'Archived',
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                        dense: true,
+                                      ),
+                                  ],
                                 ),
-                                if (p.archived)
-                                  TagChip(
-                                    'Archived',
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${Money.text(p.price, currency: p.currency)} • ${p.durationLabel}',
+                                  style: TextStyle(
+                                    fontSize: 12,
                                     color: Theme.of(context)
                                         .colorScheme
-                                        .onSurfaceVariant,
-                                    dense: true,
+                                        .onSurface
+                                        .withValues(alpha: 0.6),
                                   ),
+                                ),
                               ],
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${Money.text(p.price, currency: p.currency)} • ${p.durationLabel}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context).colorScheme.onSurface
-                                    .withValues(alpha: 0.6),
+                          ),
+                          if (p.archived)
+                            IconButton(
+                              tooltip: 'Unarchive'.tr,
+                              icon: const Icon(
+                                Icons.unarchive_outlined,
+                                size: 19,
                               ),
+                              onPressed: () =>
+                                  repo.updatePlan(p.copyWith(archived: false)),
                             ),
-                          ],
-                        ),
+                          const Icon(Icons.chevron_right_rounded, size: 20),
+                        ],
                       ),
-                      const Icon(Icons.chevron_right_rounded, size: 20),
-                    ],
-                  ),
-                );
-              },
+                    ),
+                  );
+                },
+              ),
             ),
     );
   }
@@ -126,6 +143,7 @@ class _PlanEditPageState extends State<PlanEditPage> {
   late String _currency;
   int _duration = 1;
   PlanDurationUnit _unit = PlanDurationUnit.month;
+  bool _archived = false;
 
   bool get isEdit => widget.existing != null;
 
@@ -144,6 +162,7 @@ class _PlanEditPageState extends State<PlanEditPage> {
       _duration = p.durationValue;
       _unit = p.durationUnit;
       _note.text = p.note;
+      _archived = p.archived;
     }
   }
 
@@ -167,7 +186,7 @@ class _PlanEditPageState extends State<PlanEditPage> {
       durationValue: _duration,
       durationUnit: _unit,
       note: _note.text.trim(),
-      archived: widget.existing?.archived ?? false,
+      archived: _archived,
     );
     // Resolved before the write: the page pops itself right after it, and
     // the confirmation has to outlive the page.
@@ -291,7 +310,14 @@ class _PlanEditPageState extends State<PlanEditPage> {
                     ),
                   ),
                   IconButton.outlined(
-                    onPressed: () => setState(() => _duration++),
+                    // A plan longer than five years is almost certainly a
+                    // mistake — a slip of the finger on the plus button.
+                    onPressed: (_unit == PlanDurationUnit.month &&
+                                _duration >= 60) ||
+                            (_unit == PlanDurationUnit.day &&
+                                _duration >= 1825)
+                        ? null
+                        : () => setState(() => _duration++),
                     icon: const Icon(Icons.add_rounded, size: 18),
                   ),
                 ],
@@ -317,6 +343,18 @@ class _PlanEditPageState extends State<PlanEditPage> {
                 label: 'Description (optional)'.tr,
                 maxLines: 2,
               ),
+              if (isEdit) ...[
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _archived,
+                  onChanged: (v) => setState(() => _archived = v),
+                  title: Text(
+                    'Archived (inactive)'.tr,
+                    style: const TextStyle(fontSize: 13.5),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

@@ -10,6 +10,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.provider.Telephony
 import java.util.Locale
@@ -124,9 +126,11 @@ internal object SmsCandidateDetector {
         "فعال‌سازی",
         "غیرفعال",
         "خبرنامه",
-        "تبریک",
         "قرعه",
-        "مسدود",
+        "مسدود گردید",
+        "مسدود شد",
+        "حساب شما مسدود",
+        "کارت شما مسدود",
         "احراز هویت",
         "کلمه عبور",
         "کد تایید",
@@ -134,6 +138,10 @@ internal object SmsCandidateDetector {
         "کد ورود",
         "کد فعالسازی",
         "ورود به",
+        "وارد همراه بانک",
+        "وارد اینترنت بانک",
+        "کسر خواهد گردید",
+        "کسر خواهد شد",
     )
 
     private val directionWords = listOf(
@@ -142,8 +150,14 @@ internal object SmsCandidateDetector {
         "خريد",
         "پرداخت",
         "کاهش موجودی",
+        "حواله",
         "حوله",
         "اقساط",
+        "قسط",
+        "اصلاحیه",
+        "از حساب شما پرید",
+        "از حساب شما کم شد",
+        "بدهکار",
         "کارمزد",
         "کسر",
         "withdraw",
@@ -158,19 +172,24 @@ internal object SmsCandidateDetector {
         "دريافت وجه",
         "سود سپرده",
         "انتقال ورودی",
+        "انتقال به حساب شما",
+        "به حساب شما نشست",
+        "به حسابتان نشست",
+        "بستانکار",
         "deposit",
         "credited",
         "انتقال",
         "شارژ",
     )
 
+    private val shortAlphaHintPattern = Regex("""^[A-Z\u0600-\u06FF]{3}$""")
     private val numberPattern = Regex("""[0-9][0-9,٬، ]*""")
     private val explicitAmountPattern = Regex(
         """(?:مبلغ|مبلغ کل|amount)[^0-9]{0,10}([0-9][0-9,٬، ]*)""",
         RegexOption.IGNORE_CASE,
     )
     private val verbAmountPattern = Regex(
-        """(?:برداشت|خرید|پرداخت|واریز|وصول|دریافت\s+وجه|withdraw|purchase|debit|deposit|credited)[^0-9]{0,32}([0-9][0-9,٬، ]*)""",
+        """(?:برداشت|خرید|پرداخت|حواله|بدهکار|واریز|وصول|بستانکار|دریافت\s+وجه|withdraw|purchase|debit|deposit|credited)[^0-9]{0,32}([0-9][0-9,٬، ]*)""",
         RegexOption.IGNORE_CASE,
     )
     private val amountUnitPattern = Regex(
@@ -201,15 +220,25 @@ internal object SmsCandidateDetector {
             val hint = normalize(rawHint).uppercase(Locale.ROOT)
             hint.isNotEmpty() &&
                 (normalizedAddress == hint ||
-                    (hint.length >= 4 && normalizedAddress.contains(hint)))
+                    (hint.length >= 4 && normalizedAddress.contains(hint)) ||
+                    (hint.length == 3 &&
+                        shortAlphaHintPattern.matches(hint) &&
+                        normalizedAddress.contains(hint)))
         }
         val bodyMatched = bodyHints.any { rawHint ->
             val hint = normalize(rawHint)
             hint.isNotEmpty() && normalizedBody.contains(hint)
         }
         if (!senderMatched && !bodyMatched) return false
-        if (ignoredPhrases.any { normalizedBody.contains(normalize(it)) }) return false
-        if (directionWords.none { normalizedBody.contains(normalize(it)) }) return false
+        val cleanedForIgnore = normalizedBody.replace("کارمزد", "")
+        if (ignoredPhrases.any { cleanedForIgnore.contains(normalize(it)) }) return false
+        val signedCandidate = hasSignedAmount(amountBody)
+        if (!signedCandidate &&
+            directionWords.none { normalizedBody.contains(normalize(it)) }
+        ) {
+            return false
+        }
+        if (signedCandidate) return true
 
         // Match the same ordered amount paths as SmsParser: an amount label,
         // a currency unit, an amount after a transaction verb, then one
@@ -260,6 +289,39 @@ internal object SmsCandidateDetector {
         return significantNumbers.size == 1
     }
 
+    private fun hasSignedAmount(body: String): Boolean {
+        for (match in numberPattern.findAll(body)) {
+            var end = match.range.last + 1
+            while (end > match.range.first && body[end - 1] == ' ') {
+                end--
+            }
+            val start = match.range.first
+            if (isExcludedRange(body, start, end)) continue
+            if (amountValue(body.substring(start, end)) < 1000.0) continue
+
+            var signIdx = end
+            while (signIdx < body.length && body[signIdx] == ' ') signIdx++
+            if (signIdx < body.length) {
+                val ch = body[signIdx]
+                if (ch == '+' || ch == '-' || ch == '−' || ch == '➕' || ch == '➖') {
+                    val followedByDigit = body.getOrNull(signIdx + 1)?.isDigit() == true
+                    if (!followedByDigit) return true
+                }
+            }
+
+            var leadIdx = start - 1
+            while (leadIdx >= 0 && body[leadIdx] == ' ') leadIdx--
+            if (leadIdx >= 0) {
+                val ch = body[leadIdx]
+                if (ch == '+' || ch == '-' || ch == '−' || ch == '➕' || ch == '➖') {
+                    val precededByDigit = body.getOrNull(leadIdx - 1)?.isDigit() == true
+                    if (!precededByDigit) return true
+                }
+            }
+        }
+        return false
+    }
+
     private fun amountValue(raw: String): Double =
         raw.filter(Char::isDigit).toDoubleOrNull() ?: 0.0
 
@@ -269,12 +331,18 @@ internal object SmsCandidateDetector {
 
         val after = body.getOrNull(end)
         val before = body.getOrNull(start - 1)
-        if ((after == '/' || after == '-') &&
+        if ((after == '/' || after == '-' || after == '.' || after == ':') &&
             body.getOrNull(end + 1)?.isDigit() == true
         ) {
             return true
         }
-        if (before == '/' || before == '-') return true
+        if (before == '/' || before == '_' || after == '_') return true
+        if ((before == '-' || before == '.' || before == ':') &&
+            start >= 2 &&
+            body.getOrNull(start - 2)?.isDigit() == true
+        ) {
+            return true
+        }
 
         val headStart = (start - 32).coerceAtLeast(0)
         val head = body.substring(headStart, start)
@@ -304,7 +372,7 @@ internal object SmsCandidateDetector {
                 'ك'.code -> 'ک'
                 'ۀ'.code, 'ة'.code -> 'ه'
                 0x200c -> ' '
-                0x200f, 0xfeff -> continue
+                0x0640, 0x200f, 0xfeff -> continue
                 else -> character
             }
             append(normalized)
@@ -334,6 +402,7 @@ internal object SmsCandidateDetector {
 /** Builds a privacy-preserving notification with an explicit Poolland target. */
 internal object SmsArrivalNotifications {
     private const val CHANNEL_ID = "bank_sms_arrival"
+    private const val BRAND_COLOR = 0xFF0D9488.toInt()
 
     fun show(context: Context, address: String, body: String, receivedAt: Long) {
         if (!SmsArrivalPreferences.isEnabled(context)) return
@@ -392,14 +461,25 @@ internal object SmsArrivalNotifications {
         notificationManager.notify(notificationTag, 0, notification)
     }
 
-    private fun newBuilder(context: Context): Notification.Builder =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    private fun newBuilder(context: Context): Notification.Builder {
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(context, CHANNEL_ID)
         } else {
+            @Suppress("DEPRECATION")
             Notification.Builder(context)
                 .setPriority(Notification.PRIORITY_DEFAULT)
                 .setDefaults(Notification.DEFAULT_ALL)
         }
+        builder.setColor(BRAND_COLOR)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            builder.setLargeIcon(Icon.createWithResource(context, R.mipmap.ic_launcher))
+        } else {
+            BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher)?.let {
+                builder.setLargeIcon(it)
+            }
+        }
+        return builder
+    }
 
     private fun ensureChannel(context: Context, manager: NotificationManager) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return

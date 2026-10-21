@@ -11,7 +11,6 @@ import '../data/ledger.dart';
 import '../data/models.dart';
 import '../data/pdf_service.dart';
 import '../data/repository.dart';
-import 'motion_kit.dart';
 import 'forms/contact_edit_page.dart';
 import 'forms/payment_sheet.dart';
 import 'forms/sell_subscription_page.dart';
@@ -51,34 +50,27 @@ class CustomerDetailPage extends StatelessWidget {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // The list card's avatar and name fly into the header (Hero).
-            Hero(
-              tag: 'cust-avatar-${c.id}',
-              child: CircleAvatar(
-                radius: 15,
-                backgroundColor: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.13),
-                child: Text(
-                  c.initial,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
+            CircleAvatar(
+              radius: 15,
+              backgroundColor: Theme.of(context)
+                  .colorScheme
+                  .primary
+                  .withValues(alpha: 0.13),
+              child: Text(
+                c.initial,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
             const SizedBox(width: 10),
             Flexible(
-              child: Hero(
-                tag: 'cust-name-${c.id}',
-                child: Text(
-                  c.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+              child: Text(
+                c.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -140,48 +132,89 @@ class CustomerDetailPage extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-        children: [
-          // ---------- Account balance ----------
-          CardBox(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            balance.abs() < 1
-                                ? 'Settled'.tr
-                                : balance > 0
-                                ? 'Owes you'.tr
-                                : 'You owe them'.tr,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: onSurface.withValues(alpha: 0.65),
+      body: RepaintBoundary(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+          children: [
+            // ---------- Account balance ----------
+            CardBox(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    balance.abs() < 1
+                                        ? 'Settled'.tr
+                                        : balance > 0
+                                        ? 'Owes you'.tr
+                                        : 'You owe them'.tr,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: onSurface.withValues(alpha: 0.65),
+                                    ),
+                                  ),
+                                ),
+                                if (balance.abs() >= 1) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 7,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: (balance > 0
+                                              ? const Color(0xFFE11D48)
+                                              : const Color(0xFF2563EB))
+                                          .withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      balance > 0
+                                          ? 'Debtor'.tr
+                                          : 'Creditor'.tr,
+                                      style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: balance > 0
+                                            ? const Color(0xFFE11D48)
+                                            : const Color(0xFF2563EB),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          CopyMoney(value: balance.abs(), child: OdometerMoney(
-                            balance.abs(),
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700,
-                              color: balance.abs() < 1
-                                  ? onSurface.withValues(alpha: 0.5)
-                                  : balance > 0
-                                  ? const Color(0xFF0F766E)
-                                  : const Color(0xFF2563EB),
+                            const SizedBox(height: 6),
+                            CopyMoney(
+                              value: balance,
+                              child: MoneyText(
+                                balance,
+                                signed: true,
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
+                                  color: balance.abs() < 1
+                                      ? onSurface.withValues(alpha: 0.5)
+                                      : balance > 0
+                                      ? const Color(0xFFE11D48)
+                                      : const Color(0xFF2563EB),
+                                ),
+                              ),
                             ),
-                          )),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
                     if (c.phone.isNotEmpty)
                       IconButton.filledTonal(
                         tooltip: 'Call'.tr,
@@ -231,7 +264,7 @@ class CustomerDetailPage extends StatelessWidget {
                                   : 'Creditor'.tr,
                             }),
                             color: e.value >= 0
-                                ? const Color(0xFF0F766E)
+                                ? const Color(0xFFE11D48)
                                 : const Color(0xFF2563EB),
                             dense: true,
                           ),
@@ -301,20 +334,30 @@ class CustomerDetailPage extends StatelessWidget {
               IconButton.filledTonal(
                 tooltip: 'Copy summary'.tr,
                 onPressed: () {
+                  final latestSub = subs.isEmpty ? null : subs.first;
+                  final statementLines = <String>[
+                    'Account statement • {date}'.trArgs({
+                      'date': J.d(DateTime.now()),
+                    }),
+                    '{name}\nBalance: {amount} {status}\nSubscriptions: {count}'
+                        .trArgs({
+                          'name': c.name,
+                          'amount': Money.text(balance.abs()),
+                          'status': balance.abs() < 1
+                              ? 'Settled'.tr
+                              : balance > 0
+                              ? 'Debtor'.tr
+                              : 'Creditor'.tr,
+                          'count': subs.length,
+                        }),
+                    if (latestSub != null)
+                      'Latest subscription: {plan} (until {date})'.trArgs({
+                        'plan': latestSub.planName.tr,
+                        'date': J.d(latestSub.endDate),
+                      }),
+                  ];
                   Clipboard.setData(
-                    ClipboardData(
-                      text: '{name}\nBalance: {amount} {status}\nSubscriptions: {count}'
-                          .trArgs({
-                            'name': c.name,
-                            'amount': Money.text(balance.abs()),
-                            'status': balance.abs() < 1
-                                ? 'Settled'.tr
-                                : balance > 0
-                                ? 'Debtor'.tr
-                                : 'Creditor'.tr,
-                            'count': subs.length,
-                          }),
-                    ),
+                    ClipboardData(text: statementLines.join('\n')),
                   );
                   showSnack(context, 'Details copied');
                 },
@@ -515,7 +558,8 @@ class CustomerDetailPage extends StatelessWidget {
                 ],
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }

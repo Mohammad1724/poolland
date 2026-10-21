@@ -418,14 +418,14 @@ class PersonalPage extends StatelessWidget {
   Future<void> _editBudget(BuildContext context, Budget? b) async {
     await showLedgerSheet<void>(
       context,
-      builder: (_) => _BudgetSheet(initial: b),
+      builder: (_) => BudgetEditSheet(initial: b),
     );
   }
 
   Future<void> _editRecurring(BuildContext context, RecurringRule? r) async {
     await showLedgerSheet<void>(
       context,
-      builder: (_) => _RecurringSheet(initial: r),
+      builder: (_) => RecurringEditSheet(initial: r),
     );
   }
 }
@@ -707,12 +707,21 @@ class _PeriodChartCardState extends State<_PeriodChartCard> {
   @override
   Widget build(BuildContext context) {
     // The section header doubles as the collapsible card header, so the title
-    // and the six-month total are always visible while the chart opens on tap.
+    // and the period total stay always visible while the chart opens on tap.
+    // The summary adapts to the active mode so it never shows a monthly total
+    // when the daily or weekly chart is on screen.
+    final double periodProfit = switch (_mode) {
+      0 => widget.daily.fold<double>(
+        0, (s, p) => s + p.income - p.expense),
+      1 => widget.weekly.fold<double>(
+        0, (s, p) => s + p.income - p.expense),
+      _ => widget.monthly.fold<double>(0, (s, p) => s + p.profit),
+    };
     return CollapsibleCard(
       title: 'Income and expense trend',
       icon: Icons.bar_chart_rounded,
       summary: MoneyText(
-        widget.monthly.fold<double>(0, (sum, p) => sum + p.profit),
+        periodProfit,
         compact: true,
         signed: true,
         style: const TextStyle(
@@ -766,16 +775,16 @@ class _PeriodChartCardState extends State<_PeriodChartCard> {
 }
 
 /// ---------------- Budget sheet ----------------
-class _BudgetSheet extends StatefulWidget {
-  const _BudgetSheet({this.initial});
+class BudgetEditSheet extends StatefulWidget {
+  const BudgetEditSheet({super.key, this.initial});
 
   final Budget? initial;
 
   @override
-  State<_BudgetSheet> createState() => _BudgetSheetState();
+  State<BudgetEditSheet> createState() => _BudgetSheetState();
 }
 
-class _BudgetSheetState extends State<_BudgetSheet> {
+class _BudgetSheetState extends State<BudgetEditSheet> {
   final _limit = TextEditingController();
   String? _categoryId;
   bool _enabled = true;
@@ -904,16 +913,16 @@ class _BudgetSheetState extends State<_BudgetSheet> {
 }
 
 /// ---------------- Recurring rule sheet ----------------
-class _RecurringSheet extends StatefulWidget {
-  const _RecurringSheet({this.initial});
+class RecurringEditSheet extends StatefulWidget {
+  const RecurringEditSheet({super.key, this.initial});
 
   final RecurringRule? initial;
 
   @override
-  State<_RecurringSheet> createState() => _RecurringSheetState();
+  State<RecurringEditSheet> createState() => _RecurringSheetState();
 }
 
-class _RecurringSheetState extends State<_RecurringSheet> {
+class _RecurringSheetState extends State<RecurringEditSheet> {
   final _title = TextEditingController();
   final _amount = TextEditingController();
   TxnKind _kind = TxnKind.expense;

@@ -8,22 +8,26 @@ import '../core/backup.dart';
 import '../core/biometrics.dart';
 import '../core/format_utils.dart';
 import '../core/jalali_utils.dart';
+import '../core/localization.dart';
 import '../core/money.dart';
-import '../core/notifications/notify.dart';
 import '../core/notifications/notification_sound_picker.dart';
+import '../core/notifications/notify.dart';
 import '../core/platform_info.dart';
 import '../core/sms/sms_access.dart';
 import '../data/models.dart';
-import 'design.dart';
+import '../data/pdf_service.dart';
 import '../data/repository.dart';
+import 'customer_detail_page.dart';
+import 'design.dart';
 import 'forms/plan_edit_page.dart';
+import 'gesture_tour.dart';
 import 'lock/pin_setup_page.dart';
+import 'motion_kit.dart';
+import 'personal_page.dart';
 import 'sms_page.dart';
 import 'sms_rules_page.dart';
-import 'gesture_tour.dart';
+import 'theme.dart';
 import 'widgets/widgets.dart';
-
-import '../core/localization.dart';
 
 enum _NotificationSoundAction { systemDefault, phoneSound, audioFile }
 
@@ -37,11 +41,6 @@ Future<void> _syncSmsArrivalRuleHints(AppRepository repo) {
 
 /// The "Save" action of a small input dialog, disabled while the field holds
 /// nothing usable.
-///
-/// These dialogs used to keep Save enabled and then quietly discard the
-/// dialog when the field was empty: the tap did nothing, the dialog closed,
-/// and nothing was saved or said. A disabled button that only wakes up when
-/// there is something to save is the same rule the entry forms follow.
 Widget _saveWhen(
   TextEditingController controller,
   bool Function(String) valid,
@@ -54,6 +53,28 @@ Widget _saveWhen(
       child: Text('Save'.tr),
     ),
   );
+}
+
+class _SettingIconBadge extends StatelessWidget {
+  const _SettingIconBadge({required this.icon, this.color});
+
+  final IconData icon;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = color ?? Theme.of(context).colorScheme.primary;
+    return Container(
+      width: 36,
+      height: 36,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(icon, size: 19, color: c),
+    );
+  }
 }
 
 Future<void> _selectNotificationSound(
@@ -134,6 +155,9 @@ class SettingsPage extends StatelessWidget {
     final repo = context.watch<AppRepository>();
     final s = repo.settings;
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    final archivedCustomerCount = repo.customers
+        .where((c) => c.archived)
+        .length;
     final aboutText = [
       'Version {version} • Open-source software (MIT)'.trArgs({
         'version': appVersionLabel,
@@ -145,592 +169,758 @@ class SettingsPage extends StatelessWidget {
     ].join('\n');
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(title: Text('Settings'.tr)),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-        children: [
-          // ---------- Business ----------
-          const SectionTitle('Business', icon: Icons.storefront_outlined),
-          CardBox(
-            child: Column(
-              children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.badge_outlined, size: 20),
-                  title: Text(
-                    'Business name'.tr,
-                    style: TextStyle(fontSize: 13.5),
-                  ),
-                  subtitle: Text(
-                    s.businessName,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  onTap: () => _editText(
-                    context,
-                    title: 'Business name'.tr,
-                    initial: s.businessName,
-                    hint: 'e.g. Alex VPN'.tr,
-                    onSave: (v) =>
-                        repo.updateSettings(s.copyWith(businessName: v)),
-                  ),
-                ),
-                Divider(color: Theme.of(context).dividerColor),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(
-                    Icons.account_balance_wallet_outlined,
-                    size: 20,
-                  ),
-                  title: Text(
-                    'Opening cash balance'.tr,
-                    style: TextStyle(fontSize: 13.5),
-                  ),
-                  subtitle: Text(
-                    '{amount} — cash or bank balance you already had'.trArgs({
-                      'amount': Money.text(s.openingCash),
-                    }),
-                    style: const TextStyle(fontSize: 11.5),
-                  ),
-                  onTap: () => _editAmount(
-                    context,
-                    title: 'Opening cash balance'.tr,
-                    initial: s.openingCash,
-                    onSave: (v) =>
-                        repo.updateSettings(s.copyWith(openingCash: v)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ---------- Basic data ----------
-          const SectionTitle('Basic data', icon: Icons.tune_rounded),
-          CardBox(
-            child: Column(
-              children: [
-                _navTile(
-                  context,
-                  icon: Icons.local_offer_outlined,
-                  title: 'Plans'.tr,
-                  subtitle: '{count} plans'.trArgs({
-                    'count': repo.plans.length,
-                  }),
-                  page: const PlansPage(),
-                ),
-                Divider(color: Theme.of(context).dividerColor),
-                _navTile(
-                  context,
-                  icon: Icons.category_outlined,
-                  title: 'Income and expense categories'.tr,
-                  subtitle: '{count} categories (business and personal)'.trArgs(
-                    {'count': repo.categories.length},
-                  ),
-                  page: const CategoriesPage(),
-                ),
-                Divider(color: Theme.of(context).dividerColor),
-                _navTile(
-                  context,
-                  icon: Icons.currency_exchange_rounded,
-                  title: 'Currencies and exchange rates'.tr,
-                  subtitle: s.currencies
-                      .map(
-                        (c) =>
-                            '${c.code} ${Fmt.number(c.rateToBase)}',
-                      )
-                      .join(' • '),
-                  page: const RatesPage(),
-                ),
-              ],
-            ),
-          ),
-
-          // ---------- Bank SMS ----------
-          //
-          // Inbox sync and arrival alerts are separate opt-ins; users can
-          // still paste a message if they decline either SMS permission.
-          if (isAndroidPlatform) ...[
-            const SectionTitle('Bank SMS', icon: Icons.sms_rounded),
+      body: RepaintBoundary(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+          children: [
+            // ---------- Business ----------
+            const SectionTitle('Business', icon: Icons.storefront_outlined),
             CardBox(
               child: Column(
                 children: [
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.shield_outlined, size: 20),
+                    leading: const _SettingIconBadge(
+                      icon: Icons.badge_outlined,
+                      color: AppTheme.primary,
+                    ),
                     title: Text(
-                      'On-device SMS access'.tr,
-                      style: TextStyle(fontSize: 13.5),
+                      'Business name'.tr,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     subtitle: Text(
-                      'Recent bank messages are read on this device when you sync. New messages are checked only if you enable arrival alerts. Nothing is recorded until you approve it.'
-                          .tr,
-                      style: TextStyle(fontSize: 11.5),
+                      s.businessName,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    trailing: const Icon(Icons.edit_outlined, size: 18),
+                    onTap: () => _editText(
+                      context,
+                      title: 'Business name'.tr,
+                      initial: s.businessName,
+                      hint: 'e.g. Alex VPN'.tr,
+                      onSave: (v) =>
+                          repo.updateSettings(s.copyWith(businessName: v)),
                     ),
                   ),
                   Divider(color: Theme.of(context).dividerColor),
-                  _navTile(
-                    context,
-                    icon: Icons.fact_check_outlined,
-                    title: 'Review SMS'.tr,
-                    subtitle: repo.smsPendingCount > 0
-                        ? '{count} transactions awaiting review'.trArgs({
-                            'count': repo.smsPendingCount,
-                          })
-                        : 'Sync bank SMS to review transactions'.tr,
-                    page: const SmsPage(),
-                  ),
-                  Divider(color: Theme.of(context).dividerColor),
-                  _navTile(
-                    context,
-                    icon: Icons.tune_rounded,
-                    title: 'Recognition rules'.tr,
-                    subtitle:
-                        'Choose which banks and phrases a bank SMS can match.'
-                            .tr,
-                    page: const SmsRulesPage(),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const _SettingIconBadge(
+                      icon: Icons.account_balance_wallet_outlined,
+                      color: AppTheme.revenue,
+                    ),
+                    title: Text(
+                      'Opening cash balance'.tr,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '{amount} — cash or bank balance you already had'.trArgs({
+                        'amount': Money.text(s.openingCash),
+                      }),
+                      style: const TextStyle(fontSize: 11.5),
+                    ),
+                    trailing: const Icon(Icons.edit_outlined, size: 18),
+                    onTap: () => _editAmount(
+                      context,
+                      title: 'Opening cash balance'.tr,
+                      initial: s.openingCash,
+                      onSave: (v) =>
+                          repo.updateSettings(s.copyWith(openingCash: v)),
+                    ),
                   ),
                 ],
               ),
             ),
-          ],
 
-          // ---------- Daily reminder ----------
-          if (reminder.supported) ...[
-            const SectionTitle(
-              'Daily reminder',
-              icon: Icons.notifications_active_outlined,
-            ),
+            // ---------- Basic data ----------
+            const SectionTitle('Basic data', icon: Icons.tune_rounded),
             CardBox(
               child: Column(
                 children: [
-                  if (isAndroidPlatform &&
-                      s.dailyReminder &&
-                      !repo.notificationPermissionGranted) ...[
-                    _actionTile(
-                      context,
-                      icon: Icons.notification_important_outlined,
-                      title: 'Notification permission not granted'.tr,
-                      subtitle:
-                          'Notifications are switched on but Android blocks them. Tap to request again.'
-                              .tr,
-                      onTap: () async {
-                        final ok = await reminder.requestPermission();
-                        await repo.refreshNotificationPermission();
-                        if (!ok && context.mounted) {
-                          showSnack(
-                            context,
-                            'Notification permission denied. Enable it in Android settings.',
-                            error: true,
-                          );
-                        }
-                      },
-                    ),
-                    Divider(color: Theme.of(context).dividerColor),
-                  ],
-                  if (isAndroidPlatform) ...[
+                  _navTile(
+                    context,
+                    icon: Icons.local_offer_outlined,
+                    iconColor: AppTheme.primary,
+                    title: 'Plans'.tr,
+                    subtitle: '{count} plans'.trArgs({
+                      'count': repo.plans.length,
+                    }),
+                    page: const PlansPage(),
+                  ),
+                  Divider(color: Theme.of(context).dividerColor),
+                  _navTile(
+                    context,
+                    icon: Icons.category_outlined,
+                    iconColor: AppTheme.receivable,
+                    title: 'Income and expense categories'.tr,
+                    subtitle: '{count} categories (business and personal)'
+                        .trArgs({'count': repo.categories.length}),
+                    page: const CategoriesPage(),
+                  ),
+                  Divider(color: Theme.of(context).dividerColor),
+                  _navTile(
+                    context,
+                    icon: Icons.currency_exchange_rounded,
+                    iconColor: AppTheme.revenue,
+                    title: 'Currencies and exchange rates'.tr,
+                    subtitle: s.currencies
+                        .map((c) => '${c.code} ${Fmt.number(c.rateToBase)}')
+                        .join(' • '),
+                    page: const RatesPage(),
+                  ),
+                  Divider(color: Theme.of(context).dividerColor),
+                  _navTile(
+                    context,
+                    icon: Icons.pie_chart_outline_rounded,
+                    iconColor: AppTheme.warning,
+                    title: 'Monthly budgets'.tr,
+                    subtitle: '{count} monthly budgets'.trArgs({
+                      'count': repo.budgets.length,
+                    }),
+                    page: const BudgetsManagePage(),
+                  ),
+                  Divider(color: Theme.of(context).dividerColor),
+                  _navTile(
+                    context,
+                    icon: Icons.autorenew_rounded,
+                    iconColor: AppTheme.info,
+                    title: 'Recurring transactions'.tr,
+                    subtitle: '{count} recurring rules'.trArgs({
+                      'count': repo.recurringRules.length,
+                    }),
+                    page: const RecurringManagePage(),
+                  ),
+                  Divider(color: Theme.of(context).dividerColor),
+                  _navTile(
+                    context,
+                    icon: Icons.inventory_2_outlined,
+                    iconColor: onSurface.withValues(alpha: 0.7),
+                    title: 'Archived customers'.tr,
+                    subtitle: '{count} archived customers'.trArgs({
+                      'count': archivedCustomerCount,
+                    }),
+                    page: const ArchivedCustomersPage(),
+                  ),
+                ],
+              ),
+            ),
+
+            // ---------- Bank SMS ----------
+            if (isAndroidPlatform) ...[
+              const SectionTitle('Bank SMS', icon: Icons.sms_rounded),
+              CardBox(
+                child: Column(
+                  children: [
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.music_note_outlined, size: 20),
+                      leading: const _SettingIconBadge(
+                        icon: Icons.shield_outlined,
+                        color: AppTheme.revenue,
+                      ),
                       title: Text(
-                        'Notification sound'.tr,
-                        style: const TextStyle(fontSize: 13.5),
+                        'On-device SMS access'.tr,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       subtitle: Text(
-                        s.notificationSoundName ?? 'System default'.tr,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        'Recent bank messages are read on this device when you sync. New messages are checked only if you enable arrival alerts. Nothing is recorded until you approve it.'
+                            .tr,
                         style: const TextStyle(fontSize: 11.5),
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            tooltip: 'Test notification sound'.tr,
-                            onPressed: () => _testNotificationSound(context, s),
-                            icon: const Icon(Icons.play_arrow_rounded),
-                          ),
-                          PopupMenuButton<_NotificationSoundAction>(
-                            tooltip: 'Choose notification sound'.tr,
-                            onSelected: (action) => _selectNotificationSound(
-                              context,
-                              repo,
-                              s,
-                              action,
-                            ),
-                            itemBuilder: (context) => [
-                              PopupMenuItem(
-                                value: _NotificationSoundAction.systemDefault,
-                                child: Text('System default'.tr),
-                              ),
-                              PopupMenuItem(
-                                value: _NotificationSoundAction.phoneSound,
-                                child: Text('Choose a phone sound'.tr),
-                              ),
-                              PopupMenuItem(
-                                value: _NotificationSoundAction.audioFile,
-                                child: Text('Choose an audio file'.tr),
-                              ),
-                            ],
-                          ),
-                        ],
                       ),
                     ),
                     Divider(color: Theme.of(context).dividerColor),
+                    _navTile(
+                      context,
+                      icon: Icons.fact_check_outlined,
+                      iconColor: AppTheme.primary,
+                      title: 'Review SMS'.tr,
+                      subtitle: repo.smsPendingCount > 0
+                          ? '{count} transactions awaiting review'.trArgs({
+                              'count': repo.smsPendingCount,
+                            })
+                          : 'Sync bank SMS to review transactions'.tr,
+                      page: const SmsPage(),
+                    ),
+                    Divider(color: Theme.of(context).dividerColor),
+                    _navTile(
+                      context,
+                      icon: Icons.tune_rounded,
+                      iconColor: AppTheme.info,
+                      title: 'Recognition rules'.tr,
+                      subtitle:
+                          'Choose which banks and phrases a bank SMS can match.'
+                              .tr,
+                      page: const SmsRulesPage(),
+                    ),
                   ],
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: s.dailyReminder,
-                    title: Text(
-                      'Expense reminder'.tr,
-                      style: TextStyle(fontSize: 13.5),
-                    ),
-                    subtitle: Text(
-                      'Reminds you every day at the selected time to record your expenses and income'
-                          .tr,
-                      style: TextStyle(fontSize: 11.5),
-                    ),
-                    onChanged: (v) async {
-                      if (v) {
-                        final ok = await reminder.requestPermission();
-                        if (!ok) {
-                          if (context.mounted) {
+                ),
+              ),
+            ],
+
+            // ---------- Daily reminder ----------
+            if (reminder.supported) ...[
+              const SectionTitle(
+                'Daily reminder',
+                icon: Icons.notifications_active_outlined,
+              ),
+              CardBox(
+                child: Column(
+                  children: [
+                    if (isAndroidPlatform &&
+                        s.dailyReminder &&
+                        !repo.notificationPermissionGranted) ...[
+                      _actionTile(
+                        context,
+                        icon: Icons.notification_important_outlined,
+                        iconColor: AppTheme.warning,
+                        title: 'Notification permission not granted'.tr,
+                        subtitle:
+                            'Notifications are switched on but Android blocks them. Tap to request again.'
+                                .tr,
+                        onTap: () async {
+                          final ok = await reminder.requestPermission();
+                          await repo.refreshNotificationPermission();
+                          if (!ok && context.mounted) {
                             showSnack(
                               context,
                               'Notification permission denied. Enable it in Android settings.',
                               error: true,
                             );
                           }
-                          return;
-                        }
-                      }
-                      await repo.updateSettings(s.copyWith(dailyReminder: v));
-                    },
-                  ),
-                  if (s.dailyReminder) ...[
-                    Divider(color: Theme.of(context).dividerColor),
-                    ListTile(
+                        },
+                      ),
+                      Divider(color: Theme.of(context).dividerColor),
+                    ],
+                    if (isAndroidPlatform) ...[
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const _SettingIconBadge(
+                          icon: Icons.music_note_outlined,
+                          color: AppTheme.primary,
+                        ),
+                        title: Text(
+                          'Notification sound'.tr,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Text(
+                          s.notificationSoundName ?? 'System default'.tr,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11.5),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: 'Test notification sound'.tr,
+                              onPressed: () =>
+                                  _testNotificationSound(context, s),
+                              icon: const Icon(Icons.play_arrow_rounded),
+                            ),
+                            PopupMenuButton<_NotificationSoundAction>(
+                              tooltip: 'Choose notification sound'.tr,
+                              onSelected: (action) => _selectNotificationSound(
+                                context,
+                                repo,
+                                s,
+                                action,
+                              ),
+                              itemBuilder: (context) => [
+                                PopupMenuItem(
+                                  value: _NotificationSoundAction.systemDefault,
+                                  child: Text('System default'.tr),
+                                ),
+                                PopupMenuItem(
+                                  value: _NotificationSoundAction.phoneSound,
+                                  child: Text('Choose a phone sound'.tr),
+                                ),
+                                PopupMenuItem(
+                                  value: _NotificationSoundAction.audioFile,
+                                  child: Text('Choose an audio file'.tr),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      Divider(color: Theme.of(context).dividerColor),
+                    ],
+                    SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.schedule_rounded, size: 20),
+                      value: s.dailyReminder,
+                      secondary: const _SettingIconBadge(
+                        icon: Icons.alarm_rounded,
+                        color: AppTheme.warning,
+                      ),
                       title: Text(
-                        'Reminder time'.tr,
-                        style: TextStyle(fontSize: 13.5),
+                        'Expense reminder'.tr,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       subtitle: Text(
-                        '${s.reminderHour.toString().padLeft(2, '0')}:${s.reminderMinute.toString().padLeft(2, '0')}',
-                        style: const TextStyle(fontSize: 12),
+                        'Reminds you every day at the selected time to record your expenses and income'
+                            .tr,
+                        style: const TextStyle(fontSize: 11.5),
                       ),
-                      onTap: () async {
-                        final t = await showTimePicker(
-                          context: context,
-                          initialTime: TimeOfDay(
-                            hour: s.reminderHour,
-                            minute: s.reminderMinute,
-                          ),
-                        );
-                        if (t == null || !context.mounted) return;
-                        await repo.updateSettings(
-                          s.copyWith(
-                            reminderHour: t.hour,
-                            reminderMinute: t.minute,
-                          ),
-                        );
-                      },
-                    ),
-                    Divider(color: Theme.of(context).dividerColor),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.send_rounded, size: 20),
-                      title: Text(
-                        'Send test notification'.tr,
-                        style: TextStyle(fontSize: 13.5),
-                      ),
-                      subtitle: Text(
-                        'Check that notifications are displayed'.tr,
-                        style: TextStyle(fontSize: 11.5),
-                      ),
-                      onTap: () async {
-                        try {
-                          await reminder.showNow(
-                            title: 'Poolland reminder test'.tr,
-                            body: 'If you can see this message, notifications are working ✓',
-                            soundUri: s.notificationSoundUri,
-                            soundName: s.notificationSoundName,
-                          );
-                        } catch (_) {
-                          if (context.mounted) {
-                            showSnack(
-                              context,
-                              'Could not send notification',
-                              error: true,
-                            );
+                      onChanged: (v) async {
+                        if (v) {
+                          final ok = await reminder.requestPermission();
+                          if (!ok) {
+                            if (context.mounted) {
+                              showSnack(
+                                context,
+                                'Notification permission denied. Enable it in Android settings.',
+                                error: true,
+                              );
+                            }
+                            return;
                           }
                         }
+                        await repo.updateSettings(s.copyWith(dailyReminder: v));
                       },
+                    ),
+                    if (s.dailyReminder) ...[
+                      Divider(color: Theme.of(context).dividerColor),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const _SettingIconBadge(
+                          icon: Icons.schedule_rounded,
+                          color: AppTheme.info,
+                        ),
+                        title: Text(
+                          'Reminder time'.tr,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${s.reminderHour.toString().padLeft(2, '0')}:${s.reminderMinute.toString().padLeft(2, '0')}',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        onTap: () async {
+                          final t = await showTimePicker(
+                            context: context,
+                            initialTime: TimeOfDay(
+                              hour: s.reminderHour,
+                              minute: s.reminderMinute,
+                            ),
+                          );
+                          if (t == null || !context.mounted) return;
+                          await repo.updateSettings(
+                            s.copyWith(
+                              reminderHour: t.hour,
+                              reminderMinute: t.minute,
+                            ),
+                          );
+                        },
+                      ),
+                      Divider(color: Theme.of(context).dividerColor),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const _SettingIconBadge(
+                          icon: Icons.send_rounded,
+                          color: AppTheme.revenue,
+                        ),
+                        title: Text(
+                          'Send test notification'.tr,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Check that notifications are displayed'.tr,
+                          style: const TextStyle(fontSize: 11.5),
+                        ),
+                        onTap: () async {
+                          try {
+                            await reminder.showNow(
+                              title: 'Poolland reminder test'.tr,
+                              body:
+                                  'If you can see this message, notifications are working ✓',
+                              soundUri: s.notificationSoundUri,
+                              soundName: s.notificationSoundName,
+                            );
+                          } catch (_) {
+                            if (context.mounted) {
+                              showSnack(
+                                context,
+                                'Could not send notification',
+                                error: true,
+                              );
+                            }
+                          }
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+
+            // ---------- Display ----------
+            const SectionTitle('Display', icon: Icons.palette_outlined),
+            CardBox(
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    secondary: const _SettingIconBadge(
+                      icon: Icons.onetwothree_rounded,
+                      color: AppTheme.primary,
+                    ),
+                    value: s.persianDigits,
+                    onChanged: (v) =>
+                        repo.updateSettings(s.copyWith(persianDigits: v)),
+                    title: Text(
+                      'Use Persian digits'.tr,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Divider(color: Theme.of(context).dividerColor),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const _SettingIconBadge(
+                      icon: Icons.notifications_active_outlined,
+                      color: AppTheme.warning,
+                    ),
+                    title: Text(
+                      'Expiry reminders'.tr,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '{days} days before expiry'.trArgs({
+                        'days': s.reminderDays,
+                      }),
+                      style: const TextStyle(fontSize: 11.5),
+                    ),
+                    trailing: const Icon(Icons.edit_outlined, size: 18),
+                    onTap: () => _editInt(
+                      context,
+                      title:
+                          'How many days before expiry should we remind you?'
+                              .tr,
+                      initial: s.reminderDays,
+                      onSave: (v) =>
+                          repo.updateSettings(s.copyWith(reminderDays: v)),
+                    ),
+                  ),
+                  Divider(color: Theme.of(context).dividerColor),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Language'.tr,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(value: 'fa', label: Text('فارسی')),
+                              ButtonSegment(
+                                value: 'en',
+                                label: Text('English'),
+                              ),
+                            ],
+                            selected: {s.languageCode},
+                            onSelectionChanged: (v) => repo.updateSettings(
+                              s.copyWith(languageCode: v.first),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Appearance'.tr,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: SegmentedButton<String>(
+                            segments: [
+                              ButtonSegment(
+                                value: 'system',
+                                label: Text('System'.tr),
+                              ),
+                              ButtonSegment(
+                                value: 'light',
+                                label: Text('Light'.tr),
+                              ),
+                              ButtonSegment(
+                                value: 'dark',
+                                label: Text('Dark'.tr),
+                              ),
+                            ],
+                            selected: {s.themeMode},
+                            onSelectionChanged: (v) => repo.updateSettings(
+                              s.copyWith(themeMode: v.first),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ---------- Gesture guide ----------
+            const SizedBox(height: 8),
+            CardBox(
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const _SettingIconBadge(
+                  icon: Icons.touch_app_outlined,
+                  color: AppTheme.info,
+                ),
+                title: Text(
+                  'Gesture guide'.tr,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(
+                  'See every swipe, hold and drag again'.tr,
+                  style: const TextStyle(fontSize: 11.5),
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded, size: 18),
+                onTap: () => showGestureTour(context),
+              ),
+            ),
+
+            // ---------- Security ----------
+            const SectionTitle('Security', icon: Icons.lock_outline_rounded),
+            CardBox(
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: repo.hasAppLock,
+                    onChanged: (wantLock) =>
+                        _toggleAppLock(context, wantLock: wantLock),
+                    secondary: const _SettingIconBadge(
+                      icon: Icons.pin_outlined,
+                      color: AppTheme.primary,
+                    ),
+                    title: Text(
+                      'App lock (PIN)'.tr,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      (repo.hasAppLock
+                              ? 'Ask for a PIN when the app opens'
+                              : 'Your bank SMS and customer debts are readable by anyone holding the phone')
+                          .tr,
+                      style: const TextStyle(fontSize: 11.5),
+                    ),
+                  ),
+                  if (repo.hasAppLock) ...[
+                    Divider(color: Theme.of(context).dividerColor),
+                    const _BiometricUnlockTile(),
+                    _actionTile(
+                      context,
+                      icon: Icons.password_rounded,
+                      iconColor: AppTheme.warning,
+                      title: 'Change PIN'.tr,
+                      subtitle: 'Enter the current PIN, then pick a new one',
+                      onTap: () => _runPinSetup(
+                        context,
+                        PinSetupMode.change,
+                        'PIN changed',
+                      ),
                     ),
                   ],
                 ],
               ),
             ),
-          ],
 
-          // ---------- Display ----------
-          const SectionTitle('Display', icon: Icons.palette_outlined),
-          CardBox(
-            child: Column(
-              children: [
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: s.persianDigits,
-                  onChanged: (v) =>
-                      repo.updateSettings(s.copyWith(persianDigits: v)),
-                  title: Text(
-                    'Use Persian digits'.tr,
-                    style: TextStyle(fontSize: 13.5),
-                  ),
-                ),
-                Divider(color: Theme.of(context).dividerColor),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(
-                    Icons.notifications_active_outlined,
-                    size: 20,
-                  ),
-                  title: Text(
-                    'Expiry reminders'.tr,
-                    style: TextStyle(fontSize: 13.5),
-                  ),
-                  subtitle: Text(
-                    '{days} days before expiry'.trArgs({
-                      'days': s.reminderDays,
-                    }),
-                    style: const TextStyle(fontSize: 11.5),
-                  ),
-                  onTap: () => _editInt(
+            // ---------- Backups ----------
+            const SectionTitle(
+              'Backup and data',
+              icon: Icons.cloud_sync_outlined,
+            ),
+            CardBox(
+              child: Column(
+                children: [
+                  _DataSummaryRow(repo: repo),
+                  const SizedBox(height: 10),
+                  Divider(color: Theme.of(context).dividerColor),
+                  _actionTile(
                     context,
-                    title:
-                        'How many days before expiry should we remind you?'.tr,
-                    initial: s.reminderDays,
-                    onSave: (v) =>
-                        repo.updateSettings(s.copyWith(reminderDays: v)),
+                    icon: Icons.share_rounded,
+                    iconColor: AppTheme.primary,
+                    title: 'Share backup'.tr,
+                    subtitle:
+                        'Export JSON to a messaging app or save it on your phone',
+                    onTap: () => _backup(context, repo, share: true),
                   ),
-                ),
-                Divider(color: Theme.of(context).dividerColor),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Divider(color: Theme.of(context).dividerColor),
+                  _actionTile(
+                    context,
+                    icon: Icons.download_rounded,
+                    iconColor: AppTheme.revenue,
+                    title: 'Save backup to device'.tr,
+                    subtitle: 'Choose where to save the JSON file',
+                    onTap: () => _backup(context, repo, share: false),
+                  ),
+                  Divider(color: Theme.of(context).dividerColor),
+                  _actionTile(
+                    context,
+                    icon: Icons.picture_as_pdf_outlined,
+                    iconColor: AppTheme.expense,
+                    title: 'Export full PDF report'.tr,
+                    subtitle:
+                        'Generate and share a complete PDF summary of your ledger',
+                    onTap: () => _exportFullPdf(context, repo),
+                  ),
+                  Divider(color: Theme.of(context).dividerColor),
+                  _actionTile(
+                    context,
+                    icon: Icons.restore_rounded,
+                    iconColor: AppTheme.warning,
+                    title: 'Restore from backup'.tr,
+                    subtitle:
+                        'All current data will be replaced with the selected file',
+                    onTap: () => _restore(context, repo),
+                  ),
+                ],
+              ),
+            ),
+
+            // ---------- Data actions (second card of Backup and data) ----------
+            const SizedBox(height: 8),
+            CardBox(
+              child: Column(
+                children: [
+                  _actionTile(
+                    context,
+                    icon: Icons.auto_awesome_outlined,
+                    iconColor: AppTheme.info,
+                    title: 'Load sample data'.tr,
+                    subtitle:
+                        'For a quick app demo (current data will be erased)',
+                    onTap: () async {
+                      final ok = await confirmDialog(
+                        context,
+                        title: 'Sample data'.tr,
+                        message:
+                            'Current data will be erased and replaced with sample data. Continue?'
+                                .tr,
+                        okLabel: 'Continue'.tr,
+                      );
+                      if (!ok) return;
+                      await repo.loadDemoData();
+                      await _syncSmsArrivalRuleHints(repo);
+                      if (context.mounted) {
+                        showSnack(context, 'Sample data loaded'.tr);
+                      }
+                    },
+                  ),
+                  Divider(color: Theme.of(context).dividerColor),
+                  _actionTile(
+                    context,
+                    icon: Icons.delete_forever_outlined,
+                    title: 'Erase all data'.tr,
+                    subtitle: 'Reset the app (cannot be undone)',
+                    danger: true,
+                    onTap: () async {
+                      final ok = await confirmDialog(
+                        context,
+                        title: 'Erase all data'.tr,
+                        message:
+                            'All customers, subscriptions, and transactions will be deleted. Back up your data first.'
+                                .tr,
+                        okLabel: 'Clear',
+                        danger: true,
+                      );
+                      if (!ok) return;
+                      await smsAccess.setArrivalNotificationsEnabled(false);
+                      await repo.wipeAll();
+                      await _syncSmsArrivalRuleHints(repo);
+                      if (context.mounted) {
+                        showSnack(context, 'All data erased');
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+
+            // ---------- About ----------
+            const SectionTitle('About', icon: Icons.info_outline_rounded),
+            CardBox(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Text(
-                        'Language'.tr,
-                        style: const TextStyle(fontSize: 13.5),
+                      const _SettingIconBadge(
+                        icon: Icons.account_balance_rounded,
+                        color: AppTheme.primary,
                       ),
-                      const SizedBox(height: 8),
-                      SegmentedButton<String>(
-                        segments: [
-                          ButtonSegment(value: 'fa', label: Text('فارسی')),
-                          ButtonSegment(value: 'en', label: Text('English')),
-                        ],
-                        selected: {s.languageCode},
-                        onSelectionChanged: (v) => repo.updateSettings(
-                          s.copyWith(languageCode: v.first),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Poolland Ledger'.tr,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Appearance'.tr,
-                        style: const TextStyle(fontSize: 13.5),
-                      ),
-                      const SizedBox(height: 8),
-                      SegmentedButton<String>(
-                        segments: [
-                          ButtonSegment(
-                            value: 'system',
-                            label: Text('System'.tr),
-                          ),
-                          ButtonSegment(
-                            value: 'light',
-                            label: Text('Light'.tr),
-                          ),
-                          ButtonSegment(value: 'dark', label: Text('Dark'.tr)),
-                        ],
-                        selected: {s.themeMode},
-                        onSelectionChanged: (v) =>
-                            repo.updateSettings(s.copyWith(themeMode: v.first)),
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
-          ),
-
-          // ---------- Security ----------
-          CardBox(
-            child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.touch_app_outlined, size: 20),
-              title: Text(
-                'Gesture guide'.tr,
-                style: const TextStyle(fontSize: 13.5),
-              ),
-              subtitle: Text(
-                'See every swipe, hold and drag again'.tr,
-                style: const TextStyle(fontSize: 11.5),
-              ),
-              onTap: () => showGestureTour(context),
-            ),
-          ),
-          const SectionTitle('Security', icon: Icons.lock_outline_rounded),
-          CardBox(
-            child: Column(
-              children: [
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: repo.hasAppLock,
-                  onChanged: (wantLock) =>
-                      _toggleAppLock(context, wantLock: wantLock),
-                  secondary: const Icon(Icons.pin_outlined, size: 20),
-                  title: Text(
-                    'App lock (PIN)'.tr,
-                    style: const TextStyle(fontSize: 13.5),
-                  ),
-                  subtitle: Text(
-                    (repo.hasAppLock
-                            ? 'Ask for a PIN when the app opens'
-                            : 'Your bank SMS and customer debts are readable by anyone holding the phone')
-                        .tr,
-                    style: const TextStyle(fontSize: 11.5),
-                  ),
-                ),
-                if (repo.hasAppLock) ...[
-                  Divider(color: Theme.of(context).dividerColor),
-                  const _BiometricUnlockTile(),
-                  _actionTile(
-                    context,
-                    icon: Icons.password_rounded,
-                    title: 'Change PIN'.tr,
-                    subtitle: 'Enter the current PIN, then pick a new one',
-                    onTap: () => _runPinSetup(
-                      context,
-                      PinSetupMode.change,
-                      'PIN changed',
+                  const SizedBox(height: 8),
+                  Text(
+                    aboutText,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      height: 1.9,
+                      color: onSurface.withValues(alpha: 0.65),
                     ),
                   ),
                 ],
-              ],
+              ),
             ),
-          ),
-
-          // ---------- Backups ----------
-          const SectionTitle('Backup and data', icon: Icons.cloud_sync_outlined),
-          CardBox(
-            child: Column(
-              children: [
-                _actionTile(
-                  context,
-                  icon: Icons.share_rounded,
-                  title: 'Share backup'.tr,
-                  subtitle:
-                      'Export JSON to a messaging app or save it on your phone',
-                  onTap: () => _backup(context, repo, share: true),
-                ),
-                Divider(color: Theme.of(context).dividerColor),
-                _actionTile(
-                  context,
-                  icon: Icons.download_rounded,
-                  title: 'Save backup to device'.tr,
-                  subtitle: 'Choose where to save the JSON file',
-                  onTap: () => _backup(context, repo, share: false),
-                ),
-                Divider(color: Theme.of(context).dividerColor),
-                _actionTile(
-                  context,
-                  icon: Icons.restore_rounded,
-                  title: 'Restore from backup'.tr,
-                  subtitle: 'All current data will be replaced with the selected file',
-                  onTap: () => _restore(context, repo),
-                ),
-              ],
-            ),
-          ),
-
-          // ---------- Data actions (second card of Backup and data) ----------
-          const SizedBox(height: 8),
-          CardBox(
-            child: Column(
-              children: [
-                _actionTile(
-                  context,
-                  icon: Icons.auto_awesome_outlined,
-                  title: 'Load sample data'.tr,
-                  subtitle:
-                      'For a quick app demo (current data will be erased)',
-                  onTap: () async {
-                    final ok = await confirmDialog(
-                      context,
-                      title: 'Sample data'.tr,
-                      message: 'Current data will be erased and replaced with sample data. Continue?'
-                          .tr,
-                      okLabel: 'Continue'.tr,
-                    );
-                    if (!ok) return;
-                    await repo.loadDemoData();
-                    await _syncSmsArrivalRuleHints(repo);
-                    if (context.mounted) {
-                      showSnack(context, 'Sample data loaded'.tr);
-                    }
-                  },
-                ),
-                Divider(color: Theme.of(context).dividerColor),
-                _actionTile(
-                  context,
-                  icon: Icons.delete_forever_outlined,
-                  title: 'Erase all data'.tr,
-                  subtitle: 'Reset the app (cannot be undone)',
-                  danger: true,
-                  onTap: () async {
-                    final ok = await confirmDialog(
-                      context,
-                      title: 'Erase all data'.tr,
-                      message: 'All customers, subscriptions, and transactions will be deleted. Back up your data first.'
-                          .tr,
-                      okLabel: 'Clear',
-                      danger: true,
-                    );
-                    if (!ok) return;
-                    await smsAccess.setArrivalNotificationsEnabled(false);
-                    await repo.wipeAll();
-                    await _syncSmsArrivalRuleHints(repo);
-                    if (context.mounted) showSnack(context, 'All data erased');
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          // ---------- About ----------
-          const SectionTitle('About', icon: Icons.info_outline_rounded),
-          CardBox(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Poolland Ledger'.tr,
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  aboutText,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    height: 1.9,
-                    color: onSurface.withValues(alpha: 0.65),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
@@ -738,13 +928,17 @@ class SettingsPage extends StatelessWidget {
   Widget _navTile(
     BuildContext context, {
     required IconData icon,
+    Color? iconColor,
     required String title,
     required String subtitle,
     required Widget page,
   }) => ListTile(
     contentPadding: EdgeInsets.zero,
-    leading: Icon(icon, size: 20),
-    title: Text(title.tr, style: const TextStyle(fontSize: 13.5)),
+    leading: _SettingIconBadge(icon: icon, color: iconColor),
+    title: Text(
+      title.tr,
+      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+    ),
     subtitle: Text(
       subtitle.tr,
       maxLines: 2,
@@ -784,27 +978,28 @@ class SettingsPage extends StatelessWidget {
   Widget _actionTile(
     BuildContext context, {
     required IconData icon,
+    Color? iconColor,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
     bool danger = false,
-  }) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    onTap: onTap,
-    leading: Icon(
-      icon,
-      size: 20,
-      color: danger ? const Color(0xFFE11D48) : null,
-    ),
-    title: Text(
-      title.tr,
-      style: TextStyle(
-        fontSize: 13.5,
-        color: danger ? const Color(0xFFE11D48) : null,
+  }) {
+    final color = danger ? const Color(0xFFE11D48) : iconColor;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      onTap: onTap,
+      leading: _SettingIconBadge(icon: icon, color: color),
+      title: Text(
+        title.tr,
+        style: TextStyle(
+          fontSize: 13.5,
+          fontWeight: FontWeight.w600,
+          color: danger ? const Color(0xFFE11D48) : null,
+        ),
       ),
-    ),
-    subtitle: Text(subtitle.tr, style: const TextStyle(fontSize: 11.5)),
-  );
+      subtitle: Text(subtitle.tr, style: const TextStyle(fontSize: 11.5)),
+    );
+  }
 
   Future<void> _editText(
     BuildContext context, {
@@ -813,28 +1008,10 @@ class SettingsPage extends StatelessWidget {
     required Future<void> Function(String) onSave,
     String? hint,
   }) async {
-    final ctrl = TextEditingController(text: initial);
     final res = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title.tr),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          decoration: InputDecoration(hintText: hint?.tr),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel'.tr),
-          ),
-          _saveWhen(
-            ctrl,
-            (v) => v.trim().isNotEmpty,
-            () => Navigator.pop(ctx, ctrl.text.trim()),
-          ),
-        ],
-      ),
+      builder: (_) =>
+          _TextPromptDialog(title: title, initial: initial, hint: hint),
     );
     if (res != null && res.isNotEmpty) await onSave(res);
   }
@@ -845,31 +1022,9 @@ class SettingsPage extends StatelessWidget {
     required double initial,
     required Future<void> Function(double) onSave,
   }) async {
-    final ctrl = TextEditingController(text: groupedNumber(initial));
     final res = await showDialog<double>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title.tr),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(suffixText: 'Toman'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel'.tr),
-          ),
-          // A zero opening balance is a real value (start from nothing), so
-          // only an empty field is refused here.
-          _saveWhen(
-            ctrl,
-            (v) => v.trim().isNotEmpty,
-            () => Navigator.pop(ctx, parseAmount(ctrl.text)),
-          ),
-        ],
-      ),
+      builder: (_) => _AmountPromptDialog(title: title, initial: initial),
     );
     if (res != null) await onSave(res);
   }
@@ -880,34 +1035,40 @@ class SettingsPage extends StatelessWidget {
     required int initial,
     required Future<void> Function(int) onSave,
   }) async {
-    final ctrl = TextEditingController(text: '$initial');
     final res = await showDialog<int>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title.tr),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(suffixText: 'day'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel'.tr),
-          ),
-          _saveWhen(
-            ctrl,
-            (v) => v.trim().isNotEmpty,
-            () => Navigator.pop(
-              ctx,
-              parseAmount(ctrl.text).toInt().clamp(0, 60),
-            ),
-          ),
-        ],
-      ),
+      builder: (_) => _IntPromptDialog(title: title, initial: initial),
     );
     if (res != null) await onSave(res);
+  }
+
+  Future<void> _exportFullPdf(BuildContext context, AppRepository repo) async {
+    try {
+      final now = DateTime.now();
+      DateTime from = DateTime(now.year - 1, now.month, now.day);
+      if (repo.transactions.isNotEmpty) {
+        for (final t in repo.transactions) {
+          if (t.date.isBefore(from)) from = t.date;
+        }
+      }
+      final bytes = await PdfService.buildReport(
+        repo: repo,
+        from: from,
+        to: now,
+      );
+      await Backup.shareBytes(
+        fileName: 'poolland-report-${J.d(now, persian: false).replaceAll('/', '-')}.pdf',
+        bytes: bytes,
+        mimeType: 'application/pdf',
+      );
+      if (context.mounted) {
+        showSnack(context, 'PDF report created');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        showSnack(context, '$e', error: true);
+      }
+    }
   }
 
   Future<void> _backup(
@@ -915,8 +1076,9 @@ class SettingsPage extends StatelessWidget {
     AppRepository repo, {
     required bool share,
   }) async {
-    final content = const JsonEncoder.withIndent('  ')
-        .convert(repo.exportData());
+    final content = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(repo.exportData());
     final name =
         'poolland-backup-${J.d(DateTime.now(), persian: false).replaceAll('/', '-')}.json';
     final ok = share
@@ -939,19 +1101,16 @@ class SettingsPage extends StatelessWidget {
       final ok = await confirmDialog(
         context,
         title: 'Restore backup'.tr,
-        message: 'All current data will be replaced with the contents of this file. Continue?'
-            .tr,
+        message:
+            'All current data will be replaced with the contents of this file. Continue?'
+                .tr,
         okLabel: 'Restore',
       );
       if (!ok) return;
       await repo.importData(data);
       await _syncSmsArrivalRuleHints(repo);
-      // A backup restored onto a phone that never granted the permissions
-      // must not pretend notifications work: ask for what the restored
-      // settings now require, and refresh the displayed state either way.
       await repo.refreshNotificationPermission();
-      if (repo.settings.dailyReminder &&
-          !repo.notificationPermissionGranted) {
+      if (repo.settings.dailyReminder && !repo.notificationPermissionGranted) {
         await reminder.requestPermission();
         await repo.refreshNotificationPermission();
       }
@@ -961,14 +1120,225 @@ class SettingsPage extends StatelessWidget {
         showSnack(
           context,
           'Invalid file: {error}'.trArgs({
-            // The store throws localized-key FormatExceptions; anything
-            // else is shown as-is for support.
             'error': e is FormatException ? e.message.tr : '$e',
           }),
           error: true,
         );
       }
     }
+  }
+}
+
+class _DataSummaryRow extends StatelessWidget {
+  const _DataSummaryRow({required this.repo});
+
+  final AppRepository repo;
+
+  @override
+  Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    Widget pill(String label, int count, Color color) => Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              Fmt.number(count),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label.tr,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+                color: onSurface.withValues(alpha: 0.65),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return Row(
+      children: [
+        pill('Customers', repo.customers.length, AppTheme.primary),
+        const SizedBox(width: 6),
+        pill('Subscriptions', repo.subscriptions.length, AppTheme.revenue),
+        const SizedBox(width: 6),
+        pill('Transactions', repo.transactions.length, AppTheme.info),
+        const SizedBox(width: 6),
+        pill('Categories', repo.categories.length, AppTheme.receivable),
+      ],
+    );
+  }
+}
+
+/// ---------- Prompt dialogs with proper controller disposal ----------
+class _TextPromptDialog extends StatefulWidget {
+  const _TextPromptDialog({
+    required this.title,
+    required this.initial,
+    this.hint,
+  });
+
+  final String title;
+  final String initial;
+  final String? hint;
+
+  @override
+  State<_TextPromptDialog> createState() => _TextPromptDialogState();
+}
+
+class _TextPromptDialogState extends State<_TextPromptDialog> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.initial);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title.tr),
+      content: TextField(
+        controller: _ctrl,
+        decoration: InputDecoration(hintText: widget.hint?.tr),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Cancel'.tr),
+        ),
+        _saveWhen(
+          _ctrl,
+          (v) => v.trim().isNotEmpty,
+          () => Navigator.pop(context, _ctrl.text.trim()),
+        ),
+      ],
+    );
+  }
+}
+
+class _AmountPromptDialog extends StatefulWidget {
+  const _AmountPromptDialog({required this.title, required this.initial});
+
+  final String title;
+  final double initial;
+
+  @override
+  State<_AmountPromptDialog> createState() => _AmountPromptDialogState();
+}
+
+class _AmountPromptDialogState extends State<_AmountPromptDialog> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: groupedNumber(widget.initial));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title.tr),
+      content: TextField(
+        controller: _ctrl,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(suffixText: 'Toman'.tr),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Cancel'.tr),
+        ),
+        _saveWhen(
+          _ctrl,
+          (v) => v.trim().isNotEmpty,
+          () => Navigator.pop(context, parseAmount(_ctrl.text)),
+        ),
+      ],
+    );
+  }
+}
+
+class _IntPromptDialog extends StatefulWidget {
+  const _IntPromptDialog({required this.title, required this.initial});
+
+  final String title;
+  final int initial;
+
+  @override
+  State<_IntPromptDialog> createState() => _IntPromptDialogState();
+}
+
+class _IntPromptDialogState extends State<_IntPromptDialog> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: '${widget.initial}');
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title.tr),
+      content: TextField(
+        controller: _ctrl,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(suffixText: 'day'.tr),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Cancel'.tr),
+        ),
+        _saveWhen(
+          _ctrl,
+          (v) => v.trim().isNotEmpty,
+          () => Navigator.pop(
+            context,
+            parseAmount(_ctrl.text).toInt().clamp(0, 60),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -981,110 +1351,120 @@ class RatesPage extends StatelessWidget {
     final repo = context.watch<AppRepository>();
     final s = repo.settings;
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(title: Text('Currencies and exchange rates'.tr)),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addCurrency(context, repo),
         icon: const Icon(Icons.add_rounded),
         label: Text('Add currency'.tr),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
-        children: [
-          CardBox(
-            child: Row(
-              children: [
-                const Icon(Icons.info_outline_rounded, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'The base currency is Toman. Enter each currency’s rate in Toman to convert reports automatically.'
-                        .tr,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      height: 1.8,
-                      color: Theme.of(context).colorScheme.onSurface
-                          .withValues(alpha: 0.7),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          for (final c in s.currencies) ...[
+      body: RepaintBoundary(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
+          children: [
             CardBox(
-              onTap: c.code == s.baseCurrency
-                  ? null
-                  : () => _editRate(context, repo, c),
               child: Row(
                 children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary
-                          .withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  const Icon(Icons.info_outline_rounded, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
                     child: Text(
-                      c.symbol,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                      'The base currency is Toman. Enter each currency’s rate in Toman to convert reports automatically.'
+                          .tr,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        height: 1.8,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${c.name.tr} (${c.code})',
-                          style: const TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          c.code == s.baseCurrency
-                              ? 'Base currency'.tr
-                              : '1 ${c.name.tr} = ${Money.text(c.rateToBase)}',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            color: Theme.of(context).colorScheme.onSurface
-                                .withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (c.code != s.baseCurrency)
-                    IconButton(
-                      tooltip: 'Delete'.tr,
-                      icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                      onPressed: () async {
-                        final ok = await confirmDialog(
-                          context,
-                          title: 'Remove currency'.tr,
-                          message: 'Remove {currency}? Existing transactions will not be deleted.'
-                              .trArgs({'currency': c.name.tr}),
-                          okLabel: 'Delete'.tr,
-                          danger: true,
-                        );
-                        if (ok) await repo.removeCurrency(c.code);
-                      },
-                    )
-                  else
-                    const Icon(Icons.lock_outline_rounded, size: 18),
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
+            for (final c in s.currencies) ...[
+              CardBox(
+                onTap: c.code == s.baseCurrency
+                    ? null
+                    : () => _editRate(context, repo, c),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        c.symbol,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${c.name.tr} (${c.code})',
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            c.code == s.baseCurrency
+                                ? 'Base currency'.tr
+                                : '1 ${c.name.tr} = ${Money.text(c.rateToBase)}',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withValues(alpha: 0.6),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (c.code != s.baseCurrency)
+                      IconButton(
+                        tooltip: 'Delete'.tr,
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 18,
+                        ),
+                        onPressed: () async {
+                          final ok = await confirmDialog(
+                            context,
+                            title: 'Remove currency'.tr,
+                            message:
+                                'Remove {currency}? Existing transactions will not be deleted.'
+                                    .trArgs({'currency': c.name.tr}),
+                            okLabel: 'Delete'.tr,
+                            danger: true,
+                          );
+                          if (ok) await repo.removeCurrency(c.code);
+                        },
+                      )
+                    else
+                      const Icon(Icons.lock_outline_rounded, size: 18),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1094,31 +1474,9 @@ class RatesPage extends StatelessWidget {
     AppRepository repo,
     CurrencyDef c,
   ) async {
-    final ctrl = TextEditingController(text: groupedNumber(c.rateToBase));
     final res = await showDialog<double>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          '{currency} exchange rate in Toman'.trArgs({'currency': c.name.tr}),
-        ),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(suffixText: 'Toman'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel'.tr),
-          ),
-          _saveWhen(
-            ctrl,
-            (v) => parseAmount(v) > 0,
-            () => Navigator.pop(ctx, parseAmount(ctrl.text)),
-          ),
-        ],
-      ),
+      builder: (_) => _RatePromptDialog(currency: c),
     );
     if (res != null && res > 0) {
       await repo.upsertCurrency(c.copyWith(rateToBase: res));
@@ -1126,81 +1484,183 @@ class RatesPage extends StatelessWidget {
   }
 
   Future<void> _addCurrency(BuildContext context, AppRepository repo) async {
-    final code = TextEditingController();
-    final name = TextEditingController();
-    final symbol = TextEditingController();
-    final rate = TextEditingController();
-    final ok = await showDialog<bool>(
+    final draft = await showDialog<CurrencyDef>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Add currency'.tr),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: code,
-                textDirection: TextDirection.ltr,
-                decoration: InputDecoration(labelText: 'Code (e.g. AED)'.tr),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: name,
-                decoration: InputDecoration(labelText: 'Name'.tr),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: symbol,
-                decoration: InputDecoration(labelText: 'Symbol'.tr),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: rate,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Rate in Toman'.tr,
-                  suffixText: 'Toman'.tr,
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel'.tr),
-          ),
-          // A currency needs a code, a name and a real exchange rate: with a
-          // rate of zero every amount in it converts to nothing. The dialog
-          // used to accept all three mistakes and then throw the result away
-          // without a word.
-          AnimatedBuilder(
-            animation: Listenable.merge([code, name, rate]),
-            builder: (context, child) {
-              final valid = code.text.trim().isNotEmpty &&
-                  name.text.trim().isNotEmpty &&
-                  parseAmount(rate.text) > 0;
-              return FilledButton(
-                onPressed: valid ? () => Navigator.pop(ctx, true) : null,
-                child: Text('Add'.tr),
-              );
-            },
-          ),
-        ],
-      ),
+      builder: (_) => const _AddCurrencyDialog(),
     );
-    if (ok != true) return;
-    if (code.text.trim().isEmpty || name.text.trim().isEmpty) return;
-    await repo.upsertCurrency(
-      CurrencyDef(
-        code: code.text.trim().toUpperCase(),
-        name: name.text.trim(),
-        symbol: symbol.text.trim().isEmpty
-            ? name.text.trim()
-            : symbol.text.trim(),
-        rateToBase: parseAmount(rate.text),
-        decimals: 2,
+    if (draft == null) return;
+    await repo.upsertCurrency(draft);
+  }
+}
+
+class _RatePromptDialog extends StatefulWidget {
+  const _RatePromptDialog({required this.currency});
+
+  final CurrencyDef currency;
+
+  @override
+  State<_RatePromptDialog> createState() => _RatePromptDialogState();
+}
+
+class _RatePromptDialogState extends State<_RatePromptDialog> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(
+      text: groupedNumber(widget.currency.rateToBase),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(
+        '{currency} exchange rate in Toman'.trArgs({
+          'currency': widget.currency.name.tr,
+        }),
       ),
+      content: TextField(
+        controller: _ctrl,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(suffixText: 'Toman'.tr),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Cancel'.tr),
+        ),
+        _saveWhen(
+          _ctrl,
+          (v) => parseAmount(v) > 0,
+          () => Navigator.pop(context, parseAmount(_ctrl.text)),
+        ),
+      ],
+    );
+  }
+}
+
+class _AddCurrencyDialog extends StatefulWidget {
+  const _AddCurrencyDialog();
+
+  @override
+  State<_AddCurrencyDialog> createState() => _AddCurrencyDialogState();
+}
+
+class _AddCurrencyDialogState extends State<_AddCurrencyDialog> {
+  final _code = TextEditingController();
+  final _name = TextEditingController();
+  final _symbol = TextEditingController();
+  final _rate = TextEditingController();
+  int _decimals = 2;
+
+  @override
+  void dispose() {
+    _code.dispose();
+    _name.dispose();
+    _symbol.dispose();
+    _rate.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Add currency'.tr),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _code,
+              textDirection: TextDirection.ltr,
+              decoration: InputDecoration(labelText: 'Code (e.g. AED)'.tr),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _name,
+              decoration: InputDecoration(labelText: 'Name'.tr),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _symbol,
+              decoration: InputDecoration(labelText: 'Symbol'.tr),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _rate,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Rate in Toman'.tr,
+                suffixText: 'Toman'.tr,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Decimals'.tr,
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<int>(
+                segments: [
+                  ButtonSegment(value: 0, label: Text('No decimals (0)'.tr)),
+                  ButtonSegment(
+                    value: 2,
+                    label: Text('Two decimals (0.00)'.tr),
+                  ),
+                ],
+                selected: {_decimals},
+                onSelectionChanged: (s) => setState(() => _decimals = s.first),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Cancel'.tr),
+        ),
+        AnimatedBuilder(
+          animation: Listenable.merge([_code, _name, _rate]),
+          builder: (context, child) {
+            final valid =
+                _code.text.trim().isNotEmpty &&
+                _name.text.trim().isNotEmpty &&
+                parseAmount(_rate.text) > 0;
+            return FilledButton(
+              onPressed: valid
+                  ? () => Navigator.pop(
+                      context,
+                      CurrencyDef(
+                        code: _code.text.trim().toUpperCase(),
+                        name: _name.text.trim(),
+                        symbol: _symbol.text.trim().isEmpty
+                            ? _name.text.trim()
+                            : _symbol.text.trim(),
+                        rateToBase: parseAmount(_rate.text),
+                        decimals: _decimals,
+                      ),
+                    )
+                  : null,
+              child: Text('Add'.tr),
+            );
+          },
+        ),
+      ],
     );
   }
 }
@@ -1221,6 +1681,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         appBar: AppBar(
           title: Text('Categories'.tr),
           bottom: TabBar(
@@ -1232,17 +1693,36 @@ class _CategoriesPageState extends State<CategoriesPage> {
         ),
         body: Column(
           children: [
-            const SizedBox(height: 10),
-            SegmentedButton<TxnScope>(
-              segments: [
-                for (final sc in TxnScope.values)
-                  ButtonSegment(value: sc, label: Text(sc.label)),
-              ],
-              selected: {_scope},
-              onSelectionChanged: (s) => setState(() => _scope = s.first),
-              style: SegmentedButton.styleFrom(
-                minimumSize: const Size(0, Taps.minHeight),
-                textStyle: const TextStyle(fontSize: 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Scope'.tr,
+                    style: TextStyle(
+                      fontSize: FontSizes.small,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: Insets.sm,
+                    runSpacing: Insets.sm,
+                    children: [
+                      for (final sc in TxnScope.values)
+                        ChoiceChip(
+                          label: Text(sc.label),
+                          showCheckmark: false,
+                          selected: _scope == sc,
+                          onSelected: (_) => setState(() => _scope = sc),
+                        ),
+                    ],
+                  ),
+                ],
               ),
             ),
             Expanded(
@@ -1266,7 +1746,6 @@ class _CategoriesPageState extends State<CategoriesPage> {
     final all = repo.categoriesOf(kind, scope: _scope)
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     final byId = {for (final c in all) c.id: c};
-    // Pass one: who is under whom. Pass two: parents, then their children.
     final childrenOf = <String, List<Category>>{};
     final tops = <Category>[];
     for (final c in all) {
@@ -1284,8 +1763,9 @@ class _CategoriesPageState extends State<CategoriesPage> {
     for (final t in tops) {
       rows.add(_CatRow(t, child: false));
       rows.addAll(
-        (childrenOf[t.id] ?? const <Category>[])
-            .map((k) => _CatRow(k, child: true)),
+        (childrenOf[t.id] ?? const <Category>[]).map(
+          (k) => _CatRow(k, child: true),
+        ),
       );
     }
     return ListView(
@@ -1343,6 +1823,19 @@ class _CategoriesPageState extends State<CategoriesPage> {
             ),
           ),
           IconButton(
+            tooltip: 'Shortcut'.tr,
+            icon: Icon(
+              c.isShortcut ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+              size: 18,
+              color: c.isShortcut
+                  ? (kind == TxnKind.income
+                        ? AppTheme.revenue
+                        : AppTheme.expense)
+                  : onSurface.withValues(alpha: 0.45),
+            ),
+            onPressed: () => repo.toggleCategoryShortcut(c.id),
+          ),
+          IconButton(
             tooltip: 'Edit'.tr,
             icon: const Icon(Icons.edit_outlined, size: 18),
             onPressed: () => _categoryDialog(context, kind, existing: c),
@@ -1351,15 +1844,14 @@ class _CategoriesPageState extends State<CategoriesPage> {
             tooltip: 'Delete'.tr,
             icon: const Icon(Icons.delete_outline_rounded, size: 18),
             onPressed: () async {
-              final hasChildren = repo.categoriesOf(
-                kind,
-                scope: c.scope,
-              ).any((k) => k.parentId == c.id);
+              final hasChildren = repo
+                  .categoriesOf(kind, scope: c.scope)
+                  .any((k) => k.parentId == c.id);
               final message = hasChildren
                   ? 'Delete category "{name}"? Its transactions will become uncategorized. Its subcategories move to the top level.'
-                          .trArgs({'name': c.name.tr})
+                        .trArgs({'name': c.name.tr})
                   : 'Delete category "{name}"? Its transactions will become uncategorized.'
-                          .trArgs({'name': c.name.tr});
+                        .trArgs({'name': c.name.tr});
               final ok = await confirmDialog(
                 context,
                 title: 'Delete category'.tr,
@@ -1375,8 +1867,8 @@ class _CategoriesPageState extends State<CategoriesPage> {
     );
   }
 
-  /// The one dialog for creating and editing a category: its name and,
-  /// optionally, the top-level category it lives under.
+  /// The one dialog for creating and editing a category: its name,
+  /// parent category, and shortcut pin status.
   Future<void> _categoryDialog(
     BuildContext context,
     TxnKind kind, {
@@ -1387,94 +1879,10 @@ class _CategoriesPageState extends State<CategoriesPage> {
         .categoriesOf(kind, scope: _scope)
         .where((c) => c.parentId == null && c.id != existing?.id)
         .toList();
-    final initialParent = existing?.parentId;
     final draft = await showDialog<_CategoryDraft>(
       context: context,
-      builder: (ctx) {
-        final nameCtrl = TextEditingController(text: existing?.name ?? '');
-        String? parentValue = (initialParent == null ||
-                !tops.any((t) => t.id == initialParent))
-            ? ''
-            : initialParent;
-        return StatefulBuilder(
-          builder: (ctx, setDialog) => AlertDialog(
-            title: Text(
-              existing == null
-                  ? (kind == TxnKind.income
-                      ? 'New income category'.tr
-                      : 'New expense category'.tr)
-                  : 'Edit category'.tr,
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameCtrl,
-                    autofocus: existing == null,
-                    decoration: InputDecoration(
-                      hintText: 'e.g. Server purchase'.tr,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    'Parent category'.tr,
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  DropdownButtonFormField<String?>(
-                    initialValue: parentValue,
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                    ),
-                    items: [
-                      DropdownMenuItem<String?>(
-                        value: '',
-                        child: Text('Top-level category'.tr),
-                      ),
-                      for (final t in tops)
-                        DropdownMenuItem<String?>(
-                          value: t.id,
-                          child: Text(t.name.tr),
-                        ),
-                    ],
-                    onChanged: (v) => setDialog(() => parentValue = v ?? ''),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text('Cancel'.tr),
-              ),
-              // A category with no name has nothing to show in the picker.
-              // Save used to stay live and silently refuse; it now wakes up
-              // as soon as there is a name to save.
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: nameCtrl,
-                builder: (context, value, child) => FilledButton(
-                  onPressed: value.text.trim().isEmpty
-                      ? null
-                      : () => Navigator.pop(
-                          ctx,
-                          _CategoryDraft(
-                            name: nameCtrl.text.trim(),
-                            parentId: parentValue,
-                          ),
-                        ),
-                  child: Text(existing == null ? 'Add'.tr : 'Save'.tr),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+      builder: (_) =>
+          _CategoryEditDialog(kind: kind, tops: tops, existing: existing),
     );
     if (draft == null) return;
     final rawParent = draft.parentId;
@@ -1482,13 +1890,150 @@ class _CategoriesPageState extends State<CategoriesPage> {
         ? null
         : rawParent;
     if (existing == null) {
-      await repo.addCategory(draft.name, kind, scope: _scope, parentId: parentId);
+      await repo.addCategory(
+        draft.name,
+        kind,
+        scope: _scope,
+        parentId: parentId,
+        isShortcut: draft.isShortcut,
+      );
     } else {
-      // Rename first, then move: each write reloads the in-memory list, so
-      // the second write must not carry the first write's stale parent.
-      await repo.renameCategory(existing, draft.name);
-      await repo.setCategoryParent(existing.id, parentId);
+      await repo.updateCategoryDetails(
+        existing,
+        name: draft.name,
+        parentId: parentId,
+        isShortcut: draft.isShortcut,
+      );
     }
+  }
+}
+
+class _CategoryEditDialog extends StatefulWidget {
+  const _CategoryEditDialog({
+    required this.kind,
+    required this.tops,
+    this.existing,
+  });
+
+  final TxnKind kind;
+  final List<Category> tops;
+  final Category? existing;
+
+  @override
+  State<_CategoryEditDialog> createState() => _CategoryEditDialogState();
+}
+
+class _CategoryEditDialogState extends State<_CategoryEditDialog> {
+  late final TextEditingController _nameCtrl;
+  late String _parentValue;
+  late bool _isShortcut;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.existing?.name ?? '');
+    final initialParent = widget.existing?.parentId;
+    _parentValue =
+        (initialParent == null ||
+            !widget.tops.any((t) => t.id == initialParent))
+        ? ''
+        : initialParent;
+    _isShortcut = widget.existing?.isShortcut ?? false;
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final existing = widget.existing;
+    return AlertDialog(
+      title: Text(
+        existing == null
+            ? (widget.kind == TxnKind.income
+                  ? 'New income category'.tr
+                  : 'New expense category'.tr)
+            : 'Edit category'.tr,
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _nameCtrl,
+              decoration: InputDecoration(
+                hintText: 'e.g. Server purchase'.tr,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Parent category'.tr,
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            DropdownButtonFormField<String?>(
+              initialValue: _parentValue,
+              decoration: const InputDecoration(
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+              ),
+              items: [
+                DropdownMenuItem<String?>(
+                  value: '',
+                  child: Text('Top-level category'.tr),
+                ),
+                for (final t in widget.tops)
+                  DropdownMenuItem<String?>(value: t.id, child: Text(t.name.tr)),
+              ],
+              onChanged: (v) => setState(() => _parentValue = v ?? ''),
+            ),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: _isShortcut,
+              onChanged: (v) => setState(() => _isShortcut = v ?? false),
+              title: Text(
+                'Pin as shortcut on main sheet'.tr,
+                style: const TextStyle(fontSize: 12.5),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Cancel'.tr),
+        ),
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _nameCtrl,
+          builder: (context, value, child) => FilledButton(
+            onPressed: value.text.trim().isEmpty
+                ? null
+                : () => Navigator.pop(
+                    context,
+                    _CategoryDraft(
+                      name: _nameCtrl.text.trim(),
+                      parentId: _parentValue,
+                      isShortcut: _isShortcut,
+                    ),
+                  ),
+            child: Text(existing == null ? 'Add'.tr : 'Save'.tr),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -1502,16 +2047,343 @@ class _CatRow {
 
 /// The result of the category create/edit dialog.
 class _CategoryDraft {
-  const _CategoryDraft({required this.name, required this.parentId});
+  const _CategoryDraft({
+    required this.name,
+    required this.parentId,
+    required this.isShortcut,
+  });
   final String name;
   final String? parentId;
+  final bool isShortcut;
+}
+
+/// ---------- Archived customers page ----------
+class ArchivedCustomersPage extends StatelessWidget {
+  const ArchivedCustomersPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = context.watch<AppRepository>();
+    final balances = repo.balancesMap();
+    final archived = repo.customers.where((c) => c.archived).toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      appBar: AppBar(title: Text('Archived customers'.tr)),
+      body: archived.isEmpty
+          ? EmptyState(
+              icon: Icons.inventory_2_outlined,
+              title: 'No archived customers'.tr,
+              text:
+                  'Archived customers appear here so you can restore them anytime.'
+                      .tr,
+            )
+          : RepaintBoundary(
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
+                itemCount: archived.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final c = archived[index];
+                  final debt = balances[c.id] ?? 0;
+                  return CardBox(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CustomerDetailPage(customer: c),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: onSurface.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            c.name.characters.first,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                c.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                debt > 0
+                                    ? '${'Debtor'.tr}: ${Money.text(debt)}'
+                                    : (debt < 0
+                                          ? '${'Creditor'.tr}: ${Money.text(-debt)}'
+                                          : 'Settled'.tr),
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: debt > 0
+                                      ? AppTheme.expense
+                                      : onSurface.withValues(alpha: 0.6),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        FilledButton.tonalIcon(
+                          onPressed: () async {
+                            await repo.updateCustomer(
+                              c.copyWith(archived: false),
+                            );
+                            if (context.mounted) {
+                              showSnack(context, 'Customer unarchived');
+                            }
+                          },
+                          icon: const Icon(Icons.unarchive_outlined, size: 17),
+                          label: Text('Unarchive'.tr),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+    );
+  }
+}
+
+/// ---------- Monthly budgets management page ----------
+class BudgetsManagePage extends StatelessWidget {
+  const BudgetsManagePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = context.watch<AppRepository>();
+    final usages = repo.budgetUsages();
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      appBar: AppBar(title: Text('Monthly budgets'.tr)),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => showLedgerSheet(
+          context,
+          builder: (_) => const BudgetEditSheet(),
+        ),
+        icon: const Icon(Icons.add_rounded),
+        label: Text('New budget'.tr),
+      ),
+      body: usages.isEmpty
+          ? EmptyState(
+              icon: Icons.pie_chart_outline_rounded,
+              title: 'Monthly budgets'.tr,
+              text:
+                  'Set a monthly limit for each category (such as food or transport); this page will show how much of each limit remains.'
+                      .tr,
+            )
+          : RepaintBoundary(
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                itemCount: usages.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final u = usages[index];
+                  final pct = u.ratio;
+                  final Color color = pct >= 1
+                      ? AppTheme.expense
+                      : (pct >= 0.8 ? AppTheme.warning : AppTheme.revenue);
+                  return CardBox(
+                    onTap: () => showLedgerSheet(
+                      context,
+                      builder: (_) => BudgetEditSheet(initial: u.budget),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                u.categoryName.tr,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '${Money.text(u.spent, compact: true)} / ${Money.text(u.budget.limit, compact: true)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: color,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Delete'.tr,
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                size: 18,
+                              ),
+                              onPressed: () => repo.deleteBudget(u.budget.id),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          height: 7,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: onSurface.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: FractionallySizedBox(
+                            alignment: AlignmentDirectional.centerStart,
+                            widthFactor: pct < 0 ? 0 : (pct > 1 ? 1 : pct),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+    );
+  }
+}
+
+/// ---------- Recurring transactions management page ----------
+class RecurringManagePage extends StatelessWidget {
+  const RecurringManagePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = context.watch<AppRepository>();
+    final rules = repo.recurringRules;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      appBar: AppBar(title: Text('Recurring transactions'.tr)),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => showLedgerSheet(
+          context,
+          builder: (_) => const RecurringEditSheet(),
+        ),
+        icon: const Icon(Icons.add_rounded),
+        label: Text('New rule'.tr),
+      ),
+      body: rules.isEmpty
+          ? EmptyState(
+              icon: Icons.autorenew_rounded,
+              title: 'Recurring transactions'.tr,
+              text:
+                  'Set up rent, internet, subscriptions, and salary once; the app will record them automatically on schedule.'
+                      .tr,
+            )
+          : RepaintBoundary(
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                itemCount: rules.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final rule = rules[index];
+                  final isIncome = rule.kind == TxnKind.income;
+                  final color = isIncome ? AppTheme.revenue : AppTheme.expense;
+                  final next = rule.nextDue(DateTime.now());
+                  return CardBox(
+                    onTap: () => showLedgerSheet(
+                      context,
+                      builder: (_) => RecurringEditSheet(initial: rule),
+                    ),
+                    child: Row(
+                      children: [
+                        _SettingIconBadge(
+                          icon: Icons.autorenew_rounded,
+                          color: color,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                rule.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                next == null
+                                    ? '{period} • {amount}'.trArgs({
+                                        'period': rule.period.label,
+                                        'amount': Money.text(rule.amount),
+                                      })
+                                    : '{period} • {amount} • Next: {date}'
+                                          .trArgs({
+                                            'period': rule.period.label,
+                                            'amount': Money.text(rule.amount),
+                                            'date': J.d(next),
+                                          }),
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: onSurface.withValues(alpha: 0.6),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (!rule.enabled)
+                          TagChip(
+                            'Inactive',
+                            color: onSurface.withValues(alpha: 0.5),
+                            dense: true,
+                          ),
+                        IconButton(
+                          tooltip: 'Delete'.tr,
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            size: 18,
+                          ),
+                          onPressed: () => repo.deleteRecurring(rule.id),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+    );
+  }
 }
 
 /// Fingerprint switch, shown only when the phone can actually do it.
-///
-/// Stateful so the availability check runs once per visit instead of on every
-/// rebuild: a plain FutureBuilder would restart the check each time the repo
-/// notifies, and the switch would blink out of existence as it was toggled.
 class _BiometricUnlockTile extends StatefulWidget {
   const _BiometricUnlockTile();
 
@@ -1536,8 +2408,6 @@ class _BiometricUnlockTileState extends State<_BiometricUnlockTile> {
 
   @override
   Widget build(BuildContext context) {
-    // A phone with no sensor, or with no fingerprint enrolled in Android
-    // itself, gets no switch at all rather than one that cannot work.
     if (!_available) return const SizedBox.shrink();
 
     final repo = context.watch<AppRepository>();
@@ -1547,10 +2417,13 @@ class _BiometricUnlockTileState extends State<_BiometricUnlockTile> {
           contentPadding: EdgeInsets.zero,
           value: repo.biometricUnlock,
           onChanged: repo.setBiometricUnlock,
-          secondary: const Icon(Icons.fingerprint_rounded, size: 20),
+          secondary: const _SettingIconBadge(
+            icon: Icons.fingerprint_rounded,
+            color: AppTheme.revenue,
+          ),
           title: Text(
             'Unlock with fingerprint'.tr,
-            style: const TextStyle(fontSize: 13.5),
+            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
           ),
           subtitle: Text(
             'The PIN still works if the sensor fails'.tr,

@@ -262,6 +262,7 @@ class _CategoryPieChartState extends State<CategoryPieChart>
         final t = Motion.motionEnabled
             ? Curves.easeOutCubic.transform(_grow.value)
             : 1.0;
+        final sectionRadius = size * 0.26 * (0.55 + 0.45 * t);
         final chart = Row(
       children: [
         SizedBox(
@@ -269,22 +270,36 @@ class _CategoryPieChartState extends State<CategoryPieChart>
           width: size,
           child: PieChart(
             PieChartData(
+              startDegreeOffset: -90,
               sectionsSpace: 2,
-              centerSpaceRadius: size * 0.22,
+              centerSpaceRadius: size * 0.21,
               sections: [
                 for (var i = 0; i < entries.length; i++)
                   PieChartSectionData(
                     value: entries[i].value * (t == 0 ? 0.0001 : t),
                     color: _palette[i % _palette.length],
-                    radius: size * 0.2 * (0.55 + 0.45 * t),
-                    showTitle: entries[i].value / total > 0.08,
-                    title: Fmt.percent(entries[i].value / total),
-                    titleStyle: const TextStyle(
-                      fontFamily: 'Vazirmatn',
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
+                    radius: sectionRadius,
+                    showTitle: false,
+                    badgePositionPercentageOffset: 0.5,
+                    badgeWidget: entries[i].value / total >= 0.10
+                        ? SizedBox(
+                            width: (sectionRadius - 6).clamp(16.0, size),
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                Fmt.percent(entries[i].value / total),
+                                textDirection: TextDirection.ltr,
+                                style: const TextStyle(
+                                  fontFamily: 'Vazirmatn',
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  height: 1.0,
+                                ),
+                              ),
+                            ),
+                          )
+                        : null,
                   ),
               ],
             ),

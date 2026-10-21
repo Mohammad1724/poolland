@@ -41,13 +41,14 @@ class BankRule {
     List<String>? senderHints,
     List<String>? bodyHints,
     AmountUnit? defaultUnit,
+    bool? custom,
   }) => BankRule(
     id: id,
     bankName: bankName ?? this.bankName,
     senderHints: senderHints ?? this.senderHints,
     bodyHints: bodyHints ?? this.bodyHints,
     defaultUnit: defaultUnit ?? this.defaultUnit,
-    custom: custom,
+    custom: custom ?? this.custom,
   );
 
   Map<String, dynamic> toMap() => {
@@ -84,7 +85,7 @@ const List<BankRule> builtinBankRules = <BankRule>[
   BankRule(
     id: 'melat',
     bankName: 'Mellat Bank',
-    senderHints: ['BANKMELAT', 'MELLAT', 'ملت'],
+    senderHints: ['BANKMELAT', 'BANK MELLAT', 'MELLAT', 'ملت'],
     bodyHints: ['بانک ملت'],
   ),
   BankRule(
@@ -96,13 +97,20 @@ const List<BankRule> builtinBankRules = <BankRule>[
   BankRule(
     id: 'tejarat',
     bankName: 'Tejarat Bank',
-    senderHints: ['TEJARAT', 'تجارت'],
+    senderHints: ['TEJARAT', 'TEJARATBANK', 'TEJARAT BANK', 'تجارت'],
     bodyHints: ['بانک تجارت'],
   ),
   BankRule(
     id: 'melli',
     bankName: 'Melli Bank',
-    senderHints: ['BANKMELLI', 'MELLIBANK', 'ملی'],
+    senderHints: [
+      'BANKMELLI',
+      'MELLIBANK',
+      'ملی',
+      '100010000',
+      '09620000000',
+      '02100000000',
+    ],
     bodyHints: ['بانک ملی'],
   ),
   BankRule(
@@ -120,7 +128,7 @@ const List<BankRule> builtinBankRules = <BankRule>[
   BankRule(
     id: 'pasargad',
     bankName: 'Pasargad Bank',
-    senderHints: ['PASARGAD', 'پاسارگاد'],
+    senderHints: ['PASARGAD', 'B.PASARGAD', 'BANKPASARGAD', 'پاسارگاد'],
     bodyHints: ['بانک پاسارگاد'],
   ),
   BankRule(
@@ -132,14 +140,50 @@ const List<BankRule> builtinBankRules = <BankRule>[
   BankRule(
     id: 'resalat',
     bankName: 'Resalat Bank',
-    senderHints: ['RESALAT', 'QMB', 'رسالت'],
+    senderHints: ['RESALAT', 'RESALATBANK', 'RESALAT BANK', 'QMB', 'رسالت'],
     bodyHints: ['بانک رسالت'],
   ),
   BankRule(
     id: 'sina',
-    bankName: 'Sina Bank / Blu Bank',
-    senderHints: ['SINA', 'BLU', 'BLUBANK', 'BLU BANK', 'سینا', 'بلو'],
-    bodyHints: ['بانک سینا', 'بلوبانک', 'بلو بانک', 'بلو'],
+    bankName: 'Sina Bank',
+    senderHints: ['SINA', 'SINABANK', 'BANK SINA', 'سینا'],
+    bodyHints: ['بانک سینا'],
+  ),
+  BankRule(
+    id: 'blu',
+    bankName: 'Blu Bank',
+    senderHints: ['BLU', 'BLUBANK', 'BLU BANK', 'BLU-BANK', 'بلوبانک', 'بلو بانک'],
+    bodyHints: [
+      'بلوبانک',
+      'بلو بانک',
+      'بلو\n',
+      'از حساب شما پرید',
+      'به حساب شما نشست',
+    ],
+  ),
+  BankRule(
+    id: 'maskan',
+    bankName: 'Maskan Bank',
+    senderHints: ['MASKAN', 'BANKMASKAN', 'مسکن'],
+    bodyHints: ['بانک مسکن'],
+  ),
+  BankRule(
+    id: 'enbank',
+    bankName: 'Eghtesad Novin Bank',
+    senderHints: ['ENBANK', 'NOVIN', 'اقتصاد نوین', 'اقتصادنوین'],
+    bodyHints: ['بانک اقتصاد نوین', 'بانک اقتصادنوین'],
+  ),
+  BankRule(
+    id: 'khavarmianeh',
+    bankName: 'Middle East Bank',
+    senderHints: ['MEBANK', 'KHAVARMIANEH', 'خاورمیانه'],
+    bodyHints: ['بانک خاورمیانه'],
+  ),
+  BankRule(
+    id: 'wepod',
+    bankName: 'Wepod',
+    senderHints: ['WEPOD', 'ویپاد'],
+    bodyHints: ['ویپاد'],
   ),
   BankRule(
     id: 'keshavarzi',

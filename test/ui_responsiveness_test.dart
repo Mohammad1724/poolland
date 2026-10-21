@@ -10,7 +10,7 @@ import 'package:poolland/data/store.dart';
 import 'package:poolland/ui/customers_page.dart';
 import 'package:poolland/ui/dashboard_page.dart';
 import 'package:poolland/ui/home_shell.dart';
-import 'package:poolland/ui/personal_page.dart';
+import 'package:poolland/ui/subscriptions_page.dart';
 import 'package:poolland/ui/theme.dart';
 import 'package:poolland/ui/widgets/ledger_nav_bar.dart';
 import 'package:provider/provider.dart';
@@ -127,25 +127,25 @@ void main() {
       await settleShell(tester);
 
       // The first tab is open, so its page is mounted...
-      expect(find.byType(PersonalPage), findsOneWidget);
+      expect(find.byType(DashboardPage), findsOneWidget);
       // ...while tabs that were never opened are not in the tree at all,
       // offstage or otherwise.
       expect(find.byType(CustomersPage, skipOffstage: false), findsNothing);
-      expect(find.byType(DashboardPage, skipOffstage: false), findsNothing);
+      expect(find.byType(SubscriptionsPage, skipOffstage: false), findsNothing);
       expect(tester.takeException(), isNull);
 
       // Opening another tab mounts that page.
       await tapTab(tester, 1);
-      expect(find.byType(DashboardPage), findsOneWidget);
+      expect(find.byType(CustomersPage), findsOneWidget);
       expect(tester.takeException(), isNull);
 
       await tapTab(tester, 2);
-      expect(find.byType(CustomersPage), findsOneWidget);
+      expect(find.byType(SubscriptionsPage), findsOneWidget);
       // An opened tab stays mounted after switching away, so its scroll
       // position and filters survive. IndexedStack keeps it offstage, so the
       // finder has to look past the visible tab to see it.
       expect(
-        find.byType(DashboardPage, skipOffstage: false),
+        find.byType(CustomersPage, skipOffstage: false),
         findsOneWidget,
         reason: 'an opened tab must stay mounted after switching away',
       );

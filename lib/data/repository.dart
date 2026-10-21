@@ -143,7 +143,14 @@ class AppRepository extends ChangeNotifier {
 
   int _cacheVersion = -1;
   List<Customer>? _activeCustomers;
+  List<Plan>? _activePlans;
+  Map<String, Customer>? _customersById;
+  Map<String, Subscription>? _subscriptionsById;
+  Map<String, Plan>? _plansById;
+  Map<String, Category>? _categoriesById;
+  Map<String, List<Subscription>>? _subsByCustomer;
   List<Txn>? _businessTxns;
+  List<Txn>? _personalTxns;
   List<Txn>? _visibleTxns;
   Balances? _totals;
   double? _cashBalance;
@@ -154,13 +161,21 @@ class AppRepository extends ChangeNotifier {
   List<MapEntry<Customer, double>>? _creditors;
   final Map<String, Summary> _summaryCache = {};
   final Map<String, List<MonthPoint>> _seriesCache = {};
+  final Map<String, Map<String, double>> _byCategoryCache = {};
 
   /// Clears every cached aggregate when the data version has moved on.
   void _syncCache() {
     if (_cacheVersion == _version) return;
     _cacheVersion = _version;
     _activeCustomers = null;
+    _activePlans = null;
+    _customersById = null;
+    _subscriptionsById = null;
+    _plansById = null;
+    _categoriesById = null;
+    _subsByCustomer = null;
     _businessTxns = null;
+    _personalTxns = null;
     _visibleTxns = null;
     _totals = null;
     _cashBalance = null;
@@ -171,6 +186,7 @@ class AppRepository extends ChangeNotifier {
     _creditors = null;
     _summaryCache.clear();
     _seriesCache.clear();
+    _byCategoryCache.clear();
   }
 
   List<Customer> get activeCustomers {
@@ -179,44 +195,60 @@ class AppRepository extends ChangeNotifier {
         customers.where((c) => !c.archived).toList();
   }
 
-  List<Plan> get activePlans => plans.where((p) => !p.archived).toList();
+  List<Plan> get activePlans {
+    _syncCache();
+    return _activePlans ??= plans.where((p) => !p.archived).toList();
+  }
 
   Customer? customerById(String? id) {
     if (id == null) return null;
-    for (final c in customers) {
-      if (c.id == id) return c;
-    }
-    return null;
+    _syncCache();
+    final map = _customersById ??= {for (final c in customers) c.id: c};
+    return map[id];
   }
 
   String customerName(String? id) => customerById(id)?.name ?? 'No customer'.tr;
 
   Subscription? subscriptionById(String? id) {
     if (id == null) return null;
-    for (final s in subscriptions) {
-      if (s.id == id) return s;
-    }
-    return null;
+    _syncCache();
+    final map = _subscriptionsById ??= {
+      for (final s in subscriptions) s.id: s,
+    };
+    return map[id];
   }
 
   Plan? planById(String? id) {
     if (id == null) return null;
-    for (final p in plans) {
-      if (p.id == id) return p;
-    }
-    return null;
+    _syncCache();
+    final map = _plansById ??= {for (final p in plans) p.id: p};
+    return map[id];
   }
 
   Category? categoryById(String? id) {
     if (id == null) return null;
-    for (final c in categories) {
-      if (c.id == id) return c;
-    }
-    return null;
+    _syncCache();
+    final map = _categoriesById ??= {for (final c in categories) c.id: c};
+    return map[id];
   }
 
-  String categoryName(String? id) =>
-      categoryById(id)?.name.tr ?? 'Uncategorized'.tr;
+  String categoryName(String? id) {
+    final c = categoryById(id);
+    if (c == null) return 'Uncategorized'.tr;
+    final parent = c.parentId == null ? null : categoryById(c.parentId);
+    return parent == null ? c.name.tr : '${parent.name.tr} › ${c.name.tr}';
+  }
+
+  /// Categories or subcategories pinned as 1-tap shortcuts for a given
+  /// direction and section.
+  List<Category> shortcutCategories(
+    TxnKind categoryKind, {
+    TxnScope scope = TxnScope.business,
+  }) =>
+      categoriesOf(categoryKind, scope: scope)
+          .where((c) => c.isShortcut)
+          .toList()
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
   /// Categories used the most in real transactions, for preset chips:
   /// usage counts beat any hand-picked default because they follow the
@@ -238,7 +270,14 @@ class AppRepository extends ChangeNotifier {
       counts[id] = (counts[id] ?? 0) + 1;
     }
     final pool = categoriesOf(categoryKind, scope: scope);
-    pool.sort((a, b) => (counts[b.id] ?? 0).compareTo(counts[a.id] ?? 0));
+    pool.sort((a, b) {
+      final d = (counts[b.id] ?? 0).compareTo(counts[a.id] ?? 0);
+      if (d != 0) return d;
+      final p = (a.parentId == null ? 0 : 1).compareTo(
+        b.parentId == null ? 0 : 1,
+      );
+      return p != 0 ? p : a.sortOrder.compareTo(b.sortOrder);
+    });
     return pool.take(limit).toList();
   }
 
@@ -275,24 +314,60 @@ class AppRepository extends ChangeNotifier {
       .where((c) => c.kind == kind && c.scope == (scope ?? TxnScope.business))
       .toList();
 
-  List<Subscription> subsOfCustomer(String customerId) =>
-      subscriptions.where((s) => s.customerId == customerId).toList()
-        ..sort((a, b) => b.endDate.compareTo(a.endDate));
+  List<Subscription> subsOfCustomer(String customerId) {
+    _syncCache();
+    final map = _subsByCustomer ??= () {
+      final grouped = <String, List<Subscription>>{};
+      // `subscriptions` is sorted ascending by `endDate`; iterating in reverse
+      // builds each customer's list sorted descending by `endDate` in O(S).
+      for (var i = subscriptions.length - 1; i >= 0; i--) {
+        final s = subscriptions[i];
+        (grouped[s.customerId] ??= <Subscription>[]).add(s);
+      }
+      return grouped;
+    }();
+    return map[customerId] ?? const <Subscription>[];
+  }
 
   List<Txn> txnsOfCustomer(String customerId) =>
       Ledger.forCustomer(businessTxns, customerId);
 
-  double balanceOf(Customer c) => Ledger.customerBalance(c, businessTxns);
+  double balanceOf(Customer c) =>
+      balancesMap()[c.id] ?? Ledger.customerBalance(c, businessTxns);
 
   Balances get totals {
     _syncCache();
-    return _totals ??= Ledger.totals(customers, businessTxns);
+    return _totals ??= () {
+      final map = balancesMap();
+      double rec = 0, pay = 0;
+      int dc = 0, cc = 0;
+      for (final c in activeCustomers) {
+        final b = map[c.id] ?? 0;
+        if (b > 0.5) {
+          rec += b;
+          dc++;
+        } else if (b < -0.5) {
+          pay += -b;
+          cc++;
+        }
+      }
+      return Balances(
+        receivable: rec,
+        payable: pay,
+        debtorsCount: dc,
+        creditorsCount: cc,
+      );
+    }();
   }
 
   /// Transactions in a given scope (all scopes when null).
-  List<Txn> scopeTxns(TxnScope? scope) => scope == null
-      ? transactions
-      : transactions.where((t) => t.scope == scope).toList();
+  List<Txn> scopeTxns(TxnScope? scope) {
+    if (scope == null) return transactions;
+    _syncCache();
+    if (scope == TxnScope.business) return businessTxns;
+    return _personalTxns ??=
+        transactions.where((t) => t.scope == TxnScope.personal).toList();
+  }
 
   /// Business transactions — everything except personal transactions.
   /// All business calculations use this list so personal expenses
@@ -323,6 +398,30 @@ class AppRepository extends ChangeNotifier {
     );
   }
 
+  Map<String, double> byCategory({
+    DateTime? from,
+    DateTime? to,
+    TxnKind? kind,
+    TxnScope? scope,
+  }) {
+    _syncCache();
+    final key =
+        '${from?.millisecondsSinceEpoch ?? '-'}|'
+        '${to?.millisecondsSinceEpoch ?? '-'}|'
+        '${kind?.name ?? '-'}|${scope?.name ?? '-'}';
+    return _byCategoryCache.putIfAbsent(
+      key,
+      () => Ledger.byCategory(
+        scopeTxns(scope),
+        categories,
+        from: from,
+        to: to,
+        kind: kind,
+        scope: scope,
+      ),
+    );
+  }
+
   List<Subscription> get alerts {
     _syncCache();
     return _alerts ??=
@@ -344,7 +443,7 @@ class AppRepository extends ChangeNotifier {
   double get cashBalance {
     _syncCache();
     return _cashBalance ??=
-        settings.openingCash + Ledger.summarize(businessTxns).netCash;
+        settings.openingCash + summary(scope: TxnScope.business).netCash;
   }
 
   /// Sorted list of debtors (contacts who owe us).
@@ -400,7 +499,15 @@ class AppRepository extends ChangeNotifier {
 
   Future<void> updateCustomer(Customer c) async {
     await store.putCustomer(c);
-    await reload();
+    final idx = customers.indexWhere((e) => e.id == c.id);
+    if (idx >= 0) {
+      customers = [...customers]
+        ..[idx] = c
+        ..sort((a, b) => a.name.compareTo(b.name));
+    } else {
+      customers = [...customers, c]..sort((a, b) => a.name.compareTo(b.name));
+    }
+    notifyListeners();
   }
 
   /// Delete a customer; [withData] also deletes their transactions and subscriptions.
@@ -435,7 +542,16 @@ class AppRepository extends ChangeNotifier {
   // ---------------- Subscriptions ----------------
   Future<Subscription> saveSubscription(Subscription s) async {
     await store.putSubscription(s);
-    await reload();
+    final idx = subscriptions.indexWhere((e) => e.id == s.id);
+    if (idx >= 0) {
+      subscriptions = [...subscriptions]
+        ..[idx] = s
+        ..sort((a, b) => a.endDate.compareTo(b.endDate));
+    } else {
+      subscriptions = [...subscriptions, s]
+        ..sort((a, b) => a.endDate.compareTo(b.endDate));
+    }
+    notifyListeners();
     return s;
   }
 
@@ -537,7 +653,10 @@ class AppRepository extends ChangeNotifier {
     final customer = customerById(old.customerId);
     if (customer == null) throw StateError('Customer not found');
     final plan = planById(old.planId);
-    final startDate = start ?? J.addDays(old.endDate, 1);
+    final nextDay = J.addDays(old.endDate, 1);
+    final today = J.today;
+    final startDate =
+        start ?? (nextDay.isBefore(today) ? today : nextDay);
     final end = plan != null
         ? plan.endFrom(startDate)
         : J.addDays(J.addMonths(startDate, months ?? 1), -1);
@@ -574,7 +693,9 @@ class AppRepository extends ChangeNotifier {
         if (c.name.toLowerCase().contains('subscription')) return c.id;
       }
     }
-    return list.first.id;
+    return list
+        .firstWhere((c) => c.parentId == null, orElse: () => list.first)
+        .id;
   }
 
   // ---------------- Transactions ----------------
@@ -615,12 +736,22 @@ class AppRepository extends ChangeNotifier {
 
   Future<void> updateTxn(Txn t) async {
     await store.putTxn(t);
-    await reload();
+    final idx = transactions.indexWhere((e) => e.id == t.id);
+    if (idx >= 0) {
+      transactions = [...transactions]
+        ..[idx] = t
+        ..sort((a, b) => b.date.compareTo(a.date));
+    } else {
+      transactions = [...transactions, t]
+        ..sort((a, b) => b.date.compareTo(a.date));
+    }
+    notifyListeners();
   }
 
   Future<void> deleteTxn(String id) async {
     await store.deleteTxn(id);
-    await reload();
+    transactions = transactions.where((t) => t.id != id).toList();
+    notifyListeners();
   }
 
   // ================= Personal finance =================
@@ -644,16 +775,17 @@ class AppRepository extends ChangeNotifier {
     return budgets
         .where((b) => b.enabled)
         .map((b) {
-          final cat = categories.where((c) => c.id == b.categoryId).firstOrNull;
+          final cat = categoryById(b.categoryId);
           return BudgetUsage(
             budget: b,
             categoryName: cat?.name ?? 'Deleted category',
             spent: Ledger.spentIn(
-              transactions,
+              scopeTxns(b.scope),
               b.categoryId,
               from: range.start,
               to: range.end,
               scope: b.scope,
+              categories: categories,
             ),
           );
         })
@@ -816,25 +948,44 @@ class AppRepository extends ChangeNotifier {
   );
 
   // ---------------- Categories ----------------
-  Future<void> addCategory(
+  static int _compareCategories(Category a, Category b) {
+    final k = a.kind.index.compareTo(b.kind.index);
+    return k != 0 ? k : a.sortOrder.compareTo(b.sortOrder);
+  }
+
+  Future<Category> addCategory(
     String name,
     TxnKind kind, {
     TxnScope scope = TxnScope.business,
     String? parentId,
+    bool isShortcut = false,
   }) async {
     final list = categoriesOf(kind, scope: scope);
     final parent = _validParent(parentId, kind, scope);
-    await store.putCategory(
-      Category(
-        id: LocalStore.newId(),
-        name: name.trim(),
-        kind: kind,
-        sortOrder: list.isEmpty ? 0 : list.last.sortOrder + 1,
-        scope: scope,
-        parentId: parent?.id,
-      ),
+    final created = Category(
+      id: LocalStore.newId(),
+      name: name.trim(),
+      kind: kind,
+      sortOrder: list.isEmpty ? 0 : list.last.sortOrder + 1,
+      scope: scope,
+      parentId: parent?.id,
+      isShortcut: isShortcut,
     );
-    await reload();
+    await store.putCategory(created);
+    categories = [...categories, created]..sort(_compareCategories);
+    notifyListeners();
+    return created;
+  }
+
+  /// Toggles (or explicitly sets) whether category [id] is pinned as a
+  /// 1-tap shortcut on the transaction recording sheet.
+  Future<void> toggleCategoryShortcut(String id, [bool? value]) async {
+    final c = categoryById(id);
+    if (c == null) return;
+    final updated = c.copyWith(isShortcut: value ?? !c.isShortcut);
+    await store.putCategory(updated);
+    categories = categories.map((e) => e.id == id ? updated : e).toList();
+    notifyListeners();
   }
 
   /// A parent must exist, share the child's kind and scope, and be
@@ -859,14 +1010,7 @@ class AppRepository extends ChangeNotifier {
     final parent = _validParent(parentId, c.kind, c.scope);
     if (parent == null && parentId != null) return;
     await store.putCategory(
-      Category(
-        id: c.id,
-        name: c.name,
-        kind: c.kind,
-        sortOrder: c.sortOrder,
-        scope: c.scope,
-        parentId: parent?.id,
-      ),
+      c.copyWith(parentId: parent?.id, clearParentId: parent == null),
     );
     final flattened = <String, String?>{};
     for (final child in categories) {
@@ -875,13 +1019,9 @@ class AppRepository extends ChangeNotifier {
     for (final entry in flattened.entries) {
       final child = categoryById(entry.key)!;
       await store.putCategory(
-        Category(
-          id: child.id,
-          name: child.name,
-          kind: child.kind,
-          sortOrder: child.sortOrder,
-          scope: child.scope,
+        child.copyWith(
           parentId: entry.value,
+          clearParentId: entry.value == null,
         ),
       );
     }
@@ -941,16 +1081,35 @@ class AppRepository extends ChangeNotifier {
   }
 
   Future<void> renameCategory(Category c, String newName) async {
+    final updated = c.copyWith(name: newName.trim());
+    await store.putCategory(updated);
+    categories = categories.map((e) => e.id == c.id ? updated : e).toList();
+    notifyListeners();
+  }
+
+  /// Atomically updates name, parent, and shortcut pin for [c] in a single
+  /// store transaction + reload.
+  Future<void> updateCategoryDetails(
+    Category c, {
+    required String name,
+    String? parentId,
+    bool? isShortcut,
+  }) async {
+    final parent = _validParent(parentId, c.kind, c.scope);
+    if (parent == null && parentId != null) return;
     await store.putCategory(
-      Category(
-        id: c.id,
-        name: newName.trim(),
-        kind: c.kind,
-        sortOrder: c.sortOrder,
-        scope: c.scope,
-        parentId: c.parentId,
+      c.copyWith(
+        name: name.trim(),
+        parentId: parent?.id,
+        clearParentId: parent == null,
+        isShortcut: isShortcut ?? c.isShortcut,
       ),
     );
+    if (parent != null) {
+      for (final child in categories.where((k) => k.parentId == c.id).toList()) {
+        await store.putCategory(child.copyWith(clearParentId: true));
+      }
+    }
     await reload();
   }
 
@@ -961,15 +1120,7 @@ class AppRepository extends ChangeNotifier {
     // Orphan any children: they keep their data and move to the top level
     // instead of keeping a dangling parent reference.
     for (final child in categories.where((c) => c.parentId == id).toList()) {
-      await store.putCategory(
-        Category(
-          id: child.id,
-          name: child.name,
-          kind: child.kind,
-          sortOrder: child.sortOrder,
-          scope: child.scope,
-        ),
-      );
+      await store.putCategory(child.copyWith(clearParentId: true));
     }
     await store.deleteCategory(id);
     await reload();
@@ -987,13 +1138,22 @@ class AppRepository extends ChangeNotifier {
       note: p.note,
     );
     await store.putPlan(created);
-    await reload();
+    plans = [...plans, created]..sort((a, b) => a.name.compareTo(b.name));
+    notifyListeners();
     return created;
   }
 
   Future<void> updatePlan(Plan p) async {
     await store.putPlan(p);
-    await reload();
+    final idx = plans.indexWhere((e) => e.id == p.id);
+    if (idx >= 0) {
+      plans = [...plans]
+        ..[idx] = p
+        ..sort((a, b) => a.name.compareTo(b.name));
+    } else {
+      plans = [...plans, p]..sort((a, b) => a.name.compareTo(b.name));
+    }
+    notifyListeners();
   }
 
   Future<void> deletePlan(String id) async {
@@ -1133,12 +1293,38 @@ class AppRepository extends ChangeNotifier {
   /// Number of suggestions awaiting approval.
   int get smsPendingCount => smsSuggestions.length;
 
+  /// Built-in bank rules with any user edits applied.
+  List<BankRule> get effectiveBuiltinRules {
+    final overrides = {for (final r in smsRules) r.id: r};
+    return [
+      for (final b in builtinBankRules)
+        if (overrides.containsKey(b.id))
+          overrides[b.id]!.copyWith(custom: false)
+        else
+          b,
+    ];
+  }
+
+  /// User-created rules (excluding edits to built-in rules).
+  List<BankRule> get customSmsRules {
+    final builtinIds = {for (final b in builtinBankRules) b.id};
+    return smsRules.where((r) => !builtinIds.contains(r.id)).toList();
+  }
+
+  /// Whether a built-in bank rule has user-saved customizations.
+  bool isBuiltinSmsRuleModified(String ruleId) {
+    final builtinIds = {for (final b in builtinBankRules) b.id};
+    return builtinIds.contains(ruleId) &&
+        smsRules.any((r) => r.id == ruleId);
+  }
+
   /// The bank rules that are in effect right now: custom rules first (like
   /// [SmsParser.findRule] prefers them), the built-in ones after, minus the
   /// ones the user turned off.
-  List<BankRule> get activeSmsRules => [...smsRules, ...builtinBankRules]
-      .where((rule) => isSmsRuleEnabled(rule.id))
-      .toList();
+  List<BankRule> get activeSmsRules => [
+    ...customSmsRules,
+    ...effectiveBuiltinRules,
+  ].where((rule) => isSmsRuleEnabled(rule.id)).toList();
 
   /// Built-in rules are enabled unless explicitly disabled in settings.
   bool isSmsRuleEnabled(String ruleId) =>
@@ -1384,8 +1570,11 @@ class AppRepository extends ChangeNotifier {
         transactionId: txn.id,
       ),
     );
+    transactions = [...transactions, txn]
+      ..sort((a, b) => b.date.compareTo(a.date));
     smsSuggestions = smsSuggestions.where((e) => e.key != sms.key).toList();
-    await reload();
+    smsHistory = store.loadSmsHistory();
+    notifyListeners();
     return txn;
   }
 
@@ -1411,6 +1600,23 @@ class AppRepository extends ChangeNotifier {
       );
     }
     smsSuggestions = [];
+    smsHistory = store.loadSmsHistory();
+    notifyListeners();
+  }
+
+  /// Restore a previously rejected SMS back to the review queue.
+  Future<void> restoreRejectedSms(SmsHistoryEntry entry) async {
+    await store.deleteSmsState(entry.key);
+    final parsed = SmsParser.parse(
+      entry.message,
+      extraRules: smsRules,
+      disabledRuleIds: settings.disabledSmsRuleIds.toSet(),
+    );
+    final queued = parsed.isTransaction ? parsed : parsed.asManual();
+    if (!smsSuggestions.any((s) => s.key == queued.key)) {
+      smsSuggestions = [queued, ...smsSuggestions]
+        ..sort((a, b) => b.message.date.compareTo(a.message.date));
+    }
     smsHistory = store.loadSmsHistory();
     notifyListeners();
   }
@@ -1482,6 +1688,13 @@ class AppRepository extends ChangeNotifier {
 
   Future<void> addSmsRule(BankRule rule) async {
     await store.putSmsRule(rule);
+    await reload();
+    _refreshPendingSms();
+  }
+
+  /// Reset a customized built-in bank rule back to its factory defaults.
+  Future<void> resetBuiltinSmsRule(String id) async {
+    await store.deleteSmsRule(id);
     await reload();
     _refreshPendingSms();
   }

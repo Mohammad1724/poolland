@@ -258,7 +258,7 @@ void main() {
       await settleShell(tester);
 
       // The shortcut lives on the subscriptions tab, where sales happen.
-      await tapTab(tester, 3);
+      await tapTab(tester, 2);
       final repeat = find.byTooltip('Repeat last sale');
       expect(repeat, findsOneWidget);
 
@@ -281,7 +281,7 @@ void main() {
       await tester.pumpWidget(wrapShell());
       await settleShell(tester);
 
-      final top = find.textContaining('Personal summary');
+      final top = find.text('Hello 👋');
       expect(top, findsOneWidget);
 
       await tester.drag(find.byType(ListView).first, const Offset(0, -500));
@@ -304,11 +304,8 @@ void main() {
     ) async {
       await tester.pumpWidget(wrap(const TransactionEditPage()));
       await tester.pumpAndSettle();
-      // The lazy form list can keep the selector alive offstage depending
-      // on scroll state; the touch-target contract is about its size, so
-      // measure it wherever it currently lives.
       final size = tester.getSize(
-        find.byType(SegmentedButton<TxnScope>, skipOffstage: false),
+        find.byKey(const ValueKey('txn_scope_switcher'), skipOffstage: false),
       );
       expect(size.height, greaterThanOrEqualTo(44));
       expect(tester.takeException(), isNull);

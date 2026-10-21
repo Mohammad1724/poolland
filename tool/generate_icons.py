@@ -4,10 +4,11 @@
 Usage:
     python3 tool/generate_icons.py
 
-The square artwork in design/icon-source.png is center-cropped to its safe,
-recognizable mark and exported for Android, web/PWA, and documentation.
-Adaptive Android icons get a transparent foreground with the dark canvas
-removed, while their background uses a color sampled from the artwork.
+The square artwork in design/icon-source.png is exported for Android, web/PWA,
+and documentation. Adaptive Android icons get a transparent foreground with the
+light canvas removed and scaled to fit comfortably inside the 66dp safe zone of
+the 108dp adaptive icon grid, while their background uses a color sampled from
+the artwork corners.
 
 Requires Pillow: python3 -m pip install Pillow
 """
@@ -26,7 +27,8 @@ RES = os.path.join(ROOT, "android", "app", "src", "main", "res")
 
 RGBAImage: TypeAlias = Image.Image
 MASTER_SIZE = 1024
-ARTWORK_CROP_RATIO = 0.68
+ARTWORK_CROP_RATIO = 1.0
+ADAPTIVE_MARK_SCALE = 0.78
 CORNER_RADIUS_RATIO = 0.235
 
 
@@ -63,7 +65,7 @@ def load_master() -> tuple[RGBAImage, tuple[int, int, int]]:
             method=Image.Resampling.LANCZOS,
             centering=(0.5, 0.5),
         )
-        crop_size = round(MASTER_SIZE * ARTWORK_CROP_RATIO)
+        crop_size = round(square.width * ARTWORK_CROP_RATIO)
         left = (square.width - crop_size) // 2
         top = (square.height - crop_size) // 2
         crop = square.crop((left, top, left + crop_size, top + crop_size))
@@ -101,7 +103,7 @@ def make_adaptive_foreground(
     image: RGBAImage,
     background: tuple[int, int, int],
 ) -> RGBAImage:
-    """Remove the dark canvas while preserving the mark and antialiased edges."""
+    """Remove the canvas while preserving the mark and fitting Android's 108dp grid."""
     rgb = image.convert("RGB")
     matte = Image.new("RGB", image.size, background)
     differences = ImageChops.difference(rgb, matte).split()
@@ -109,9 +111,7 @@ def make_adaptive_foreground(
         ImageChops.lighter(differences[0], differences[1]), differences[2]
     )
 
-    # Ignore the artwork's subtle background grain, then soften the edges into
-    # transparency. The near-black book seam blends into the Android background.
-    low, high = 42, 92
+    low, high = 24, 68
     alpha = delta.point(
         lambda value: max(0, min(255, round((value - low) * 255 / (high - low))))
     )
@@ -119,7 +119,15 @@ def make_adaptive_foreground(
     alpha = ImageChops.multiply(alpha, image.getchannel("A"))
     foreground = image.copy()
     foreground.putalpha(alpha)
-    return foreground
+
+    scaled_size = round(MASTER_SIZE * ADAPTIVE_MARK_SCALE)
+    scaled = foreground.resize(
+        (scaled_size, scaled_size), Image.Resampling.LANCZOS
+    )
+    canvas = Image.new("RGBA", (MASTER_SIZE, MASTER_SIZE), (0, 0, 0, 0))
+    offset = (MASTER_SIZE - scaled_size) // 2
+    canvas.alpha_composite(scaled, (offset, offset))
+    return canvas
 
 
 def update_adaptive_background(color: tuple[int, int, int]) -> None:
@@ -173,6 +181,7 @@ def main() -> None:
     save(icon, os.path.join(web, "Icon-maskable-192.png"), 192)
     save(icon, os.path.join(web, "Icon-maskable-512.png"), 512)
     save(icon, os.path.join(web, "favicon.png"), 64)
+    save(icon, os.path.join(ROOT, "web", "favicon.png"), 64)
 
     update_adaptive_background(background)
     print("\nAll Poolland icons generated successfully.")

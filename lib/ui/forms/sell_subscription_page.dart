@@ -58,7 +58,14 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
     final repo = context.read<AppRepository>();
     _currency = repo.settings.baseCurrency;
     _receiveCurrency = repo.settings.baseCurrency;
-    _title.text = 'Subscription';
+    // The default value is English; setting the cursor at the end avoids a
+    // visible jump when the user starts typing in an RTL context — the
+    // selection would otherwise default to position 0 (the left edge) and
+    // the first keystroke would insert before the existing text.
+    _title.value = TextEditingValue(
+      text: 'Subscription',
+      selection: TextSelection.collapsed(offset: 'Subscription'.length),
+    );
     _plan = widget.plan;
 
     final old = widget.renewFrom;
@@ -72,7 +79,9 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
       );
       _currency = old.currency;
       _receiveCurrency = old.currency;
-      _start = J.addDays(old.endDate, 1);
+      final nextDay = J.addDays(old.endDate, 1);
+      final today = J.today;
+      _start = nextDay.isBefore(today) ? today : nextDay;
       _autoRenew = old.autoRenew;
       _note.text = old.note;
       final plan = _plan;
@@ -356,12 +365,21 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
                             ),
                           ),
                         ),
+                        // A subscription longer than five years (60 months or
+                        // ~1825 days) is almost certainly a mistake — a slip
+                        // of the finger on the plus button. Capping it avoids
+                        // absurd dates while still allowing every realistic
+                        // plan length.
                         IconButton.outlined(
-                          onPressed: () => setState(() {
-                            _durationValue++;
-                            _manualEnd = false;
-                            _end = _computeEnd();
-                          }),
+                          onPressed: (_unitIsMonth
+                                      ? _durationValue >= 60
+                                      : _durationValue >= 1825)
+                              ? null
+                              : () => setState(() {
+                                  _durationValue++;
+                                  _manualEnd = false;
+                                  _end = _computeEnd();
+                                }),
                           icon: const Icon(Icons.add_rounded, size: 18),
                           style: IconButton.styleFrom(
                             minimumSize: const Size(Taps.icon, Taps.icon),

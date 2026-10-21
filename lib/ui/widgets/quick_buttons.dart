@@ -64,6 +64,7 @@ class QuickButtonsRow extends StatelessWidget {
     this.incomeFilter,
     this.hideWhenEmpty = false,
     this.trailing,
+    this.selectedCategoryId,
   });
 
   final String? emptyHint;
@@ -84,6 +85,9 @@ class QuickButtonsRow extends StatelessWidget {
 
   /// Extra widget appended after the chips (typically an "add" chip).
   final Widget? trailing;
+
+  /// Category id of the currently selected button, if any.
+  final String? selectedCategoryId;
 
   @override
   Widget build(BuildContext context) {
@@ -115,6 +119,7 @@ class QuickButtonsRow extends StatelessWidget {
         for (final q in items)
           QuickChip(
             quick: q,
+            selected: selectedCategoryId == q.categoryId,
             onTap: onTap == null
                 ? () => recordQuickExpense(context, q)
                 : () => onTap!(q),
@@ -133,11 +138,13 @@ class QuickChip extends StatelessWidget {
     required this.quick,
     this.onTap,
     this.onLongPress,
+    this.selected = false,
   });
 
   final QuickExpense quick;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -151,9 +158,14 @@ class QuickChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.10),
+          color: selected
+              ? color.withValues(alpha: 0.20)
+              : color.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.28)),
+          border: Border.all(
+            color: color.withValues(alpha: selected ? 0.70 : 0.28),
+            width: selected ? 2.0 : 1.0,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -164,7 +176,7 @@ class QuickChip extends StatelessWidget {
               q.label.tr,
               style: TextStyle(
                 fontSize: 12.5,
-                fontWeight: FontWeight.w700,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
                 color: color,
               ),
             ),
@@ -177,6 +189,10 @@ class QuickChip extends StatelessWidget {
                   color: color.withValues(alpha: 0.75),
                 ),
               ),
+            ],
+            if (selected) ...[
+              const SizedBox(width: 5),
+              Icon(Icons.check_rounded, size: 15, color: color),
             ],
           ],
         ),

@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format_utils.dart';
-import '../core/haptics.dart';
 import '../core/jalali_utils.dart';
 import '../core/money.dart';
 import '../core/notifications/notify.dart';
@@ -14,18 +13,14 @@ import '../core/sms/sms_access.dart';
 import '../core/sms/sms_models.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
-import '../data/store.dart';
 import 'design.dart';
 import 'motion_kit.dart';
-import 'forms/contact_edit_page.dart';
 import 'forms/transaction_edit_page.dart';
-import 'settings_page.dart';
 import 'sms_rules_page.dart';
 import 'widgets/widgets.dart';
 
 import '../core/localization.dart';
-import 'personal_page.dart';
-import 'widgets/quick_buttons.dart';
+import 'forms/sms_review_sheet.dart';
 
 /// ============================================================
 ///  Bank SMS — inbox sync, review, and approval queue
@@ -220,6 +215,9 @@ class _SmsPageState extends State<SmsPage> with WidgetsBindingObserver {
         .firstOrNull;
     if (sms == null) {
       showSnack(context, 'This SMS is no longer waiting for review.');
+      // The page was opened for a suggestion that has already been handled;
+      // leaving it here would be a dead end.
+      if (mounted) Navigator.maybePop(context);
       return;
     }
     final ok = await showLedgerSheet<bool>(
@@ -229,8 +227,12 @@ class _SmsPageState extends State<SmsPage> with WidgetsBindingObserver {
         initialCustomer: repo.matchCustomerForSms(sms),
       ),
     );
-    if (ok == true && mounted) {
+    if (!mounted) return;
+    if (ok == true) {
       showSnack(context, 'Transaction recorded from SMS');
+      // The notification opened this page only to review this one item; once
+      // it is recorded the page has nothing else to do.
+      Navigator.maybePop(context);
     }
   }
 
@@ -810,6 +812,30 @@ class _SmsCard extends StatelessWidget {
               style: const TextStyle(fontSize: 10.5, color: Color(0xFFB45309)),
             ),
           ],
+          if (sms.bankName == null) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        SmsRuleEditPage(initialMessage: sms.message),
+                  ),
+                ),
+                icon: const Icon(Icons.add_moderator_outlined, size: 16),
+                label: Text(
+                  'Create recognition rule'.tr,
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           Row(
             children: [
@@ -965,6 +991,24 @@ class _SmsHistoryCard extends StatelessWidget {
               ).colorScheme.onSurface.withValues(alpha: 0.68),
             ),
           ),
+          if (entry.wasRejected) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  await context.read<AppRepository>().restoreRejectedSms(entry);
+                  showMessengerSnack(
+                    messenger,
+                    'SMS returned to review queue',
+                  );
+                },
+                icon: const Icon(Icons.restore_rounded, size: 16),
+                label: Text('Return to review queue'.tr),
+              ),
+            ),
+          ],
           if (entry.transactionId != null) ...[
             const SizedBox(height: 6),
             if (transactionToOpen != null)
@@ -1000,424 +1044,6 @@ class _SmsHistoryCard extends StatelessWidget {
     );
   }
 }
-
-/// ---------------- Review or edit before recording ----------------
-class SmsReviewSheet extends StatefulWidget {
-  const SmsReviewSheet({super.key, required this.sms, this.initialCustomer});
-
-  final ParsedSms sms;
-  final Customer? initialCustomer;
-
-  @override
-  State<SmsReviewSheet> createState() => _SmsReviewSheetState();
-}
-
-class _SmsReviewSheetState extends State<SmsReviewSheet> {
-  late TextEditingController _amount;
-  Customer? _customer;
-  TxnKind _kind = TxnKind.income;
-  TxnScope _scope = TxnScope.business;
-  String? _categoryId;
-  bool _presetDone = false;
-
-  /// The sheet opens ready to save: the section is business, and kind +
-  /// category follow the section, so the record button is enabled immediately.
-  ///
-  /// Business is a fixed default, not a guess. This used to fall back to
-  /// `repo.transactions.first.scope` — the scope of whichever entry happened
-  /// to be newest — and since the personal page is the app's landing tab with
-  /// one-tap quick buttons, that newest entry is very often personal. The
-  /// sheet would then open a *bank deposit* on «personal» with no contact,
-  /// still one tap from being recorded, and business income would quietly
-  /// leave the profit report. A predictable default the user can see and flip
-  /// (the [ScopeSegment] sits right under the kind tiles) beats a plausible
-  /// one they have no reason to check.
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_presetDone) return;
-    _presetDone = true;
-    final repo = context.read<AppRepository>();
-    _scope = TxnScope.business;
-    _customer = widget.initialCustomer;
-    _kind = _suggestedKind(repo, _scope);
-    _categoryId = _suggestedCategoryId(repo, _scope);
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _customer = widget.initialCustomer;
-    _amount = TextEditingController(
-      text: groupedNumber(
-        widget.sms.amount,
-        decimals: Money.decimals(widget.sms.currency),
-      ),
-    );
-  }
-
-  TxnKind _suggestedKind(AppRepository repo, TxnScope scope) {
-    if (widget.sms.direction == SmsDirection.deposit) {
-      if (scope == TxnScope.business &&
-          _customer != null &&
-          repo.balanceOf(_customer!) > 0.5) {
-        return TxnKind.receive;
-      }
-      return TxnKind.income;
-    }
-    return TxnKind.expense;
-  }
-
-  TxnKind? _categoryKind(TxnKind kind) => switch (kind) {
-    TxnKind.income || TxnKind.receive => TxnKind.income,
-    TxnKind.expense => TxnKind.expense,
-    _ => null,
-  };
-
-  String? _suggestedCategoryId(AppRepository repo, TxnScope scope) {
-    final kind = _categoryKind(_kind);
-    return kind == null ? null : repo.defaultCategoryId(kind, scope: scope);
-  }
-
-  List<TxnKind> _availableKinds(AppRepository repo, TxnScope scope) {
-    if (scope == TxnScope.personal) {
-      return [
-        widget.sms.direction == SmsDirection.deposit
-            ? TxnKind.income
-            : TxnKind.expense,
-      ];
-    }
-    if (widget.sms.direction == SmsDirection.deposit) {
-      return [
-        TxnKind.income,
-        if (_customer != null && repo.balanceOf(_customer!) > 0.5)
-          TxnKind.receive,
-      ];
-    }
-    if (widget.sms.direction == SmsDirection.withdraw) {
-      return [
-        TxnKind.expense,
-        if (_customer != null) TxnKind.refund,
-        if (_customer != null && repo.balanceOf(_customer!) < -0.5)
-          TxnKind.payablePayment,
-      ];
-    }
-    return [TxnKind.income, TxnKind.expense];
-  }
-
-  Future<void> _openQuickEdit(TxnScope scope, [QuickExpense? q]) async {
-    await showLedgerSheet<void>(
-      context,
-      builder: (_) => QuickEditSheet(
-        initial: q,
-        presetScope: scope,
-        presetKind: widget.sms.direction == SmsDirection.deposit
-            ? TxnKind.income
-            : TxnKind.expense,
-      ),
-    );
-  }
-
-  void _changeScope(AppRepository repo, TxnScope scope) {
-    if (_scope == scope) return;
-    setState(() {
-      _scope = scope;
-      _customer = scope == TxnScope.business ? widget.initialCustomer : null;
-      _kind = _suggestedKind(repo, scope);
-      _categoryId = _suggestedCategoryId(repo, scope);
-    });
-  }
-
-  @override
-  void dispose() {
-    _amount.dispose();
-    super.dispose();
-  }
-
-  /// Same one-tap selection as the main entry form: the contact chip is
-  /// the frequent regular, a second tap clears it.
-  Widget _contactChip(Customer c) {
-    final selected = _customer?.id == c.id;
-    return PresetChip(
-      icon: Icons.person_outline_rounded,
-      label: c.name,
-      selected: selected,
-      onTap: () {
-        Haptics.selection();
-        setState(() => _customer = selected ? null : c);
-      },
-    );
-  }
-
-  /// The full, searchable contact sheet behind the "all contacts" chip.
-  Future<void> _openContactSheet() async {
-    final repo = context.read<AppRepository>();
-    final res = await showPickSheet<Customer>(
-      context,
-      title: 'Select contact',
-      items: repo.activeCustomers,
-      current: _customer,
-      labelOf: (c) => c.name,
-      subOf: (c) => c.phone,
-      clearable: true,
-      searchHint: 'Customer name...',
-    );
-    if (res == null) return;
-    if (res.cleared) {
-      setState(() => _customer = null);
-    } else if (res.value != null) {
-      setState(() => _customer = res.value);
-    }
-  }
-
-  /// Create the contact inline and select it, like the main entry form.
-  Future<void> _newContact() async {
-    final created = await Navigator.push<Customer>(
-      context,
-      MaterialPageRoute(builder: (_) => const ContactEditPage()),
-    );
-    if (!mounted) return;
-    if (created != null) {
-      setState(() => _customer = created);
-    }
-  }
-
-  /// "+ quick button" means pinning one of the existing categories: the
-  /// choice happens in the same searchable list, no name typing.
-  Future<void> _addQuickFromCategory(TxnScope scope) async {
-    final repo = context.read<AppRepository>();
-    final categoryKind = _categoryKind(_kind);
-    if (categoryKind == null) {
-      await _openQuickEdit(scope);
-      return;
-    }
-    final all = repo.categoriesOf(categoryKind, scope: scope);
-    if (all.isEmpty) {
-      await _openQuickEdit(scope);
-      return;
-    }
-    final res = await showPickSheet<Category>(
-      context,
-      title: 'Choose a category for the button',
-      items: repo.pickOrderCategories(categoryKind, scope: scope),
-      current: null,
-      labelOf: (c) => c.name,
-      searchHint: 'Category name...',
-      isChild: (c) => c.parentId != null,
-    );
-    if (res == null || res.value == null) return;
-    final c = res.value!;
-    if (!mounted) return;
-    if (repo.quickExpenses.any((q) => q.categoryId == c.id)) {
-      // A rejection, not a confirmation: it says the tap did nothing, so it
-      // has to look like a warning rather than a green tick.
-      showSnack(
-        context,
-        'This category is already a quick button',
-        error: true,
-      );
-      return;
-    }
-    Haptics.selection();
-    await repo.addQuickButton(QuickExpense(
-      id: LocalStore.newId(),
-      label: c.name,
-      kind: c.kind,
-      scope: scope,
-      categoryId: c.id,
-      iconCodePoint: 0,
-      sortOrder: repo.quickExpenses.isEmpty
-          ? 0
-          : repo.quickExpenses.last.sortOrder + 1,
-    ));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final repo = context.watch<AppRepository>();
-    final sms = widget.sms;
-    final scope = _scope;
-    final categoryKind = _categoryKind(_kind);
-    final categories = categoryKind == null
-        ? const <Category>[]
-        : repo.pickOrderCategories(categoryKind, scope: scope);
-    final availableKinds = _availableKinds(repo, scope);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-      ),
-      // The ledger-sheet route keeps the sheet clear of the soft keyboard.
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SheetHandle(),
-            const SizedBox(height: 14),
-            Text(
-              'Record this SMS transaction'.tr,
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              sms.bankName?.tr ??
-                  (sms.message.address.isNotEmpty
-                      ? sms.message.address
-                      : 'Pasted message'.tr),
-              style: TextStyle(
-                fontSize: 11.5,
-                color: Theme.of(context).colorScheme.onSurface
-                    .withValues(alpha: 0.6),
-              ),
-            ),
-            const SizedBox(height: 16),
-            // The same intent zone as the main entry form: the color-coded
-            // kind tiles (restricted to what this SMS can become), then the
-            // business/personal segment.
-            TxnKindStrip(
-              kinds: availableKinds,
-              selected: _kind,
-              onSelect: (k) => setState(() {
-                _kind = k;
-                _categoryId = _suggestedCategoryId(repo, scope);
-              }),
-            ),
-            const SizedBox(height: 10),
-            ScopeSegment(
-              selected: scope,
-              onSelect: (s) => _changeScope(repo, s),
-            ),
-            const SizedBox(height: 14),
-            // Quick-entry buttons for this section and direction: one tap
-            // sets the type/category here, the chip adds a new button.
-            QuickButtonsRow(
-              scopeFilter: scope,
-              incomeFilter: sms.direction == SmsDirection.deposit,
-              hideWhenEmpty: true,
-              onTap: (q) => setState(() {
-                if (availableKinds.contains(q.kind)) _kind = q.kind;
-                if (q.categoryId != null) _categoryId = q.categoryId;
-              }),
-              onLongPress: (q) => _openQuickEdit(scope, q),
-              trailing: ActionChip(
-                avatar: const Icon(Icons.add_rounded, size: 16),
-                label: Text('Quick button'.tr),
-                onPressed: () => _addQuickFromCategory(scope),
-              ),
-            ),
-            const SizedBox(height: 14),
-            AmountField(
-              controller: _amount,
-              label: 'Amount'.tr,
-              currency: sms.currency,
-            ),
-            if (scope == TxnScope.business) ...[
-              const SizedBox(height: 16),
-              SectionCaption('Contact (optional)'),
-              const SizedBox(height: 6),
-              ChipStrip(chips: [
-                for (final c in repo.topCustomers(limit: 3)) _contactChip(c),
-                PresetChip(
-                  icon: Icons.person_search_outlined,
-                  label: 'All contacts'.tr,
-                  onTap: _openContactSheet,
-                ),
-                PresetChip(
-                  icon: Icons.person_add_alt_1_rounded,
-                  label: 'New contact'.tr,
-                  onTap: _newContact,
-                ),
-              ]),
-              if (_customer != null)
-                ContactBalanceCard(
-                  customer: _customer!,
-                  balance: repo.balanceOf(_customer!),
-                ),
-            ],
-            if (categoryKind != null) ...[
-              const SizedBox(height: 16),
-              // Every category lives in one searchable list — frequent ones
-              // lead, so a long catalog is never a scrolling hunt.
-              SelectField<Category>(
-                label: 'Category',
-                icon: Icons.category_outlined,
-                value:
-                    categories.where((c) => c.id == _categoryId).firstOrNull,
-                items: categories,
-                labelOf: (c) => c.name,
-                searchHint: 'Category name...',
-                sheetTitle: 'Select category',
-                isChild: (c) => c.parentId != null,
-                extraActionLabel: 'Manage',
-                onExtraAction: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const CategoriesPage(),
-                  ),
-                ),
-                onChanged: (c) {
-                  Haptics.selection();
-                  setState(() => _categoryId = c?.id);
-                },
-              ),
-            ],
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text('Cancel'.tr),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 2,
-                  child: FilledButton.icon(
-                    onPressed: () async {
-                      final value = parseAmount(_amount.text);
-                      if (value <= 0) {
-                        showSnack(
-                          context,
-                          'Enter an amount',
-                          error: true,
-                        );
-                        return;
-                      }
-                      await repo.approveSms(
-                        sms,
-                        customer: _customer,
-                        kind: _kind,
-                        categoryId: _categoryId,
-                        amount: value,
-                        scope: scope,
-                      );
-                      if (context.mounted) {
-                        // Coin + stamp: the money-landed moment.
-                        MoneyCelebration.recorded(context);
-                        Navigator.pop(context, true);
-                      }
-                    },
-                    icon: const Icon(Icons.check_rounded, size: 18),
-                    label: Text('Record transaction'.tr),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Sheet for manually handing a copied bank message to the parser.
-///
-/// It remains available to users who decline inbox access or want to review
 /// one message without syncing the device inbox.
 class _ImportSmsSheet extends StatefulWidget {
   const _ImportSmsSheet();
@@ -1479,7 +1105,6 @@ class _ImportSmsSheetState extends State<_ImportSmsSheet> {
             const SizedBox(height: 12),
             TextField(
               controller: _text,
-              autofocus: true,
               minLines: 4,
               maxLines: 8,
               textAlignVertical: TextAlignVertical.top,

@@ -19,7 +19,6 @@ import 'motion_kit.dart';
 import 'forms/contact_edit_page.dart';
 import 'forms/sell_subscription_page.dart';
 import 'forms/transaction_edit_page.dart';
-import 'personal_page.dart';
 import 'reports_page.dart';
 import 'settings_page.dart';
 import 'sms_page.dart';
@@ -75,20 +74,20 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   /// list).
   final Map<int, ScrollController> _scrollControllers = {};
 
-  // Personal bookkeeping is the first destination because it is the most
-  // frequent task; business tools remain one tap away.
+  // Unified Dashboard (with Personal first and Business second) is the home
+  // destination; specialist tabs sit one tap away.
   static const _titles = [
-    'Personal',
     'Dashboard',
     'Customers',
     'Subscriptions',
     'Transactions',
+    'Reports',
   ];
 
   /// The repository this shell keeps a handle on, so lifecycle callbacks and
   /// notification taps can be handled without rebuilding the whole shell.
   AppRepository? _repo;
-  late final StreamSubscription<SmsMessage> _smsNotificationSubscription;
+  StreamSubscription<SmsMessage>? _smsNotificationSubscription;
   final Set<String> _handledSmsNotificationKeys = {};
   final List<SmsMessage> _deferredSmsNotificationTaps = [];
 
@@ -96,7 +95,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void dispose() {
     _closeDial();
     _dialHighlight.dispose();
-    unawaited(_smsNotificationSubscription.cancel());
+    _smsNotificationSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _fabVisible.dispose();
     for (final controller in _scrollControllers.values) {
@@ -114,7 +113,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       if (repo != null && repo.isReady) {
         unawaited(repo.refreshNotificationPermission().then<void>((_) {}));
       }
-      unawaited(_consumeSmsNotificationTaps());
+      // Only consume notification taps once the repository is up — deferring
+      // them while it is still initialising is the job of
+      // [_handleSmsNotificationTap]'s own queue, so calling this here is
+      // enough to surface anything that arrived while the app was in the
+      // background.
+      if (repo != null) {
+        unawaited(_consumeSmsNotificationTaps());
+      }
     }
   }
 
@@ -136,8 +142,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     });
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final repo = context.read<AppRepository>();
-      _repo = repo;
+      final repo = _repo!;
       if (!repo.isReady) await repo.init();
 
       // Automatically post due recurring transactions (rent, internet, and so on).
@@ -292,7 +297,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   Widget _buildFab() {
     final compact = MediaQuery.sizeOf(context).width < 360;
-    if (_index == 2) {
+    if (_index == 1) {
       if (compact) {
         return FloatingActionButton(
           tooltip: 'New customer'.tr,
@@ -312,21 +317,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         label: Text('New customer'.tr),
       );
     }
-    if (_index == 0) {
-      if (compact) {
-        return FloatingActionButton(
-          tooltip: 'Add personal entry'.tr,
-          onPressed: _personalAdd,
-          child: const Icon(Icons.add_rounded),
-        );
-      }
-      return FloatingActionButton.extended(
-        onPressed: _personalAdd,
-        icon: const Icon(Icons.add_rounded),
-        label: Text('Add personal entry'.tr),
-      );
-    }
-    if (_index == 3) {
+    if (_index == 2) {
       if (compact) {
         return FloatingActionButton(
           tooltip: 'Sell a subscription'.tr,
@@ -367,63 +358,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         builder: (_) => SellSubscriptionPage(
           contact: last == null ? null : repo.customerById(last.customerId),
           plan: last == null ? null : repo.planById(last.planId),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _personalAdd() async {
-    final choice = await showLedgerSheet<String>(
-      context,
-      builder: (ctx) => SafeArea(
-        top: false,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Theme.of(ctx).cardColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-          ),
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SheetHandle(),
-              const SizedBox(height: 16),
-              Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: Text(
-                  'Add personal entry'.tr,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              _menuTile(
-                ctx,
-                'Personal expense',
-                Icons.remove_circle_outline_rounded,
-                'p_expense',
-              ),
-              _menuTile(
-                ctx,
-                'Personal income',
-                Icons.add_circle_outline_rounded,
-                'p_income',
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (!mounted || choice == null) return;
-    final kind = choice == 'p_expense' ? TxnKind.expense : TxnKind.income;
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => TransactionEditPage(
-          initialKind: kind,
-          initialScope: TxnScope.personal,
         ),
       ),
     );
@@ -611,21 +545,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   // ---------------- FAB speed dial ----------------
 
   List<_DialItem> _dialItemsFor() => switch (_index) {
-    0 => const [
-      _DialItem(
-        'p_expense',
-        Icons.person_outline_rounded,
-        'Personal expense',
-        Color(0xFFE11D48),
-      ),
-      _DialItem(
-        'p_income',
-        Icons.savings_outlined,
-        'Personal income',
-        Color(0xFF16A34A),
-      ),
-    ],
-    2 => const [
+    1 => const [
       _DialItem(
         'new_customer',
         Icons.person_add_alt_1_rounded,
@@ -645,7 +565,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         Color(0xFFE11D48),
       ),
     ],
-    3 => const [
+    2 => const [
       _DialItem(
         'sale_sub',
         Icons.vpn_key_rounded,
@@ -667,6 +587,18 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     ],
     _ => const [
       _DialItem(
+        'p_expense',
+        Icons.person_outline_rounded,
+        'Personal expense',
+        Color(0xFFE11D48),
+      ),
+      _DialItem(
+        'p_income',
+        Icons.savings_outlined,
+        'Personal income',
+        Color(0xFF16A34A),
+      ),
+      _DialItem(
         'income',
         Icons.trending_up_rounded,
         'Record income (no subscription)',
@@ -683,12 +615,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         Icons.trending_down_rounded,
         'Record expense',
         Color(0xFFE11D48),
-      ),
-      _DialItem(
-        'refund',
-        Icons.call_made_rounded,
-        'Payment / refund',
-        Color(0xFFD97706),
       ),
       _DialItem(
         'sale_sub',
@@ -812,31 +738,33 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     // Only readiness is needed here; watching the whole repository would
     // rebuild the shell (and therefore every open tab) on each data change.
     final isReady = context.select<AppRepository, bool>((r) => r.isReady);
-    final width = MediaQuery.of(context).size.width;
+    final width = MediaQuery.sizeOf(context).width;
     final isWide = width >= 840;
     final isExtended = width >= 1120;
     final pages = <Widget>[
-      PersonalPage(onNavigate: _goTo, controller: _controllerFor(0)),
-      DashboardPage(onNavigate: _goTo, controller: _controllerFor(1)),
-      CustomersPage(controller: _controllerFor(2)),
-      SubscriptionsPage(controller: _controllerFor(3)),
-      TransactionsPage(controller: _controllerFor(4)),
+      DashboardPage(onNavigate: _goTo, controller: _controllerFor(0)),
+      CustomersPage(controller: _controllerFor(1)),
+      SubscriptionsPage(controller: _controllerFor(2)),
+      TransactionsPage(controller: _controllerFor(3)),
+      ReportsPage(controller: _controllerFor(4)),
     ];
     final content = !isReady
         ? const Center(child: CircularProgressIndicator())
-        : IndexedStack(
-            index: _index,
-            children: [
-              for (var i = 0; i < pages.length; i++)
-                if (_visited.contains(i))
-                  _TabPane(
-                    active: _index == i,
-                    forward: _dirForward,
-                    child: pages[i],
-                  )
-                else
-                  const SizedBox.shrink(),
-            ],
+        : RepaintBoundary(
+            child: IndexedStack(
+              index: _index,
+              children: [
+                for (var i = 0; i < pages.length; i++)
+                  if (_visited.contains(i))
+                    _TabPane(
+                      active: _index == i,
+                      forward: _dirForward,
+                      child: pages[i],
+                    )
+                  else
+                    const SizedBox.shrink(),
+              ],
+            ),
           );
 
     return PopScope<Object?>(
@@ -850,30 +778,18 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         }
       },
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         appBar: AppBar(
           title: Text(_titles[_index].tr),
           actions: [
             // Only where it applies: repeating a sale is the one shortcut that
             // matters on the subscriptions tab, and it needs no new screen.
-            if (_index == 3)
+            if (_index == 2)
               IconButton(
                 tooltip: 'Repeat last sale'.tr,
                 icon: const Icon(Icons.replay_rounded),
                 onPressed: _repeatLastSale,
               ),
-            IconButton(
-              tooltip: 'Reports'.tr,
-              icon: const Icon(Icons.insights_outlined),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => Scaffold(
-                    appBar: AppBar(title: Text('Reports'.tr)),
-                    body: const ReportsPage(),
-                  ),
-                ),
-              ),
-            ),
             IconButton(
               tooltip: 'Settings'.tr,
               icon: const Icon(Icons.settings_outlined),
@@ -896,11 +812,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                     extended: isExtended,
                     destinations: [
                       NavigationRailDestination(
-                        icon: const Icon(Icons.person_outline_rounded),
-                        selectedIcon: const Icon(Icons.person_rounded),
-                        label: Text('Personal'.tr),
-                      ),
-                      NavigationRailDestination(
                         icon: const Icon(Icons.dashboard_outlined),
                         selectedIcon: const Icon(Icons.dashboard_rounded),
                         label: Text('Dashboard'.tr),
@@ -919,6 +830,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                         icon: const Icon(Icons.receipt_long_outlined),
                         selectedIcon: const Icon(Icons.receipt_long_rounded),
                         label: Text('Transactions'.tr),
+                      ),
+                      NavigationRailDestination(
+                        icon: const Icon(Icons.insights_outlined),
+                        selectedIcon: const Icon(Icons.insights_rounded),
+                        label: Text('Reports'.tr),
                       ),
                     ],
                   ),
@@ -988,11 +904,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                 onDestinationSelected: _goTo,
                 destinations: [
                   LedgerNavDestination(
-                    icon: Icons.person_outline_rounded,
-                    selectedIcon: Icons.person_rounded,
-                    label: 'Personal'.tr,
-                  ),
-                  LedgerNavDestination(
                     icon: Icons.dashboard_outlined,
                     selectedIcon: Icons.dashboard_rounded,
                     label: 'Dashboard'.tr,
@@ -1011,6 +922,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                     icon: Icons.receipt_long_outlined,
                     selectedIcon: Icons.receipt_long_rounded,
                     label: 'Transactions'.tr,
+                  ),
+                  LedgerNavDestination(
+                    icon: Icons.insights_outlined,
+                    selectedIcon: Icons.insights_rounded,
+                    label: 'Reports'.tr,
                   ),
                 ],
               ),
@@ -1063,15 +979,20 @@ class _TabPaneState extends State<_TabPane>
 
   @override
   Widget build(BuildContext context) {
+    final pane = TickerMode(
+      enabled: widget.active,
+      child: RepaintBoundary(child: widget.child),
+    );
     if (!Motion.motionEnabled ||
         (MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
-      return widget.child;
+      return pane;
     }
     final rtl = Directionality.of(context) == TextDirection.rtl;
     final dir = (widget.forward ? 1 : -1) * (rtl ? -1 : 1);
     return AnimatedBuilder(
       animation: _c,
       builder: (context, child) {
+        if (_c.value >= 0.999) return child!;
         final t = Curves.easeOutCubic.transform(_c.value);
         return Opacity(
           opacity: t.clamp(0.0, 1.0),
@@ -1081,7 +1002,7 @@ class _TabPaneState extends State<_TabPane>
           ),
         );
       },
-      child: widget.child,
+      child: pane,
     );
   }
 }

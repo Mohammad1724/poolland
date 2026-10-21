@@ -135,16 +135,21 @@ class Ledger {
     String? search,
     TxnScope? scope,
   }) {
+    final startBound = from == null ? null : J.startOfDay(from);
+    final endBound = to == null ? null : J.endOfDay(to);
+    final q = (search != null && search.trim().isNotEmpty)
+        ? Fmt.normalizeDigits(search.trim().toLowerCase())
+        : null;
     return txns.where((t) {
-      if (!inRange(t.date, from, to)) return false;
+      if (startBound != null && t.date.isBefore(startBound)) return false;
+      if (endBound != null && t.date.isAfter(endBound)) return false;
       if (scope != null && t.scope != scope) return false;
       if (kind != null && t.kind != kind) return false;
       if (customerId != null && t.customerId != customerId) return false;
       if (categoryId != null && t.categoryId != categoryId) return false;
-      if (search != null && search.trim().isNotEmpty) {
+      if (q != null) {
         // Persian and Arabic-Indic digits are normalized on both sides so a
         // search typed with either keyboard matches stored Latin-digit data.
-        final q = Fmt.normalizeDigits(search.trim().toLowerCase());
         if (!Fmt.normalizeDigits(t.note.toLowerCase()).contains(q) &&
             !t.amount.toStringAsFixed(0).contains(q)) {
           return false;
@@ -330,18 +335,45 @@ class Ledger {
     DateTime? endMonth,
     TxnScope? scope,
   }) {
+    if (months <= 0) return const [];
     final end = endMonth ?? DateTime.now();
     final start = J.startOfMonth(J.addMonths(end, -(months - 1)));
-    final points = <MonthPoint>[];
-    for (var i = 0; i < months; i++) {
-      final mStart = J.addMonths(start, i);
-      final mEnd = J.endOfMonth(mStart);
-      final s = summarize(txns, from: mStart, to: mEnd, scope: scope);
-      points.add(
-        MonthPoint(monthStart: mStart, income: s.income, expense: s.expense),
-      );
+    final starts = <DateTime>[
+      for (var i = 0; i < months; i++) J.addMonths(start, i),
+    ];
+    final ends = <DateTime>[
+      for (var i = 0; i < months; i++) J.endOfDay(J.endOfMonth(starts[i])),
+    ];
+    final income = List<double>.filled(months, 0);
+    final expense = List<double>.filled(months, 0);
+    final rangeStart = starts.first;
+    final rangeEnd = ends.last;
+    for (final t in txns) {
+      final asIncome = isRecognizedIncome(t);
+      final asExpense = isChartedExpense(t);
+      if (!asIncome && !asExpense) continue;
+      if (scope != null && t.scope != scope) continue;
+      if (t.date.isBefore(rangeStart) || t.date.isAfter(rangeEnd)) continue;
+      for (var i = 0; i < months; i++) {
+        if (!t.date.isBefore(starts[i]) && !t.date.isAfter(ends[i])) {
+          final v = base(t);
+          if (asIncome) {
+            income[i] += v;
+          } else {
+            expense[i] += v;
+          }
+          break;
+        }
+      }
     }
-    return points;
+    return [
+      for (var i = 0; i < months; i++)
+        MonthPoint(
+          monthStart: starts[i],
+          income: income[i],
+          expense: expense[i],
+        ),
+    ];
   }
 
   /// Totals by category for a date range.
@@ -450,6 +482,68 @@ class Ledger {
     return J.daysBetween(n, J.startOfDay(s.endDate));
   }
 
+  /// Whether [s] has been superseded by a newer subscription for the same
+  /// customer and service plan.
+  static bool isSuperseded(Subscription s, List<Subscription> all) {
+    final end = J.startOfDay(s.endDate);
+    for (final other in all) {
+      if (other.id == s.id) continue;
+      if (other.customerId != s.customerId) continue;
+      if (other.planName != s.planName) continue;
+      if (J.startOfDay(other.endDate).isAfter(end)) return true;
+    }
+    return false;
+  }
+
+  static Map<(String, String), (DateTime, String, DateTime?)>
+  _groupMaxEndsByPlan(List<Subscription> all) {
+    final map = <(String, String), (DateTime, String, DateTime?)>{};
+    for (final s in all) {
+      final key = (s.customerId, s.planName);
+      final end = J.startOfDay(s.endDate);
+      final cur = map[key];
+      if (cur == null) {
+        map[key] = (end, s.id, null);
+      } else {
+        final (max1, id1, max2) = cur;
+        if (s.id == id1) {
+          if (end.isAfter(max1)) map[key] = (end, id1, max2);
+        } else if (end.isAfter(max1)) {
+          map[key] = (end, s.id, max1);
+        } else if (max2 == null || end.isAfter(max2)) {
+          map[key] = (max1, id1, end);
+        }
+      }
+    }
+    return map;
+  }
+
+  static bool _isSupersededWithGroupMax(
+    Subscription s,
+    Map<(String, String), (DateTime, String, DateTime?)> groupMax,
+  ) {
+    final cur = groupMax[(s.customerId, s.planName)];
+    if (cur == null) return false;
+    final (max1, id1, max2) = cur;
+    final otherMax = s.id == id1 ? max2 : max1;
+    return otherMax != null && otherMax.isAfter(J.startOfDay(s.endDate));
+  }
+
+  /// Single-pass $O(S)$ computation of all subscription IDs superseded by a
+  /// later-ending subscription (with a distinct ID) for the same
+  /// `(customerId, planName)` pair.
+  static Set<String> supersededIds(List<Subscription> all) {
+    if (all.length <= 1) return const <String>{};
+    final groupMax = _groupMaxEndsByPlan(all);
+    final out = <String>{};
+    for (final s in all) {
+      if (_isSupersededWithGroupMax(s, groupMax)) {
+        out.add(s.id);
+      }
+    }
+    return out;
+  }
+
   /// Subscriptions nearing expiry or already expired (for alerts).
   static List<Subscription> alerts(
     List<Subscription> subs, {
@@ -458,7 +552,9 @@ class Ledger {
     int expiredWithinDays = 14,
   }) {
     final n = J.startOfDay(now ?? DateTime.now());
+    final groupMax = _groupMaxEndsByPlan(subs);
     final out = subs.where((s) {
+      if (_isSupersededWithGroupMax(s, groupMax)) return false;
       final left = J.daysBetween(n, J.startOfDay(s.endDate));
       if (left >= 0) return left <= reminderDays;
       return -left <= expiredWithinDays;
@@ -474,13 +570,23 @@ class Ledger {
       J.addMonths(start, months);
 
   /// Total expenses for a category and date range (in the base currency).
+  ///
+  /// When [categories] is supplied, expenses recorded under direct
+  /// subcategories of [categoryId] also count toward the parent category.
   static double spentIn(
     List<Txn> txns,
     String categoryId, {
     DateTime? from,
     DateTime? to,
     TxnScope? scope,
+    List<Category>? categories,
   }) {
+    final childIds = categories == null
+        ? const <String>{}
+        : categories
+              .where((c) => c.parentId == categoryId)
+              .map((c) => c.id)
+              .toSet();
     var total = 0.0;
     for (final t in filter(
       txns,
@@ -489,7 +595,8 @@ class Ledger {
       kind: TxnKind.expense,
       scope: scope,
     )) {
-      if (t.categoryId != categoryId) continue;
+      final cid = t.categoryId;
+      if (cid != categoryId && !childIds.contains(cid)) continue;
       total += base(t);
     }
     return total;
@@ -516,6 +623,7 @@ class Ledger {
     DateTime? endDay,
     TxnScope? scope,
   }) {
+    if (days <= 0) return const [];
     final end = J.startOfDay(endDay ?? DateTime.now());
     final start = J.addDays(end, -(days - 1));
     final income = List<double>.filled(days, 0);
@@ -527,7 +635,7 @@ class Ledger {
       if (scope != null && t.scope != scope) continue;
       final day = J.startOfDay(t.date);
       if (day.isBefore(start) || day.isAfter(end)) continue;
-      final index = day.difference(start).inDays;
+      final index = J.daysBetween(start, day);
       if (index < 0 || index >= days) continue;
       final v = base(t);
       if (asIncome) {
@@ -553,27 +661,36 @@ class Ledger {
     DateTime? endDay,
     TxnScope? scope,
   }) {
+    if (weeks <= 0) return const [];
     final end = J.startOfDay(endDay ?? DateTime.now());
-    final points = <DayPoint>[];
-    for (var i = weeks - 1; i >= 0; i--) {
-      final weekEnd = J.addDays(end, -7 * i);
-      final weekStart = J.addDays(weekEnd, -6);
-      final s = summarize(
-        txns,
-        from: weekStart,
-        to: J.endOfDay(weekEnd),
-        scope: scope,
-      );
-      points.add(
+    final start = J.addDays(end, -(weeks * 7 - 1));
+    final income = List<double>.filled(weeks, 0);
+    final expense = List<double>.filled(weeks, 0);
+    for (final t in txns) {
+      final asIncome = isRecognizedIncome(t);
+      final asExpense = isChartedExpense(t);
+      if (!asIncome && !asExpense) continue;
+      if (scope != null && t.scope != scope) continue;
+      final day = J.startOfDay(t.date);
+      if (day.isBefore(start) || day.isAfter(end)) continue;
+      final index = J.daysBetween(start, day) ~/ 7;
+      if (index < 0 || index >= weeks) continue;
+      final v = base(t);
+      if (asIncome) {
+        income[index] += v;
+      } else {
+        expense[index] += v;
+      }
+    }
+    return [
+      for (var i = 0; i < weeks; i++)
         DayPoint(
-          day: weekStart,
-          income: s.income,
-          expense: s.expense,
+          day: J.addDays(start, i * 7),
+          income: income[i],
+          expense: expense[i],
           label: 'Week',
         ),
-      );
-    }
-    return points;
+    ];
   }
 }
 

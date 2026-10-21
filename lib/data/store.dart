@@ -74,44 +74,47 @@ class LocalStore {
     }
   }
 
-  /// Open storage boxes on mobile or web.
-  static Future<LocalStore> open() async {
-    await Hive.initFlutter('vpn_ledger');
+  static Future<LocalStore> _openAllBoxes() async {
+    final boxes = await Future.wait<Box>([
+      _openBox(boxCustomers),
+      _openBox(boxSubscriptions),
+      _openBox(boxTransactions),
+      _openBox(boxCategories),
+      _openBox(boxPlans),
+      _openBox(boxMeta),
+      _openBox(boxSmsState),
+      _openBox(boxSmsRules),
+      _openBox(boxBudgets),
+      _openBox(boxRecurring),
+      _openBox(boxQuick),
+    ]);
     final store = LocalStore._(
-      customers: await _openBox(boxCustomers),
-      subscriptions: await _openBox(boxSubscriptions),
-      transactions: await _openBox(boxTransactions),
-      categories: await _openBox(boxCategories),
-      plans: await _openBox(boxPlans),
-      meta: await _openBox(boxMeta),
-      smsState: await _openBox(boxSmsState),
-      smsRules: await _openBox(boxSmsRules),
-      budgets: await _openBox(boxBudgets),
-      recurring: await _openBox(boxRecurring),
-      quickExpenses: await _openBox(boxQuick),
+      customers: boxes[0],
+      subscriptions: boxes[1],
+      transactions: boxes[2],
+      categories: boxes[3],
+      plans: boxes[4],
+      meta: boxes[5],
+      smsState: boxes[6],
+      smsRules: boxes[7],
+      budgets: boxes[8],
+      recurring: boxes[9],
+      quickExpenses: boxes[10],
     );
     await _ensureSeeded(store);
     return store;
   }
 
+  /// Open storage boxes on mobile or web.
+  static Future<LocalStore> open() async {
+    await Hive.initFlutter('vpn_ledger');
+    return _openAllBoxes();
+  }
+
   /// Open storage boxes at a specific path (for tests).
   static Future<LocalStore> openAt(String path) async {
     Hive.init(path);
-    final store = LocalStore._(
-      customers: await _openBox(boxCustomers),
-      subscriptions: await _openBox(boxSubscriptions),
-      transactions: await _openBox(boxTransactions),
-      categories: await _openBox(boxCategories),
-      plans: await _openBox(boxPlans),
-      meta: await _openBox(boxMeta),
-      smsState: await _openBox(boxSmsState),
-      smsRules: await _openBox(boxSmsRules),
-      budgets: await _openBox(boxBudgets),
-      recurring: await _openBox(boxRecurring),
-      quickExpenses: await _openBox(boxQuick),
-    );
-    await _ensureSeeded(store);
-    return store;
+    return _openAllBoxes();
   }
 
   /// Seed default categories, plans, settings, and quick buttons.
@@ -233,17 +236,76 @@ class LocalStore {
     return out;
   }
 
-  /// Add personal categories to an existing database once.
+  /// Default subcategories under personal categories so common items like
+  /// "Fuel" under "Transport and fuel" work out of the box and can be
+  /// pinned as 1-tap shortcuts.
+  static const Map<String, List<(String, bool)>> _personalSubcategories = {
+    'Transport and fuel': [
+      ('Fuel', true),
+      ('Taxi and ride-share', false),
+      ('Car maintenance', false),
+    ],
+    'Food and dining': [
+      ('Restaurant and fast food', false),
+      ('Cafe and snacks', false),
+      ('Groceries and bakery', false),
+    ],
+    'Utilities (water, electricity, gas)': [
+      ('Electricity bill', false),
+      ('Water bill', false),
+      ('Gas bill', false),
+    ],
+    'Housing and rent': [
+      ('Rent', false),
+      ('Building charge', false),
+    ],
+  };
+
+  /// Add personal categories (and their default subcategories) to an
+  /// existing database once.
   Future<void> _seedPersonalCategoriesOnce() async {
-    if (meta.get('personalCategoriesSeeded') == true) return;
-    final existing = categories.values
-        .map((e) => Category.fromMap(Map<String, dynamic>.from(e as Map)).name)
-        .toSet();
-    for (final c in personalCategories()) {
-      if (existing.contains(c.name)) continue;
-      await categories.put(c.id, c.toMap());
+    if (meta.get('personalCategoriesSeeded') != true) {
+      final existing = categories.values
+          .map(
+            (e) => Category.fromMap(Map<String, dynamic>.from(e as Map)).name,
+          )
+          .toSet();
+      for (final c in personalCategories()) {
+        if (existing.contains(c.name)) continue;
+        await categories.put(c.id, c.toMap());
+      }
+      await meta.put('personalCategoriesSeeded', true);
     }
-    await meta.put('personalCategoriesSeeded', true);
+    if (meta.get('personalSubcategoriesSeeded') != true) {
+      final loaded = categories.values
+          .map((e) => Category.fromMap(Map<String, dynamic>.from(e as Map)))
+          .toList();
+      final existingNames = loaded.map((c) => c.name).toSet();
+      var order = loaded.isEmpty
+          ? 0
+          : loaded.map((c) => c.sortOrder).reduce((a, b) => a > b ? a : b) + 1;
+      for (final entry in _personalSubcategories.entries) {
+        final parent = loaded
+            .where((c) => c.name == entry.key && c.parentId == null)
+            .firstOrNull;
+        if (parent == null) continue;
+        for (final (subName, shortcut) in entry.value) {
+          if (existingNames.contains(subName)) continue;
+          final sub = Category(
+            id: newId(),
+            name: subName,
+            kind: parent.kind,
+            sortOrder: order++,
+            scope: parent.scope,
+            parentId: parent.id,
+            isShortcut: shortcut,
+          );
+          await categories.put(sub.id, sub.toMap());
+          existingNames.add(subName);
+        }
+      }
+      await meta.put('personalSubcategoriesSeeded', true);
+    }
   }
 
   /// Default sales plans.
@@ -557,6 +619,8 @@ class LocalStore {
     });
     return smsState.put(key, record);
   }
+
+  Future<void> deleteSmsState(String key) => smsState.delete(key);
 
   Future<void> clearSmsState() => smsState.clear();
 

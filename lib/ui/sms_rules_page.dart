@@ -3,12 +3,13 @@ import 'package:provider/provider.dart';
 
 import '../core/localization.dart';
 import '../core/money.dart';
-import '../core/sms/sms_access.dart';
 import '../core/sms/bank_rules.dart';
+import '../core/sms/sms_access.dart';
 import '../core/sms/sms_models.dart';
 import '../core/sms/sms_parser.dart';
 import '../data/repository.dart';
 import '../data/store.dart';
+import 'theme.dart';
 import 'widgets/widgets.dart';
 
 Future<void> _syncArrivalRuleHints(AppRepository repo) {
@@ -20,48 +21,130 @@ Future<void> _syncArrivalRuleHints(AppRepository repo) {
 }
 
 /// Manage the rules that are allowed to identify bank SMS messages.
-/// A matched message is still only a suggestion; approval remains manual.
-class SmsRulesPage extends StatelessWidget {
+/// Both built-in bank rules and custom user rules can be searched, edited,
+/// toggled on/off, or reset to factory defaults.
+class SmsRulesPage extends StatefulWidget {
   const SmsRulesPage({super.key});
+
+  @override
+  State<SmsRulesPage> createState() => _SmsRulesPageState();
+}
+
+class _SmsRulesPageState extends State<SmsRulesPage> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  bool _matchesQuery(BankRule rule) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    if (rule.bankName.toLowerCase().contains(q)) return true;
+    if (rule.bankName.tr.toLowerCase().contains(q)) return true;
+    if (rule.senderHints.any((h) => h.toLowerCase().contains(q))) return true;
+    if (rule.bodyHints.any((h) => h.toLowerCase().contains(q))) return true;
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
-    final customRules = [...repo.smsRules]
+    final builtinRules = repo.effectiveBuiltinRules;
+    final customRules = [...repo.customSmsRules]
       ..sort((a, b) => a.bankName.compareTo(b.bankName));
-    final rules = [...builtinBankRules, ...customRules];
-    final enabledCount = rules
+    final allRules = [...builtinRules, ...customRules];
+    final enabledCount = allRules
         .where((rule) => repo.isSmsRuleEnabled(rule.id))
         .length;
 
+    final filteredBuiltin = builtinRules.where(_matchesQuery).toList();
+    final filteredCustom = customRules.where(_matchesQuery).toList();
+
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(title: Text('SMS recognition rules'.tr)),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-        children: [
-          CardBox(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.fact_check_outlined, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Enabled {enabled} of {total} rules'.trArgs({
-                          'enabled': enabledCount,
-                          'total': rules.length,
-                        }),
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _openEditRule(context),
+        icon: const Icon(Icons.add_rounded),
+        label: Text('Add custom SMS rule'.tr),
+      ),
+      body: RepaintBoundary(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
+          children: [
+            CardBox(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.fact_check_outlined, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Enabled {enabled} of {total} rules'.trArgs({
+                            'enabled': enabledCount,
+                            'total': allRules.length,
+                          }),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Inbox messages enter the review queue only when matched by an enabled rule. Pasted messages can be added manually. No transaction is recorded until you review it and explicitly choose Personal or VPN business.'
+                        .tr,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.6,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.68),
                     ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _searchCtrl,
+              onChanged: (v) => setState(() => _query = v),
+              decoration: InputDecoration(
+                isDense: true,
+                prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear_rounded, size: 18),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          setState(() => _query = '');
+                        },
+                      ),
+                hintText: 'Search bank name or sender number…'.tr,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Inbox messages enter the review queue only when matched by an enabled rule. Pasted messages can be added manually. No transaction is recorded until you review it and explicitly choose Personal or VPN business.'
-                      .tr,
+              ),
+            ),
+            SectionTitle(
+              'Custom rules',
+              icon: Icons.rule_rounded,
+              action: 'Add'.tr,
+              onAction: () => _openEditRule(context),
+            ),
+            if (filteredCustom.isEmpty)
+              CardBox(
+                child: Text(
+                  _query.trim().isNotEmpty
+                      ? 'No items found'.tr
+                      : 'No custom rules yet. Add a sender ID or phrase to recognize a bank or payment service not listed above.'
+                            .tr,
                   style: TextStyle(
                     fontSize: 12,
                     height: 1.6,
@@ -70,42 +153,34 @@ class SmsRulesPage extends StatelessWidget {
                     ).colorScheme.onSurface.withValues(alpha: 0.68),
                   ),
                 ),
-              ],
+              )
+            else
+              _ruleCard(context, repo, filteredCustom, allowDelete: true),
+            SectionTitle(
+              'Built-in banks',
+              icon: Icons.account_balance_outlined,
             ),
-          ),
-          SectionTitle(
-            'Built-in banks',
-            icon: Icons.account_balance_outlined,
-          ),
-          _ruleCard(
-            context,
-            repo,
-            builtinBankRules,
-            allowDelete: false,
-          ),
-          SectionTitle(
-            'Custom rules',
-            icon: Icons.rule_rounded,
-            action: 'Add',
-            onAction: () => _addRule(context),
-          ),
-          if (customRules.isEmpty)
-            CardBox(
-              child: Text(
-                'No custom rules yet. Add a sender ID or phrase to recognize a bank or payment service not listed above.'
-                    .tr,
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.6,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.68),
+            if (filteredBuiltin.isEmpty)
+              CardBox(
+                child: Text(
+                  'No items found'.tr,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.68),
+                  ),
                 ),
+              )
+            else
+              _ruleCard(
+                context,
+                repo,
+                filteredBuiltin,
+                allowDelete: false,
               ),
-            )
-          else
-            _ruleCard(context, repo, customRules, allowDelete: true),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -136,13 +211,38 @@ class SmsRulesPage extends StatelessWidget {
     required bool allowDelete,
   }) {
     final enabled = repo.isSmsRuleEnabled(rule.id);
+    final modified = !allowDelete && repo.isBuiltinSmsRuleModified(rule.id);
     return ListTile(
       contentPadding: EdgeInsets.zero,
+      onTap: () => _openEditRule(context, existingRule: rule),
       leading: Icon(
         allowDelete ? Icons.rule_rounded : Icons.account_balance_outlined,
         size: 20,
+        color: enabled ? AppTheme.primary : null,
       ),
-      title: Text(rule.bankName.tr, style: const TextStyle(fontSize: 13.5)),
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(
+              rule.bankName.tr,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          if (modified) ...[
+            const SizedBox(width: 6),
+            const TagChip(
+              'Customized',
+              color: AppTheme.info,
+              dense: true,
+            ),
+          ],
+        ],
+      ),
       subtitle: Text(
         _ruleDescription(rule),
         maxLines: 2,
@@ -152,11 +252,25 @@ class SmsRulesPage extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          IconButton(
+            tooltip: 'Edit'.tr,
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _openEditRule(context, existingRule: rule),
+            icon: const Icon(Icons.edit_outlined, size: 19),
+          ),
+          if (modified)
+            IconButton(
+              tooltip: 'Reset to default'.tr,
+              visualDensity: VisualDensity.compact,
+              onPressed: () => _resetBuiltinRule(context, repo, rule),
+              icon: const Icon(Icons.restart_alt_rounded, size: 19),
+            ),
           if (allowDelete)
             IconButton(
               tooltip: 'Delete custom rule'.tr,
+              visualDensity: VisualDensity.compact,
               onPressed: () => _deleteRule(context, repo, rule),
-              icon: const Icon(Icons.delete_outline_rounded),
+              icon: const Icon(Icons.delete_outline_rounded, size: 19),
             ),
           Tooltip(
             message: (enabled ? 'Disable rule' : 'Enable rule').tr,
@@ -189,18 +303,51 @@ class SmsRulesPage extends StatelessWidget {
       );
     }
     if (rule.bodyHints.isNotEmpty) {
-      details.add(
-        'Message phrases: {value}'.trArgs({'value': rule.bodyHints.join(', ')}),
-      );
+      final cleanPhrases = rule.bodyHints
+          .map((h) => h.replaceAll('\n', ' ').trim())
+          .where((h) => h.isNotEmpty)
+          .toList();
+      if (cleanPhrases.isNotEmpty) {
+        details.add(
+          'Message phrases: {value}'.trArgs({'value': cleanPhrases.join(', ')}),
+        );
+      }
     }
+    details.add(
+      rule.defaultUnit == AmountUnit.rial ? 'Rials'.tr : 'Tomans'.tr,
+    );
     return details.join(' · ');
   }
 
-  Future<void> _addRule(BuildContext context) async {
+  Future<void> _openEditRule(
+    BuildContext context, {
+    BankRule? existingRule,
+  }) async {
     await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => const SmsRuleEditPage()),
+      MaterialPageRoute(
+        builder: (_) => SmsRuleEditPage(existingRule: existingRule),
+      ),
     );
+  }
+
+  Future<void> _resetBuiltinRule(
+    BuildContext context,
+    AppRepository repo,
+    BankRule rule,
+  ) async {
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Reset to default'.tr,
+      message:
+          'Reset "{bank}" recognition settings back to factory defaults?'
+              .trArgs({'bank': rule.bankName.tr}),
+      okLabel: 'Reset'.tr,
+    );
+    if (!confirmed) return;
+    await repo.resetBuiltinSmsRule(rule.id);
+    await _syncArrivalRuleHints(repo);
+    if (context.mounted) showSnack(context, 'Rule reset to default.');
   }
 
   Future<void> _deleteRule(
@@ -224,11 +371,17 @@ class SmsRulesPage extends StatelessWidget {
   }
 }
 
-/// Form for adding one custom bank or payment-provider sender rule.
+/// Form for adding or editing a bank or payment-provider recognition rule
+/// (supports both built-in banks and custom rules).
 class SmsRuleEditPage extends StatefulWidget {
-  const SmsRuleEditPage({super.key, this.initialMessage});
+  const SmsRuleEditPage({
+    super.key,
+    this.initialMessage,
+    this.existingRule,
+  });
 
   final SmsMessage? initialMessage;
+  final BankRule? existingRule;
 
   @override
   State<SmsRuleEditPage> createState() => _SmsRuleEditPageState();
@@ -245,28 +398,62 @@ class _SmsRuleEditPageState extends State<SmsRuleEditPage> {
   ParsedSms? _preview;
   bool _saving = false;
 
+  bool get _isEdit => widget.existingRule != null;
+
+  BankRule? get _builtinDefault {
+    final existing = widget.existingRule;
+    if (existing == null) return null;
+    for (final b in builtinBankRules) {
+      if (b.id == existing.id) return b;
+    }
+    return null;
+  }
+
   List<String> get _senderHints => _senderController.text
-      .split(RegExp(r'[,;\n]+'))
+      .split(RegExp(r'[,،;\n]+'))
       .map((hint) => hint.trim())
       .where((hint) => hint.isNotEmpty)
       .toList();
 
-  String get _bodyHint => _bodyHintController.text.trim();
+  List<String> get _bodyHints => _bodyHintController.text
+      .split(RegExp(r'[,،;\n]+'))
+      .map((hint) => hint.trim())
+      .where((hint) => hint.isNotEmpty)
+      .toList();
+
+  String _resolvedBankName() {
+    final entered = _nameController.text.trim();
+    final builtin = _builtinDefault;
+    if (builtin != null &&
+        (entered == builtin.bankName.tr || entered == builtin.bankName)) {
+      return builtin.bankName;
+    }
+    return entered;
+  }
 
   BankRule _buildRule(String id) => BankRule(
     id: id,
-    bankName: _nameController.text.trim(),
+    bankName: _resolvedBankName(),
     senderHints: _senderHints,
-    bodyHints: _bodyHint.isEmpty ? const [] : [_bodyHint],
+    bodyHints: _bodyHints,
     defaultUnit: _unit,
-    custom: true,
+    custom: _builtinDefault == null,
   );
 
   @override
   void initState() {
     super.initState();
+    final existing = widget.existingRule;
     final message = widget.initialMessage;
-    if (message != null) {
+    if (existing != null) {
+      _nameController.text = existing.bankName.tr;
+      _senderController.text = existing.senderHints.join(', ');
+      _bodyHintController.text = existing.bodyHints
+          .map((h) => h.replaceAll('\n', ' ').trim())
+          .where((h) => h.isNotEmpty)
+          .join(', ');
+      _unit = existing.defaultUnit;
+    } else if (message != null) {
       _nameController.text = message.address.trim();
       _senderController.text = message.address.trim();
       _sampleController.text = message.body;
@@ -284,8 +471,40 @@ class _SmsRuleEditPageState extends State<SmsRuleEditPage> {
 
   @override
   Widget build(BuildContext context) {
+    final repo = context.watch<AppRepository>();
+    final builtin = _builtinDefault;
+    final canReset =
+        builtin != null && repo.isBuiltinSmsRuleModified(builtin.id);
+
     return Scaffold(
-      appBar: AppBar(title: Text('Add custom SMS rule'.tr)),
+      appBar: AppBar(
+        title: Text(
+          (_isEdit ? 'Edit SMS recognition rule' : 'Add custom SMS rule').tr,
+        ),
+        actions: [
+          if (canReset)
+            IconButton(
+              tooltip: 'Reset to default'.tr,
+              icon: const Icon(Icons.restart_alt_rounded),
+              onPressed: () async {
+                final ok = await confirmDialog(
+                  context,
+                  title: 'Reset to default'.tr,
+                  message:
+                      'Reset "{bank}" recognition settings back to factory defaults?'
+                          .trArgs({'bank': builtin.bankName.tr}),
+                  okLabel: 'Reset'.tr,
+                );
+                if (!ok) return;
+                await repo.resetBuiltinSmsRule(builtin.id);
+                await _syncArrivalRuleHints(repo);
+                if (!context.mounted) return;
+                showSnack(context, 'Rule reset to default.');
+                Navigator.of(context).pop(true);
+              },
+            ),
+        ],
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -337,7 +556,7 @@ class _SmsRuleEditPageState extends State<SmsRuleEditPage> {
                 hintText: 'e.g. Your wallet balance'.tr,
                 border: const OutlineInputBorder(),
               ),
-              validator: (_) => _senderHints.isEmpty && _bodyHint.isEmpty
+              validator: (_) => _senderHints.isEmpty && _bodyHints.isEmpty
                   ? 'Add a sender ID or body phrase to identify messages.'.tr
                   : null,
               onChanged: (_) => _clearPreview(),
@@ -428,7 +647,10 @@ class _SmsRuleEditPageState extends State<SmsRuleEditPage> {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(message, style: const TextStyle(fontSize: 12, height: 1.5)),
+            child: Text(
+              message,
+              style: const TextStyle(fontSize: 12, height: 1.5),
+            ),
           ),
         ],
       ),
@@ -446,6 +668,7 @@ class _SmsRuleEditPageState extends State<SmsRuleEditPage> {
       return;
     }
     final hints = _senderHints;
+    final previewId = widget.existingRule?.id ?? 'rule-preview';
     final message = SmsMessage(
       id: 'rule-preview',
       address: hints.isEmpty ? '' : hints.first,
@@ -454,7 +677,7 @@ class _SmsRuleEditPageState extends State<SmsRuleEditPage> {
     );
     final parsed = SmsParser.parse(
       message,
-      extraRules: [_buildRule('rule-preview')],
+      extraRules: [_buildRule(previewId)],
     );
     setState(() => _preview = parsed);
   }
@@ -464,13 +687,19 @@ class _SmsRuleEditPageState extends State<SmsRuleEditPage> {
     final repo = context.read<AppRepository>();
     setState(() => _saving = true);
     try {
-      await repo.addSmsRule(_buildRule(LocalStore.newId()));
+      final id = widget.existingRule?.id ?? LocalStore.newId();
+      await repo.addSmsRule(_buildRule(id));
       await _syncArrivalRuleHints(repo);
       if (!mounted) return;
-      showSnack(context, 'Custom rule added.');
+      showSnack(
+        context,
+        _isEdit ? 'Recognition rule updated.' : 'Custom rule added.',
+      );
       Navigator.of(context).pop(true);
     } catch (_) {
-      if (mounted) showSnack(context, 'Could not save the custom rule.', error: true);
+      if (mounted) {
+        showSnack(context, 'Could not save the custom rule.', error: true);
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

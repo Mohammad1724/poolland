@@ -56,7 +56,7 @@ void main() {
         address: 'BLUBANK',
       );
 
-      expect(r.bankName, 'Sina Bank / Blu Bank');
+      expect(r.bankName, 'Blu Bank');
       expect(r.direction, SmsDirection.withdraw);
       expect(r.amount, 70000);
       expect(r.balance, closeTo(1022916.6, 0.1));
@@ -74,11 +74,179 @@ void main() {
         address: 'UNKNOWN',
       );
 
-      expect(r.bankName, 'Sina Bank / Blu Bank');
+      expect(r.bankName, 'Blu Bank');
       expect(r.direction, SmsDirection.deposit);
       expect(r.amount, 180000);
       expect(r.balance, closeTo(1094016.6, 0.1));
       expect(r.isTransaction, isTrue);
+    });
+
+    test('Recognizes Sina Bank separately from Blu Bank', () {
+      final r = p(
+        'بانک سینا\nواریز مبلغ 2,500,000 ریال\nمانده (بدون مسدودی): 8,000,000 ریال',
+        address: 'SINA',
+      );
+
+      expect(r.bankName, 'Sina Bank');
+      expect(r.direction, SmsDirection.deposit);
+      expect(r.amount, 250000);
+      expect(r.isTransaction, isTrue);
+    });
+
+    test('Deposit SMS mentioning trailing fee (کارمزد) stays a deposit', () {
+      final r = p(
+        'بانک ملی\nواریز به حساب\nمبلغ: 5,000,000 ریال\nکارمزد: 0 ریال',
+        address: 'BANKMELLI',
+      );
+
+      expect(r.bankName, 'Melli Bank');
+      expect(r.direction, SmsDirection.deposit);
+      expect(r.amount, 500000);
+      expect(r.isTransaction, isTrue);
+    });
+
+    test('Parses Melli Bank signed (+ / -) SMS formats accurately', () {
+      final transferIn = p(
+        'بانك ملي ايران\nانتقال:4,000,000+\nحساب:*****\nمانده:4,029,368\n0724-10:35',
+      );
+      expect(transferIn.bankName, 'Melli Bank');
+      expect(transferIn.direction, SmsDirection.deposit);
+      expect(transferIn.amount, 400000);
+      expect(transferIn.isTransaction, isTrue);
+
+      final transferOut = p(
+        'بانك ملي ايران\nانتقالي:2,600,000-\nحساب:*****\nمانده:29,368\n0724-09:43',
+      );
+      expect(transferOut.bankName, 'Melli Bank');
+      expect(transferOut.direction, SmsDirection.withdraw);
+      expect(transferOut.amount, 260000);
+      expect(transferOut.isTransaction, isTrue);
+
+      final installment = p(
+        'بانك ملي ايران\nقسط:18,080,791-\nحساب:*****\nمانده:629,368\n0708-14:51',
+      );
+      expect(installment.bankName, 'Melli Bank');
+      expect(installment.direction, SmsDirection.withdraw);
+      expect(installment.amount, closeTo(1808079.1, 0.01));
+      expect(installment.isTransaction, isTrue);
+
+      final adjustmentIn = p(
+        'بانك ملي ايران\nاصـلاحيه:20,000,000+\nحساب:******\nمانده:20,855,098\n0501-14:22',
+      );
+      expect(adjustmentIn.bankName, 'Melli Bank');
+      expect(adjustmentIn.direction, SmsDirection.deposit);
+      expect(adjustmentIn.amount, 2000000);
+      expect(adjustmentIn.isTransaction, isTrue);
+
+      final onlinePurchase = p(
+        'بانك ملي ايران\nخريداينترنتي:1,000,000-\nحساب:*****\nمانده:905,098\n0423-05:16',
+      );
+      expect(onlinePurchase.bankName, 'Melli Bank');
+      expect(onlinePurchase.direction, SmsDirection.withdraw);
+      expect(onlinePurchase.amount, 100000);
+      expect(onlinePurchase.isTransaction, isTrue);
+
+      final withdrawal = p(
+        'بانك ملي ايران\nبرداشت:1,200,000-\nحساب:*****\nمانده:1,905,098\n0422-07:05',
+      );
+      expect(withdrawal.bankName, 'Melli Bank');
+      expect(withdrawal.direction, SmsDirection.withdraw);
+      expect(withdrawal.amount, 120000);
+      expect(withdrawal.isTransaction, isTrue);
+    });
+
+    test('Parses Refah, Resalat, Mellat, Tejarat, and Pasargad real SMS formats', () {
+      // Refah Bank Pol transfer
+      final refahPol = p(
+        'بانک رفاه\nحساب123456784\nپل2,505,000-\nمانده159,160\n06/16-08:06',
+        address: 'Refah Bank',
+      );
+      expect(refahPol.bankName, 'Refah Bank');
+      expect(refahPol.direction, SmsDirection.withdraw);
+      expect(refahPol.amount, 250500);
+      expect(refahPol.balance, 15916);
+      expect(refahPol.isTransaction, isTrue);
+
+      // Resalat Bank signed deposit and withdrawal with dotted deposit number
+      final resalatIn = p(
+        '10.10001439.1\n+7,000,000\n11/19_17:01\nمانده: 7,000,000',
+        address: 'ResalatBank',
+      );
+      expect(resalatIn.bankName, 'Resalat Bank');
+      expect(resalatIn.direction, SmsDirection.deposit);
+      expect(resalatIn.amount, 700000);
+      expect(resalatIn.balance, 700000);
+      expect(resalatIn.isTransaction, isTrue);
+
+      final resalatOut = p(
+        '10.10001439.1\n-6,971,948\n11/19_17:01\nمانده: 28,052',
+        address: 'ResalatBank',
+      );
+      expect(resalatOut.bankName, 'Resalat Bank');
+      expect(resalatOut.direction, SmsDirection.withdraw);
+      expect(resalatOut.amount, closeTo(697194.8, 0.01));
+      expect(resalatOut.isTransaction, isTrue);
+
+      // Pasargad Bank (B.Pasargad) signed deposit and withdrawal
+      final pasargadIn = p(
+        '777.800.12345678.1\n+9,500,000\n05/04_09:17\nمانده: 9,500,000',
+        address: 'B.Pasargad',
+      );
+      expect(pasargadIn.bankName, 'Pasargad Bank');
+      expect(pasargadIn.direction, SmsDirection.deposit);
+      expect(pasargadIn.amount, 950000);
+      expect(pasargadIn.isTransaction, isTrue);
+
+      final pasargadOut = p(
+        '777.800.12345678.1\n-809,000\n06/11_10:42\nمانده: 72,859',
+        address: 'B.Pasargad',
+      );
+      expect(pasargadOut.bankName, 'Pasargad Bank');
+      expect(pasargadOut.direction, SmsDirection.withdraw);
+      expect(pasargadOut.amount, 80900);
+      expect(pasargadOut.isTransaction, isTrue);
+
+      // Refah Bank OTP for Pol transfer is ignored
+      final refahOtp = p(
+        'همراه بانک-پل\nمبلغ:2,500,000R\nحساب:1234\nبنام:علی علوی\nرمز:123456',
+        address: 'Refah Bank',
+      );
+      expect(refahOtp.isTransaction, isFalse);
+
+      // Bank Mellat compact format without spaces
+      final mellatIn = p(
+        'حساب8206786296\nواریز500,000\nمانده200,637,184\n05/07/11-18:17',
+        address: 'Bank Mellat',
+      );
+      expect(mellatIn.bankName, 'Mellat Bank');
+      expect(mellatIn.direction, SmsDirection.deposit);
+      expect(mellatIn.amount, 50000);
+      expect(mellatIn.balance, closeTo(20063718.4, 0.01));
+      expect(mellatIn.isTransaction, isTrue);
+
+      // Tejarat Bank POS withdrawal
+      final tejaratPos = p(
+        '*بانک تجارت*\nحساب: 123456789\nبرداشت: 30,000,000 ریال\nاز طریق: پایانه فروش\nمانده: 3,748,736 ریال\n1405/07/17\n22:08',
+        address: 'TejaratBank',
+      );
+      expect(tejaratPos.bankName, 'Tejarat Bank');
+      expect(tejaratPos.direction, SmsDirection.withdraw);
+      expect(tejaratPos.amount, 3000000);
+      expect(tejaratPos.isTransaction, isTrue);
+
+      // Tejarat login alert is ignored
+      final tejaratLogin = p(
+        'مشتری گرامی شما در۱۴۰۵/۰۷/۱۸\nساعت۱۳:۳۱وارد همراه بانک تجارت شده اید.',
+        address: 'TejaratBank',
+      );
+      expect(tejaratLogin.isTransaction, isFalse);
+
+      // Resalat future SMS fee notice is ignored
+      final resalatNotice = p(
+        'مشتری گرامی،هزینه پیامک آبانماه از حساب شما کسر خواهد گردید.',
+        address: 'ResalatBank',
+      );
+      expect(resalatNotice.isTransaction, isFalse);
     });
 
     test('Identify a bank from the body when the sender is unknown', () {

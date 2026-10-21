@@ -88,7 +88,7 @@ class J {
   }
 
   static DateTime addDays(DateTime dt, int days) =>
-      of(dt).addDays(days).toDateTime();
+      DateTime(dt.year, dt.month, dt.day + days);
 
   static bool sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
@@ -108,7 +108,9 @@ class J {
 
   /// Return the day difference (positive means the target is in the future).
   static int daysBetween(DateTime from, DateTime to) =>
-      dateOnly(to).difference(dateOnly(from)).inDays;
+      DateTime.utc(to.year, to.month, to.day)
+          .difference(DateTime.utc(from.year, from.month, from.day))
+          .inDays;
 
   /// Count the empty calendar cells before the first day of a month.
   static int leadingBlanks(int year, int month) =>

@@ -111,4 +111,18 @@ void main() {
     expect(repo.importSmsText('   '), SmsImportResult.notRecognized);
     expect(repo.smsSuggestions, isEmpty);
   });
+
+  test('a rejected SMS can be restored from history back to the review queue',
+      () async {
+    expect(repo.importSmsText(bankSms), SmsImportResult.added);
+    final parsed = repo.smsSuggestions.single;
+    await repo.rejectSms(parsed);
+    expect(repo.smsSuggestions, isEmpty);
+    expect(repo.smsHistory.single.wasRejected, isTrue);
+
+    await repo.restoreRejectedSms(repo.smsHistory.single);
+    expect(repo.smsHistory, isEmpty);
+    expect(repo.smsSuggestions, hasLength(1));
+    expect(repo.smsSuggestions.single.bankName, 'Mellat Bank');
+  });
 }

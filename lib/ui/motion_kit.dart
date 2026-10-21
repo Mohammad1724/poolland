@@ -3,12 +3,7 @@ import 'dart:math' as math;
 // GestureRecognizerFactoryWithHandlers comes with material: it is declared in
 // src/widgets/gesture_detector.dart, next to RawGestureDetector.
 import 'package:flutter/gestures.dart'
-    show
-        DragStartBehavior,
-        GestureDisposition,
-        VerticalDragGestureRecognizer,
-        VelocityTracker,
-        kTouchSlop;
+    show DragStartBehavior, VerticalDragGestureRecognizer, VelocityTracker;
 import 'package:flutter/material.dart';
 
 import '../core/haptics.dart';
@@ -83,13 +78,6 @@ class _LedgerPageTurnState extends State<_LedgerPageTurn> {
     reverseCurve: Curves.easeInCubic,
   );
 
-  /// Both animations, merged once so the [AnimatedBuilder] below keeps the
-  /// same [Listenable] across rebuilds.
-  late final Listenable _listenable = Listenable.merge([
-    _enter,
-    widget.secondaryAnimation,
-  ]);
-
   @override
   void dispose() {
     _enter.dispose();
@@ -99,32 +87,16 @@ class _LedgerPageTurnState extends State<_LedgerPageTurn> {
   @override
   Widget build(BuildContext context) {
     final rtl = Directionality.of(context) == TextDirection.rtl;
-    return AnimatedBuilder(
-      animation: _listenable,
-      builder: (context, inner) {
-        final t = _enter.value;
-        final s = Curves.easeOutCubic.transform(
-          widget.secondaryAnimation.value,
-        );
-        final back = Matrix4.diagonal3Values(1 - 0.03 * s, 1 - 0.03 * s, 1);
-        final turn =
-            Matrix4.diagonal3Values(0.95 + 0.05 * t, 0.95 + 0.05 * t, 1)
-              ..setEntry(3, 2, 0.0012)
-              ..rotateY((rtl ? -1 : 1) * (1 - t) * 0.10);
-        return Transform(
-          alignment: Alignment.center,
-          transform: back,
-          child: Transform(
-            alignment: rtl ? Alignment.centerLeft : Alignment.centerRight,
-            transform: turn,
-            child: FractionalTranslation(
-              translation: Offset((rtl ? -0.06 : 0.06) * (1 - t), 0),
-              child: Opacity(opacity: t.clamp(0.0, 1.0), child: inner),
-            ),
-          ),
-        );
-      },
-      child: widget.child,
+    final slide = Tween<Offset>(
+      begin: Offset(rtl ? -0.04 : 0.04, 0),
+      end: Offset.zero,
+    ).animate(_enter);
+    return SlideTransition(
+      position: slide,
+      child: FadeTransition(
+        opacity: _enter,
+        child: RepaintBoundary(child: widget.child),
+      ),
     );
   }
 }
@@ -132,9 +104,8 @@ class _LedgerPageTurnState extends State<_LedgerPageTurn> {
 /// Receipt-style bottom sheet.
 ///
 /// Drop-in replacement for `showModalBottomSheet` with the app's signature
-/// motion: the sheet rises like a printed receipt while its top edge tilts
-/// back a few degrees and settles flat. On dismiss the same animation plays
-/// in reverse — the receipt folds back down.
+/// motion: the sheet rises cleanly from the bottom and folds back down on
+/// dismiss.
 ///
 /// Every way out of a sheet works the same everywhere in the app:
 ///  * drag the grab strip at the top edge down ([_SheetDismiss]),
@@ -163,7 +134,7 @@ Future<T?> showLedgerSheet<T>(
       context,
     ).modalBarrierDismissLabel,
     barrierColor: Colors.black54,
-    transitionDuration: const Duration(milliseconds: 300),
+    transitionDuration: const Duration(milliseconds: 220),
     routeSettings: const RouteSettings(name: 'ledger-sheet'),
     pageBuilder: (ctx, _, _) =>
         _LedgerSheetFrame(dismissible: isDismissible, builder: builder),
@@ -258,15 +229,14 @@ class _LedgerSheetTransitionState extends State<_LedgerSheetTransition> {
     curve: Curves.easeOutCubic,
     reverseCurve: Curves.easeInCubic,
   );
-  late final CurvedAnimation _settle = CurvedAnimation(
-    parent: widget.animation,
-    curve: Curves.easeOutQuint,
-  );
+  late final Animation<Offset> _offset = Tween<Offset>(
+    begin: const Offset(0, 1),
+    end: Offset.zero,
+  ).animate(_slide);
 
   @override
   void dispose() {
     _slide.dispose();
-    _settle.dispose();
     super.dispose();
   }
 
@@ -275,23 +245,9 @@ class _LedgerSheetTransitionState extends State<_LedgerSheetTransition> {
     if (!Motion.motionEnabled || Motion.reduced(context)) {
       return FadeTransition(opacity: widget.animation, child: widget.child);
     }
-    return AnimatedBuilder(
-      animation: widget.animation,
-      builder: (ctx, inner) {
-        final tilt =
-            Matrix4.identity()
-              ..setEntry(3, 2, 0.001)
-              ..rotateX((1 - _settle.value) * 0.09);
-        return FractionalTranslation(
-          translation: Offset(0, 1 - _slide.value),
-          child: Transform(
-            alignment: Alignment.bottomCenter,
-            transform: tilt,
-            child: inner,
-          ),
-        );
-      },
-      child: widget.child,
+    return SlideTransition(
+      position: _offset,
+      child: RepaintBoundary(child: widget.child),
     );
   }
 }
@@ -990,10 +946,10 @@ class _SheetDismissState extends State<_SheetDismiss>
 
   /// How far the sheet must be pulled down before letting go dismisses it.
   ///
-  /// This is intentionally a short, deliberate pull rather than a large part
-  /// of the sheet: on high-density phones, a 100+ logical-pixel threshold felt
-  /// too demanding for a thumb swipe. It still exceeds touch slop enough that
-  /// a small graze cannot close the sheet accidentally.
+  /// Short enough to feel light on a thumb swipe, but long enough that an
+  /// ordinary scroll bounce at the top of a list cannot cross it by
+  /// accident. On phones with very high density the old 110 px threshold
+  /// felt too demanding; 72 px keeps the gesture light.
   static const double _dismissPull = 72;
 
   /// A downward fling dismisses from here, without needing the full pull.
@@ -1018,6 +974,12 @@ class _SheetDismissState extends State<_SheetDismiss>
   /// fling that has already been released, can report overscroll too, and
   /// neither has a pointer-up that would ever put the sheet back.
   bool _pointerDown = false;
+
+  /// When the pointer went down on the grab strip (top [_grabHeight] pixels),
+  /// tracks the origin so the Listener can accumulate pull as a fallback
+  /// when the drag recognizer loses the arena to the scrollable.
+  Offset? _grabOrigin;
+
   VelocityTracker? _tracker;
 
   /// Cached in [build]: the gesture handlers run outside the build phase and
@@ -1076,6 +1038,20 @@ class _SheetDismissState extends State<_SheetDismiss>
     _setPull(_adopt() + delta);
   }
 
+  /// Fallback pull tracker for when the drag recognizer loses the arena.
+  ///
+  /// Only active when the pointer went down on the grab strip (top
+  /// [_grabHeight] pixels). Computes pull from the distance between the
+  /// current pointer position and the origin, so the sheet can dismiss
+  /// even without the drag recognizer's help.
+  void updatePullFromGrab(Offset position) {
+    if (!widget.enabled || _closing || _decided || !_pointerDown) return;
+    if (_grabOrigin == null) return;
+    final delta = position.dy - _grabOrigin!.dy;
+    if (delta <= 0) return;
+    _setPull(delta);
+  }
+
   /// Shrinks the pull when the content scrolls back up under the finger.
   void reducePull(double delta) {
     if (!widget.enabled || _closing || _pull <= 0) return;
@@ -1100,6 +1076,10 @@ class _SheetDismissState extends State<_SheetDismiss>
 
   /// The finger left the sheet. The grab strip's drag end and the sheet-wide
   /// pointer-up both arrive here for the same gesture, so the first decides.
+  ///
+  /// When the drag recognizer lost the arena to the scrollable underneath,
+  /// [_pull] may still hold the distance tracked by [updatePullFromPointer] —
+  /// so the sheet can dismiss even without the recognizer's help.
   void release({double velocity = 0}) {
     if (!widget.enabled || _closing || _decided) return;
     _decided = true;
@@ -1159,15 +1139,27 @@ class _SheetDismissState extends State<_SheetDismiss>
       onPointerDown: (e) {
         _pointerDown = true;
         _decided = false;
+        // If the pointer went down on the grab strip (top _grabHeight pixels
+        // of the sheet itself), track the origin so we can accumulate pull as
+        // a fallback when the drag recognizer loses the arena.
+        if (e.localPosition.dy < _grabHeight) {
+          _grabOrigin = e.position;
+        }
         _tracker = VelocityTracker.withKind(e.kind);
       },
-      onPointerMove: (e) => _tracker?.addPosition(e.timeStamp, e.position),
+      onPointerMove: (e) {
+        _tracker?.addPosition(e.timeStamp, e.position);
+        // Fallback pull tracking for when the drag recognizer lost the arena.
+        updatePullFromGrab(e.position);
+      },
       onPointerUp: (e) {
         _pointerDown = false;
+        _grabOrigin = null;
         release(velocity: _tracker?.getVelocity().pixelsPerSecond.dy ?? 0);
       },
       onPointerCancel: (_) {
         _pointerDown = false;
+        _grabOrigin = null;
         _decided = true;
         _tracker = null;
         if (_pull > 0) _snapBack();
@@ -1199,11 +1191,14 @@ class _SheetDismissState extends State<_SheetDismiss>
                             release(velocity: d.primaryVelocity ?? 0);
                           };
                           instance.onCancel = () {
-                            // The drag lost the arena; the pointer is still
-                            // down, so the sheet-wide pointer-up gets to make
-                            // the decision instead.
-                            _decided = false;
-                            if (_pull > 0) _snapBack();
+                            // The drag recognizer lost the arena — typically
+                            // to the scrollable inside the sheet. The user
+                            // still has their finger on the screen, and the
+                            // [Listener] below continues to track pointer
+                            // movement via [updatePullFromPointer], so the
+                            // sheet can still dismiss. Do NOT reset [_pull]
+                            // here: whatever distance the Listener already
+                            // accumulated is the user's real intent.
                           };
                         },
                       ),
@@ -1222,18 +1217,7 @@ class _SheetDismissState extends State<_SheetDismiss>
       animation: _spring,
       builder: (context, child) {
         final now = pull;
-        if (now == 0) return child!;
-        final tilted = _animated
-            ? Transform(
-                alignment: Alignment.topCenter,
-                transform:
-                    Matrix4.identity()
-                      ..setEntry(3, 2, 0.001)
-                      ..rotateX(math.min(now / 3200, 0.05)),
-                child: child,
-              )
-            : child!;
-        return Transform.translate(offset: Offset(0, now), child: tilted);
+        return Transform.translate(offset: Offset(0, now), child: child!);
       },
       child: sheet,
     );
@@ -1360,46 +1344,20 @@ class _AmbientAuroraState extends State<AmbientAurora>
 
 /// A vertical drag that only ever claims *downward* movement.
 ///
-/// The grab strip is painted on top of the sheet's content, so it reaches the
-/// gesture arena before the list underneath. Claiming upward drags as well
-/// would mean a flick that starts on the handle can never scroll that list: the
-/// strip wins the arena and then has nothing to do with it. Giving the gesture
-/// up as soon as the pointer travels more than a slop upwards hands it back to
-/// whatever is underneath — the one thing a plain
-/// [VerticalDragGestureRecognizer] cannot be asked to do.
+/// A plain [VerticalDragGestureRecognizer] for the grab strip.
+///
+/// The strip is painted on top of the sheet's content and reaches the gesture
+/// arena before the list underneath. The old implementation rejected the
+/// gesture when the pointer drifted upward by a touch slop before the drag
+/// was accepted — handing it back to whatever was underneath so a flick that
+/// started on the handle could still scroll the list. On a real phone a thumb
+/// naturally wobbles a few pixels in every direction the instant it touches
+/// the handle, so that rejection fired on almost every first attempt and
+/// forced the user to tap twice before a drag would close the sheet. The
+/// strip wins the arena either way; negative deltas are harmless because
+/// [_SheetDismissState.addPull] clamps the pull to zero.
 class _DownOnlyDrag extends VerticalDragGestureRecognizer {
   _DownOnlyDrag({super.debugOwner});
-
-  Offset _down = Offset.zero;
-
-  /// Set once this recognizer has won or lost the arena, so the decision is
-  /// made exactly once per pointer.
-  bool _settled = false;
-
-  @override
-  void addAllowedPointer(PointerDownEvent event) {
-    super.addAllowedPointer(event);
-    _down = event.position;
-    _settled = false;
-  }
-
-  @override
-  void acceptGesture(int pointer) {
-    _settled = true;
-    super.acceptGesture(pointer);
-  }
-
-  @override
-  void handleEvent(PointerEvent event) {
-    if (!_settled &&
-        event is PointerMoveEvent &&
-        event.position.dy - _down.dy < -kTouchSlop) {
-      _settled = true;
-      resolve(GestureDisposition.rejected);
-      return;
-    }
-    super.handleEvent(event);
-  }
 }
 
 /// Turns "the content is already at its top and the finger keeps going down"

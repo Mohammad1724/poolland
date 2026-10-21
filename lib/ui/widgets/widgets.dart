@@ -68,7 +68,7 @@ class MoneyText extends StatelessWidget {
 }
 
 /// ---------------- Card ----------------
-class CardBox extends StatefulWidget {
+class CardBox extends StatelessWidget {
   const CardBox({
     super.key,
     required this.child,
@@ -83,46 +83,15 @@ class CardBox extends StatefulWidget {
   final VoidCallback? onLongPress;
 
   @override
-  State<CardBox> createState() => _CardBoxState();
-}
-
-class _CardBoxState extends State<CardBox> {
-  bool _down = false;
-
-  bool get _squishy => Motion.motionEnabled && widget.onTap != null;
-
-  void _setDown(bool v) {
-    if (_squishy && _down != v) setState(() => _down = v);
-  }
-
-  @override
   Widget build(BuildContext context) {
-    Widget card = Card(
+    return Card(
       child: InkWell(
-        onTap: widget.onTap,
-        onLongPress: widget.onLongPress,
+        onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(Radii.card),
-        child: Padding(padding: widget.padding, child: widget.child),
+        child: Padding(padding: padding, child: child),
       ),
     );
-    // Tappable cards compress a hair under the finger — the whole app feels
-    // physically pressable without changing any layout.
-    if (_squishy) {
-      card = Listener(
-        onPointerDown: (_) => _setDown(true),
-        onPointerUp: (_) => _setDown(false),
-        onPointerCancel: (_) => _setDown(false),
-        child: AnimatedScale(
-          scale: _down ? 0.982 : 1,
-          duration: const Duration(milliseconds: 110),
-          curve: Curves.easeOut,
-          child: card,
-        ),
-      );
-    }
-    // Every card arrives instead of popping: a light fade + rise the first
-    // time it is mounted (skipped in tests and under reduced motion).
-    return EnterMotion(child: card);
   }
 }
 
@@ -827,12 +796,28 @@ class SelectField<T> extends StatelessWidget {
           prefixIcon: icon == null ? null : Icon(icon, size: 19),
           errorText: validator != null ? validator!(value)?.tr : null,
         ),
-        child: Text(
-          hasValue ? labelOf(value as T).tr : placeholder.tr,
-          style: TextStyle(
-            fontSize: 14.5,
-            fontWeight: hasValue ? FontWeight.w600 : FontWeight.w400,
-            color: hasValue ? scheme.onSurface : scheme.onSurfaceVariant,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          transitionBuilder: (child, animation) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.1, 0),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              )),
+              child: FadeTransition(opacity: animation, child: child),
+            );
+          },
+          child: Text(
+            key: ValueKey(hasValue ? labelOf(value as T).tr : placeholder.tr),
+            hasValue ? labelOf(value as T).tr : placeholder.tr,
+            style: TextStyle(
+              fontSize: 14.5,
+              fontWeight: hasValue ? FontWeight.w600 : FontWeight.w400,
+              color: hasValue ? scheme.onSurface : scheme.onSurfaceVariant,
+            ),
           ),
         ),
       ),
@@ -979,47 +964,30 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
                 ),
               ),
             Expanded(
-              child: ListView(
+              child: ListView.builder(
                 controller: controller,
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                children: [
-                  if (widget.clearable)
-                    ListTile(
-                      leading: const Icon(Icons.block_rounded, size: 20),
-                      title: Text('None'.tr),
-                      onTap: () => Navigator.pop(
-                        context,
-                        const PickResult(null, cleared: true),
-                      ),
-                    ),
-                  for (final item in items)
-                    ListTile(
-                      leading: widget.iconOf == null
-                          ? null
-                          : Icon(widget.iconOf!(item), size: 20),
-                      title: isChild != null && isChild(item)
-                          ? Padding(
-                              padding:
-                                  const EdgeInsetsDirectional.only(
-                                    start: 24,
-                                  ),
-                              child: Text(widget.labelOf(item).tr),
-                            )
-                          : Text(widget.labelOf(item).tr),
-                      subtitle: widget.subOf == null
-                          ? null
-                          : Text(widget.subOf!(item)),
-                      trailing: widget.current == item
-                          ? Icon(
-                              Icons.check_circle_rounded,
-                              size: 20,
-                              color: theme.colorScheme.primary,
-                            )
-                          : null,
-                      onTap: () => Navigator.pop(context, PickResult(item)),
-                    ),
-                  if (widget.extraActionLabel != null)
-                    Padding(
+                itemCount:
+                    items.length +
+                    (widget.clearable ? 1 : 0) +
+                    (widget.extraActionLabel != null ? 1 : 0),
+                itemBuilder: (context, index) {
+                  var itemIndex = index;
+                  if (widget.clearable) {
+                    if (index == 0) {
+                      return ListTile(
+                        leading: const Icon(Icons.block_rounded, size: 20),
+                        title: Text('None'.tr),
+                        onTap: () => Navigator.pop(
+                          context,
+                          const PickResult(null, cleared: true),
+                        ),
+                      );
+                    }
+                    itemIndex--;
+                  }
+                  if (itemIndex >= items.length) {
+                    return Padding(
                       padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
                       child: FilledButton.tonalIcon(
                         onPressed: () => Navigator.pop(
@@ -1029,8 +997,34 @@ class _PickSheetState<T> extends State<_PickSheet<T>> {
                         icon: const Icon(Icons.add_rounded, size: 18),
                         label: Text(widget.extraActionLabel!.tr),
                       ),
-                    ),
-                ],
+                    );
+                  }
+                  final item = items[itemIndex];
+                  return ListTile(
+                    leading: widget.iconOf == null
+                        ? null
+                        : Icon(widget.iconOf!(item), size: 20),
+                    title: isChild != null && isChild(item)
+                        ? Padding(
+                            padding: const EdgeInsetsDirectional.only(
+                              start: 24,
+                            ),
+                            child: Text(widget.labelOf(item).tr),
+                          )
+                        : Text(widget.labelOf(item).tr),
+                    subtitle: widget.subOf == null
+                        ? null
+                        : Text(widget.subOf!(item)),
+                    trailing: widget.current == item
+                        ? Icon(
+                            Icons.check_circle_rounded,
+                            size: 20,
+                            color: theme.colorScheme.primary,
+                          )
+                        : null,
+                    onTap: () => Navigator.pop(context, PickResult(item)),
+                  );
+                },
               ),
             ),
           ],
@@ -1311,8 +1305,10 @@ class TxnTile extends StatelessWidget {
     // SMS', ...) are localization keys; free-typed user notes simply miss
     // the map and render as-is.
     final title = txn.note.isNotEmpty ? txn.note.tr : categoryName.tr;
+    final hasTime = txn.date.hour != 0 || txn.date.minute != 0;
     final sub = <String>[
       J.d(txn.date),
+      if (hasTime) Fmt.clock(txn.date),
       if (showCustomer && customerName != null) customerName!,
       if (txn.kind.isProfitKind) (txn.credit ? 'Credit'.tr : 'Cash'.tr),
     ].join(' • ');
@@ -1343,8 +1339,17 @@ class TxnTile extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            // CopyMoney receives the signed value so long-pressing an
+            // expense copies a negative number — matching what the eye sees
+            // and what spreadsheets expect.
             CopyMoney(
-              value: txn.amount,
+              value: txn.amount *
+                  switch (txn.kind) {
+                    TxnKind.income || TxnKind.receive => 1,
+                    TxnKind.expense ||
+                    TxnKind.refund ||
+                    TxnKind.payablePayment => -1,
+                  },
               child: Text(
               Money.text(
                 txn.amount *
@@ -2641,7 +2646,15 @@ class ContactBalanceCard extends StatelessWidget {
           MoneyText(
             balance,
             signed: true,
-            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: balance > 0.5
+                  ? const Color(0xFFE11D48)
+                  : balance < -0.5
+                  ? const Color(0xFF2563EB)
+                  : null,
+            ),
           ),
         ],
       ),

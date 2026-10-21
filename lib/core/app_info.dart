@@ -7,7 +7,7 @@ import 'localization.dart';
 /// `test/app_info_test.dart` fails the build if the two ever drift apart,
 /// so bumping the version in `pubspec.yaml` is enough to catch a stale value
 /// here instead of shipping a wrong number in the Settings screen.
-const String appVersion = '1.4.0';
+const String appVersion = '1.5.0';
 
 /// The version formatted for display, using Persian digits in Persian.
 String get appVersionLabel => AppLocalization.languageCode == 'fa'

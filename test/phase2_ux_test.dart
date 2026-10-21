@@ -7,8 +7,8 @@ import 'package:poolland/core/localization.dart';
 import 'package:poolland/data/repository.dart';
 import 'package:poolland/data/store.dart';
 import 'package:poolland/ui/customers_page.dart';
+import 'package:poolland/ui/dashboard_page.dart';
 import 'package:poolland/ui/home_shell.dart';
-import 'package:poolland/ui/personal_page.dart';
 import 'package:poolland/ui/subscriptions_page.dart';
 import 'package:poolland/ui/theme.dart';
 import 'package:poolland/ui/widgets/widgets.dart';
@@ -125,7 +125,11 @@ void main() {
       expect(find.byType(ChoiceChip), findsNWidgets(3));
 
       // Picking a filter shows a removable pill.
-      await tester.tap(find.widgetWithText(ChoiceChip, 'Debtors'));
+      final debtorsChip = find.ancestor(
+        of: find.textContaining('Debtors'),
+        matching: find.byType(ChoiceChip),
+      );
+      await tester.tap(debtorsChip);
       await tester.pumpAndSettle();
       expect(find.byType(FilterPill), findsOneWidget);
 
@@ -189,7 +193,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      expect(find.byType(PersonalPage), findsOneWidget);
+      expect(find.byType(DashboardPage), findsOneWidget);
       expect(find.byType(FloatingActionButton), findsOneWidget);
 
       Offset fabSlide() =>
