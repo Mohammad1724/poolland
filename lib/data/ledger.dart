@@ -495,23 +495,49 @@ class Ledger {
     return false;
   }
 
-  /// Single-pass $O(S)$ computation of all subscription IDs superseded by a
-  /// later-ending subscription for the same `(customerId, planName)` pair.
-  static Set<String> supersededIds(List<Subscription> all) {
-    if (all.length <= 1) return const <String>{};
-    final latestEnd = <(String, String), DateTime>{};
+  static Map<(String, String), (DateTime, String, DateTime?)>
+  _groupMaxEndsByPlan(List<Subscription> all) {
+    final map = <(String, String), (DateTime, String, DateTime?)>{};
     for (final s in all) {
       final key = (s.customerId, s.planName);
       final end = J.startOfDay(s.endDate);
-      final prev = latestEnd[key];
-      if (prev == null || end.isAfter(prev)) {
-        latestEnd[key] = end;
+      final cur = map[key];
+      if (cur == null) {
+        map[key] = (end, s.id, null);
+      } else {
+        final (max1, id1, max2) = cur;
+        if (s.id == id1) {
+          if (end.isAfter(max1)) map[key] = (end, id1, max2);
+        } else if (end.isAfter(max1)) {
+          map[key] = (end, s.id, max1);
+        } else if (max2 == null || end.isAfter(max2)) {
+          map[key] = (max1, id1, end);
+        }
       }
     }
+    return map;
+  }
+
+  static bool _isSupersededWithGroupMax(
+    Subscription s,
+    Map<(String, String), (DateTime, String, DateTime?)> groupMax,
+  ) {
+    final cur = groupMax[(s.customerId, s.planName)];
+    if (cur == null) return false;
+    final (max1, id1, max2) = cur;
+    final otherMax = s.id == id1 ? max2 : max1;
+    return otherMax != null && otherMax.isAfter(J.startOfDay(s.endDate));
+  }
+
+  /// Single-pass $O(S)$ computation of all subscription IDs superseded by a
+  /// later-ending subscription (with a distinct ID) for the same
+  /// `(customerId, planName)` pair.
+  static Set<String> supersededIds(List<Subscription> all) {
+    if (all.length <= 1) return const <String>{};
+    final groupMax = _groupMaxEndsByPlan(all);
     final out = <String>{};
     for (final s in all) {
-      final maxEnd = latestEnd[(s.customerId, s.planName)];
-      if (maxEnd != null && maxEnd.isAfter(J.startOfDay(s.endDate))) {
+      if (_isSupersededWithGroupMax(s, groupMax)) {
         out.add(s.id);
       }
     }
@@ -526,9 +552,9 @@ class Ledger {
     int expiredWithinDays = 14,
   }) {
     final n = J.startOfDay(now ?? DateTime.now());
-    final superseded = supersededIds(subs);
+    final groupMax = _groupMaxEndsByPlan(subs);
     final out = subs.where((s) {
-      if (superseded.contains(s.id)) return false;
+      if (_isSupersededWithGroupMax(s, groupMax)) return false;
       final left = J.daysBetween(n, J.startOfDay(s.endDate));
       if (left >= 0) return left <= reminderDays;
       return -left <= expiredWithinDays;
