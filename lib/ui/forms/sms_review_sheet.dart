@@ -1657,7 +1657,7 @@ class _ContactPickerSheetState extends State<ContactPickerSheet> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
-                                    '${(isDebtor ? 'Debtor' : 'Creditor').tr}: ${Money.compact(bal.abs())}',
+                                    '${(isDebtor ? 'Debtor' : 'Creditor').tr}: ${Money.text(bal.abs(), compact: true)}',
                                     style: TextStyle(
                                       fontSize: 10.5,
                                       fontWeight: FontWeight.w700,
