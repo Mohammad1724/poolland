@@ -700,23 +700,28 @@ void main() {
       await tester.pumpWidget(wrap(SmsReviewSheet(sms: withdrawSms)));
       await tester.pumpAndSettle();
 
-      // Opens on Business scope with "To account" («به حساب») button for expense.
+      // Opens on Personal scope (first tab) with "To account" («به حساب») button for expense.
       expect(find.text('To account'), findsOneWidget);
-      expect(find.text('Contact (optional)'), findsOneWidget);
-      final businessHeight = tester.getSize(find.byType(SmsReviewSheet)).height;
+      expect(find.text('Contact (optional)'), findsNothing);
+      final personalHeight = tester.getSize(find.byType(SmsReviewSheet)).height;
 
       // A short drag (~1/5 of the sheet) springs back without switching scopes.
       await tester.drag(find.byType(SmsReviewSheet), const Offset(-80, 0));
       await tester.pumpAndSettle();
-      expect(find.text('Contact (optional)'), findsOneWidget);
+      expect(find.text('Contact (optional)'), findsNothing);
 
-      // Horizontal swipe past the magnetic threshold switches from Business to
-      // Personal scope while keeping the sheet height locked.
+      // Horizontal swipe past the magnetic threshold switches from Personal to
+      // Business scope while keeping the sheet height locked.
       await tester.drag(find.byType(SmsReviewSheet), const Offset(-260, 0));
       await tester.pumpAndSettle();
+      expect(find.text('Contact (optional)'), findsOneWidget);
+      final businessHeight = tester.getSize(find.byType(SmsReviewSheet)).height;
+      expect(businessHeight, closeTo(personalHeight, 1.0));
+
+      // Swipe back to Personal scope.
+      await tester.drag(find.byType(SmsReviewSheet), const Offset(260, 0));
+      await tester.pumpAndSettle();
       expect(find.text('Contact (optional)'), findsNothing);
-      final personalHeight = tester.getSize(find.byType(SmsReviewSheet)).height;
-      expect(personalHeight, closeTo(businessHeight, 1.0));
 
       // In Personal expense scope, the seeded "Fuel" («بنزین») shortcut chip
       // is shown directly on the main sheet.
@@ -728,6 +733,19 @@ void main() {
       // show "Transport and fuel › Fuel".
       expect(find.text('Transport and fuel › Fuel'), findsOneWidget);
 
+      // Inline category & subcategory search finds "Coffee and snacks" directly on the sheet.
+      await tester.enterText(
+        find.byKey(const ValueKey('inline_category_search_personal_expense')),
+        'Coffee',
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Food and groceries › Coffee and snacks'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Food and groceries › Coffee and snacks'));
+      await tester.pumpAndSettle();
+
       // Tapping "To account" opens the hierarchical category -> subcategory sheet.
       await tester.tap(find.text('To account'));
       await tester.pumpAndSettle();
@@ -737,6 +755,8 @@ void main() {
         ),
         findsOneWidget,
       );
+      await tester.tap(find.text('Transport and fuel'));
+      await tester.pumpAndSettle();
       expect(find.text('Taxi and ride-share'), findsOneWidget);
 
       // Selecting another subcategory updates the main sheet selection.

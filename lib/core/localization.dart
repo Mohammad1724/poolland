@@ -1052,6 +1052,11 @@ class AppLocalization {
     'Edit SMS recognition rule': 'ویرایش قاعدهٔ شناسایی پیامک',
     'Recognition rule updated.': 'قاعدهٔ شناسایی به‌روزرسانی شد.',
     'Customized': 'ویرایش‌شده',
+    'Search category or subcategory...': 'جست‌وجوی دسته‌بندی یا زیرمجموعه…',
+    'No matching category': 'دسته‌بندی‌ای با این نام پیدا نشد',
+    'Choose a contact or add a new one':
+        'انتخاب مخاطب از لیست یا ثبت مخاطب جدید',
+    'Without contact': 'بدون مخاطب',
   };
 
   static String text(String source, {String? languageCode}) =>
