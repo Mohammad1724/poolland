@@ -733,17 +733,17 @@ void main() {
       // show "Transport and fuel › Fuel".
       expect(find.text('Transport and fuel › Fuel'), findsOneWidget);
 
-      // Inline category & subcategory search finds "Coffee and snacks" directly on the sheet.
+      // Inline category & subcategory search finds "Car maintenance" directly on the sheet.
       await tester.enterText(
         find.byKey(const ValueKey('inline_category_search_personal_expense')),
-        'Coffee',
+        'maintenance',
       );
       await tester.pumpAndSettle();
       expect(
-        find.text('Food and groceries › Coffee and snacks'),
+        find.text('Transport and fuel › Car maintenance'),
         findsOneWidget,
       );
-      await tester.tap(find.text('Food and groceries › Coffee and snacks'));
+      await tester.tap(find.text('Transport and fuel › Car maintenance'));
       await tester.pumpAndSettle();
 
       // Tapping "To account" opens the hierarchical category -> subcategory sheet.
@@ -755,8 +755,6 @@ void main() {
         ),
         findsOneWidget,
       );
-      await tester.tap(find.text('Transport and fuel'));
-      await tester.pumpAndSettle();
       expect(find.text('Taxi and ride-share'), findsOneWidget);
 
       // Selecting another subcategory updates the main sheet selection.
