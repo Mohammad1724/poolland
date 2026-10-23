@@ -252,6 +252,41 @@ void main() {
     expect(repo.summary(scope: TxnScope.business).sales, 500000);
   });
 
+  test('Approving an SMS can renew an existing subscription or create a new plan subscription', () async {
+    final customer = await repo.addCustomer(name: 'Settled Customer');
+    final firstSub = await repo.sellSubscription(
+      customer: customer,
+      title: 'One month VPN',
+      price: 300000,
+      currencyCode: 'IRT',
+      start: J.today,
+      end: J.addDays(J.today, 30),
+      received: 300000,
+    );
+    expect(repo.balanceOf(repo.customerById(customer.id)!), 0);
+    expect(repo.subsOfCustomer(customer.id).length, 1);
+
+    final sms = SmsParser.parse(
+      SmsMessage(
+        id: 'renew-sms',
+        address: 'BANKMELAT',
+        body: 'واریز مبلغ 300,000 تومان',
+        date: J.today,
+      ),
+    );
+    await repo.approveSms(
+      sms,
+      customer: customer,
+      kind: TxnKind.income,
+      amount: 300000,
+      scope: TxnScope.business,
+      renewSubscriptionTarget: firstSub,
+    );
+
+    expect(repo.subsOfCustomer(customer.id).length, 2);
+    expect(repo.balanceOf(repo.customerById(customer.id)!), 0);
+  });
+
   test('Renewal starts the day after the previous subscription ends', () async {
     final customer = await repo.addCustomer(name: 'Maryam');
     final first = await repo.sellSubscription(

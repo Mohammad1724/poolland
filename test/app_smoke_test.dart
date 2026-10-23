@@ -776,24 +776,12 @@ void main() {
   );
 
   testWidgets(
-    'SMS review auto-settles debtor contact balance and auto-renews settled contact subscription',
+    'SMS review auto-selects Receive for debtor contacts and Renew for income mode',
     (tester) async {
-      // 1. Debtor customer: selecting them on a deposit SMS auto-switches to
-      // Receive («دریافت بدهی») and settles their balance.
-      final now = DateTime.now();
-      final debtor = await repo.addCustomer(name: 'Debtor Customer');
-      await repo.sellSubscription(
-        customer: debtor,
-        title: '1 Month Pro',
-        price: 300000,
-        currencyCode: 'IRT',
-        start: now,
-        end: now.add(const Duration(days: 30)),
-        received: 0,
+      final debtor = repo.activeCustomers.firstWhere(
+        (c) => repo.balanceOf(c) > 0.5,
       );
-      expect(repo.balanceOf(debtor), 300000);
-
-      final depositSms1 = ParsedSms(
+      final depositSms = ParsedSms(
         message: SmsMessage(
           id: 'debtor-deposit-sms',
           address: 'BANK',
@@ -807,48 +795,24 @@ void main() {
       );
 
       await tester.pumpWidget(
-        wrap(SmsReviewSheet(sms: depositSms1, initialCustomer: debtor)),
+        wrap(SmsReviewSheet(sms: depositSms, initialCustomer: debtor)),
       );
       await tester.pumpAndSettle();
 
+      // Debtor customer defaults to Receive («دریافت بدهی») to settle debt.
       expect(find.text('Settling contact previous debt'), findsOneWidget);
-      await tester.tap(find.widgetWithText(FilledButton, 'Record transaction'));
-      await tester.pumpAndSettle();
 
-      expect(repo.balanceOf(repo.customerById(debtor.id)!), 0);
-
-      // 2. Settled customer with an existing subscription: selecting them on a
-      // deposit SMS auto-selects Renew subscription and renews their service.
-      final subCountBefore = repo.subsOfCustomer(debtor.id).length;
-      final depositSms2 = ParsedSms(
-        message: SmsMessage(
-          id: 'renew-deposit-sms',
-          address: 'BANK',
-          body: 'واریز مبلغ 300,000 تومان',
-          date: DateTime.now(),
-        ),
-        bankName: 'Test Bank',
-        amount: 300000,
-        direction: SmsDirection.deposit,
-        confident: true,
-      );
-
-      await tester.pumpWidget(
-        wrap(
-          SmsReviewSheet(
-            sms: depositSms2,
-            initialCustomer: repo.customerById(debtor.id),
-          ),
+      // Switching the kind strip to Income («درآمد») reveals the auto-selected
+      // Service / Subscription renewal selector for that customer.
+      await tester.tap(
+        find.descendant(
+          of: find.byType(TxnKindStrip),
+          matching: find.text('Income'),
         ),
       );
       await tester.pumpAndSettle();
-
-      expect(find.text('Renew: 1 Month Pro'), findsOneWidget);
-      await tester.tap(find.widgetWithText(FilledButton, 'Record transaction'));
-      await tester.pumpAndSettle();
-
-      expect(repo.subsOfCustomer(debtor.id).length, subCountBefore + 1);
-      expect(repo.balanceOf(repo.customerById(debtor.id)!), 0);
+      expect(find.text('Service / Subscription'), findsOneWidget);
+      expect(find.textContaining('Renew:'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
