@@ -780,14 +780,15 @@ void main() {
     (tester) async {
       // 1. Debtor customer: selecting them on a deposit SMS auto-switches to
       // Receive («دریافت بدهی») and settles their balance.
+      final now = DateTime.now();
       final debtor = await repo.addCustomer(name: 'Debtor Customer');
       await repo.sellSubscription(
         customer: debtor,
         title: '1 Month Pro',
         price: 300000,
         currencyCode: 'IRT',
-        start: J.today,
-        end: J.addDays(J.today, 30),
+        start: now,
+        end: now.add(const Duration(days: 30)),
         received: 0,
       );
       expect(repo.balanceOf(debtor), 300000);
