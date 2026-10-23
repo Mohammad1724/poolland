@@ -67,6 +67,8 @@ class _TransactionEditPageState extends State<TransactionEditPage>
   late DateTime _date;
   Customer? _customer;
   Subscription? _subscription;
+  Subscription? _renewSub;
+  Plan? _newPlan;
   Category? _category;
   bool _credit = false;
 
@@ -483,6 +485,37 @@ class _TransactionEditPageState extends State<TransactionEditPage>
           scope: _scope,
         ),
       );
+    } else if (_scope == TxnScope.business &&
+        _customer != null &&
+        _kind == TxnKind.income &&
+        (_renewSub != null || _newPlan != null)) {
+      final receivedNow = _credit ? settled : amount;
+      if (_renewSub != null) {
+        await repo.renewSubscription(
+          _renewSub!,
+          price: amount,
+          received: receivedNow,
+          currencyCode: _currency,
+          categoryId: _category?.id,
+        );
+      } else {
+        final plan = _newPlan!;
+        final startDate = J.dateOnly(_date);
+        final endDate = plan.endFrom(startDate);
+        await repo.sellSubscription(
+          customer: _customer!,
+          plan: plan,
+          title: plan.name,
+          price: amount,
+          currencyCode: _currency,
+          start: startDate,
+          end: endDate,
+          received: receivedNow,
+          receiveCurrency: _settleCurrency,
+          note: _note.text.trim(),
+          categoryId: _category?.id,
+        );
+      }
     } else {
       final base = repo.buildTxn(
         kind: _kind,
@@ -878,10 +911,27 @@ class _TransactionEditPageState extends State<TransactionEditPage>
             selectedCustomer: _customer,
             onSelectCustomer: (c) {
               final selecting = c != null;
-              setState(() => _customer = c);
+              setState(() {
+                _customer = c;
+                _renewSub = null;
+                _newPlan = null;
+              });
               if (selecting) _revealPayModeSection();
             },
           ),
+          if (!isEdit && _customer != null && _kind == TxnKind.income) ...[
+            const SizedBox(height: 8),
+            SubscriptionActionSelector(
+              repo: repo,
+              customer: _customer!,
+              renewSub: _renewSub,
+              newPlan: _newPlan,
+              onSelect: (res) => setState(() {
+                _renewSub = res.renewSub;
+                _newPlan = res.newPlan;
+              }),
+            ),
+          ],
           if (_needsCategory && _customer != null) ...[
             SizedBox(key: _payModeAnchor, height: 14),
             SegmentedButton<bool>(

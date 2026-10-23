@@ -1057,6 +1057,18 @@ class AppLocalization {
     'Choose a contact or add a new one':
         'انتخاب مخاطب از لیست یا ثبت مخاطب جدید',
     'Without contact': 'بدون مخاطب',
+    'Settling contact previous debt': 'تسویهٔ بدهی قبلی مخاطب',
+    'Service / Subscription': 'سرویس / اشتراک',
+    'Renew: {plan}': 'تمدید: {plan}',
+    'New service: {plan}': 'سرویس جدید: {plan}',
+    'Transaction only (no subscription)':
+        'فقط ثبت تراکنش مالی (بدون ثبت سرویس)',
+    'Select service action': 'انتخاب عملیات سرویس و اشتراک',
+    'Choose whether this transaction should also renew or create a subscription':
+        'مشخص کنید با ثبت این تراکنش، اشتراک مخاطب هم تمدید یا ایجاد شود',
+    'Renew contact subscription': 'تمدید اشتراک قبلی مخاطب',
+    'Create new subscription from plan': 'ثبت سرویس جدید (انتخاب پلن)',
+    'Ends on {date}': 'پایان: {date}',
   };
 
   static String text(String source, {String? languageCode}) =>

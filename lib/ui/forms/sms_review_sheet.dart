@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/format_utils.dart';
 import '../../core/haptics.dart';
+import '../../core/jalali_utils.dart';
 import '../../core/localization.dart';
 import '../../core/money.dart';
 import '../../core/sms/sms_models.dart';
@@ -28,7 +29,8 @@ import 'contact_edit_page.dart';
 /// - One-tap subcategory shortcuts (`میان‌بر`) pinned directly on the sheet,
 ///   color-coded to match Expense (red) or Income (green).
 /// - Contact («مخاطب») selector button in Business scope that opens a contact
-///   picker sheet.
+///   picker sheet, automatically settling debt for debtor contacts (`Receive`)
+///   or renewing/creating a subscription for non-debtor contacts.
 class SmsReviewSheet extends StatefulWidget {
   const SmsReviewSheet({super.key, required this.sms, this.initialCustomer});
 
@@ -44,6 +46,9 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
   late TextEditingController _amount;
   late AnimationController _pos;
   Customer? _customer;
+  Subscription? _renewSub;
+  Plan? _newPlan;
+  bool _subActionManuallyCleared = false;
   late bool _isIncome;
   TxnKind _kind = TxnKind.income;
   TxnScope _scope = TxnScope.personal;
@@ -91,14 +96,15 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
     if (_presetDone) return;
     _presetDone = true;
     final repo = context.read<AppRepository>();
-    _scope = widget.initialCustomer != null
-        ? TxnScope.business
-        : TxnScope.personal;
+    final matchedCustomer =
+        widget.initialCustomer ?? repo.matchCustomerForSms(widget.sms);
+    _customer = matchedCustomer;
+    _scope = matchedCustomer != null ? TxnScope.business : TxnScope.personal;
     _startPos = _scope == TxnScope.business ? 1.0 : 0.0;
     _pos.value = _startPos;
-    _customer = widget.initialCustomer;
     _kind = _suggestedKind(repo, _scope);
     _categoryId = _suggestedCategoryId(repo, _scope);
+    _syncSubscriptionSelection(repo);
   }
 
   @override
@@ -137,6 +143,11 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
       }
       return TxnKind.income;
     }
+    if (scope == TxnScope.business &&
+        _customer != null &&
+        repo.balanceOf(_customer!) < -0.5) {
+      return TxnKind.payablePayment;
+    }
     return TxnKind.expense;
   }
 
@@ -149,6 +160,75 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
   String? _suggestedCategoryId(AppRepository repo, TxnScope scope) {
     final kind = _categoryKind(_suggestedKind(repo, scope));
     return kind == null ? null : repo.defaultCategoryId(kind, scope: scope);
+  }
+
+  static bool isSubscriptionRelatedCategory(
+    AppRepository repo,
+    String? categoryId,
+  ) {
+    if (categoryId == null) return false;
+    final cat = repo.categoryById(categoryId);
+    if (cat == null) return false;
+    final parent = cat.parentId == null
+        ? null
+        : repo.categoryById(cat.parentId);
+    final haystack = [
+      cat.name.toLowerCase(),
+      cat.name.tr.toLowerCase(),
+      if (parent != null) parent.name.toLowerCase(),
+      if (parent != null) parent.name.tr.toLowerCase(),
+    ].join(' ');
+    const keywords = [
+      'subscription',
+      'renewal',
+      'config',
+      'license',
+      'اشتراک',
+      'تمدید',
+      'کانفیگ',
+      'اکانت',
+      'لایسنس',
+      'سرویس',
+    ];
+    return keywords.any(haystack.contains);
+  }
+
+  void _syncSubscriptionSelection(AppRepository repo) {
+    if (_scope != TxnScope.business ||
+        !_isIncome ||
+        _kind != TxnKind.income ||
+        _customer == null) {
+      _renewSub = null;
+      _newPlan = null;
+      return;
+    }
+    if (_subActionManuallyCleared) return;
+    if (!isSubscriptionRelatedCategory(repo, _categoryId)) {
+      _renewSub = null;
+      _newPlan = null;
+      return;
+    }
+    final amt = parseAmount(_amount.text);
+    final subs = repo.subsOfCustomer(_customer!.id);
+    if (subs.isNotEmpty) {
+      final matchedSub = subs.firstWhere(
+        (s) => (s.amount - amt).abs() < 1.0,
+        orElse: () => subs.first,
+      );
+      _renewSub = matchedSub;
+      _newPlan = null;
+    } else if (repo.activePlans.isNotEmpty) {
+      final plans = repo.activePlans;
+      final matchedPlan = plans.firstWhere(
+        (p) => (p.price - amt).abs() < 1.0,
+        orElse: () => plans.first,
+      );
+      _renewSub = null;
+      _newPlan = matchedPlan;
+    } else {
+      _renewSub = null;
+      _newPlan = null;
+    }
   }
 
   List<TxnKind> _availableKinds(AppRepository repo, TxnScope scope) {
@@ -177,16 +257,22 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
       _isIncome = isIncome;
       _kind = _suggestedKind(repo, _scope);
       _categoryId = _suggestedCategoryId(repo, _scope);
+      _subActionManuallyCleared = false;
+      _syncSubscriptionSelection(repo);
     });
   }
 
   void _applyScopeState(AppRepository repo, TxnScope scope) {
     _scope = scope;
     _customer = scope == TxnScope.business
-        ? (_customer ?? widget.initialCustomer)
+        ? (_customer ??
+              widget.initialCustomer ??
+              repo.matchCustomerForSms(widget.sms))
         : null;
     _kind = _suggestedKind(repo, scope);
     _categoryId = _suggestedCategoryId(repo, scope);
+    _subActionManuallyCleared = false;
+    _syncSubscriptionSelection(repo);
   }
 
   void _changeScopeByTap(AppRepository repo, TxnScope target) {
@@ -343,11 +429,10 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
   void _onCustomerSelected(AppRepository repo, Customer? c) {
     setState(() {
       _customer = c;
-      final available = _availableKinds(repo, _scope);
-      if (!available.contains(_kind)) {
-        _kind = _suggestedKind(repo, _scope);
-        _categoryId = _suggestedCategoryId(repo, _scope);
-      }
+      _kind = _suggestedKind(repo, _scope);
+      _categoryId ??= _suggestedCategoryId(repo, _scope);
+      _subActionManuallyCleared = false;
+      _syncSubscriptionSelection(repo);
     });
   }
 
@@ -394,7 +479,9 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
                 label: 'Amount',
                 currency: sms.currency,
                 livePreview: false,
-                onChanged: () => setState(() {}),
+                onChanged: () => setState(() {
+                  _syncSubscriptionSelection(repo);
+                }),
               ),
 
               // -------- Magnetic 2-page viewport with fixed height --------
@@ -510,7 +597,9 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
             selected: pageKind,
             onSelect: (k) => setState(() {
               _kind = k;
-              _categoryId = _suggestedCategoryId(repo, pageScope);
+              _categoryId ??= _suggestedCategoryId(repo, pageScope);
+              _subActionManuallyCleared = false;
+              _syncSubscriptionSelection(repo);
             }),
           ),
         ],
@@ -524,7 +613,11 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
             scope: pageScope,
             selectedCategoryId: pageCategoryId,
             shortcuts: shortcuts,
-            onSelectCategory: (cat) => setState(() => _categoryId = cat.id),
+            onSelectCategory: (cat) => setState(() {
+              _categoryId = cat.id;
+              _subActionManuallyCleared = false;
+              _syncSubscriptionSelection(repo);
+            }),
           ),
         ],
 
@@ -536,6 +629,54 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
             selectedCustomer: _customer,
             onSelectCustomer: (c) => _onCustomerSelected(repo, c),
           ),
+          if (_customer != null && pageKind == TxnKind.receive) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppTheme.revenue.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(
+                  color: AppTheme.revenue.withValues(alpha: 0.30),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.task_alt_rounded,
+                    size: 16,
+                    color: AppTheme.revenue,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Settling contact previous debt'.tr,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.revenue,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (_customer != null && pageKind == TxnKind.income) ...[
+            const SizedBox(height: 8),
+            SubscriptionActionSelector(
+              repo: repo,
+              customer: _customer!,
+              renewSub: _renewSub,
+              newPlan: _newPlan,
+              onSelect: (res) => setState(() {
+                _renewSub = res.renewSub;
+                _newPlan = res.newPlan;
+                _subActionManuallyCleared =
+                    res.renewSub == null && res.newPlan == null;
+              }),
+            ),
+          ],
         ],
       ],
     );
@@ -642,6 +783,8 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
                         categoryId: _categoryId,
                         amount: value,
                         scope: _scope,
+                        renewSubscriptionTarget: _renewSub,
+                        newPlanTarget: _newPlan,
                       );
                       if (mounted) {
                         MoneyCelebration.recorded(context);
@@ -1679,6 +1822,499 @@ class _ContactPickerSheetState extends State<ContactPickerSheet> {
                       );
                     },
                   ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Selected subscription operation when recording a business income for a
+/// customer.
+class SubscriptionActionResult {
+  const SubscriptionActionResult({this.renewSub, this.newPlan});
+
+  final Subscription? renewSub;
+  final Plan? newPlan;
+}
+
+/// Selector button for choosing whether a business income transaction should
+/// renew an existing subscription of [customer], create a new subscription
+/// from a [Plan], or record only the financial transaction.
+class SubscriptionActionSelector extends StatelessWidget {
+  const SubscriptionActionSelector({
+    super.key,
+    required this.repo,
+    required this.customer,
+    required this.renewSub,
+    required this.newPlan,
+    required this.onSelect,
+  });
+
+  final AppRepository repo;
+  final Customer customer;
+  final Subscription? renewSub;
+  final Plan? newPlan;
+  final ValueChanged<SubscriptionActionResult> onSelect;
+
+  Future<void> _openSheet(BuildContext context) async {
+    final res = await showLedgerSheet<SubscriptionActionResult>(
+      context,
+      builder: (_) => SubscriptionActionSheet(
+        customer: customer,
+        selectedRenewSub: renewSub,
+        selectedNewPlan: newPlan,
+      ),
+    );
+    if (!context.mounted || res == null) return;
+    Haptics.selection();
+    onSelect(res);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final hasAction = renewSub != null || newPlan != null;
+    final accent = hasAction ? AppTheme.revenue : scheme.primary;
+    final String labelText;
+    if (renewSub != null) {
+      labelText = 'Renew: {plan}'.trArgs({'plan': renewSub!.planName.tr});
+    } else if (newPlan != null) {
+      labelText = 'New service: {plan}'.trArgs({'plan': newPlan!.name.tr});
+    } else {
+      labelText = 'Transaction only (no subscription)'.tr;
+    }
+
+    return InkWell(
+      key: const ValueKey('subscription_action_button'),
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => _openSheet(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: hasAction ? 0.08 : 0.04),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: accent.withValues(alpha: hasAction ? 0.35 : 0.20),
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    renewSub != null
+                        ? Icons.autorenew_rounded
+                        : Icons.vpn_key_outlined,
+                    size: 15,
+                    color: accent,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Service / Subscription'.tr,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: accent,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                labelText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: hasAction ? FontWeight.w700 : FontWeight.w600,
+                  color: scheme.onSurface.withValues(
+                    alpha: hasAction ? 0.92 : 0.62,
+                  ),
+                ),
+              ),
+            ),
+            if (hasAction)
+              InkWell(
+                key: const ValueKey('clear_subscription_action_button'),
+                borderRadius: BorderRadius.circular(99),
+                onTap: () {
+                  Haptics.selection();
+                  onSelect(const SubscriptionActionResult());
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 17,
+                    color: scheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 20,
+              color: scheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet opened by [SubscriptionActionSelector] allowing the user to
+/// renew one of [customer]'s existing subscriptions, create a new subscription
+/// from a [Plan], or record only the financial transaction.
+class SubscriptionActionSheet extends StatelessWidget {
+  const SubscriptionActionSheet({
+    super.key,
+    required this.customer,
+    this.selectedRenewSub,
+    this.selectedNewPlan,
+  });
+
+  final Customer customer;
+  final Subscription? selectedRenewSub;
+  final Plan? selectedNewPlan;
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = context.watch<AppRepository>();
+    final scheme = Theme.of(context).colorScheme;
+    final accent = AppTheme.revenue;
+    final subs = repo.subsOfCustomer(customer.id);
+    final plans = repo.activePlans;
+    final isTxnOnly = selectedRenewSub == null && selectedNewPlan == null;
+
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.78,
+      ),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(Radii.sheet),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SheetHandle(),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.vpn_key_outlined,
+                  size: 18,
+                  color: accent,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Select service action'.tr,
+                      style: const TextStyle(
+                        fontSize: FontSizes.title,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      'Choose whether this transaction should also renew or create a subscription'
+                          .tr,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: scheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Flexible(
+            child: ListView(
+              shrinkWrap: true,
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                // 1. Transaction only
+                InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => Navigator.pop(
+                    context,
+                    const SubscriptionActionResult(),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isTxnOnly
+                          ? scheme.primary.withValues(alpha: 0.10)
+                          : scheme.onSurface.withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isTxnOnly
+                            ? scheme.primary.withValues(alpha: 0.50)
+                            : scheme.onSurface.withValues(alpha: 0.10),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.receipt_long_outlined,
+                          size: 18,
+                          color: isTxnOnly
+                              ? scheme.primary
+                              : scheme.onSurface.withValues(alpha: 0.65),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Transaction only (no subscription)'.tr,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: isTxnOnly
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        if (isTxnOnly)
+                          Icon(
+                            Icons.check_circle_rounded,
+                            size: 19,
+                            color: scheme.primary,
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 2. Existing subscriptions to renew
+                if (subs.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  SectionCaption('Renew contact subscription'.tr),
+                  const SizedBox(height: 6),
+                  for (final s in subs) ...[
+                    Builder(
+                      builder: (context) {
+                        final selected = selectedRenewSub?.id == s.id;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => Navigator.pop(
+                              context,
+                              SubscriptionActionResult(renewSub: s),
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 9,
+                              ),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? accent.withValues(alpha: 0.10)
+                                    : scheme.onSurface.withValues(alpha: 0.03),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: selected
+                                      ? accent.withValues(alpha: 0.50)
+                                      : scheme.onSurface.withValues(alpha: 0.10),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.autorenew_rounded,
+                                    size: 18,
+                                    color: accent,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          s.planName.tr,
+                                          style: TextStyle(
+                                            fontSize: 13.5,
+                                            fontWeight: selected
+                                                ? FontWeight.w800
+                                                : FontWeight.w600,
+                                          ),
+                                        ),
+                                        Text(
+                                          'Ends on {date}'.trArgs({
+                                            'date': J.d(s.endDate),
+                                          }),
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            color: scheme.onSurface.withValues(
+                                              alpha: 0.6,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Text(
+                                    Money.text(
+                                      s.amount,
+                                      currency: s.currency,
+                                      compact: true,
+                                    ),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: accent,
+                                    ),
+                                  ),
+                                  if (selected) ...[
+                                    const SizedBox(width: 6),
+                                    Icon(
+                                      Icons.check_circle_rounded,
+                                      size: 19,
+                                      color: accent,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ],
+
+                // 3. New subscription from plan
+                if (plans.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  SectionCaption('Create new subscription from plan'.tr),
+                  const SizedBox(height: 6),
+                  for (final p in plans) ...[
+                    Builder(
+                      builder: (context) {
+                        final selected = selectedNewPlan?.id == p.id;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => Navigator.pop(
+                              context,
+                              SubscriptionActionResult(newPlan: p),
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 9,
+                              ),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? accent.withValues(alpha: 0.10)
+                                    : scheme.onSurface.withValues(alpha: 0.03),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: selected
+                                      ? accent.withValues(alpha: 0.50)
+                                      : scheme.onSurface.withValues(alpha: 0.10),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.add_circle_outline_rounded,
+                                    size: 18,
+                                    color: accent,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          p.name.tr,
+                                          style: TextStyle(
+                                            fontSize: 13.5,
+                                            fontWeight: selected
+                                                ? FontWeight.w800
+                                                : FontWeight.w600,
+                                          ),
+                                        ),
+                                        Text(
+                                          p.durationLabel,
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            color: scheme.onSurface.withValues(
+                                              alpha: 0.6,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Text(
+                                    Money.text(
+                                      p.price,
+                                      currency: p.currency,
+                                      compact: true,
+                                    ),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: accent,
+                                    ),
+                                  ),
+                                  if (selected) ...[
+                                    const SizedBox(width: 6),
+                                    Icon(
+                                      Icons.check_circle_rounded,
+                                      size: 19,
+                                      color: accent,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ],
+              ],
+            ),
           ),
         ],
       ),

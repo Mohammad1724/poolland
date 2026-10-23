@@ -1503,6 +1503,10 @@ class AppRepository extends ChangeNotifier {
   }
 
   /// Approve an SMS as a transaction in the selected personal/business scope.
+  ///
+  /// When [renewSubscriptionTarget] or [newPlanTarget] is provided for a
+  /// business income transaction with a selected customer, the customer's
+  /// subscription is automatically renewed or created alongside the payment.
   Future<Txn?> approveSms(
     ParsedSms sms, {
     Customer? customer,
@@ -1510,6 +1514,8 @@ class AppRepository extends ChangeNotifier {
     String? categoryId,
     double? amount,
     required TxnScope scope,
+    Subscription? renewSubscriptionTarget,
+    Plan? newPlanTarget,
   }) async {
     // Inbox messages must match a bank rule, but a pasted message is an
     // explicit user decision: it may be recorded even when no rule matched.
@@ -1524,7 +1530,11 @@ class AppRepository extends ChangeNotifier {
                   balanceOf(cust) > 0.5
               ? TxnKind.receive
               : TxnKind.income)
-        : TxnKind.expense;
+        : (scope == TxnScope.business &&
+                  cust != null &&
+                  balanceOf(cust) < -0.5
+              ? TxnKind.payablePayment
+              : TxnKind.expense);
     var k = kind ?? suggestedKind;
     if (scope == TxnScope.personal &&
         k != TxnKind.income &&
@@ -1546,10 +1556,67 @@ class AppRepository extends ChangeNotifier {
     }
 
     final cur = sms.currency;
+    final finalAmount = amount ?? sms.amount;
+
+    // If this is a business income for a customer and a subscription renewal
+    // or new plan creation was selected, record the subscription + payment.
+    if (scope == TxnScope.business &&
+        cust != null &&
+        k == TxnKind.income &&
+        (renewSubscriptionTarget != null || newPlanTarget != null)) {
+      Subscription sub;
+      if (renewSubscriptionTarget != null) {
+        sub = await renewSubscription(
+          renewSubscriptionTarget,
+          price: finalAmount,
+          received: finalAmount,
+          currencyCode: cur,
+          categoryId: cat,
+        );
+      } else {
+        final plan = newPlanTarget!;
+        final startDate = J.dateOnly(sms.message.date);
+        final endDate = plan.endFrom(startDate);
+        sub = await sellSubscription(
+          customer: cust,
+          plan: plan,
+          title: plan.name,
+          price: finalAmount,
+          currencyCode: cur,
+          start: startDate,
+          end: endDate,
+          received: finalAmount,
+          receiveCurrency: cur,
+          note: _smsNote(sms),
+          categoryId: cat,
+        );
+      }
+      final recordedTxn = transactions.firstWhere(
+        (t) => t.subscriptionId == sub.id && t.kind == TxnKind.receive,
+        orElse: () => transactions.firstWhere(
+          (t) => t.subscriptionId == sub.id,
+          orElse: () => transactions.first,
+        ),
+      );
+      await store.setSmsState(
+        sms.key,
+        SmsHistoryEntry.approvedStatus,
+        history: _smsHistoryEntry(
+          sms,
+          SmsHistoryEntry.approvedStatus,
+          transactionId: recordedTxn.id,
+        ),
+      );
+      smsSuggestions = smsSuggestions.where((e) => e.key != sms.key).toList();
+      smsHistory = store.loadSmsHistory();
+      notifyListeners();
+      return recordedTxn;
+    }
+
     final txn = Txn(
       id: LocalStore.newId(),
       kind: k,
-      amount: amount ?? sms.amount,
+      amount: finalAmount,
       currency: cur,
       rateToBase: settings.currency(cur).rateToBase,
       date: sms.message.date,

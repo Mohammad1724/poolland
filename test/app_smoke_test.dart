@@ -775,6 +775,83 @@ void main() {
     },
   );
 
+  testWidgets(
+    'SMS review auto-settles debtor contact balance and auto-renews settled contact subscription',
+    (tester) async {
+      // 1. Debtor customer: selecting them on a deposit SMS auto-switches to
+      // Receive («دریافت بدهی») and settles their balance.
+      final debtor = await repo.addCustomer(name: 'Debtor Customer');
+      await repo.sellSubscription(
+        customer: debtor,
+        title: '1 Month Pro',
+        price: 300000,
+        currencyCode: 'IRT',
+        start: J.today,
+        end: J.addDays(J.today, 30),
+        received: 0,
+      );
+      expect(repo.balanceOf(debtor), 300000);
+
+      final depositSms1 = ParsedSms(
+        message: SmsMessage(
+          id: 'debtor-deposit-sms',
+          address: 'BANK',
+          body: 'واریز مبلغ 300,000 تومان',
+          date: DateTime.now(),
+        ),
+        bankName: 'Test Bank',
+        amount: 300000,
+        direction: SmsDirection.deposit,
+        confident: true,
+      );
+
+      await tester.pumpWidget(
+        wrap(SmsReviewSheet(sms: depositSms1, initialCustomer: debtor)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Settling contact previous debt'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Record transaction'));
+      await tester.pumpAndSettle();
+
+      expect(repo.balanceOf(repo.customerById(debtor.id)!), 0);
+
+      // 2. Settled customer with an existing subscription: selecting them on a
+      // deposit SMS auto-selects Renew subscription and renews their service.
+      final subCountBefore = repo.subsOfCustomer(debtor.id).length;
+      final depositSms2 = ParsedSms(
+        message: SmsMessage(
+          id: 'renew-deposit-sms',
+          address: 'BANK',
+          body: 'واریز مبلغ 300,000 تومان',
+          date: DateTime.now(),
+        ),
+        bankName: 'Test Bank',
+        amount: 300000,
+        direction: SmsDirection.deposit,
+        confident: true,
+      );
+
+      await tester.pumpWidget(
+        wrap(
+          SmsReviewSheet(
+            sms: depositSms2,
+            initialCustomer: repo.customerById(debtor.id),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Renew: 1 Month Pro'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Record transaction'));
+      await tester.pumpAndSettle();
+
+      expect(repo.subsOfCustomer(debtor.id).length, subCountBefore + 1);
+      expect(repo.balanceOf(repo.customerById(debtor.id)!), 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('Onboarding page renders', (tester) async {
     await tester.pumpWidget(wrap(const OnboardingPage()));
     await tester.pump();
