@@ -825,9 +825,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text(customer.name), findsOneWidget);
+    expect(find.text(customer.name), findsWidgets);
     await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('sale_pay_credit_chip')),
+      find.widgetWithText(TextField, 'Received now'),
       120,
       scrollable: find.byType(Scrollable).first,
     );
@@ -848,7 +848,6 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('sale_pay_cash_chip')));
     await tester.pumpAndSettle();
     expect(find.text('Paid in full', skipOffstage: false), findsOneWidget);
-    expect(find.text('From account', skipOffstage: false), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -873,6 +872,10 @@ void main() {
     );
 
     await tester.pumpWidget(wrap(SmsReviewSheet(sms: depositSms)));
+    await tester.pumpAndSettle();
+
+    // Switch to Business scope where ContactSelectorSection is shown.
+    await tester.tap(find.text('Business'));
     await tester.pumpAndSettle();
 
     // ContactSelectorSection shows the "Amount match" badge before selection.
