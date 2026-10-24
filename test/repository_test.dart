@@ -886,5 +886,27 @@ void main() {
       final reset = repo.effectiveBuiltinRules.firstWhere((r) => r.id == 'melli');
       expect(reset.bankName, 'Melli Bank');
     });
+
+    test('Approving an SMS stores custom user note when provided', () async {
+      final sms = ParsedSms(
+        message: SmsMessage(
+          id: 'sms-custom-note',
+          address: 'BANK',
+          body: 'برداشت مبلغ 95,000 تومان',
+          date: DateTime.now(),
+        ),
+        bankName: 'Test Bank',
+        amount: 95000,
+        direction: SmsDirection.withdraw,
+        confident: true,
+      );
+      final txn = await repo.approveSms(
+        sms,
+        scope: TxnScope.personal,
+        note: 'خرید قهوه و شیرینی',
+      );
+      expect(txn, isNotNull);
+      expect(txn!.note, 'خرید قهوه و شیرینی');
+    });
   });
 }

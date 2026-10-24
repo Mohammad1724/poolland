@@ -15,6 +15,7 @@ import '../data/models.dart';
 import '../data/pdf_service.dart';
 import '../data/repository.dart';
 import 'customer_detail_page.dart';
+import 'forms/transaction_edit_page.dart';
 import 'motion_kit.dart';
 import 'theme.dart';
 import 'widgets/common_charts.dart';
@@ -612,68 +613,86 @@ class _ReportsPageState extends State<ReportsPage> {
       controller: widget.controller,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       children: [
-        // 1. Scope selector chips (All / Personal / Business)
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (final opt in <TxnScope?>[
-                null,
-                TxnScope.personal,
-                TxnScope.business,
-              ])
-                Padding(
-                  padding: const EdgeInsetsDirectional.only(end: 6),
-                  child: ChoiceChip(
-                    label: Text(
-                      opt == null ? 'All'.tr : opt.label,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    showCheckmark: false,
-                    selected: _scope == opt,
-                    onSelected: (_) => setState(() => _scope = opt),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-
-        // 2. Time range selector (Daily, Weekly, Monthly, All, ..., Custom)
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (final r in _Range.values) ...[
-                ChoiceChip(
-                  label: Text(_rangeLabel(r).tr),
-                  showCheckmark: false,
-                  selected: _range == r,
-                  onSelected: (_) {
-                    if (r == _Range.custom) {
-                      _pickCustomDateRange(context, from, to);
-                    } else {
-                      setState(() {
-                        _range = r;
-                        _periodOffset = 0;
-                        _chartModeOverride = null;
-                      });
-                    }
-                  },
-                ),
-                const SizedBox(width: 8),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-
-        // Period date indicator + stepper for Daily / Weekly / Monthly
-        _buildPeriodNavigator(context, from, to),
+        // 1. Three-Tab Report Switcher (Statistics | Categories | Sources & Balances)
+        _buildReportTabBar(context),
         const SizedBox(height: 10),
 
-        // 3. Three-Tab Report Switcher (Statistics | Categories | Sources & Balances)
-        _buildReportTabBar(context),
+        // 2. Unified Filter & Period Stepper Card
+        CardBox(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Scope & Range selector row
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final opt in <TxnScope?>[
+                      null,
+                      TxnScope.personal,
+                      TxnScope.business,
+                    ])
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(end: 6),
+                        child: ChoiceChip(
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                          label: Text(
+                            opt == null ? 'All'.tr : opt.label,
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          showCheckmark: false,
+                          selected: _scope == opt,
+                          onSelected: (_) => setState(() => _scope = opt),
+                        ),
+                      ),
+                    Container(
+                      width: 1,
+                      height: 20,
+                      margin: const EdgeInsets.symmetric(horizontal: 6),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.14),
+                    ),
+                    for (final r in _Range.values) ...[
+                      ChoiceChip(
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        label: Text(
+                          _rangeLabel(r).tr,
+                          style: const TextStyle(fontSize: 11.5),
+                        ),
+                        showCheckmark: false,
+                        selected: _range == r,
+                        onSelected: (_) {
+                          if (r == _Range.custom) {
+                            _pickCustomDateRange(context, from, to);
+                          } else {
+                            setState(() {
+                              _range = r;
+                              _periodOffset = 0;
+                              _chartModeOverride = null;
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // Period / Month navigator bar
+              _buildPeriodNavigator(context, from, to),
+            ],
+          ),
+        ),
         const SizedBox(height: 12),
 
         // Tab 0: Statistics & Trend
@@ -939,72 +958,141 @@ class _ReportsPageState extends State<ReportsPage> {
   ) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final scheme = Theme.of(context).colorScheme;
-    final dateText = _range == _Range.daily
-        ? J.d(from)
-        : '{from} to {to}'.trArgs({'from': J.d(from), 'to': J.d(to)});
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    final isMonthly =
+        _range == _Range.thisMonth || _range == _Range.lastMonth;
+    final String primaryTitle;
+    final String? secondarySub;
+    if (isMonthly) {
+      primaryTitle = J.mLabel(from);
+      secondarySub = '${J.dShort(from)} - ${J.dShort(to)}';
+    } else if (_range == _Range.daily) {
+      primaryTitle = J.dFull(from);
+      secondarySub = null;
+    } else if (_range == _Range.weekly) {
+      primaryTitle = '${J.dShort(from)} - ${J.dLong(to)}';
+      secondarySub = null;
+    } else {
+      primaryTitle = '${J.dLong(from)} - ${J.dLong(to)}';
+      secondarySub = null;
+    }
 
-    return Row(
-      children: [
-        if (_canStepPeriod)
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            tooltip: 'Previous period'.tr,
-            icon: const Icon(Icons.chevron_left_rounded, size: 20),
-            onPressed: () => setState(() => _periodOffset -= 1),
-          ),
-        Expanded(
-          child: InkWell(
-            onTap: () => _pickCustomDateRange(context, from, to),
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.date_range_rounded,
-                    size: 15,
-                    color: scheme.primary,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      dateText,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: onSurface.withValues(alpha: 0.78),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: scheme.primary.withValues(alpha: 0.055),
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: scheme.primary.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        children: [
+          if (_canStepPeriod)
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              padding: EdgeInsets.zero,
+              tooltip: 'Previous period'.tr,
+              icon: Icon(
+                isRtl
+                    ? Icons.chevron_right_rounded
+                    : Icons.chevron_left_rounded,
+                textDirection: TextDirection.ltr,
+                size: 20,
+              ),
+              onPressed: () => setState(() => _periodOffset -= 1),
+            ),
+          Expanded(
+            child: InkWell(
+              onTap: () => _pickCustomDateRange(context, from, to),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.calendar_month_rounded,
+                      size: 15,
+                      color: scheme.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        primaryTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: onSurface.withValues(alpha: 0.90),
+                        ),
                       ),
                     ),
+                    if (secondarySub != null) ...[
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          '($secondarySub)',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: onSurface.withValues(alpha: 0.56),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (_periodOffset != 0)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 2),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => setState(() => _periodOffset = 0),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
                   ),
-                ],
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Today'.tr,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: scheme.primary,
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-        if (_periodOffset != 0)
-          Padding(
-            padding: const EdgeInsetsDirectional.only(end: 4),
-            child: ActionChip(
+          if (_canStepPeriod)
+            IconButton(
               visualDensity: VisualDensity.compact,
-              label: Text(
-                'Back to today'.tr,
-                style: const TextStyle(fontSize: 11),
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              padding: EdgeInsets.zero,
+              tooltip: 'Next period'.tr,
+              icon: Icon(
+                isRtl
+                    ? Icons.chevron_left_rounded
+                    : Icons.chevron_right_rounded,
+                textDirection: TextDirection.ltr,
+                size: 20,
               ),
-              onPressed: () => setState(() => _periodOffset = 0),
+              onPressed: _periodOffset < 0
+                  ? () => setState(() => _periodOffset += 1)
+                  : null,
             ),
-          ),
-        if (_canStepPeriod)
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            tooltip: 'Next period'.tr,
-            icon: const Icon(Icons.chevron_right_rounded, size: 20),
-            onPressed: _periodOffset < 0
-                ? () => setState(() => _periodOffset += 1)
-                : null,
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1492,6 +1580,12 @@ class _ReportsPageState extends State<ReportsPage> {
         : 0.0;
     final subEntries = stat.subcategories.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
+    final countText = '{count} txns'.trArgs({
+      'count': Fmt.number(stat.txnCount),
+    });
+    final subCountText = subEntries.isNotEmpty
+        ? ' • ${'Subcategories count: {count}'.trArgs({'count': Fmt.number(subEntries.length)})}'
+        : '';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -1512,65 +1606,78 @@ class _ReportsPageState extends State<ReportsPage> {
             Row(
               children: [
                 Container(
-                  width: 32,
-                  height: 32,
+                  width: 34,
+                  height: 34,
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(9),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     stat.kind == TxnKind.income
                         ? Icons.trending_up_rounded
                         : Icons.trending_down_rounded,
-                    size: 17,
+                    size: 18,
                     color: color,
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    stat.name.tr,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: onSurface.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                  child: Text(
-                    '{count} txns'.trArgs({
-                      'count': Fmt.number(stat.txnCount),
-                    }),
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w600,
-                      color: onSurface.withValues(alpha: 0.65),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        stat.name.tr,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$countText$subCountText',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: onSurface.withValues(alpha: 0.58),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  '{amount} {percent}'.trArgs({
-                    'amount': Money.text(stat.amount),
-                    'percent': totalOfKind > 0
-                        ? '(${Fmt.percent(share)})'
-                        : '',
-                  }),
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: color,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      Money.text(stat.amount),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                      ),
+                    ),
+                    if (totalOfKind > 0) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        Fmt.percent(share),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: color.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: onSurface.withValues(alpha: 0.45),
                 ),
               ],
             ),
@@ -1598,37 +1705,6 @@ class _ReportsPageState extends State<ReportsPage> {
                       ? AppTheme.expense
                       : onSurface.withValues(alpha: 0.65),
                 ),
-              ),
-            ],
-            if (subEntries.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (final sub in subEntries)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: color.withValues(alpha: 0.22),
-                        ),
-                      ),
-                      child: Text(
-                        '${sub.key.tr}: ${Money.text(sub.value, compact: true)}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: onSurface.withValues(alpha: 0.82),
-                        ),
-                      ),
-                    ),
-                ],
               ),
             ],
           ],
@@ -1957,135 +2033,293 @@ class _ReportsPageState extends State<ReportsPage> {
     required List<Txn> transactions,
   }) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    String? selectedSubKey;
 
     showLedgerSheet<void>(
       context,
-      builder: (ctx) => Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(ctx).height * 0.78,
-        ),
-        decoration: BoxDecoration(
-          color: Theme.of(ctx).cardColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SheetHandle(),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                Text(
-                  Money.text(total),
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w800,
-                    color: color,
-                  ),
-                ),
-              ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final filteredTxns = selectedSubKey == null
+              ? transactions
+              : transactions.where((t) {
+                  final rawCat = repo.categoryById(t.categoryId);
+                  if (rawCat != null && rawCat.parentId != null) {
+                    return rawCat.name == selectedSubKey;
+                  }
+                  return selectedSubKey!.startsWith('General (');
+                }).toList();
+
+          return Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(ctx).height * 0.80,
             ),
-            if (subEntries.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Subcategories'.tr,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: onSurface.withValues(alpha: 0.65),
-                ),
+            decoration: BoxDecoration(
+              color: Theme.of(ctx).cardColor,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
               ),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (final sub in subEntries)
-                    Chip(
-                      visualDensity: VisualDensity.compact,
-                      label: Text(
-                        '${sub.key.tr} • ${Money.text(sub.value)}',
-                        style: const TextStyle(fontSize: 11.5),
+            ),
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SheetHandle(),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(3),
                       ),
                     ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 10),
-            Divider(color: Theme.of(ctx).dividerColor),
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: transactions.length,
-                separatorBuilder: (_, _) =>
-                    Divider(height: 1, color: Theme.of(ctx).dividerColor),
-                itemBuilder: (_, index) {
-                  final t = transactions[index];
-                  final catLabel = repo.categoryName(t.categoryId);
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                t.note.trim().isNotEmpty ? t.note : catLabel,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      Money.text(total),
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                      ),
+                    ),
+                  ],
+                ),
+                if (subEntries.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Subcategories'.tr,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: onSurface.withValues(alpha: 0.72),
+                          ),
+                        ),
+                      ),
+                      if (selectedSubKey != null)
+                        InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () =>
+                              setSheetState(() => selectedSubKey = null),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            child: Text(
+                              'All subcategories'.tr,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: color,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  for (final sub in subEntries) ...[
+                    Builder(
+                      builder: (_) {
+                        final subShare = total > 0
+                            ? (sub.value / total).clamp(0.0, 1.0)
+                            : 0.0;
+                        final isSelected = selectedSubKey == sub.key;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(11),
+                            onTap: () => setSheetState(() {
+                              selectedSubKey = isSelected ? null : sub.key;
+                            }),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 11,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? color.withValues(alpha: 0.14)
+                                    : color.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(11),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? color.withValues(alpha: 0.55)
+                                      : color.withValues(alpha: 0.18),
                                 ),
                               ),
-                              const SizedBox(height: 3),
-                              Text(
-                                '${J.d(t.date)} • $catLabel',
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          sub.key.tr,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: isSelected
+                                                ? FontWeight.w800
+                                                : FontWeight.w700,
+                                            color: onSurface.withValues(
+                                              alpha: 0.9,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      Text(
+                                        '${Money.text(sub.value)} (${Fmt.percent(subShare)})',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
+                                          color: color,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 5),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(99),
+                                    child: LinearProgressIndicator(
+                                      value: subShare,
+                                      minHeight: 4.5,
+                                      backgroundColor: color.withValues(
+                                        alpha: 0.12,
+                                      ),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        color,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ],
+                const SizedBox(height: 8),
+                Divider(color: Theme.of(ctx).dividerColor),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: filteredTxns.length,
+                    separatorBuilder: (_, _) =>
+                        Divider(height: 1, color: Theme.of(ctx).dividerColor),
+                    itemBuilder: (_, index) {
+                      final t = filteredTxns[index];
+                      final catLabel = repo.categoryName(t.categoryId);
+                      final hasNote = t.note.trim().isNotEmpty;
+                      final noteText = hasNote ? t.note.trim().tr : '';
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => TransactionEditPage(existing: t),
+                            ),
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                            horizontal: 4,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      catLabel,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    if (hasNote && noteText != catLabel) ...[
+                                      const SizedBox(height: 2),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.notes_rounded,
+                                            size: 12,
+                                            color: color.withValues(alpha: 0.8),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Expanded(
+                                            child: Text(
+                                              noteText,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.w600,
+                                                color: onSurface.withValues(
+                                                  alpha: 0.82,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      J.d(t.date),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: onSurface.withValues(
+                                          alpha: 0.56,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              MoneyText(
+                                Ledger.base(t),
                                 style: TextStyle(
-                                  fontSize: 11,
-                                  color: onSurface.withValues(alpha: 0.58),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: color,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        MoneyText(
-                          Ledger.base(t),
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: color,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -2793,8 +3027,8 @@ class _MiniCategoryDonutCard extends StatelessWidget {
                           ],
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                SizedBox(
+                  width: 58,
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: MoneyText(
@@ -2802,7 +3036,7 @@ class _MiniCategoryDonutCard extends StatelessWidget {
                       compact: true,
                       withSymbol: false,
                       style: TextStyle(
-                        fontSize: 12.5,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                         color: entries.isEmpty
                             ? onSurface.withValues(alpha: 0.45)

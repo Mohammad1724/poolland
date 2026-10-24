@@ -874,6 +874,9 @@ void main() {
     await tester.pumpWidget(wrap(SmsReviewSheet(sms: depositSms)));
     await tester.pumpAndSettle();
 
+    // Description / note field is present on SmsReviewSheet.
+    expect(find.byKey(const ValueKey('sms_review_note_field')), findsOneWidget);
+
     // Switch to Business scope where ContactSelectorSection is shown.
     await tester.tap(find.text('Business'));
     await tester.pumpAndSettle();

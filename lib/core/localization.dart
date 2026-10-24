@@ -1079,6 +1079,9 @@ class AppLocalization {
     'Amount match': 'پیشنهاد هم‌مبلغ',
     'Full balance': 'کل مانده حساب',
     '50% of balance': 'نصف مانده (۵۰٪)',
+    'Subcategories count: {count}': '{count} زیرمجموعه',
+    'All subcategories': 'همهٔ زیرمجموعه‌ها',
+    'Write a note or description...': 'توضیحات تراکنش (اختیاری)…',
   };
 
   static String text(String source, {String? languageCode}) =>

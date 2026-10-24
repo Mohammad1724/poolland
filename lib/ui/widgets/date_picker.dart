@@ -101,7 +101,12 @@ class _JalaliPickerDialogState extends State<_JalaliPickerDialog> {
                 IconButton(
                   tooltip: 'Previous month'.tr,
                   onPressed: () => _shiftMonth(-1),
-                  icon: const Icon(Icons.chevron_left_rounded),
+                  icon: Icon(
+                    Directionality.of(context) == TextDirection.rtl
+                        ? Icons.chevron_right_rounded
+                        : Icons.chevron_left_rounded,
+                    textDirection: TextDirection.ltr,
+                  ),
                 ),
                 Expanded(
                   child: Center(
@@ -117,7 +122,12 @@ class _JalaliPickerDialogState extends State<_JalaliPickerDialog> {
                 IconButton(
                   tooltip: 'Next month'.tr,
                   onPressed: () => _shiftMonth(1),
-                  icon: const Icon(Icons.chevron_right_rounded),
+                  icon: Icon(
+                    Directionality.of(context) == TextDirection.rtl
+                        ? Icons.chevron_left_rounded
+                        : Icons.chevron_right_rounded,
+                    textDirection: TextDirection.ltr,
+                  ),
                 ),
                 IconButton(
                   tooltip: 'Next year'.tr,

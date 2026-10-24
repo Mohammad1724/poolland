@@ -225,7 +225,12 @@ class _TransactionsPageState extends State<TransactionsPage> {
               IconButton(
                 tooltip: 'Previous month'.tr,
                 onPressed: () => setState(() => _monthOffset--),
-                icon: const Icon(Icons.chevron_left_rounded),
+                icon: Icon(
+                  Directionality.of(context) == TextDirection.rtl
+                      ? Icons.chevron_right_rounded
+                      : Icons.chevron_left_rounded,
+                  textDirection: TextDirection.ltr,
+                ),
               ),
               Expanded(
                 child: Center(
@@ -263,7 +268,12 @@ class _TransactionsPageState extends State<TransactionsPage> {
                 onPressed: _monthOffset < 0
                     ? () => setState(() => _monthOffset++)
                     : null,
-                icon: const Icon(Icons.chevron_right_rounded),
+                icon: Icon(
+                  Directionality.of(context) == TextDirection.rtl
+                      ? Icons.chevron_left_rounded
+                      : Icons.chevron_right_rounded,
+                  textDirection: TextDirection.ltr,
+                ),
               ),
             ],
           ),

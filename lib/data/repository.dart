@@ -1517,6 +1517,7 @@ class AppRepository extends ChangeNotifier {
     required TxnScope scope,
     Subscription? renewSubscriptionTarget,
     Plan? newPlanTarget,
+    String? note,
   }) async {
     // Inbox messages must match a bank rule, but a pasted message is an
     // explicit user decision: it may be recorded even when no rule matched.
@@ -1558,6 +1559,8 @@ class AppRepository extends ChangeNotifier {
 
     final cur = sms.currency;
     final finalAmount = amount ?? sms.amount;
+    final customNote = note?.trim() ?? '';
+    final resolvedNote = customNote.isNotEmpty ? customNote : _smsNote(sms);
 
     // If this is a business income for a customer and a subscription renewal
     // or new plan creation was selected, record the subscription + payment.
@@ -1588,17 +1591,25 @@ class AppRepository extends ChangeNotifier {
           end: endDate,
           received: finalAmount,
           receiveCurrency: cur,
-          note: _smsNote(sms),
+          note: resolvedNote,
           categoryId: cat,
         );
       }
-      final recordedTxn = transactions.firstWhere(
+      var recordedTxn = transactions.firstWhere(
         (t) => t.subscriptionId == sub.id && t.kind == TxnKind.receive,
         orElse: () => transactions.firstWhere(
           (t) => t.subscriptionId == sub.id,
           orElse: () => transactions.first,
         ),
       );
+      if (customNote.isNotEmpty && recordedTxn.note != customNote) {
+        recordedTxn = recordedTxn.copyWith(note: customNote);
+        await store.putTxn(recordedTxn);
+        transactions = [
+          for (final t in transactions)
+            if (t.id == recordedTxn.id) recordedTxn else t,
+        ];
+      }
       await store.setSmsState(
         sms.key,
         SmsHistoryEntry.approvedStatus,
@@ -1625,7 +1636,7 @@ class AppRepository extends ChangeNotifier {
       customerId: cust?.id,
       credit: false,
       scope: scope,
-      note: _smsNote(sms),
+      note: resolvedNote,
       createdAt: DateTime.now(),
     );
     await store.putTxn(txn);

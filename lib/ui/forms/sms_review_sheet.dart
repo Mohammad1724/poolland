@@ -44,6 +44,7 @@ class SmsReviewSheet extends StatefulWidget {
 class _SmsReviewSheetState extends State<SmsReviewSheet>
     with SingleTickerProviderStateMixin {
   late TextEditingController _amount;
+  final TextEditingController _note = TextEditingController();
   late AnimationController _pos;
   Customer? _customer;
   Subscription? _renewSub;
@@ -111,6 +112,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
   void dispose() {
     _pos.dispose();
     _amount.dispose();
+    _note.dispose();
     super.dispose();
   }
 
@@ -487,7 +489,65 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
               // -------- Magnetic 2-page viewport with fixed height --------
               _buildMagneticScopeViewport(repo),
 
-              const SizedBox(height: 14),
+              // -------- Description / Note (optional) --------
+              const SizedBox(height: 10),
+              TextField(
+                key: const ValueKey('sms_review_note_field'),
+                controller: _note,
+                textInputAction: TextInputAction.done,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: 'Write a note or description...'.tr,
+                  hintStyle: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.50),
+                  ),
+                  prefixIcon: Icon(
+                    Icons.notes_rounded,
+                    size: 17,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.85),
+                  ),
+                  prefixIconConstraints: const BoxConstraints(
+                    minWidth: 34,
+                    minHeight: 34,
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.035),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 9,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.12),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.12),
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
 
               // -------- Action buttons --------
               _actionBar(repo, sms),
@@ -787,6 +847,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
                         scope: _scope,
                         renewSubscriptionTarget: _renewSub,
                         newPlanTarget: _newPlan,
+                        note: _note.text.trim(),
                       );
                       if (mounted) {
                         MoneyCelebration.recorded(context);
