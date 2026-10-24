@@ -166,26 +166,28 @@ class _TransactionEditPageState extends State<TransactionEditPage>
       return;
     }
     final amt = parseAmount(_amount.text);
-    final subs = repo.activeSubsOfCustomer(_customer!.id);
-    if (subs.isNotEmpty) {
-      final matchedSub = subs.firstWhere(
-        (s) => amt > 0 && (s.amount - amt).abs() < 1.0,
-        orElse: () => subs.first,
-      );
-      _renewSub = matchedSub;
-      _newPlan = null;
-    } else if (repo.activePlans.isNotEmpty) {
-      final plans = repo.activePlans;
-      final matchedPlan = plans.firstWhere(
-        (p) => amt > 0 && (p.price - amt).abs() < 1.0,
-        orElse: () => plans.first,
-      );
-      _renewSub = null;
-      _newPlan = matchedPlan;
-    } else {
+    if (amt <= 0) {
       _renewSub = null;
       _newPlan = null;
+      return;
     }
+    final subs = repo.activeSubsOfCustomer(_customer!.id);
+    for (final s in subs) {
+      if ((s.amount - amt).abs() < 1.0) {
+        _renewSub = s;
+        _newPlan = null;
+        return;
+      }
+    }
+    for (final p in repo.activePlans) {
+      if ((p.price - amt).abs() < 1.0) {
+        _renewSub = null;
+        _newPlan = p;
+        return;
+      }
+    }
+    _renewSub = null;
+    _newPlan = null;
   }
 
   void _copyTransactionDetails(AppRepository repo) {
@@ -1054,40 +1056,6 @@ class _TransactionEditPageState extends State<TransactionEditPage>
               },
             ),
           ),
-          if (!isEdit &&
-              _customer != null &&
-              _kind == TxnKind.income &&
-              repo.balanceOf(_customer!) > 0.5) ...[
-            const SizedBox(height: 6),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: ActionChip(
-                key: const ValueKey('suggest_debt_settlement_chip'),
-                visualDensity: VisualDensity.compact,
-                avatar: const Icon(
-                  Icons.auto_awesome_rounded,
-                  size: 15,
-                  color: Color(0xFF0F766E),
-                ),
-                label: Text(
-                  'Suggested: Debt settlement'.tr,
-                  style: const TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                onPressed: () {
-                  Haptics.selection();
-                  setState(() {
-                    _kind = TxnKind.receive;
-                    _renewSub = null;
-                    _newPlan = null;
-                    _syncCategory(repo);
-                  });
-                },
-              ),
-            ),
-          ],
           if (!isEdit && _customer != null && _kind == TxnKind.income) ...[
             const SizedBox(height: 8),
             SubscriptionActionSelector(
