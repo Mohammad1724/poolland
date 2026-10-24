@@ -900,7 +900,8 @@ class _SmsCard extends StatelessWidget {
           context,
           'Transaction recorded from SMS',
           actionLabel: 'Next SMS',
-          onAction: () => _openReview(context, nextSms, repo.matchSms(nextSms)),
+          onAction: () =>
+              _openReview(context, nextSms, repo.matchCustomerForSms(nextSms)),
         );
       } else {
         showSnack(context, 'Transaction recorded from SMS');

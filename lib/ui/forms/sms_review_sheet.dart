@@ -3143,3 +3143,9 @@ class _ScopeChip extends StatelessWidget {
     );
   }
 }
+
+bool isSubscriptionRelatedCategory(
+  AppRepository repo,
+  String? categoryId,
+) => _SmsReviewSheetState.isSubscriptionRelatedCategory(repo, categoryId);
+
