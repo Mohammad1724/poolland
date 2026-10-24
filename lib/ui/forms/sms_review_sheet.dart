@@ -211,7 +211,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
       return;
     }
     final amt = parseAmount(_amount.text);
-    final subs = repo.subsOfCustomer(_customer!.id);
+    final subs = repo.activeSubsOfCustomer(_customer!.id);
     if (subs.isNotEmpty) {
       final matchedSub = subs.firstWhere(
         (s) => (s.amount - amt).abs() < 1.0,
@@ -1482,7 +1482,7 @@ _ContactSmartMatch? _computeContactSmartMatch({
         color: AppTheme.revenue,
       );
     }
-    final subs = repo.subsOfCustomer(customer.id);
+    final subs = repo.activeSubsOfCustomer(customer.id);
     for (final s in subs) {
       final planPrice = repo.planById(s.planId)?.price ?? -1;
       final amountMatches =
@@ -2255,7 +2255,7 @@ class SubscriptionActionSheet extends StatelessWidget {
     final repo = context.watch<AppRepository>();
     final scheme = Theme.of(context).colorScheme;
     final accent = AppTheme.revenue;
-    final subs = repo.subsOfCustomer(customer.id);
+    final subs = repo.activeSubsOfCustomer(customer.id);
     final plans = repo.activePlans;
     final isTxnOnly = selectedRenewSub == null && selectedNewPlan == null;
 

@@ -1177,13 +1177,16 @@ class _ReportsPageState extends State<ReportsPage> {
           Row(
             children: [
               Expanded(
-                child: _kv(
+                child: _kvWithDelta(
                   context,
-                  'Net profit',
-                  Money.text(summary.profit),
-                  summary.profit >= 0
+                  label: 'Net profit',
+                  value: Money.text(summary.profit),
+                  color: summary.profit >= 0
                       ? const Color(0xFF16A34A)
                       : const Color(0xFFE11D48),
+                  current: summary.profit,
+                  previous: prevSummary?.profit,
+                  positiveIsGood: true,
                 ),
               ),
               Expanded(
@@ -1817,6 +1820,12 @@ class _ReportsPageState extends State<ReportsPage> {
                           ),
                         ),
                       ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: onSurface.withValues(alpha: 0.45),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -2034,20 +2043,41 @@ class _ReportsPageState extends State<ReportsPage> {
   }) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     String? selectedSubKey;
+    int directionFilter = 0; // 0 = All, 1 = Inflows, 2 = Outflows
+    final hasInflows = transactions.any(
+      (t) => t.kind == TxnKind.income || t.kind == TxnKind.receive,
+    );
+    final hasOutflows = transactions.any(
+      (t) =>
+          t.kind == TxnKind.expense ||
+          t.kind == TxnKind.refund ||
+          t.kind == TxnKind.payablePayment,
+    );
+    final showDirectionFilter =
+        subEntries.isEmpty && hasInflows && hasOutflows;
 
     showLedgerSheet<void>(
       context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
-          final filteredTxns = selectedSubKey == null
-              ? transactions
-              : transactions.where((t) {
-                  final rawCat = repo.categoryById(t.categoryId);
-                  if (rawCat != null && rawCat.parentId != null) {
-                    return rawCat.name == selectedSubKey;
-                  }
-                  return selectedSubKey!.startsWith('General (');
-                }).toList();
+          final filteredTxns = transactions.where((t) {
+            if (selectedSubKey != null) {
+              final rawCat = repo.categoryById(t.categoryId);
+              if (rawCat != null && rawCat.parentId != null) {
+                return rawCat.name == selectedSubKey;
+              }
+              return selectedSubKey!.startsWith('General (');
+            }
+            if (directionFilter == 1) {
+              return t.kind == TxnKind.income || t.kind == TxnKind.receive;
+            }
+            if (directionFilter == 2) {
+              return t.kind == TxnKind.expense ||
+                  t.kind == TxnKind.refund ||
+                  t.kind == TxnKind.payablePayment;
+            }
+            return true;
+          }).toList();
 
           return Container(
             constraints: BoxConstraints(
@@ -2096,6 +2126,48 @@ class _ReportsPageState extends State<ReportsPage> {
                     ),
                   ],
                 ),
+                if (showDirectionFilter) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      ChoiceChip(
+                        visualDensity: VisualDensity.compact,
+                        showCheckmark: false,
+                        selected: directionFilter == 0,
+                        onSelected: (_) =>
+                            setSheetState(() => directionFilter = 0),
+                        label: Text(
+                          'All'.tr,
+                          style: const TextStyle(fontSize: 11.5),
+                        ),
+                      ),
+                      ChoiceChip(
+                        visualDensity: VisualDensity.compact,
+                        showCheckmark: false,
+                        selected: directionFilter == 1,
+                        onSelected: (_) =>
+                            setSheetState(() => directionFilter = 1),
+                        label: Text(
+                          'Inflows'.tr,
+                          style: const TextStyle(fontSize: 11.5),
+                        ),
+                      ),
+                      ChoiceChip(
+                        visualDensity: VisualDensity.compact,
+                        showCheckmark: false,
+                        selected: directionFilter == 2,
+                        onSelected: (_) =>
+                            setSheetState(() => directionFilter = 2),
+                        label: Text(
+                          'Outflows'.tr,
+                          style: const TextStyle(fontSize: 11.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 if (subEntries.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Row(

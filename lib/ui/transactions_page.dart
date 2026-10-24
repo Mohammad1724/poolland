@@ -36,6 +36,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
   _TxnDirectionTab _directionTab = _TxnDirectionTab.all;
   String _q = '';
   bool _filtersOpen = false;
+  bool _searchAllMonths = true;
 
   @override
   void dispose() {
@@ -168,7 +169,9 @@ class _TransactionsPageState extends State<TransactionsPage> {
     final q = _q.isEmpty ? null : Fmt.normalizeDigits(_q.toLowerCase());
 
     final list = repo.scopeTxns(repo.scopeFilter).where((t) {
-      if (t.date.isBefore(startBound) || t.date.isAfter(endBound)) {
+      final enforceMonthBounds = q == null || !_searchAllMonths;
+      if (enforceMonthBounds &&
+          (t.date.isBefore(startBound) || t.date.isAfter(endBound))) {
         return false;
       }
       if (_directionTab == _TxnDirectionTab.outflows &&
@@ -184,9 +187,9 @@ class _TransactionsPageState extends State<TransactionsPage> {
       }
       if (_kind != null && t.kind != _kind) return false;
       if (q != null) {
-        final matchNote = Fmt.normalizeDigits(
-          t.note.toLowerCase(),
-        ).contains(q);
+        final matchNote =
+            Fmt.normalizeDigits(t.note.toLowerCase()).contains(q) ||
+            Fmt.normalizeDigits(t.note.tr.toLowerCase()).contains(q);
         final matchCustomer = Fmt.normalizeDigits(
           repo.customerName(t.customerId).toLowerCase(),
         ).contains(q);
@@ -194,7 +197,16 @@ class _TransactionsPageState extends State<TransactionsPage> {
           repo.categoryName(t.categoryId).toLowerCase(),
         ).contains(q);
         final matchAmount = t.amount.toStringAsFixed(0).contains(q);
-        if (!matchNote && !matchCustomer && !matchCategory && !matchAmount) {
+        final smsBank = repo.smsHistoryForTxn(t.id)?.bankName ?? '';
+        final matchBank =
+            smsBank.isNotEmpty &&
+            (Fmt.normalizeDigits(smsBank.toLowerCase()).contains(q) ||
+                Fmt.normalizeDigits(smsBank.tr.toLowerCase()).contains(q));
+        if (!matchNote &&
+            !matchCustomer &&
+            !matchCategory &&
+            !matchAmount &&
+            !matchBank) {
           return false;
         }
       }
@@ -304,6 +316,22 @@ class _TransactionsPageState extends State<TransactionsPage> {
                   ),
                 ],
               ),
+              if (q != null) ...[
+                const SizedBox(height: 6),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: FilterChip(
+                    key: const ValueKey('txn_search_all_months_chip'),
+                    visualDensity: VisualDensity.compact,
+                    selected: _searchAllMonths,
+                    onSelected: (v) => setState(() => _searchAllMonths = v),
+                    label: Text(
+                      'Search in all months'.tr,
+                      style: const TextStyle(fontSize: 11.5),
+                    ),
+                  ),
+                ),
+              ],
               if (_activeFilterCount > 0) ...[
                 const SizedBox(height: Insets.sm),
                 SingleChildScrollView(

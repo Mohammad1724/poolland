@@ -907,6 +907,31 @@ void main() {
       );
       expect(txn, isNotNull);
       expect(txn!.note, 'خرید قهوه و شیرینی');
+      expect(repo.smsHistoryForTxn(txn.id)?.message.id, 'sms-custom-note');
+    });
+
+    test('activeSubsOfCustomer filters superseded renewals and renewSubscription preserves custom note', () async {
+      final customer = await repo.addCustomer(name: 'Saeed');
+      final first = await repo.sellSubscription(
+        customer: customer,
+        title: 'VIP 1M',
+        price: 300000,
+        currencyCode: 'IRT',
+        start: J.today,
+        end: J.addDays(J.addMonths(J.today, 1), -1),
+      );
+      final renewed = await repo.renewSubscription(
+        first,
+        price: 350000,
+        received: 350000,
+        note: 'تمدید ویژه سعید',
+      );
+
+      expect(renewed.note, 'تمدید ویژه سعید');
+      expect(repo.subsOfCustomer(customer.id).length, 2);
+      final active = repo.activeSubsOfCustomer(customer.id);
+      expect(active.length, 1);
+      expect(active.first.id, renewed.id);
     });
   });
 }

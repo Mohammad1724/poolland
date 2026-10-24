@@ -329,6 +329,24 @@ class AppRepository extends ChangeNotifier {
     return map[customerId] ?? const <Subscription>[];
   }
 
+  /// Non-superseded (current) subscriptions of [customerId] — excludes older
+  /// renewals for a service plan that already has a newer subscription.
+  List<Subscription> activeSubsOfCustomer(String customerId) {
+    final subs = subsOfCustomer(customerId);
+    if (subs.length <= 1) return subs;
+    final superseded = Ledger.supersededIds(subs);
+    final current = subs.where((s) => !superseded.contains(s.id)).toList();
+    return current.isNotEmpty ? current : subs;
+  }
+
+  /// Returns the recorded bank SMS history entry linked to [txnId], if any.
+  SmsHistoryEntry? smsHistoryForTxn(String txnId) {
+    for (final entry in smsHistory) {
+      if (entry.transactionId == txnId) return entry;
+    }
+    return null;
+  }
+
   List<Txn> txnsOfCustomer(String customerId) =>
       Ledger.forCustomer(businessTxns, customerId);
 
@@ -649,6 +667,7 @@ class AppRepository extends ChangeNotifier {
     String? currencyCode,
     DateTime? start,
     String? categoryId,
+    String? note,
   }) async {
     final customer = customerById(old.customerId);
     if (customer == null) throw StateError('Customer not found');
@@ -660,6 +679,7 @@ class AppRepository extends ChangeNotifier {
     final end = plan != null
         ? plan.endFrom(startDate)
         : J.addDays(J.addMonths(startDate, months ?? 1), -1);
+    final customNote = note?.trim() ?? '';
     return sellSubscription(
       customer: customer,
       plan: plan,
@@ -671,7 +691,9 @@ class AppRepository extends ChangeNotifier {
       received: received ?? 0,
       receiveCurrency: currencyCode ?? old.currency,
       autoRenew: old.autoRenew,
-      note: 'Renewal: {plan}'.trArgs({'plan': old.planName.tr}),
+      note: customNote.isNotEmpty
+          ? customNote
+          : 'Renewal: {plan}'.trArgs({'plan': old.planName.tr}),
       categoryId: categoryId,
       deviceCount: old.deviceCount,
     );
@@ -1576,6 +1598,7 @@ class AppRepository extends ChangeNotifier {
           received: finalAmount,
           currencyCode: cur,
           categoryId: cat,
+          note: customNote,
         );
       } else {
         final plan = newPlanTarget!;

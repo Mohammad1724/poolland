@@ -1082,6 +1082,17 @@ class AppLocalization {
     'Subcategories count: {count}': '{count} زیرمجموعه',
     'All subcategories': 'همهٔ زیرمجموعه‌ها',
     'Write a note or description...': 'توضیحات تراکنش (اختیاری)…',
+    'Renewed': 'تمدید شده',
+    'Edit subscription': 'ویرایش اشتراک',
+    'Subscription updated': 'اشتراک بروزرسانی شد',
+    'Search in all months': 'جستجو در همه ماه‌ها',
+    'Showing results across all months': 'نمایش نتایج در همه ماه‌ها',
+    'Linked bank SMS': 'پیامک بانکی متصل',
+    'Copy transaction details': 'کپی جزئیات تراکنش',
+    'Transaction details copied': 'جزئیات تراکنش کپی شد',
+    'Next SMS': 'پیامک بعدی',
+    'Suggested: Debt settlement': 'پیشنهاد: دریافت بدهی',
+    'Suggested: Subscription renewal': 'پیشنهاد: تمدید اشتراک',
   };
 
   static String text(String source, {String? languageCode}) =>

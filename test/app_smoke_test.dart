@@ -891,6 +891,41 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('SellSubscriptionPage supports editing an existing subscription', (
+    tester,
+  ) async {
+    final existingSub = repo.subscriptions.first;
+    await tester.pumpWidget(
+      wrap(SellSubscriptionPage(existing: existingSub)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit subscription'), findsOneWidget);
+    expect(find.text('Save changes'), findsOneWidget);
+    expect(find.text(existingSub.planName), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('TransactionsPage shows search-in-all-months chip when searching', (
+    tester,
+  ) async {
+    await tester.pumpWidget(wrap(const TransactionsPage()));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(TextField).first,
+      repo.activeCustomers.first.name,
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('txn_search_all_months_chip')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Onboarding page renders', (tester) async {
     await tester.pumpWidget(wrap(const OnboardingPage()));
     await tester.pump();

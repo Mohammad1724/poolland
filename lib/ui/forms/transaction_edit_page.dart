@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/format_utils.dart';
@@ -71,6 +72,7 @@ class _TransactionEditPageState extends State<TransactionEditPage>
   Plan? _newPlan;
   Category? _category;
   bool _credit = false;
+  bool _subActionManuallyCleared = false;
 
   bool _autofocusDone = false;
 
@@ -146,6 +148,60 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     _category = repo.categoryById(
       repo.defaultCategoryId(kindForCats, scope: _scope),
     );
+  }
+
+  void _syncSubscriptionSelection(AppRepository repo) {
+    if (isEdit ||
+        _scope != TxnScope.business ||
+        _kind != TxnKind.income ||
+        _customer == null) {
+      _renewSub = null;
+      _newPlan = null;
+      return;
+    }
+    if (_subActionManuallyCleared) return;
+    if (!isSubscriptionRelatedCategory(repo, _category?.id)) {
+      _renewSub = null;
+      _newPlan = null;
+      return;
+    }
+    final amt = parseAmount(_amount.text);
+    final subs = repo.activeSubsOfCustomer(_customer!.id);
+    if (subs.isNotEmpty) {
+      final matchedSub = subs.firstWhere(
+        (s) => amt > 0 && (s.amount - amt).abs() < 1.0,
+        orElse: () => subs.first,
+      );
+      _renewSub = matchedSub;
+      _newPlan = null;
+    } else if (repo.activePlans.isNotEmpty) {
+      final plans = repo.activePlans;
+      final matchedPlan = plans.firstWhere(
+        (p) => amt > 0 && (p.price - amt).abs() < 1.0,
+        orElse: () => plans.first,
+      );
+      _renewSub = null;
+      _newPlan = matchedPlan;
+    } else {
+      _renewSub = null;
+      _newPlan = null;
+    }
+  }
+
+  void _copyTransactionDetails(AppRepository repo) {
+    final t = widget.existing;
+    if (t == null) return;
+    final lines = <String>[
+      '${t.kind.label}: ${Money.text(t.amount, currency: t.currency)}',
+      '${'Date'.tr}: ${J.d(t.date)} · ${Fmt.clock(t.date)}',
+      if (t.categoryId != null)
+        '${'Category'.tr}: ${repo.categoryName(t.categoryId)}',
+      if (t.customerId != null)
+        '${'Contact'.tr}: ${repo.customerName(t.customerId)}',
+      if (t.note.trim().isNotEmpty) '${'Description'.tr}: ${t.note.tr}',
+    ];
+    Clipboard.setData(ClipboardData(text: lines.join('\n')));
+    showSnack(context, 'Transaction details copied');
   }
 
   @override
@@ -497,6 +553,7 @@ class _TransactionEditPageState extends State<TransactionEditPage>
           received: receivedNow,
           currencyCode: _currency,
           categoryId: _category?.id,
+          note: _note.text.trim(),
         );
       } else {
         final plan = _newPlan!;
@@ -588,7 +645,12 @@ class _TransactionEditPageState extends State<TransactionEditPage>
                 ),
               ),
             ),
-          if (isEdit)
+          if (isEdit) ...[
+            IconButton(
+              tooltip: 'Copy transaction details'.tr,
+              icon: const Icon(Icons.copy_rounded),
+              onPressed: () => _copyTransactionDetails(repo),
+            ),
             IconButton(
               tooltip: 'Delete'.tr,
               icon: const Icon(Icons.delete_outline_rounded),
@@ -611,6 +673,7 @@ class _TransactionEditPageState extends State<TransactionEditPage>
                 navigator.pop();
               },
             ),
+          ],
         ],
       ),
       bottomNavigationBar: AnimatedBuilder(
@@ -771,10 +834,73 @@ class _TransactionEditPageState extends State<TransactionEditPage>
                   icon: Icons.notes_rounded,
                   maxLines: 2,
                 ),
+                if (isEdit &&
+                    repo.smsHistoryForTxn(widget.existing!.id) != null) ...[
+                  const SizedBox(height: 12),
+                  _buildLinkedSmsCard(
+                    context,
+                    repo.smsHistoryForTxn(widget.existing!.id)!,
+                  ),
+                ],
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildLinkedSmsCard(BuildContext context, dynamic smsEntry) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final String bankName =
+        (smsEntry.bankName as String?)?.isNotEmpty == true
+        ? (smsEntry.bankName as String).tr
+        : (smsEntry.message.address as String).isNotEmpty
+        ? (smsEntry.message.address as String)
+        : 'Linked bank SMS'.tr;
+    final String body = smsEntry.message.body as String;
+    return CardBox(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.sms_outlined,
+                size: 17,
+                color: Color(0xFF0F766E),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${'Linked bank SMS'.tr} · $bankName',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Copy'.tr,
+                icon: const Icon(Icons.copy_rounded, size: 16),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: body));
+                  showSnack(context, 'Copied');
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            body,
+            style: TextStyle(
+              fontSize: 11.5,
+              height: 1.55,
+              color: onSurface.withValues(alpha: 0.72),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -899,7 +1025,11 @@ class _TransactionEditPageState extends State<TransactionEditPage>
             scope: pageScope,
             selectedCategoryId: selectedCatId,
             shortcuts: shortcuts,
-            onSelectCategory: (cat) => setState(() => _category = cat),
+            onSelectCategory: (cat) => setState(() {
+              _category = cat;
+              _subActionManuallyCleared = false;
+              _syncSubscriptionSelection(repo);
+            }),
           ),
         ],
 
@@ -917,13 +1047,47 @@ class _TransactionEditPageState extends State<TransactionEditPage>
                 final selecting = c != null;
                 setState(() {
                   _customer = c;
-                  _renewSub = null;
-                  _newPlan = null;
+                  _subActionManuallyCleared = false;
+                  _syncSubscriptionSelection(repo);
                 });
                 if (selecting) _revealPayModeSection();
               },
             ),
           ),
+          if (!isEdit &&
+              _customer != null &&
+              _kind == TxnKind.income &&
+              repo.balanceOf(_customer!) > 0.5) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: ActionChip(
+                key: const ValueKey('suggest_debt_settlement_chip'),
+                visualDensity: VisualDensity.compact,
+                avatar: const Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 15,
+                  color: Color(0xFF0F766E),
+                ),
+                label: Text(
+                  'Suggested: Debt settlement'.tr,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                onPressed: () {
+                  Haptics.selection();
+                  setState(() {
+                    _kind = TxnKind.receive;
+                    _renewSub = null;
+                    _newPlan = null;
+                    _syncCategory(repo);
+                  });
+                },
+              ),
+            ),
+          ],
           if (!isEdit && _customer != null && _kind == TxnKind.income) ...[
             const SizedBox(height: 8),
             SubscriptionActionSelector(
@@ -934,6 +1098,8 @@ class _TransactionEditPageState extends State<TransactionEditPage>
               onSelect: (res) => setState(() {
                 _renewSub = res.renewSub;
                 _newPlan = res.newPlan;
+                _subActionManuallyCleared =
+                    res.renewSub == null && res.newPlan == null;
               }),
             ),
           ],
