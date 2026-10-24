@@ -6,8 +6,10 @@ import '../../core/haptics.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
+import '../theme.dart';
 import '../widgets/widgets.dart';
 import '../motion_kit.dart';
+import 'sms_review_sheet.dart';
 
 import '../../core/localization.dart';
 
@@ -41,15 +43,23 @@ class _PaymentSheetState extends State<_PaymentSheet> {
   late String _currency;
   bool _receive = true;
   bool _busy = false;
+  String? _categoryId;
 
   @override
   void initState() {
     super.initState();
+    final repo = context.read<AppRepository>();
     _receive = widget.isReceive;
-    _currency = context.read<AppRepository>().settings.baseCurrency;
-    final balance = context.read<AppRepository>().balanceOf(widget.customer);
+    _currency = repo.settings.baseCurrency;
+    _categoryId = repo.defaultCategoryId(
+      _receive ? TxnKind.income : TxnKind.expense,
+      scope: TxnScope.business,
+    );
+    final balance = repo.balanceOf(widget.customer);
     if (balance > 0 && _receive) {
       _amount.text = groupedNumber(balance);
+    } else if (balance < 0 && !_receive) {
+      _amount.text = groupedNumber(balance.abs());
     }
   }
 
@@ -79,6 +89,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
         date: DateTime.now(),
         isReceive: _receive,
         note: _note.text.trim(),
+        categoryId: _categoryId,
       );
       if (!mounted) return;
       // The signature "money recorded" moment: coin, impact ring, stamp.
@@ -103,7 +114,11 @@ class _PaymentSheetState extends State<_PaymentSheet> {
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final balance = repo.balanceOf(widget.customer);
+    final absBalance = balance.abs();
+    final catKind = _receive ? TxnKind.income : TxnKind.expense;
+    final accent = _receive ? AppTheme.revenue : AppTheme.expense;
     final actionLabel = _busy
         ? 'Saving…'
         : (_receive ? 'Record receipt' : 'Record payment');
@@ -155,7 +170,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                       }),
                 style: TextStyle(
                   fontSize: 12,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  color: scheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
               const SizedBox(height: 16),
@@ -168,7 +183,13 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                   ButtonSegment(value: false, label: Text('Pay customer'.tr)),
                 ],
                 selected: {_receive},
-                onSelectionChanged: (s) => setState(() => _receive = s.first),
+                onSelectionChanged: (s) => setState(() {
+                  _receive = s.first;
+                  _categoryId = repo.defaultCategoryId(
+                    _receive ? TxnKind.income : TxnKind.expense,
+                    scope: TxnScope.business,
+                  );
+                }),
               ),
               const SizedBox(height: 16),
               Row(
@@ -197,6 +218,120 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                     ),
                   ),
                 ],
+              ),
+              if (absBalance > 0.5) ...[
+                const SizedBox(height: 8),
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _amount,
+                  builder: (context, _, _) {
+                    final typed = parseAmount(_amount.text);
+                    final halfBal = (absBalance / 2).roundToDouble();
+                    final isFull = (typed - absBalance).abs() < 1;
+                    final isHalf =
+                        halfBal > 0 && (typed - halfBal).abs() < 1;
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        InkWell(
+                          key: const ValueKey('payment_full_balance_chip'),
+                          borderRadius: BorderRadius.circular(9),
+                          onTap: () {
+                            Haptics.selection();
+                            _amount.text = groupedNumber(
+                              absBalance,
+                              decimals: Money.decimals(_currency),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isFull
+                                  ? accent.withValues(alpha: 0.14)
+                                  : scheme.onSurface.withValues(alpha: 0.04),
+                              borderRadius: BorderRadius.circular(9),
+                              border: Border.all(
+                                color: isFull
+                                    ? accent.withValues(alpha: 0.55)
+                                    : scheme.onSurface.withValues(alpha: 0.12),
+                              ),
+                            ),
+                            child: Text(
+                              '${'Full balance'.tr} (${Money.text(absBalance, compact: true)})',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: isFull
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                color: isFull
+                                    ? accent
+                                    : scheme.onSurface.withValues(alpha: 0.8),
+                              ),
+                            ),
+                          ),
+                        ),
+                        InkWell(
+                          key: const ValueKey('payment_half_balance_chip'),
+                          borderRadius: BorderRadius.circular(9),
+                          onTap: () {
+                            Haptics.selection();
+                            _amount.text = groupedNumber(
+                              halfBal,
+                              decimals: Money.decimals(_currency),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isHalf
+                                  ? accent.withValues(alpha: 0.14)
+                                  : scheme.onSurface.withValues(alpha: 0.04),
+                              borderRadius: BorderRadius.circular(9),
+                              border: Border.all(
+                                color: isHalf
+                                    ? accent.withValues(alpha: 0.55)
+                                    : scheme.onSurface.withValues(alpha: 0.12),
+                              ),
+                            ),
+                            child: Text(
+                              '50% of balance'.tr,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: isHalf
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                color: isHalf
+                                    ? accent
+                                    : scheme.onSurface.withValues(alpha: 0.8),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+              const SizedBox(height: 12),
+              AccountSelectorSection(
+                repo: repo,
+                categoryKind: catKind,
+                scope: TxnScope.business,
+                selectedCategoryId:
+                    _categoryId ??
+                    repo.defaultCategoryId(catKind, scope: TxnScope.business),
+                shortcuts: repo.shortcutCategories(
+                  catKind,
+                  scope: TxnScope.business,
+                ),
+                onSelectCategory: (cat) =>
+                    setState(() => _categoryId = cat.id),
               ),
               const SizedBox(height: 12),
               AppTextField(

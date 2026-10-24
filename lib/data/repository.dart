@@ -329,6 +329,24 @@ class AppRepository extends ChangeNotifier {
     return map[customerId] ?? const <Subscription>[];
   }
 
+  /// Non-superseded (current) subscriptions of [customerId] — excludes older
+  /// renewals for a service plan that already has a newer subscription.
+  List<Subscription> activeSubsOfCustomer(String customerId) {
+    final subs = subsOfCustomer(customerId);
+    if (subs.length <= 1) return subs;
+    final superseded = Ledger.supersededIds(subs);
+    final current = subs.where((s) => !superseded.contains(s.id)).toList();
+    return current.isNotEmpty ? current : subs;
+  }
+
+  /// Returns the recorded bank SMS history entry linked to [txnId], if any.
+  SmsHistoryEntry? smsHistoryForTxn(String txnId) {
+    for (final entry in smsHistory) {
+      if (entry.transactionId == txnId) return entry;
+    }
+    return null;
+  }
+
   List<Txn> txnsOfCustomer(String customerId) =>
       Ledger.forCustomer(businessTxns, customerId);
 
@@ -649,6 +667,7 @@ class AppRepository extends ChangeNotifier {
     String? currencyCode,
     DateTime? start,
     String? categoryId,
+    String? note,
   }) async {
     final customer = customerById(old.customerId);
     if (customer == null) throw StateError('Customer not found');
@@ -660,6 +679,7 @@ class AppRepository extends ChangeNotifier {
     final end = plan != null
         ? plan.endFrom(startDate)
         : J.addDays(J.addMonths(startDate, months ?? 1), -1);
+    final customNote = note?.trim() ?? '';
     return sellSubscription(
       customer: customer,
       plan: plan,
@@ -671,7 +691,9 @@ class AppRepository extends ChangeNotifier {
       received: received ?? 0,
       receiveCurrency: currencyCode ?? old.currency,
       autoRenew: old.autoRenew,
-      note: 'Renewal: {plan}'.trArgs({'plan': old.planName.tr}),
+      note: customNote.isNotEmpty
+          ? customNote
+          : 'Renewal: {plan}'.trArgs({'plan': old.planName.tr}),
       categoryId: categoryId,
       deviceCount: old.deviceCount,
     );
@@ -922,6 +944,7 @@ class AppRepository extends ChangeNotifier {
     required DateTime date,
     bool isReceive = true,
     String note = '',
+    String? categoryId,
   }) => addTxn(
     Txn(
       id: LocalStore.newId(),
@@ -934,7 +957,7 @@ class AppRepository extends ChangeNotifier {
       currency: currencyCode,
       rateToBase: settings.currency(currencyCode).rateToBase,
       date: date,
-      categoryId: isReceive ? defaultIncomeCategoryId : null,
+      categoryId: categoryId ?? (isReceive ? defaultIncomeCategoryId : null),
       customerId: customer.id,
       note: note.isEmpty
           ? (isReceive
@@ -1503,6 +1526,10 @@ class AppRepository extends ChangeNotifier {
   }
 
   /// Approve an SMS as a transaction in the selected personal/business scope.
+  ///
+  /// When [renewSubscriptionTarget] or [newPlanTarget] is provided for a
+  /// business income transaction with a selected customer, the customer's
+  /// subscription is automatically renewed or created alongside the payment.
   Future<Txn?> approveSms(
     ParsedSms sms, {
     Customer? customer,
@@ -1510,6 +1537,9 @@ class AppRepository extends ChangeNotifier {
     String? categoryId,
     double? amount,
     required TxnScope scope,
+    Subscription? renewSubscriptionTarget,
+    Plan? newPlanTarget,
+    String? note,
   }) async {
     // Inbox messages must match a bank rule, but a pasted message is an
     // explicit user decision: it may be recorded even when no rule matched.
@@ -1524,7 +1554,11 @@ class AppRepository extends ChangeNotifier {
                   balanceOf(cust) > 0.5
               ? TxnKind.receive
               : TxnKind.income)
-        : TxnKind.expense;
+        : (scope == TxnScope.business &&
+                  cust != null &&
+                  balanceOf(cust) < -0.5
+              ? TxnKind.payablePayment
+              : TxnKind.expense);
     var k = kind ?? suggestedKind;
     if (scope == TxnScope.personal &&
         k != TxnKind.income &&
@@ -1546,10 +1580,78 @@ class AppRepository extends ChangeNotifier {
     }
 
     final cur = sms.currency;
+    final finalAmount = amount ?? sms.amount;
+    final customNote = note?.trim() ?? '';
+    final resolvedNote = customNote.isNotEmpty ? customNote : _smsNote(sms);
+
+    // If this is a business income for a customer and a subscription renewal
+    // or new plan creation was selected, record the subscription + payment.
+    if (scope == TxnScope.business &&
+        cust != null &&
+        k == TxnKind.income &&
+        (renewSubscriptionTarget != null || newPlanTarget != null)) {
+      Subscription sub;
+      if (renewSubscriptionTarget != null) {
+        sub = await renewSubscription(
+          renewSubscriptionTarget,
+          price: finalAmount,
+          received: finalAmount,
+          currencyCode: cur,
+          categoryId: cat,
+          note: customNote,
+        );
+      } else {
+        final plan = newPlanTarget!;
+        final startDate = J.dateOnly(sms.message.date);
+        final endDate = plan.endFrom(startDate);
+        sub = await sellSubscription(
+          customer: cust,
+          plan: plan,
+          title: plan.name,
+          price: finalAmount,
+          currencyCode: cur,
+          start: startDate,
+          end: endDate,
+          received: finalAmount,
+          receiveCurrency: cur,
+          note: resolvedNote,
+          categoryId: cat,
+        );
+      }
+      var recordedTxn = transactions.firstWhere(
+        (t) => t.subscriptionId == sub.id && t.kind == TxnKind.receive,
+        orElse: () => transactions.firstWhere(
+          (t) => t.subscriptionId == sub.id,
+          orElse: () => transactions.first,
+        ),
+      );
+      if (customNote.isNotEmpty && recordedTxn.note != customNote) {
+        recordedTxn = recordedTxn.copyWith(note: customNote);
+        await store.putTxn(recordedTxn);
+        transactions = [
+          for (final t in transactions)
+            if (t.id == recordedTxn.id) recordedTxn else t,
+        ];
+      }
+      await store.setSmsState(
+        sms.key,
+        SmsHistoryEntry.approvedStatus,
+        history: _smsHistoryEntry(
+          sms,
+          SmsHistoryEntry.approvedStatus,
+          transactionId: recordedTxn.id,
+        ),
+      );
+      smsSuggestions = smsSuggestions.where((e) => e.key != sms.key).toList();
+      smsHistory = store.loadSmsHistory();
+      notifyListeners();
+      return recordedTxn;
+    }
+
     final txn = Txn(
       id: LocalStore.newId(),
       kind: k,
-      amount: amount ?? sms.amount,
+      amount: finalAmount,
       currency: cur,
       rateToBase: settings.currency(cur).rateToBase,
       date: sms.message.date,
@@ -1557,7 +1659,7 @@ class AppRepository extends ChangeNotifier {
       customerId: cust?.id,
       credit: false,
       scope: scope,
-      note: _smsNote(sms),
+      note: resolvedNote,
       createdAt: DateTime.now(),
     );
     await store.putTxn(txn);

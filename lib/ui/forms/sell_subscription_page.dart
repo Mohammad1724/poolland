@@ -2,30 +2,35 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/format_utils.dart';
+import '../../core/haptics.dart';
 import '../../core/jalali_utils.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
 import '../design.dart';
+import '../theme.dart';
 import '../widgets/widgets.dart';
 import '../motion_kit.dart';
 import 'contact_edit_page.dart';
 import 'plan_edit_page.dart';
+import 'sms_review_sheet.dart';
 
 import '../../core/localization.dart';
 
-/// Record a new subscription sale or renewal
+/// Record a new subscription sale, renewal, or edit an existing subscription
 class SellSubscriptionPage extends StatefulWidget {
   const SellSubscriptionPage({
     super.key,
     this.contact,
     this.plan,
     this.renewFrom,
+    this.existing,
   });
 
   final Customer? contact;
   final Plan? plan;
   final Subscription? renewFrom;
+  final Subscription? existing;
 
   @override
   State<SellSubscriptionPage> createState() => _SellSubscriptionPageState();
@@ -51,6 +56,7 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
   String? _categoryId;
 
   bool get isRenew => widget.renewFrom != null;
+  bool get isEdit => widget.existing != null;
 
   @override
   void initState() {
@@ -58,6 +64,10 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
     final repo = context.read<AppRepository>();
     _currency = repo.settings.baseCurrency;
     _receiveCurrency = repo.settings.baseCurrency;
+    _categoryId = repo.defaultCategoryId(
+      TxnKind.income,
+      scope: TxnScope.business,
+    );
     // The default value is English; setting the cursor at the end avoids a
     // visible jump when the user starts typing in an RTL context — the
     // selection would otherwise default to position 0 (the left edge) and
@@ -68,8 +78,29 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
     );
     _plan = widget.plan;
 
+    final editSub = widget.existing;
     final old = widget.renewFrom;
-    if (old != null) {
+    if (editSub != null) {
+      _contact = repo.customerById(editSub.customerId);
+      _plan = repo.planById(editSub.planId);
+      _title.text = editSub.planName;
+      _price.text = groupedNumber(
+        editSub.amount,
+        decimals: Money.decimals(editSub.currency),
+      );
+      _currency = editSub.currency;
+      _receiveCurrency = editSub.currency;
+      _start = editSub.startDate;
+      _end = editSub.endDate;
+      _manualEnd = true;
+      _autoRenew = editSub.autoRenew;
+      _note.text = editSub.note;
+      final days = editSub.durationDays;
+      _durationValue = days > 25
+          ? (days / 30).round().clamp(1, 60)
+          : days.clamp(1, 365);
+      _unitIsMonth = days > 25;
+    } else if (old != null) {
       _contact = repo.customerById(old.customerId);
       _plan = repo.planById(old.planId);
       _title.text = old.planName;
@@ -111,9 +142,13 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
         _receiveCurrency = plan.currency;
         _durationValue = plan.durationValue;
         _unitIsMonth = plan.durationUnit == PlanDurationUnit.month;
+        _received.text = groupedNumber(
+          plan.price,
+          decimals: Money.decimals(_receiveCurrency),
+        );
       }
     }
-    _end = _computeEnd();
+    _end = editSub?.endDate ?? _computeEnd();
   }
 
   @override
@@ -152,6 +187,10 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
         _unitIsMonth = plan.durationUnit == PlanDurationUnit.month;
         _manualEnd = false;
         _end = _computeEnd();
+        _received.text = groupedNumber(
+          plan.price,
+          decimals: Money.decimals(_receiveCurrency),
+        );
       }
     });
   }
@@ -169,12 +208,36 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
     final navigator = Navigator.of(context);
     final price = parseAmount(_price.text);
     final received = parseAmount(_received.text);
+    final titleText = _title.text.trim().isEmpty
+        ? 'Subscription'.tr
+        : _title.text.trim();
+    if (isEdit) {
+      final editSub = widget.existing!;
+      await repo.saveSubscription(
+        Subscription(
+          id: editSub.id,
+          customerId: _contact!.id,
+          planId: _plan?.id,
+          planName: titleText,
+          startDate: J.dateOnly(_start),
+          endDate: J.dateOnly(_end),
+          amount: price,
+          currency: _currency,
+          deviceCount: editSub.deviceCount,
+          note: _note.text.trim(),
+          autoRenew: _autoRenew,
+          createdAt: editSub.createdAt,
+        ),
+      );
+      if (!mounted) return;
+      showMessengerSnack(messenger, 'Subscription updated');
+      navigator.pop();
+      return;
+    }
     await repo.sellSubscription(
       customer: _contact!,
       plan: _plan,
-      title: _title.text.trim().isEmpty
-          ? 'Subscription'.tr
-          : _title.text.trim(),
+      title: titleText,
       price: price,
       currencyCode: _currency,
       start: _start,
@@ -202,12 +265,25 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          (isRenew ? 'Renew subscription' : 'Sell a subscription').tr,
+          (isEdit
+                  ? 'Edit subscription'
+                  : isRenew
+                  ? 'Renew subscription'
+                  : 'Sell a subscription')
+              .tr,
         ),
       ),
       bottomNavigationBar: FormActionBar(
-        label: isRenew ? 'Record renewal' : 'Record sale',
-        icon: isRenew ? Icons.autorenew_rounded : Icons.check_rounded,
+        label: isEdit
+            ? 'Save changes'
+            : isRenew
+            ? 'Record renewal'
+            : 'Record sale',
+        icon: isEdit
+            ? Icons.save_outlined
+            : isRenew
+            ? Icons.autorenew_rounded
+            : Icons.check_rounded,
         // A sale without a customer has nowhere to go: the account cannot be
         // updated and the subscription has no owner. Say so before the tap
         // instead of only after it.
@@ -223,21 +299,18 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
             children: [
               // ---------- Customer ----------
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: SelectField<Customer>(
-                      label: 'Customer'.tr,
-                      icon: Icons.person_outline_rounded,
-                      value: _contact,
-                      items: repo.activeCustomers,
-                      labelOf: (c) => c.name,
-                      subOf: (c) => (repo.balanceOf(c)).abs() < 1
-                          ? (c.phone.isEmpty ? 'Settled' : c.phone)
-                          : '${c.phone.isEmpty ? '' : '${c.phone} • '}${Money.text(repo.balanceOf(c), signed: true)}',
-                      clearable: false,
-                      sheetTitle: 'Select customer'.tr,
-                      searchHint: 'Customer name...'.tr,
-                      onChanged: (c) => setState(() => _contact = c),
+                    child: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _price,
+                      builder: (context, _, _) => ContactSelectorSection(
+                        repo: repo,
+                        selectedCustomer: _contact,
+                        referenceAmount: parseAmount(_price.text),
+                        isDeposit: true,
+                        onSelectCustomer: (c) => setState(() => _contact = c),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -418,105 +491,170 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
               const SizedBox(height: 14),
 
               // ---------- Payment received ----------
-              SectionTitle('Payment', icon: Icons.payments_outlined),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: AmountField(
-                      controller: _received,
-                      label: 'Received now'.tr,
-                      currency: _receiveCurrency,
-                      textInputAction: TextInputAction.next,
-                      validator: (_) => null,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 112,
-                    child: SelectField<String>(
-                      label: 'Currency'.tr,
-                      value: _receiveCurrency,
-                      items: currencies.map((c) => c.code).toList(),
-                      labelOf: (code) => Money.symbol(code),
-                      onChanged: (code) => setState(
-                        () => _receiveCurrency = code ?? _receiveCurrency,
+              if (!isEdit) ...[
+                SectionTitle('Payment', icon: Icons.payments_outlined),
+                ListenableBuilder(
+                  listenable: Listenable.merge([_price, _received]),
+                  builder: (context, _) {
+                    final price = parseAmount(_price.text);
+                    final received = parseAmount(_received.text);
+                    final isCashFull =
+                        price > 0 && (received - price).abs() < 1;
+                    final isCredit =
+                        price > 0 && received <= 0;
+                    final halfPrice = (price / 2).roundToDouble();
+                    final isHalf =
+                        price > 0 &&
+                        halfPrice > 0 &&
+                        (received - halfPrice).abs() < 1;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          _SalePayQuickChip(
+                            chipKey: const ValueKey('sale_pay_cash_chip'),
+                            label: 'Cash (paid in full)'.tr,
+                            icon: Icons.payments_outlined,
+                            selected: isCashFull,
+                            accent: AppTheme.revenue,
+                            onTap: () {
+                              Haptics.selection();
+                              if (price > 0) {
+                                _received.text = groupedNumber(
+                                  price,
+                                  decimals: Money.decimals(_receiveCurrency),
+                                );
+                              }
+                            },
+                          ),
+                          _SalePayQuickChip(
+                            chipKey: const ValueKey('sale_pay_credit_chip'),
+                            label: 'Credit (debt)'.tr,
+                            icon: Icons.schedule_rounded,
+                            selected: isCredit,
+                            accent: const Color(0xFFF59E0B),
+                            onTap: () {
+                              Haptics.selection();
+                              _received.text = '0';
+                            },
+                          ),
+                          _SalePayQuickChip(
+                            chipKey: const ValueKey('sale_pay_half_chip'),
+                            label: '50% deposit'.tr,
+                            icon: Icons.pie_chart_outline_rounded,
+                            selected: isHalf,
+                            accent: Theme.of(context).colorScheme.primary,
+                            onTap: () {
+                              Haptics.selection();
+                              if (price > 0) {
+                                _received.text = groupedNumber(
+                                  halfPrice,
+                                  decimals: Money.decimals(_receiveCurrency),
+                                );
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: AmountField(
+                        controller: _received,
+                        label: 'Received now'.tr,
+                        currency: _receiveCurrency,
+                        textInputAction: TextInputAction.next,
+                        validator: (_) => null,
                       ),
                     ),
-                  ),
-                ],
-              ),
-              // The consequence line depends on both amounts, and neither
-              // field rebuilds this page — so it listens to the controllers
-              // itself. Read straight from `_price.text` in `build` it stayed
-              // frozen at whatever the two fields held when the page was last
-              // rebuilt for another reason: a renewal (both fields pre-filled,
-              // so the line said "paid in full") would keep saying that after
-              // the received amount was cleared. Same fix, same reason as the
-              // cash/credit hint in the transaction form.
-              ListenableBuilder(
-                listenable: Listenable.merge([_price, _received]),
-                builder: (context, _) {
-                  final price = parseAmount(_price.text);
-                  // Only meaningful once there is a price, and only when both
-                  // sides are the same currency: subtracting 3 USDT from
-                  // 500,000 Toman says nothing. With an untouched form the old
-                  // version computed 0 - 0 and announced "Paid in full" for a
-                  // sale that did not exist yet.
-                  final remaining = (_currency == _receiveCurrency && price > 0)
-                      ? price - parseAmount(_received.text)
-                      : null;
-                  if (remaining == null) return const SizedBox.shrink();
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Row(
-                      children: [
-                        Icon(
-                          remaining <= 0
-                              ? Icons.check_circle_rounded
-                              : Icons.info_outline_rounded,
-                          size: 15,
-                          color: remaining <= 0
-                              ? const Color(0xFF16A34A)
-                              : const Color(0xFFF59E0B),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 112,
+                      child: SelectField<String>(
+                        label: 'Currency'.tr,
+                        value: _receiveCurrency,
+                        items: currencies.map((c) => c.code).toList(),
+                        labelOf: (code) => Money.symbol(code),
+                        onChanged: (code) => setState(
+                          () => _receiveCurrency = code ?? _receiveCurrency,
                         ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
+                      ),
+                    ),
+                  ],
+                ),
+                ListenableBuilder(
+                  listenable: Listenable.merge([_price, _received]),
+                  builder: (context, _) {
+                    final price = parseAmount(_price.text);
+                    final remaining =
+                        (_currency == _receiveCurrency && price > 0)
+                        ? price - parseAmount(_received.text)
+                        : null;
+                    if (remaining == null) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Row(
+                        children: [
+                          Icon(
                             remaining <= 0
-                                ? 'Paid in full'.tr
-                                : 'The remaining balance will be recorded as customer debt: {amount}'
-                                      .trArgs({
-                                        'amount': Money.text(
-                                          remaining,
-                                          currency: _currency,
-                                        ),
-                                      }),
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: remaining <= 0
-                                  ? const Color(0xFF16A34A)
-                                  : const Color(0xFFB45309),
+                                ? Icons.check_circle_rounded
+                                : Icons.info_outline_rounded,
+                            size: 15,
+                            color: remaining <= 0
+                                ? const Color(0xFF16A34A)
+                                : const Color(0xFFF59E0B),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              remaining <= 0
+                                  ? 'Paid in full'.tr
+                                  : 'The remaining balance will be recorded as customer debt: {amount}'
+                                        .trArgs({
+                                          'amount': Money.text(
+                                            remaining,
+                                            currency: _currency,
+                                          ),
+                                        }),
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: remaining <= 0
+                                    ? const Color(0xFF16A34A)
+                                    : const Color(0xFFB45309),
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 14),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 14),
 
-              SelectField<Category>(
-                label: 'Income category'.tr,
-                icon: Icons.category_outlined,
-                value: repo.categoryById(_categoryId),
-                items: repo.pickOrderCategories(TxnKind.income),
-                labelOf: (c) => c.name,
-                isChild: (c) => c.parentId != null,
-                onChanged: (c) => setState(() => _categoryId = c?.id),
-              ),
-              const SizedBox(height: 14),
+                AccountSelectorSection(
+                  repo: repo,
+                  categoryKind: TxnKind.income,
+                  scope: TxnScope.business,
+                  selectedCategoryId:
+                      _categoryId ??
+                      repo.defaultCategoryId(
+                        TxnKind.income,
+                        scope: TxnScope.business,
+                      ),
+                  shortcuts: repo.shortcutCategories(
+                    TxnKind.income,
+                    scope: TxnScope.business,
+                  ),
+                  onSelectCategory: (c) => setState(() => _categoryId = c.id),
+                ),
+                const SizedBox(height: 14),
+              ],
 
               AppTextField(
                 controller: _note,
@@ -536,6 +674,73 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SalePayQuickChip extends StatelessWidget {
+  const _SalePayQuickChip({
+    this.chipKey,
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final Key? chipKey;
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      key: chipKey,
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected
+              ? accent.withValues(alpha: 0.14)
+              : scheme.onSurface.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected
+                ? accent.withValues(alpha: 0.55)
+                : scheme.onSurface.withValues(alpha: 0.12),
+            width: selected ? 1.3 : 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: selected
+                  ? accent
+                  : scheme.onSurface.withValues(alpha: 0.65),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                color: selected
+                    ? accent
+                    : scheme.onSurface.withValues(alpha: 0.80),
+              ),
+            ),
+          ],
         ),
       ),
     );

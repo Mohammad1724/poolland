@@ -768,6 +768,19 @@ class _SmsCard extends StatelessWidget {
                   color: const Color(0xFF2563EB),
                   dense: true,
                 ),
+              if (matched != null && sms.direction == SmsDirection.deposit)
+                if (repo.balanceOf(matched) > 0.5)
+                  TagChip(
+                    'Suggested: Debt settlement',
+                    color: const Color(0xFF0F766E),
+                    dense: true,
+                  )
+                else if (repo.activeSubsOfCustomer(matched.id).isNotEmpty)
+                  TagChip(
+                    'Suggested: Subscription renewal',
+                    color: const Color(0xFF4F46E5),
+                    dense: true,
+                  ),
             ],
           ),
           if (matched != null) ...[
@@ -880,7 +893,19 @@ class _SmsCard extends StatelessWidget {
       builder: (ctx) => SmsReviewSheet(sms: sms, initialCustomer: matched),
     );
     if (ok == true && context.mounted) {
-      showSnack(context, 'Transaction recorded from SMS');
+      final repo = context.read<AppRepository>();
+      final nextSms = repo.smsSuggestions.firstOrNull;
+      if (nextSms != null) {
+        showSnack(
+          context,
+          'Transaction recorded from SMS',
+          actionLabel: 'Next SMS',
+          onAction: () =>
+              _openReview(context, nextSms, repo.matchCustomerForSms(nextSms)),
+        );
+      } else {
+        showSnack(context, 'Transaction recorded from SMS');
+      }
     }
   }
 }
@@ -892,6 +917,7 @@ class _SmsHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final repo = context.read<AppRepository>();
     final recorded = entry.wasRecorded;
     final statusColor = recorded
         ? const Color(0xFF16A34A)
@@ -906,7 +932,7 @@ class _SmsHistoryCard extends StatelessWidget {
         : 'Pasted message'.tr;
     Txn? transaction;
     if (entry.transactionId != null) {
-      for (final item in context.read<AppRepository>().transactions) {
+      for (final item in repo.transactions) {
         if (item.id == entry.transactionId) {
           transaction = item;
           break;
@@ -975,9 +1001,41 @@ class _SmsHistoryCard extends StatelessWidget {
                 dense: true,
               ),
               if (entry.direction != SmsDirection.unknown)
-                TagChip(entry.direction.label, color: directionColor, dense: true),
+                TagChip(
+                  entry.direction.label,
+                  color: directionColor,
+                  dense: true,
+                ),
+              if (transactionToOpen != null &&
+                  transactionToOpen.categoryId != null)
+                TagChip(
+                  repo.categoryName(transactionToOpen.categoryId),
+                  color: const Color(0xFF4F46E5),
+                  dense: true,
+                ),
+              if (transactionToOpen != null &&
+                  transactionToOpen.customerId != null)
+                TagChip(
+                  repo.customerName(transactionToOpen.customerId),
+                  color: const Color(0xFF0F766E),
+                  dense: true,
+                ),
             ],
           ),
+          if (transactionToOpen != null &&
+              transactionToOpen.note.trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              transactionToOpen.note.tr,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           Text(
             entry.message.body,

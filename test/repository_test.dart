@@ -252,6 +252,41 @@ void main() {
     expect(repo.summary(scope: TxnScope.business).sales, 500000);
   });
 
+  test('Approving an SMS can renew an existing subscription or create a new plan subscription', () async {
+    final customer = await repo.addCustomer(name: 'Settled Customer');
+    final firstSub = await repo.sellSubscription(
+      customer: customer,
+      title: 'One month VPN',
+      price: 300000,
+      currencyCode: 'IRT',
+      start: J.today,
+      end: J.addDays(J.today, 30),
+      received: 300000,
+    );
+    expect(repo.balanceOf(repo.customerById(customer.id)!), 0);
+    expect(repo.subsOfCustomer(customer.id).length, 1);
+
+    final sms = SmsParser.parse(
+      SmsMessage(
+        id: 'renew-sms',
+        address: 'BANKMELAT',
+        body: 'واریز مبلغ 300,000 تومان',
+        date: J.today,
+      ),
+    );
+    await repo.approveSms(
+      sms,
+      customer: customer,
+      kind: TxnKind.income,
+      amount: 300000,
+      scope: TxnScope.business,
+      renewSubscriptionTarget: firstSub,
+    );
+
+    expect(repo.subsOfCustomer(customer.id).length, 2);
+    expect(repo.balanceOf(repo.customerById(customer.id)!), 0);
+  });
+
   test('Renewal starts the day after the previous subscription ends', () async {
     final customer = await repo.addCustomer(name: 'Maryam');
     final first = await repo.sellSubscription(
@@ -850,6 +885,53 @@ void main() {
       expect(repo.isBuiltinSmsRuleModified('melli'), isFalse);
       final reset = repo.effectiveBuiltinRules.firstWhere((r) => r.id == 'melli');
       expect(reset.bankName, 'Melli Bank');
+    });
+
+    test('Approving an SMS stores custom user note when provided', () async {
+      final sms = ParsedSms(
+        message: SmsMessage(
+          id: 'sms-custom-note',
+          address: 'BANK',
+          body: 'برداشت مبلغ 95,000 تومان',
+          date: DateTime.now(),
+        ),
+        bankName: 'Test Bank',
+        amount: 95000,
+        direction: SmsDirection.withdraw,
+        confident: true,
+      );
+      final txn = await repo.approveSms(
+        sms,
+        scope: TxnScope.personal,
+        note: 'خرید قهوه و شیرینی',
+      );
+      expect(txn, isNotNull);
+      expect(txn!.note, 'خرید قهوه و شیرینی');
+      expect(repo.smsHistoryForTxn(txn.id)?.message.id, 'sms-custom-note');
+    });
+
+    test('activeSubsOfCustomer filters superseded renewals and renewSubscription preserves custom note', () async {
+      final customer = await repo.addCustomer(name: 'Saeed');
+      final first = await repo.sellSubscription(
+        customer: customer,
+        title: 'VIP 1M',
+        price: 300000,
+        currencyCode: 'IRT',
+        start: J.today,
+        end: J.addDays(J.addMonths(J.today, 1), -1),
+      );
+      final renewed = await repo.renewSubscription(
+        first,
+        price: 350000,
+        received: 350000,
+        note: 'تمدید ویژه سعید',
+      );
+
+      expect(renewed.note, 'تمدید ویژه سعید');
+      expect(repo.subsOfCustomer(customer.id).length, 2);
+      final active = repo.activeSubsOfCustomer(customer.id);
+      expect(active.length, 1);
+      expect(active.first.id, renewed.id);
     });
   });
 }

@@ -700,23 +700,28 @@ void main() {
       await tester.pumpWidget(wrap(SmsReviewSheet(sms: withdrawSms)));
       await tester.pumpAndSettle();
 
-      // Opens on Business scope with "To account" («به حساب») button for expense.
+      // Opens on Personal scope (first tab) with "To account" («به حساب») button for expense.
       expect(find.text('To account'), findsOneWidget);
-      expect(find.text('Contact (optional)'), findsOneWidget);
-      final businessHeight = tester.getSize(find.byType(SmsReviewSheet)).height;
+      expect(find.text('Contact (optional)'), findsNothing);
+      final personalHeight = tester.getSize(find.byType(SmsReviewSheet)).height;
 
       // A short drag (~1/5 of the sheet) springs back without switching scopes.
       await tester.drag(find.byType(SmsReviewSheet), const Offset(-80, 0));
       await tester.pumpAndSettle();
-      expect(find.text('Contact (optional)'), findsOneWidget);
+      expect(find.text('Contact (optional)'), findsNothing);
 
-      // Horizontal swipe past the magnetic threshold switches from Business to
-      // Personal scope while keeping the sheet height locked.
+      // Horizontal swipe past the magnetic threshold switches from Personal to
+      // Business scope while keeping the sheet height locked.
       await tester.drag(find.byType(SmsReviewSheet), const Offset(-260, 0));
       await tester.pumpAndSettle();
+      expect(find.text('Contact (optional)'), findsOneWidget);
+      final businessHeight = tester.getSize(find.byType(SmsReviewSheet)).height;
+      expect(businessHeight, closeTo(personalHeight, 1.0));
+
+      // Swipe back to Personal scope.
+      await tester.drag(find.byType(SmsReviewSheet), const Offset(260, 0));
+      await tester.pumpAndSettle();
       expect(find.text('Contact (optional)'), findsNothing);
-      final personalHeight = tester.getSize(find.byType(SmsReviewSheet)).height;
-      expect(personalHeight, closeTo(businessHeight, 1.0));
 
       // In Personal expense scope, the seeded "Fuel" («بنزین») shortcut chip
       // is shown directly on the main sheet.
@@ -727,6 +732,19 @@ void main() {
       // Selecting the "Fuel" shortcut updates the "To account" button to
       // show "Transport and fuel › Fuel".
       expect(find.text('Transport and fuel › Fuel'), findsOneWidget);
+
+      // Inline category & subcategory search finds "Car maintenance" directly on the sheet.
+      await tester.enterText(
+        find.byKey(const ValueKey('inline_category_search_personal_expense')),
+        'maintenance',
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Transport and fuel › Car maintenance'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Transport and fuel › Car maintenance'));
+      await tester.pumpAndSettle();
 
       // Tapping "To account" opens the hierarchical category -> subcategory sheet.
       await tester.tap(find.text('To account'));
@@ -756,6 +774,157 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'SMS review auto-selects Receive for debtor contacts and Renew for income mode',
+    (tester) async {
+      final debtor = repo.activeCustomers.firstWhere(
+        (c) => repo.balanceOf(c) > 0.5,
+      );
+      final depositSms = ParsedSms(
+        message: SmsMessage(
+          id: 'debtor-deposit-sms',
+          address: 'BANK',
+          body: 'واریز مبلغ 300,000 تومان',
+          date: DateTime.now(),
+        ),
+        bankName: 'Test Bank',
+        amount: 300000,
+        direction: SmsDirection.deposit,
+        confident: true,
+      );
+
+      await tester.pumpWidget(
+        wrap(SmsReviewSheet(sms: depositSms, initialCustomer: debtor)),
+      );
+      await tester.pumpAndSettle();
+
+      // Debtor customer defaults to Receive («دریافت بدهی») to settle debt.
+      expect(find.text('Settling contact previous debt'), findsOneWidget);
+
+      // Switching the kind strip to Income («درآمد») reveals the auto-selected
+      // Service / Subscription renewal selector for that customer.
+      await tester.tap(
+        find.descendant(
+          of: find.byType(TxnKindStrip),
+          matching: find.text('Income'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Service / Subscription'), findsOneWidget);
+      expect(find.textContaining('Renew:'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Subscription sale form pre-fills cash payment for plan and supports quick payment chips', (tester) async {
+    final customer = repo.activeCustomers.first;
+    final plan = repo.activePlans.first;
+    await tester.pumpWidget(
+      wrap(SellSubscriptionPage(contact: customer, plan: plan)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(customer.name), findsWidgets);
+    await tester.scrollUntilVisible(
+      find.widgetWithText(TextField, 'Received now'),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    // Pre-filled plan sale starts as Paid in full.
+    expect(find.text('Paid in full', skipOffstage: false), findsOneWidget);
+
+    // Tapping Credit (debt) switches Received now to 0 and shows customer debt.
+    await tester.tap(find.byKey(const ValueKey('sale_pay_credit_chip')));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('customer debt:', skipOffstage: false),
+      findsOneWidget,
+    );
+
+    // Tapping Cash (paid in full) restores full payment.
+    await tester.tap(find.byKey(const ValueKey('sale_pay_cash_chip')));
+    await tester.pumpAndSettle();
+    expect(find.text('Paid in full', skipOffstage: false), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('ContactPickerSheet highlights exact debt amount match at the top', (
+    tester,
+  ) async {
+    final debtor = repo.activeCustomers.firstWhere(
+      (c) => repo.balanceOf(c) > 0.5,
+    );
+    final exactDebt = repo.balanceOf(debtor);
+    final depositSms = ParsedSms(
+      message: SmsMessage(
+        id: 'exact-debt-match-sms',
+        address: 'BANK',
+        body: 'واریز مبلغ',
+        date: DateTime.now(),
+      ),
+      bankName: 'Test Bank',
+      amount: exactDebt,
+      direction: SmsDirection.deposit,
+      confident: true,
+    );
+
+    await tester.pumpWidget(wrap(SmsReviewSheet(sms: depositSms)));
+    await tester.pumpAndSettle();
+
+    // Description / note field is present on SmsReviewSheet.
+    expect(find.byKey(const ValueKey('sms_review_note_field')), findsOneWidget);
+
+    // Switch to Business scope where ContactSelectorSection is shown.
+    await tester.tap(find.text('Business'));
+    await tester.pumpAndSettle();
+
+    // ContactSelectorSection shows the "Amount match" badge before selection.
+    expect(find.text('Amount match'), findsOneWidget);
+
+    // Opening ContactPickerSheet surfaces "Matches debt amount".
+    await tester.tap(find.byKey(const ValueKey('contact_selector_button')));
+    await tester.pumpAndSettle();
+    expect(find.text('Matches debt amount'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('SellSubscriptionPage supports editing an existing subscription', (
+    tester,
+  ) async {
+    final existingSub = repo.subscriptions.first;
+    await tester.pumpWidget(
+      wrap(SellSubscriptionPage(existing: existingSub)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit subscription'), findsOneWidget);
+    expect(find.text('Save changes'), findsOneWidget);
+    expect(find.text(existingSub.planName), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('TransactionsPage shows search-in-all-months chip when searching', (
+    tester,
+  ) async {
+    await tester.pumpWidget(wrap(const TransactionsPage()));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(TextField).first,
+      repo.activeCustomers.first.name,
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('txn_search_all_months_chip')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('Onboarding page renders', (tester) async {
     await tester.pumpWidget(wrap(const OnboardingPage()));

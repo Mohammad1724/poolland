@@ -412,113 +412,141 @@ class CustomerDetailPage extends StatelessWidget {
               ),
             )
           else
-            ...subs.map((s) {
-              final status = Ledger.subStatus(
-                s,
-                reminderDays: repo.settings.reminderDays,
-              );
-              final days = Ledger.daysLeft(s);
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: CardBox(
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              s.planName.tr,
+            ...() {
+              final supersededIds = Ledger.supersededIds(subs);
+              return subs.map((s) {
+                final status = Ledger.subStatus(
+                  s,
+                  reminderDays: repo.settings.reminderDays,
+                );
+                final days = Ledger.daysLeft(s);
+                final isSuperseded = supersededIds.contains(s.id);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: CardBox(
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                s.planName.tr,
+                                style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            if (isSuperseded) ...[
+                              TagChip(
+                                'Renewed',
+                                color: const Color(0xFF4F46E5),
+                                dense: true,
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            TagChip(
+                              status == SubStatus.expired
+                                  ? 'Expired'
+                                  : Fmt.expiryLabel(days),
+                              color: status.color,
+                              dense: true,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.date_range_rounded,
+                              size: 14,
+                              color: onSurface.withValues(alpha: 0.5),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '{from} to {to}'.trArgs({
+                                'from': J.d(s.startDate),
+                                'to': J.d(s.endDate),
+                              }),
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: onSurface.withValues(alpha: 0.65),
+                              ),
+                            ),
+                            const Spacer(),
+                            MoneyText(
+                              s.amount,
+                              currency: s.currency,
                               style: const TextStyle(
-                                fontSize: 13.5,
+                                fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
-                          ),
-                          TagChip(
-                            status == SubStatus.expired
-                                ? 'Expired'
-                                : Fmt.expiryLabel(days),
-                            color: status.color,
-                            dense: true,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.date_range_rounded,
-                            size: 14,
-                            color: onSurface.withValues(alpha: 0.5),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '{from} to {to}'.trArgs({
-                              'from': J.d(s.startDate),
-                              'to': J.d(s.endDate),
-                            }),
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: onSurface.withValues(alpha: 0.65),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        SellSubscriptionPage(renewFrom: s),
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Icons.autorenew_rounded,
+                                  size: 16,
+                                ),
+                                label: Text('Renew'.tr),
+                              ),
                             ),
-                          ),
-                          const Spacer(),
-                          MoneyText(
-                            s.amount,
-                            currency: s.currency,
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
+                            const SizedBox(width: 8),
+                            IconButton.outlined(
+                              tooltip: 'Edit subscription'.tr,
                               onPressed: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) =>
-                                      SellSubscriptionPage(renewFrom: s),
+                                      SellSubscriptionPage(existing: s),
                                 ),
                               ),
                               icon: const Icon(
-                                Icons.autorenew_rounded,
-                                size: 16,
+                                Icons.edit_outlined,
+                                size: 18,
                               ),
-                              label: Text('Renew'.tr),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton.outlined(
-                            tooltip: 'Delete'.tr,
-                            onPressed: () async {
-                              final ok = await confirmDialog(
-                                context,
-                                title: 'Delete subscription'.tr,
-                                message: 'Delete this subscription? (Financial transactions will remain.)'
-                                    .tr,
-                                okLabel: 'Delete'.tr,
-                                danger: true,
-                              );
-                              if (!ok) return;
-                              await repo.deleteSubscription(s.id);
-                            },
-                            icon: const Icon(
-                              Icons.delete_outline_rounded,
-                              size: 18,
+                            const SizedBox(width: 8),
+                            IconButton.outlined(
+                              tooltip: 'Delete'.tr,
+                              onPressed: () async {
+                                final ok = await confirmDialog(
+                                  context,
+                                  title: 'Delete subscription'.tr,
+                                  message:
+                                      'Delete this subscription? (Financial transactions will remain.)'
+                                          .tr,
+                                  okLabel: 'Delete'.tr,
+                                  danger: true,
+                                );
+                                if (!ok) return;
+                                await repo.deleteSubscription(s.id);
+                              },
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                size: 18,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              );
-            }),
+                );
+              });
+            }(),
 
           // ---------- Transactions ----------
           SectionTitle(

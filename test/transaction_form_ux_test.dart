@@ -181,8 +181,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('contact chips select and clear with one tap each', (tester)
-    async {
+  testWidgets('contact selector opens picker sheet and clears with one tap', (
+    tester,
+  ) async {
     final first = repo.topCustomers(limit: 4).first;
 
     await tester.pumpWidget(
@@ -192,15 +193,18 @@ void main() {
 
     expect(find.byType(MoneyText), findsNothing);
 
-    // The chip strip can sit right at the bottom of the viewport; make sure
-    // the chip is in view before tapping it.
-    final nameFinder = find.text(first.name);
+    final contactBtn = find.byKey(const ValueKey('contact_selector_button'));
     await tester.scrollUntilVisible(
-      nameFinder,
+      contactBtn,
       200,
       scrollable: formScrollable(),
     );
-    await tester.tap(nameFinder.first);
+    await tester.tap(contactBtn);
+    await tester.pumpAndSettle();
+
+    // The contact picker sheet opens and lists customers.
+    expect(find.text('Select contact'), findsOneWidget);
+    await tester.tap(find.text(first.name).first);
     await tester.pumpAndSettle();
 
     // The live balance appears next to the selected contact.
@@ -211,17 +215,14 @@ void main() {
     );
     expect(find.byType(MoneyText), findsOneWidget);
 
-    // Tapping the selected chip again clears it. The card now carries the
-    // same name, so address the chip through its InkWell ancestor.
-    final chipFinder = find
-        .ancestor(of: nameFinder, matching: find.byType(InkWell))
-        .first;
+    // Tapping the clear button on the contact selector clears it in one tap.
+    final clearBtn = find.byKey(const ValueKey('clear_contact_button'));
     await tester.scrollUntilVisible(
-      chipFinder,
+      clearBtn,
       200,
       scrollable: formScrollable(),
     );
-    await tester.tap(chipFinder);
+    await tester.tap(clearBtn);
     await tester.pumpAndSettle();
     expect(find.byType(MoneyText), findsNothing);
     expect(tester.takeException(), isNull);
@@ -240,15 +241,15 @@ void main() {
     await tester.enterText(amountField(), '2000000');
     await tester.pump();
 
-    // The chip strip can sit right at the bottom of the viewport; make sure
-    // the chip is in view before tapping it.
-    final nameFinder = find.text(first.name);
+    final contactBtn = find.byKey(const ValueKey('contact_selector_button'));
     await tester.scrollUntilVisible(
-      nameFinder,
+      contactBtn,
       200,
       scrollable: formScrollable(),
     );
-    await tester.tap(nameFinder.first);
+    await tester.tap(contactBtn);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(first.name).first);
     await tester.pumpAndSettle();
 
     // Selecting a contact inserts the cash/credit section mid-list; the

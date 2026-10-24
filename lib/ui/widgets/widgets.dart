@@ -1301,10 +1301,11 @@ class TxnTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
     final compactAmounts = MediaQuery.sizeOf(context).width < 360;
-    // Notes written by the app itself ('Payment received', 'Imported from
-    // SMS', ...) are localization keys; free-typed user notes simply miss
-    // the map and render as-is.
-    final title = txn.note.isNotEmpty ? txn.note.tr : categoryName.tr;
+    final hasNote = txn.note.trim().isNotEmpty;
+    final noteText = hasNote ? txn.note.trim().tr : '';
+    final catText = categoryName.trim().tr;
+    final title = catText.isNotEmpty ? catText : (hasNote ? noteText : '—');
+    final showSeparateNote = hasNote && noteText != title;
     final hasTime = txn.date.hour != 0 || txn.date.minute != 0;
     final sub = <String>[
       J.d(txn.date),
@@ -1323,16 +1324,63 @@ class TxnTile extends StatelessWidget {
         ),
         child: Icon(txn.kind.icon, size: 17, color: _color),
       ),
-      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(
-        sub,
+      title: Text(
+        title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: FontSizes.caption,
-          color: onSurfaceVariant,
-        ),
+        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
       ),
+      subtitle: showSeparateNote
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.notes_rounded,
+                      size: 12,
+                      color: _color.withValues(alpha: 0.8),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        noteText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.82),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  sub,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: FontSizes.caption,
+                    color: onSurfaceVariant,
+                  ),
+                ),
+              ],
+            )
+          : Text(
+              sub,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: FontSizes.caption,
+                color: onSurfaceVariant,
+              ),
+            ),
       trailing: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: compactAmounts ? 104 : 160),
         child: Column(

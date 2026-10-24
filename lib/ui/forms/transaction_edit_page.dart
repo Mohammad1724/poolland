@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/format_utils.dart';
@@ -12,7 +13,6 @@ import '../design.dart';
 import '../motion_kit.dart';
 import '../widgets/date_picker.dart';
 import '../widgets/widgets.dart';
-import 'contact_edit_page.dart';
 import 'sms_review_sheet.dart';
 
 /// Record or edit a transaction (income, expense, receipt, refund, or payment).
@@ -20,11 +20,14 @@ import 'sms_review_sheet.dart';
 /// Unified with the SMS transaction recording sheet:
 /// - Interactive `درآمد` (`Income`) / `هزینه` (`Expense`) direction toggle in
 ///   Personal scope, or the full business kind strip in Business scope.
-/// - 1:1 finger-tracking horizontal drag + magnetic snap between `کسب‌وکار`
-///   (`Business`) and `شخصی` (`Personal`).
+/// - 1:1 finger-tracking horizontal drag + magnetic snap between `شخصی`
+///   (`Personal`, first) and `کسب‌وکار` (`Business`, second).
 /// - «به حساب» (Expense) / «از حساب» (Income) button opening the hierarchical
 ///   Category -> Subcategory picker window (`AccountCategorySheet`), plus
-///   color-coded 1-tap pinned subcategory shortcuts (`میان‌بر`).
+///   an inline search bar and color-coded 1-tap pinned subcategory shortcuts
+///   (`میان‌بر`).
+/// - Contact («مخاطب») selector button in Business scope that opens
+///   `ContactPickerSheet`.
 class TransactionEditPage extends StatefulWidget {
   const TransactionEditPage({
     super.key,
@@ -65,8 +68,11 @@ class _TransactionEditPageState extends State<TransactionEditPage>
   late DateTime _date;
   Customer? _customer;
   Subscription? _subscription;
+  Subscription? _renewSub;
+  Plan? _newPlan;
   Category? _category;
   bool _credit = false;
+  bool _subActionManuallyCleared = false;
 
   bool _autofocusDone = false;
 
@@ -142,6 +148,62 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     _category = repo.categoryById(
       repo.defaultCategoryId(kindForCats, scope: _scope),
     );
+  }
+
+  void _syncSubscriptionSelection(AppRepository repo) {
+    if (isEdit ||
+        _scope != TxnScope.business ||
+        _kind != TxnKind.income ||
+        _customer == null) {
+      _renewSub = null;
+      _newPlan = null;
+      return;
+    }
+    if (_subActionManuallyCleared) return;
+    if (!isSubscriptionRelatedCategory(repo, _category?.id)) {
+      _renewSub = null;
+      _newPlan = null;
+      return;
+    }
+    final amt = parseAmount(_amount.text);
+    if (amt <= 0) {
+      _renewSub = null;
+      _newPlan = null;
+      return;
+    }
+    final subs = repo.activeSubsOfCustomer(_customer!.id);
+    for (final s in subs) {
+      if ((s.amount - amt).abs() < 1.0) {
+        _renewSub = s;
+        _newPlan = null;
+        return;
+      }
+    }
+    for (final p in repo.activePlans) {
+      if ((p.price - amt).abs() < 1.0) {
+        _renewSub = null;
+        _newPlan = p;
+        return;
+      }
+    }
+    _renewSub = null;
+    _newPlan = null;
+  }
+
+  void _copyTransactionDetails(AppRepository repo) {
+    final t = widget.existing;
+    if (t == null) return;
+    final lines = <String>[
+      '${t.kind.label}: ${Money.text(t.amount, currency: t.currency)}',
+      '${'Date'.tr}: ${J.d(t.date)} · ${Fmt.clock(t.date)}',
+      if (t.categoryId != null)
+        '${'Category'.tr}: ${repo.categoryName(t.categoryId)}',
+      if (t.customerId != null)
+        '${'Contact'.tr}: ${repo.customerName(t.customerId)}',
+      if (t.note.trim().isNotEmpty) '${'Description'.tr}: ${t.note.tr}',
+    ];
+    Clipboard.setData(ClipboardData(text: lines.join('\n')));
+    showSnack(context, 'Transaction details copied');
   }
 
   @override
@@ -228,18 +290,21 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     if (_scope == TxnScope.personal) {
       _customer = null;
       _subscription = null;
+      _renewSub = null;
+      _newPlan = null;
       _credit = false;
       if (_kind != TxnKind.income && _kind != TxnKind.expense) {
         _kind = _kind == TxnKind.receive ? TxnKind.income : TxnKind.expense;
       }
     }
     _syncCategory(repo);
+    _syncSubscriptionSelection(repo);
   }
 
   void _changeScopeByTap(AppRepository repo, TxnScope target) {
     if (_scope == target && !_isTransitioning) return;
     final isRtl = Directionality.of(context) == TextDirection.rtl;
-    final dirForTarget = target == TxnScope.personal
+    final dirForTarget = target == TxnScope.business
         ? (isRtl ? 1.0 : -1.0)
         : (isRtl ? -1.0 : 1.0);
     Haptics.selection();
@@ -437,44 +502,17 @@ class _TransactionEditPageState extends State<TransactionEditPage>
       _customer = t.customerId == null ? null : repo.customerById(t.customerId);
       _category = repo.categoryById(t.categoryId);
       _subscription = null;
+      _renewSub = null;
+      _newPlan = null;
+      _subActionManuallyCleared = false;
       _credit = t.credit;
       if (_scope == TxnScope.personal) {
         _customer = null;
         _credit = false;
       }
       _syncCategory(repo);
+      _syncSubscriptionSelection(repo);
     });
-  }
-
-  Future<void> _newContact() async {
-    final created = await Navigator.push<Customer>(
-      context,
-      MaterialPageRoute(builder: (_) => const ContactEditPage()),
-    );
-    if (!mounted) return;
-    if (created != null) {
-      setState(() => _customer = created);
-    }
-  }
-
-  Future<void> _openContactSheet() async {
-    final repo = context.read<AppRepository>();
-    final res = await showPickSheet<Customer>(
-      context,
-      title: 'Select contact',
-      items: repo.activeCustomers,
-      current: _customer,
-      labelOf: (c) => c.name,
-      subOf: (c) => c.phone,
-      clearable: true,
-      searchHint: 'Customer name...',
-    );
-    if (res == null) return;
-    if (res.cleared) {
-      setState(() => _customer = null);
-    } else if (res.value != null) {
-      setState(() => _customer = res.value);
-    }
   }
 
   Future<void> _save() async {
@@ -483,7 +521,10 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     final messenger = ScaffoldMessenger.of(context);
     final route = ModalRoute.of(context);
     if (_formKey.currentState?.validate() != true) return;
-    if (_kind == TxnKind.payablePayment && _customer == null) {
+    if ((_kind == TxnKind.payablePayment ||
+            _kind == TxnKind.receive ||
+            _kind == TxnKind.refund) &&
+        _customer == null) {
       showSnack(context, 'Select a contact for this payment', error: true);
       return;
     }
@@ -501,8 +542,8 @@ class _TransactionEditPageState extends State<TransactionEditPage>
               ? t.rateToBase
               : repo.settings.currency(_currency).rateToBase,
           date: _date,
-          categoryId: _category?.id,
-          clearCategory: _category == null,
+          categoryId: _categoryKind != null ? _category?.id : null,
+          clearCategory: _categoryKind == null || _category == null,
           customerId: _customer?.id,
           clearCustomer: _customer == null,
           subscriptionId: _subscription?.id,
@@ -512,13 +553,46 @@ class _TransactionEditPageState extends State<TransactionEditPage>
           scope: _scope,
         ),
       );
+    } else if (_scope == TxnScope.business &&
+        _customer != null &&
+        _kind == TxnKind.income &&
+        ((_renewSub != null && _renewSub!.customerId == _customer!.id) ||
+            _newPlan != null)) {
+      final receivedNow = _credit ? settled : amount;
+      if (_renewSub != null && _renewSub!.customerId == _customer!.id) {
+        await repo.renewSubscription(
+          _renewSub!,
+          price: amount,
+          received: receivedNow,
+          currencyCode: _currency,
+          categoryId: _category?.id,
+          note: _note.text.trim(),
+        );
+      } else {
+        final plan = _newPlan!;
+        final startDate = J.dateOnly(_date);
+        final endDate = plan.endFrom(startDate);
+        await repo.sellSubscription(
+          customer: _customer!,
+          plan: plan,
+          title: plan.name,
+          price: amount,
+          currencyCode: _currency,
+          start: startDate,
+          end: endDate,
+          received: receivedNow,
+          receiveCurrency: _settleCurrency,
+          note: _note.text.trim(),
+          categoryId: _category?.id,
+        );
+      }
     } else {
       final base = repo.buildTxn(
         kind: _kind,
         amount: amount,
         currency: _currency,
         date: _date,
-        categoryId: _needsCategory ? _category?.id : null,
+        categoryId: _categoryKind != null ? _category?.id : null,
         customerId: _customer?.id,
         subscriptionId: _subscription?.id,
         credit: _needsCategory && _customer != null ? _credit : false,
@@ -566,10 +640,6 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     final showSettle =
         !isEdit && _needsCategory && _customer != null && _credit;
     final recents = isEdit ? const <Txn>[] : repo.recentDistinctTxns(4);
-    final topContacts = repo.topCustomers(limit: 4);
-    final contactChips = topContacts.isNotEmpty
-        ? topContacts
-        : repo.activeCustomers.take(4).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -588,7 +658,12 @@ class _TransactionEditPageState extends State<TransactionEditPage>
                 ),
               ),
             ),
-          if (isEdit)
+          if (isEdit) ...[
+            IconButton(
+              tooltip: 'Copy transaction details'.tr,
+              icon: const Icon(Icons.copy_rounded),
+              onPressed: () => _copyTransactionDetails(repo),
+            ),
             IconButton(
               tooltip: 'Delete'.tr,
               icon: const Icon(Icons.delete_outline_rounded),
@@ -611,6 +686,7 @@ class _TransactionEditPageState extends State<TransactionEditPage>
                 navigator.pop();
               },
             ),
+          ],
         ],
       ),
       bottomNavigationBar: AnimatedBuilder(
@@ -664,7 +740,12 @@ class _TransactionEditPageState extends State<TransactionEditPage>
                     selected: _kind,
                     onSelect: (k) => setState(() {
                       _kind = k;
+                      if (k != TxnKind.income) {
+                        _renewSub = null;
+                        _newPlan = null;
+                      }
                       _syncCategory(repo);
+                      _syncSubscriptionSelection(repo);
                     }),
                   ),
                 ],
@@ -678,6 +759,14 @@ class _TransactionEditPageState extends State<TransactionEditPage>
                   autofocus:
                       widget.autofocusAmount && !isEdit && !_autofocusDone,
                   textInputAction: TextInputAction.next,
+                  onChanged: () {
+                    if (!isEdit &&
+                        _scope == TxnScope.business &&
+                        _customer != null &&
+                        _kind == TxnKind.income) {
+                      setState(() => _syncSubscriptionSelection(repo));
+                    }
+                  },
                 ),
                 ListenableBuilder(
                   listenable: _amount,
@@ -751,7 +840,6 @@ class _TransactionEditPageState extends State<TransactionEditPage>
                   ..._buildScopeChildren(
                     repo: repo,
                     pageScope: _scope,
-                    contactChips: contactChips,
                     showSettle: showSettle,
                     currencies: currencies,
                     onSurface: onSurface,
@@ -759,7 +847,6 @@ class _TransactionEditPageState extends State<TransactionEditPage>
                 else
                   _buildMagneticScopeSection(
                     repo: repo,
-                    contactChips: contactChips,
                     showSettle: showSettle,
                     currencies: currencies,
                     onSurface: onSurface,
@@ -773,6 +860,14 @@ class _TransactionEditPageState extends State<TransactionEditPage>
                   icon: Icons.notes_rounded,
                   maxLines: 2,
                 ),
+                if (isEdit &&
+                    repo.smsHistoryForTxn(widget.existing!.id) != null) ...[
+                  const SizedBox(height: 12),
+                  _buildLinkedSmsCard(
+                    context,
+                    repo.smsHistoryForTxn(widget.existing!.id)!,
+                  ),
+                ],
               ],
             ),
           ),
@@ -781,9 +876,63 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     );
   }
 
+  Widget _buildLinkedSmsCard(BuildContext context, dynamic smsEntry) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final String bankName =
+        (smsEntry.bankName as String?)?.isNotEmpty == true
+        ? (smsEntry.bankName as String).tr
+        : (smsEntry.message.address as String).isNotEmpty
+        ? (smsEntry.message.address as String)
+        : 'Linked bank SMS'.tr;
+    final String body = smsEntry.message.body as String;
+    return CardBox(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.sms_outlined,
+                size: 17,
+                color: Color(0xFF0F766E),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${'Linked bank SMS'.tr} · $bankName',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Copy'.tr,
+                icon: const Icon(Icons.copy_rounded, size: 16),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: body));
+                  showSnack(context, 'Copied');
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            body,
+            style: TextStyle(
+              fontSize: 11.5,
+              height: 1.55,
+              color: onSurface.withValues(alpha: 0.72),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMagneticScopeSection({
     required AppRepository repo,
-    required List<Customer> contactChips,
     required bool showSettle,
     required List<CurrencyDef> currencies,
     required Color onSurface,
@@ -792,7 +941,6 @@ class _TransactionEditPageState extends State<TransactionEditPage>
       return _buildScopeDetails(
         repo: repo,
         pageScope: _scope,
-        contactChips: contactChips,
         showSettle: showSettle,
         currencies: currencies,
         onSurface: onSurface,
@@ -809,7 +957,6 @@ class _TransactionEditPageState extends State<TransactionEditPage>
             child: _buildScopeDetails(
               repo: repo,
               pageScope: _fromScope,
-              contactChips: contactChips,
               showSettle: showSettle,
               currencies: currencies,
               onSurface: onSurface,
@@ -821,7 +968,6 @@ class _TransactionEditPageState extends State<TransactionEditPage>
             child: _buildScopeDetails(
               repo: repo,
               pageScope: _toScope,
-              contactChips: contactChips,
               showSettle: showSettle,
               currencies: currencies,
               onSurface: onSurface,
@@ -860,7 +1006,6 @@ class _TransactionEditPageState extends State<TransactionEditPage>
   Widget _buildScopeDetails({
     required AppRepository repo,
     required TxnScope pageScope,
-    required List<Customer> contactChips,
     required bool showSettle,
     required List<CurrencyDef> currencies,
     required Color onSurface,
@@ -871,7 +1016,6 @@ class _TransactionEditPageState extends State<TransactionEditPage>
       children: _buildScopeChildren(
         repo: repo,
         pageScope: pageScope,
-        contactChips: contactChips,
         showSettle: showSettle,
         currencies: currencies,
         onSurface: onSurface,
@@ -882,7 +1026,6 @@ class _TransactionEditPageState extends State<TransactionEditPage>
   List<Widget> _buildScopeChildren({
     required AppRepository repo,
     required TxnScope pageScope,
-    required List<Customer> contactChips,
     required bool showSettle,
     required List<CurrencyDef> currencies,
     required Color onSurface,
@@ -899,7 +1042,7 @@ class _TransactionEditPageState extends State<TransactionEditPage>
         : repo.shortcutCategories(categoryKind, scope: pageScope);
 
     return <Widget>[
-        // -------- «به حساب» / «از حساب» + Pinned Subcategory Shortcuts --------
+        // -------- «به حساب» / «از حساب» + Inline Search + Shortcuts --------
         if (categoryKind != null) ...[
           const SizedBox(height: 12),
           AccountSelectorSection(
@@ -908,35 +1051,50 @@ class _TransactionEditPageState extends State<TransactionEditPage>
             scope: pageScope,
             selectedCategoryId: selectedCatId,
             shortcuts: shortcuts,
-            onSelectCategory: (cat) => setState(() => _category = cat),
+            onSelectCategory: (cat) => setState(() {
+              _category = cat;
+              _subActionManuallyCleared = false;
+              _syncSubscriptionSelection(repo);
+            }),
           ),
         ],
 
         // -------- Business Contact & Cash/Credit --------
         if (pageScope == TxnScope.business) ...[
-          const SizedBox(height: 12),
-          const SectionCaption('Contact (optional)'),
-          const SizedBox(height: 6),
-          ChipStrip(
-            chips: [
-              for (final c in contactChips) _contactChip(c),
-              PresetChip(
-                icon: Icons.person_search_outlined,
-                label: 'All contacts'.tr,
-                onTap: _openContactSheet,
-              ),
-              PresetChip(
-                icon: Icons.person_add_alt_1_rounded,
-                label: 'New contact'.tr,
-                onTap: _newContact,
-              ),
-            ],
-          ),
-          if (_customer != null)
-            ContactBalanceCard(
-              customer: _customer!,
-              balance: repo.balanceOf(_customer!),
+          const SizedBox(height: 10),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _amount,
+            builder: (context, _, _) => ContactSelectorSection(
+              repo: repo,
+              selectedCustomer: _customer,
+              referenceAmount: parseAmount(_amount.text),
+              isDeposit: _kind == TxnKind.income || _kind == TxnKind.receive,
+              onSelectCustomer: (c) {
+                final selecting = c != null;
+                setState(() {
+                  _customer = c;
+                  _subActionManuallyCleared = false;
+                  _syncSubscriptionSelection(repo);
+                });
+                if (selecting) _revealPayModeSection();
+              },
             ),
+          ),
+          if (!isEdit && _customer != null && _kind == TxnKind.income) ...[
+            const SizedBox(height: 8),
+            SubscriptionActionSelector(
+              repo: repo,
+              customer: _customer!,
+              renewSub: _renewSub,
+              newPlan: _newPlan,
+              onSelect: (res) => setState(() {
+                _renewSub = res.renewSub;
+                _newPlan = res.newPlan;
+                _subActionManuallyCleared =
+                    res.renewSub == null && res.newPlan == null;
+              }),
+            ),
+          ],
           if (_needsCategory && _customer != null) ...[
             SizedBox(key: _payModeAnchor, height: 14),
             SegmentedButton<bool>(
@@ -1015,21 +1173,6 @@ class _TransactionEditPageState extends State<TransactionEditPage>
           ],
         ],
       ];
-  }
-
-  Widget _contactChip(Customer c) {
-    final selected = _customer?.id == c.id;
-    return PresetChip(
-      icon: Icons.person_outline_rounded,
-      label: c.name,
-      selected: selected,
-      onTap: () {
-        Haptics.selection();
-        final selecting = !selected;
-        setState(() => _customer = selected ? null : c);
-        if (selecting) _revealPayModeSection();
-      },
-    );
   }
 
   Widget _datePill(BuildContext context) {

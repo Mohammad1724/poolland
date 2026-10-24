@@ -148,6 +148,14 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                 title: Text('Renew'.tr),
                 onTap: () => Navigator.pop(ctx, 'renew'),
               ),
+              ListTile(
+                leading: const Icon(
+                  Icons.edit_outlined,
+                  color: Color(0xFF4F46E5),
+                ),
+                title: Text('Edit subscription'.tr),
+                onTap: () => Navigator.pop(ctx, 'edit'),
+              ),
               if (c != null)
                 ListTile(
                   leading: const Icon(
@@ -180,6 +188,11 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
       await Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => SellSubscriptionPage(renewFrom: s)),
+      );
+    } else if (choice == 'edit') {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => SellSubscriptionPage(existing: s)),
       );
     } else if (choice == 'receive' && c != null) {
       await showPaymentSheet(context, customer: c, isReceive: true);

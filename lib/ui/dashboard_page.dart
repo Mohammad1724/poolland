@@ -16,6 +16,7 @@ import '../data/repository.dart';
 import 'customer_detail_page.dart';
 import 'design.dart';
 import 'forms/sell_subscription_page.dart';
+import 'forms/transaction_edit_page.dart';
 import 'motion_kit.dart';
 import 'personal_page.dart';
 import 'sms_page.dart';
@@ -963,6 +964,13 @@ class _DashboardPageState extends State<DashboardPage>
                       txn: recent[i],
                       categoryName: repo.categoryName(recent[i].categoryId),
                       customerName: repo.customerName(recent[i].customerId),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              TransactionEditPage(existing: recent[i]),
+                        ),
+                      ),
                     ),
                   ),
                   if (i != recent.length - 1)
