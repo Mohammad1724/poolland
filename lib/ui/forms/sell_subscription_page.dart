@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/format_utils.dart';
+import '../../core/haptics.dart';
 import '../../core/jalali_utils.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
 import '../design.dart';
+import '../theme.dart';
 import '../widgets/widgets.dart';
 import '../motion_kit.dart';
 import 'contact_edit_page.dart';
 import 'plan_edit_page.dart';
+import 'sms_review_sheet.dart';
 
 import '../../core/localization.dart';
 
@@ -58,6 +61,10 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
     final repo = context.read<AppRepository>();
     _currency = repo.settings.baseCurrency;
     _receiveCurrency = repo.settings.baseCurrency;
+    _categoryId = repo.defaultCategoryId(
+      TxnKind.income,
+      scope: TxnScope.business,
+    );
     // The default value is English; setting the cursor at the end avoids a
     // visible jump when the user starts typing in an RTL context — the
     // selection would otherwise default to position 0 (the left edge) and
@@ -111,6 +118,10 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
         _receiveCurrency = plan.currency;
         _durationValue = plan.durationValue;
         _unitIsMonth = plan.durationUnit == PlanDurationUnit.month;
+        _received.text = groupedNumber(
+          plan.price,
+          decimals: Money.decimals(_receiveCurrency),
+        );
       }
     }
     _end = _computeEnd();
@@ -152,6 +163,10 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
         _unitIsMonth = plan.durationUnit == PlanDurationUnit.month;
         _manualEnd = false;
         _end = _computeEnd();
+        _received.text = groupedNumber(
+          plan.price,
+          decimals: Money.decimals(_receiveCurrency),
+        );
       }
     });
   }
@@ -223,21 +238,18 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
             children: [
               // ---------- Customer ----------
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: SelectField<Customer>(
-                      label: 'Customer'.tr,
-                      icon: Icons.person_outline_rounded,
-                      value: _contact,
-                      items: repo.activeCustomers,
-                      labelOf: (c) => c.name,
-                      subOf: (c) => (repo.balanceOf(c)).abs() < 1
-                          ? (c.phone.isEmpty ? 'Settled' : c.phone)
-                          : '${c.phone.isEmpty ? '' : '${c.phone} • '}${Money.text(repo.balanceOf(c), signed: true)}',
-                      clearable: false,
-                      sheetTitle: 'Select customer'.tr,
-                      searchHint: 'Customer name...'.tr,
-                      onChanged: (c) => setState(() => _contact = c),
+                    child: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _price,
+                      builder: (context, _, _) => ContactSelectorSection(
+                        repo: repo,
+                        selectedCustomer: _contact,
+                        referenceAmount: parseAmount(_price.text),
+                        isDeposit: true,
+                        onSelectCustomer: (c) => setState(() => _contact = c),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -419,6 +431,74 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
 
               // ---------- Payment received ----------
               SectionTitle('Payment', icon: Icons.payments_outlined),
+              ListenableBuilder(
+                listenable: Listenable.merge([_price, _received]),
+                builder: (context, _) {
+                  final price = parseAmount(_price.text);
+                  final received = parseAmount(_received.text);
+                  final isCashFull =
+                      price > 0 && (received - price).abs() < 1;
+                  final isCredit =
+                      price > 0 && received <= 0;
+                  final halfPrice = (price / 2).roundToDouble();
+                  final isHalf =
+                      price > 0 &&
+                      halfPrice > 0 &&
+                      (received - halfPrice).abs() < 1;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        _SalePayQuickChip(
+                          chipKey: const ValueKey('sale_pay_cash_chip'),
+                          label: 'Cash (paid in full)'.tr,
+                          icon: Icons.payments_outlined,
+                          selected: isCashFull,
+                          accent: AppTheme.revenue,
+                          onTap: () {
+                            Haptics.selection();
+                            if (price > 0) {
+                              _received.text = groupedNumber(
+                                price,
+                                decimals: Money.decimals(_receiveCurrency),
+                              );
+                            }
+                          },
+                        ),
+                        _SalePayQuickChip(
+                          chipKey: const ValueKey('sale_pay_credit_chip'),
+                          label: 'Credit (debt)'.tr,
+                          icon: Icons.schedule_rounded,
+                          selected: isCredit,
+                          accent: const Color(0xFFF59E0B),
+                          onTap: () {
+                            Haptics.selection();
+                            _received.text = '0';
+                          },
+                        ),
+                        _SalePayQuickChip(
+                          chipKey: const ValueKey('sale_pay_half_chip'),
+                          label: '50% deposit'.tr,
+                          icon: Icons.pie_chart_outline_rounded,
+                          selected: isHalf,
+                          accent: Theme.of(context).colorScheme.primary,
+                          onTap: () {
+                            Haptics.selection();
+                            if (price > 0) {
+                              _received.text = groupedNumber(
+                                halfPrice,
+                                decimals: Money.decimals(_receiveCurrency),
+                              );
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -507,14 +587,21 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
               ),
               const SizedBox(height: 14),
 
-              SelectField<Category>(
-                label: 'Income category'.tr,
-                icon: Icons.category_outlined,
-                value: repo.categoryById(_categoryId),
-                items: repo.pickOrderCategories(TxnKind.income),
-                labelOf: (c) => c.name,
-                isChild: (c) => c.parentId != null,
-                onChanged: (c) => setState(() => _categoryId = c?.id),
+              AccountSelectorSection(
+                repo: repo,
+                categoryKind: TxnKind.income,
+                scope: TxnScope.business,
+                selectedCategoryId:
+                    _categoryId ??
+                    repo.defaultCategoryId(
+                      TxnKind.income,
+                      scope: TxnScope.business,
+                    ),
+                shortcuts: repo.shortcutCategories(
+                  TxnKind.income,
+                  scope: TxnScope.business,
+                ),
+                onSelectCategory: (c) => setState(() => _categoryId = c.id),
               ),
               const SizedBox(height: 14),
 
@@ -536,6 +623,73 @@ class _SellSubscriptionPageState extends State<SellSubscriptionPage> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SalePayQuickChip extends StatelessWidget {
+  const _SalePayQuickChip({
+    this.chipKey,
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final Key? chipKey;
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      key: chipKey,
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected
+              ? accent.withValues(alpha: 0.14)
+              : scheme.onSurface.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected
+                ? accent.withValues(alpha: 0.55)
+                : scheme.onSurface.withValues(alpha: 0.12),
+            width: selected ? 1.3 : 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: selected
+                  ? accent
+                  : scheme.onSurface.withValues(alpha: 0.65),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                color: selected
+                    ? accent
+                    : scheme.onSurface.withValues(alpha: 0.80),
+              ),
+            ),
+          ],
         ),
       ),
     );

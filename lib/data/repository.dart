@@ -922,6 +922,7 @@ class AppRepository extends ChangeNotifier {
     required DateTime date,
     bool isReceive = true,
     String note = '',
+    String? categoryId,
   }) => addTxn(
     Txn(
       id: LocalStore.newId(),
@@ -934,7 +935,7 @@ class AppRepository extends ChangeNotifier {
       currency: currencyCode,
       rateToBase: settings.currency(currencyCode).rateToBase,
       date: date,
-      categoryId: isReceive ? defaultIncomeCategoryId : null,
+      categoryId: categoryId ?? (isReceive ? defaultIncomeCategoryId : null),
       customerId: customer.id,
       note: note.isEmpty
           ? (isReceive

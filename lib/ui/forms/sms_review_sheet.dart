@@ -627,6 +627,8 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
           ContactSelectorSection(
             repo: repo,
             selectedCustomer: _customer,
+            referenceAmount: sms.amount ?? 0,
+            isDeposit: _isIncome,
             onSelectCustomer: (c) => _onCustomerSelected(repo, c),
           ),
           if (_customer != null && pageKind == TxnKind.receive) ...[
@@ -1385,6 +1387,76 @@ class _ShortcutCategoryChip extends StatelessWidget {
   }
 }
 
+/// Smart match metadata for a contact whose debt, payable, or subscription
+/// amount matches the transaction's reference amount.
+class _ContactSmartMatch {
+  const _ContactSmartMatch({
+    required this.rank,
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  final int rank;
+  final String label;
+  final IconData icon;
+  final Color color;
+}
+
+_ContactSmartMatch? _computeContactSmartMatch({
+  required AppRepository repo,
+  required Customer customer,
+  required Map<String, double> balances,
+  required double referenceAmount,
+  required bool isDeposit,
+}) {
+  if (referenceAmount <= 0) return null;
+  final bal = balances[customer.id] ?? 0;
+  if (isDeposit) {
+    if (bal > 0.5 && (bal - referenceAmount).abs() < 1) {
+      return _ContactSmartMatch(
+        rank: 1,
+        label: 'Matches debt amount'.tr,
+        icon: Icons.auto_awesome_rounded,
+        color: AppTheme.revenue,
+      );
+    }
+    final subs = repo.subsOfCustomer(customer.id);
+    for (final s in subs) {
+      final planPrice = repo.planById(s.planId)?.price ?? -1;
+      final amountMatches =
+          (s.amount - referenceAmount).abs() < 1 ||
+          (planPrice > 0 && (planPrice - referenceAmount).abs() < 1);
+      if (amountMatches) {
+        if (s.daysLeft <= 7) {
+          return _ContactSmartMatch(
+            rank: 2,
+            label: 'Matches renewal amount'.tr,
+            icon: Icons.autorenew_rounded,
+            color: AppTheme.primary,
+          );
+        }
+        return _ContactSmartMatch(
+          rank: 3,
+          label: 'Same plan amount'.tr,
+          icon: Icons.verified_outlined,
+          color: AppTheme.primary,
+        );
+      }
+    }
+  } else {
+    if (bal < -0.5 && (bal.abs() - referenceAmount).abs() < 1) {
+      return _ContactSmartMatch(
+        rank: 1,
+        label: 'Matches payable amount'.tr,
+        icon: Icons.auto_awesome_rounded,
+        color: AppTheme.revenue,
+      );
+    }
+  }
+  return null;
+}
+
 /// Selector button for picking a Contact («مخاطب») in Business scope, styled
 /// like the Category («به حساب» / «از حساب») selector button.
 ///
@@ -1396,16 +1468,24 @@ class ContactSelectorSection extends StatelessWidget {
     required this.repo,
     required this.selectedCustomer,
     required this.onSelectCustomer,
+    this.referenceAmount = 0,
+    this.isDeposit = true,
   });
 
   final AppRepository repo;
   final Customer? selectedCustomer;
   final ValueChanged<Customer?> onSelectCustomer;
+  final double referenceAmount;
+  final bool isDeposit;
 
   Future<void> _openSheet(BuildContext context) async {
     final res = await showLedgerSheet<_ContactPickResult>(
       context,
-      builder: (_) => ContactPickerSheet(selectedCustomer: selectedCustomer),
+      builder: (_) => ContactPickerSheet(
+        selectedCustomer: selectedCustomer,
+        referenceAmount: referenceAmount,
+        isDeposit: isDeposit,
+      ),
     );
     if (!context.mounted || res == null) return;
     Haptics.selection();
@@ -1420,6 +1500,24 @@ class ContactSelectorSection extends StatelessWidget {
     final labelText = hasContact
         ? selectedCustomer!.name
         : 'Contact (optional)'.tr;
+
+    bool hasSmartSuggestion = false;
+    if (!hasContact && referenceAmount > 0) {
+      final balances = repo.balancesMap();
+      for (final c in repo.activeCustomers) {
+        if (_computeContactSmartMatch(
+              repo: repo,
+              customer: c,
+              balances: balances,
+              referenceAmount: referenceAmount,
+              isDeposit: isDeposit,
+            ) !=
+            null) {
+          hasSmartSuggestion = true;
+          break;
+        }
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1486,6 +1584,38 @@ class ContactSelectorSection extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (hasSmartSuggestion) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.revenue.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.auto_awesome_rounded,
+                          size: 12,
+                          color: AppTheme.revenue,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Amount match'.tr,
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.revenue,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 if (hasContact)
                   InkWell(
                     key: const ValueKey('clear_contact_button'),
@@ -1530,9 +1660,16 @@ class _ContactPickResult {
 /// Bottom sheet opened by [ContactSelectorSection] for searching and selecting
 /// a business contact (or creating a new contact on the spot).
 class ContactPickerSheet extends StatefulWidget {
-  const ContactPickerSheet({super.key, this.selectedCustomer});
+  const ContactPickerSheet({
+    super.key,
+    this.selectedCustomer,
+    this.referenceAmount = 0,
+    this.isDeposit = true,
+  });
 
   final Customer? selectedCustomer;
+  final double referenceAmount;
+  final bool isDeposit;
 
   @override
   State<ContactPickerSheet> createState() => _ContactPickerSheetState();
@@ -1565,20 +1702,47 @@ class _ContactPickerSheetState extends State<ContactPickerSheet> {
 
     final q = Fmt.normalizeDigits(_searchCtrl.text.trim().toLowerCase());
     final all = repo.activeCustomers;
-    final filtered = q.isEmpty
-        ? all
-        : all.where((c) {
-            final nameMatch = Fmt.normalizeDigits(
-              c.name.toLowerCase(),
-            ).contains(q);
-            final phoneMatch = Fmt.normalizeDigits(
-              c.phone.toLowerCase(),
-            ).contains(q);
-            final tgMatch = Fmt.normalizeDigits(
-              c.telegram.toLowerCase(),
-            ).contains(q);
-            return nameMatch || phoneMatch || tgMatch;
-          }).toList();
+    final matches = <String, _ContactSmartMatch>{};
+    if (widget.referenceAmount > 0) {
+      for (final c in all) {
+        final m = _computeContactSmartMatch(
+          repo: repo,
+          customer: c,
+          balances: balances,
+          referenceAmount: widget.referenceAmount,
+          isDeposit: widget.isDeposit,
+        );
+        if (m != null) {
+          matches[c.id] = m;
+        }
+      }
+    }
+
+    final filtered =
+        (q.isEmpty
+                ? List<Customer>.of(all)
+                : all.where((c) {
+                    final nameMatch = Fmt.normalizeDigits(
+                      c.name.toLowerCase(),
+                    ).contains(q);
+                    final phoneMatch = Fmt.normalizeDigits(
+                      c.phone.toLowerCase(),
+                    ).contains(q);
+                    final tgMatch = Fmt.normalizeDigits(
+                      c.telegram.toLowerCase(),
+                    ).contains(q);
+                    return nameMatch || phoneMatch || tgMatch;
+                  }).toList())
+          ..sort((a, b) {
+            final ma = matches[a.id];
+            final mb = matches[b.id];
+            if (ma != null && mb != null) {
+              return ma.rank.compareTo(mb.rank);
+            }
+            if (ma != null) return -1;
+            if (mb != null) return 1;
+            return 0;
+          });
 
     return Container(
       constraints: BoxConstraints(
@@ -1713,6 +1877,7 @@ class _ContactPickerSheetState extends State<ContactPickerSheet> {
                     itemBuilder: (context, index) {
                       final c = filtered[index];
                       final selected = widget.selectedCustomer?.id == c.id;
+                      final match = matches[c.id];
                       final bal = balances[c.id] ?? 0;
                       final isDebtor = bal > 0.5;
                       final isCreditor = bal < -0.5;
@@ -1736,12 +1901,20 @@ class _ContactPickerSheetState extends State<ContactPickerSheet> {
                           decoration: BoxDecoration(
                             color: selected
                                 ? accent.withValues(alpha: 0.10)
-                                : scheme.onSurface.withValues(alpha: 0.03),
+                                : (match != null
+                                      ? match.color.withValues(alpha: 0.06)
+                                      : scheme.onSurface.withValues(
+                                          alpha: 0.03,
+                                        )),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: selected
                                   ? accent.withValues(alpha: 0.50)
-                                  : scheme.onSurface.withValues(alpha: 0.10),
+                                  : (match != null
+                                        ? match.color.withValues(alpha: 0.35)
+                                        : scheme.onSurface.withValues(
+                                            alpha: 0.10,
+                                          )),
                             ),
                           ),
                           child: Row(
@@ -1769,12 +1942,37 @@ class _ContactPickerSheetState extends State<ContactPickerSheet> {
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         fontSize: 13.5,
-                                        fontWeight: selected
+                                        fontWeight: selected || match != null
                                             ? FontWeight.w800
                                             : FontWeight.w600,
                                       ),
                                     ),
-                                    if (c.phone.isNotEmpty)
+                                    if (match != null) ...[
+                                      const SizedBox(height: 2),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            match.icon,
+                                            size: 12,
+                                            color: match.color,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Flexible(
+                                            child: Text(
+                                              match.label,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                                color: match.color,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ] else if (c.phone.isNotEmpty)
                                       Text(
                                         c.phone,
                                         maxLines: 1,

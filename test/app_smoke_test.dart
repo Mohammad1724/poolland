@@ -817,6 +817,74 @@ void main() {
     },
   );
 
+  testWidgets('Subscription sale form pre-fills cash payment for plan and supports quick payment chips', (tester) async {
+    final customer = repo.activeCustomers.first;
+    final plan = repo.activePlans.first;
+    await tester.pumpWidget(
+      wrap(SellSubscriptionPage(contact: customer, plan: plan)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(customer.name), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('sale_pay_credit_chip')),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    // Pre-filled plan sale starts as Paid in full.
+    expect(find.text('Paid in full', skipOffstage: false), findsOneWidget);
+
+    // Tapping Credit (debt) switches Received now to 0 and shows customer debt.
+    await tester.tap(find.byKey(const ValueKey('sale_pay_credit_chip')));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('customer debt:', skipOffstage: false),
+      findsOneWidget,
+    );
+
+    // Tapping Cash (paid in full) restores full payment.
+    await tester.tap(find.byKey(const ValueKey('sale_pay_cash_chip')));
+    await tester.pumpAndSettle();
+    expect(find.text('Paid in full', skipOffstage: false), findsOneWidget);
+    expect(find.text('From account', skipOffstage: false), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('ContactPickerSheet highlights exact debt amount match at the top', (
+    tester,
+  ) async {
+    final debtor = repo.activeCustomers.firstWhere(
+      (c) => repo.balanceOf(c) > 0.5,
+    );
+    final exactDebt = repo.balanceOf(debtor);
+    final depositSms = ParsedSms(
+      message: SmsMessage(
+        id: 'exact-debt-match-sms',
+        address: 'BANK',
+        body: 'واریز مبلغ',
+        date: DateTime.now(),
+      ),
+      bankName: 'Test Bank',
+      amount: exactDebt,
+      direction: SmsDirection.deposit,
+      confident: true,
+    );
+
+    await tester.pumpWidget(wrap(SmsReviewSheet(sms: depositSms)));
+    await tester.pumpAndSettle();
+
+    // ContactSelectorSection shows the "Amount match" badge before selection.
+    expect(find.text('Amount match'), findsOneWidget);
+
+    // Opening ContactPickerSheet surfaces "Matches debt amount".
+    await tester.tap(find.byKey(const ValueKey('contact_selector_button')));
+    await tester.pumpAndSettle();
+    expect(find.text('Matches debt amount'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Onboarding page renders', (tester) async {
     await tester.pumpWidget(wrap(const OnboardingPage()));
     await tester.pump();

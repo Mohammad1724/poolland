@@ -906,18 +906,23 @@ class _TransactionEditPageState extends State<TransactionEditPage>
         // -------- Business Contact & Cash/Credit --------
         if (pageScope == TxnScope.business) ...[
           const SizedBox(height: 10),
-          ContactSelectorSection(
-            repo: repo,
-            selectedCustomer: _customer,
-            onSelectCustomer: (c) {
-              final selecting = c != null;
-              setState(() {
-                _customer = c;
-                _renewSub = null;
-                _newPlan = null;
-              });
-              if (selecting) _revealPayModeSection();
-            },
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _amount,
+            builder: (context, _, _) => ContactSelectorSection(
+              repo: repo,
+              selectedCustomer: _customer,
+              referenceAmount: parseAmount(_amount.text),
+              isDeposit: _isIncome,
+              onSelectCustomer: (c) {
+                final selecting = c != null;
+                setState(() {
+                  _customer = c;
+                  _renewSub = null;
+                  _newPlan = null;
+                });
+                if (selecting) _revealPayModeSection();
+              },
+            ),
           ),
           if (!isEdit && _customer != null && _kind == TxnKind.income) ...[
             const SizedBox(height: 8),

@@ -1069,6 +1069,16 @@ class AppLocalization {
     'Renew contact subscription': 'تمدید اشتراک قبلی مخاطب',
     'Create new subscription from plan': 'ثبت سرویس جدید (انتخاب پلن)',
     'Ends on {date}': 'پایان: {date}',
+    'Cash (paid in full)': 'نقدی (پرداخت کامل)',
+    'Credit (debt)': 'نسیه (بدهکار)',
+    '50% deposit': 'پیش‌پرداخت ۵۰٪',
+    'Matches debt amount': 'هم‌مبلغ با بدهی',
+    'Matches payable amount': 'هم‌مبلغ با طلب',
+    'Matches renewal amount': 'آمادهٔ تمدید هم‌مبلغ',
+    'Same plan amount': 'هم‌مبلغ با اشتراک',
+    'Amount match': 'پیشنهاد هم‌مبلغ',
+    'Full balance': 'کل مانده حساب',
+    '50% of balance': 'نصف مانده (۵۰٪)',
   };
 
   static String text(String source, {String? languageCode}) =>
