@@ -627,7 +627,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
           ContactSelectorSection(
             repo: repo,
             selectedCustomer: _customer,
-            referenceAmount: widget.sms.amount ?? 0,
+            referenceAmount: widget.sms.amount,
             isDeposit: _isIncome,
             onSelectCustomer: (c) => _onCustomerSelected(repo, c),
           ),
