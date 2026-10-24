@@ -290,12 +290,15 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     if (_scope == TxnScope.personal) {
       _customer = null;
       _subscription = null;
+      _renewSub = null;
+      _newPlan = null;
       _credit = false;
       if (_kind != TxnKind.income && _kind != TxnKind.expense) {
         _kind = _kind == TxnKind.receive ? TxnKind.income : TxnKind.expense;
       }
     }
     _syncCategory(repo);
+    _syncSubscriptionSelection(repo);
   }
 
   void _changeScopeByTap(AppRepository repo, TxnScope target) {
@@ -499,12 +502,16 @@ class _TransactionEditPageState extends State<TransactionEditPage>
       _customer = t.customerId == null ? null : repo.customerById(t.customerId);
       _category = repo.categoryById(t.categoryId);
       _subscription = null;
+      _renewSub = null;
+      _newPlan = null;
+      _subActionManuallyCleared = false;
       _credit = t.credit;
       if (_scope == TxnScope.personal) {
         _customer = null;
         _credit = false;
       }
       _syncCategory(repo);
+      _syncSubscriptionSelection(repo);
     });
   }
 
@@ -514,7 +521,10 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     final messenger = ScaffoldMessenger.of(context);
     final route = ModalRoute.of(context);
     if (_formKey.currentState?.validate() != true) return;
-    if (_kind == TxnKind.payablePayment && _customer == null) {
+    if ((_kind == TxnKind.payablePayment ||
+            _kind == TxnKind.receive ||
+            _kind == TxnKind.refund) &&
+        _customer == null) {
       showSnack(context, 'Select a contact for this payment', error: true);
       return;
     }
@@ -532,8 +542,8 @@ class _TransactionEditPageState extends State<TransactionEditPage>
               ? t.rateToBase
               : repo.settings.currency(_currency).rateToBase,
           date: _date,
-          categoryId: _category?.id,
-          clearCategory: _category == null,
+          categoryId: _categoryKind != null ? _category?.id : null,
+          clearCategory: _categoryKind == null || _category == null,
           customerId: _customer?.id,
           clearCustomer: _customer == null,
           subscriptionId: _subscription?.id,
@@ -546,9 +556,10 @@ class _TransactionEditPageState extends State<TransactionEditPage>
     } else if (_scope == TxnScope.business &&
         _customer != null &&
         _kind == TxnKind.income &&
-        (_renewSub != null || _newPlan != null)) {
+        ((_renewSub != null && _renewSub!.customerId == _customer!.id) ||
+            _newPlan != null)) {
       final receivedNow = _credit ? settled : amount;
-      if (_renewSub != null) {
+      if (_renewSub != null && _renewSub!.customerId == _customer!.id) {
         await repo.renewSubscription(
           _renewSub!,
           price: amount,
@@ -581,7 +592,7 @@ class _TransactionEditPageState extends State<TransactionEditPage>
         amount: amount,
         currency: _currency,
         date: _date,
-        categoryId: _needsCategory ? _category?.id : null,
+        categoryId: _categoryKind != null ? _category?.id : null,
         customerId: _customer?.id,
         subscriptionId: _subscription?.id,
         credit: _needsCategory && _customer != null ? _credit : false,
@@ -729,7 +740,12 @@ class _TransactionEditPageState extends State<TransactionEditPage>
                     selected: _kind,
                     onSelect: (k) => setState(() {
                       _kind = k;
+                      if (k != TxnKind.income) {
+                        _renewSub = null;
+                        _newPlan = null;
+                      }
                       _syncCategory(repo);
+                      _syncSubscriptionSelection(repo);
                     }),
                   ),
                 ],
@@ -743,6 +759,14 @@ class _TransactionEditPageState extends State<TransactionEditPage>
                   autofocus:
                       widget.autofocusAmount && !isEdit && !_autofocusDone,
                   textInputAction: TextInputAction.next,
+                  onChanged: () {
+                    if (!isEdit &&
+                        _scope == TxnScope.business &&
+                        _customer != null &&
+                        _kind == TxnKind.income) {
+                      setState(() => _syncSubscriptionSelection(repo));
+                    }
+                  },
                 ),
                 ListenableBuilder(
                   listenable: _amount,

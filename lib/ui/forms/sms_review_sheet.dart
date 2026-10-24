@@ -428,11 +428,24 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
     );
   }
 
+  void _ensureValidCategory(AppRepository repo, TxnScope scope) {
+    final catKind = _categoryKind(_kind);
+    if (catKind == null) {
+      _categoryId = null;
+      return;
+    }
+    final validCats = repo.categoriesOf(catKind, scope: scope);
+    if (_categoryId != null && validCats.any((c) => c.id == _categoryId)) {
+      return;
+    }
+    _categoryId = repo.defaultCategoryId(catKind, scope: scope);
+  }
+
   void _onCustomerSelected(AppRepository repo, Customer? c) {
     setState(() {
       _customer = c;
       _kind = _suggestedKind(repo, _scope);
-      _categoryId ??= _suggestedCategoryId(repo, _scope);
+      _ensureValidCategory(repo, _scope);
       _subActionManuallyCleared = false;
       _syncSubscriptionSelection(repo);
     });
@@ -657,7 +670,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
             selected: pageKind,
             onSelect: (k) => setState(() {
               _kind = k;
-              _categoryId ??= _suggestedCategoryId(repo, pageScope);
+              _ensureValidCategory(repo, pageScope);
               _subActionManuallyCleared = false;
               _syncSubscriptionSelection(repo);
             }),
@@ -687,7 +700,9 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
           ContactSelectorSection(
             repo: repo,
             selectedCustomer: _customer,
-            referenceAmount: widget.sms.amount,
+            referenceAmount: parseAmount(_amount.text) > 0
+                ? parseAmount(_amount.text)
+                : widget.sms.amount,
             isDeposit: _isIncome,
             onSelectCustomer: (c) => _onCustomerSelected(repo, c),
           ),
