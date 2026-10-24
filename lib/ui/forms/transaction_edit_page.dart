@@ -912,7 +912,7 @@ class _TransactionEditPageState extends State<TransactionEditPage>
               repo: repo,
               selectedCustomer: _customer,
               referenceAmount: parseAmount(_amount.text),
-              isDeposit: _isIncome,
+              isDeposit: _kind == TxnKind.income || _kind == TxnKind.receive,
               onSelectCustomer: (c) {
                 final selecting = c != null;
                 setState(() {

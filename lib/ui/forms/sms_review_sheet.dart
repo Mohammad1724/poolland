@@ -627,7 +627,7 @@ class _SmsReviewSheetState extends State<SmsReviewSheet>
           ContactSelectorSection(
             repo: repo,
             selectedCustomer: _customer,
-            referenceAmount: sms.amount ?? 0,
+            referenceAmount: widget.sms.amount ?? 0,
             isDeposit: _isIncome,
             onSelectCustomer: (c) => _onCustomerSelected(repo, c),
           ),
@@ -1428,7 +1428,7 @@ _ContactSmartMatch? _computeContactSmartMatch({
           (s.amount - referenceAmount).abs() < 1 ||
           (planPrice > 0 && (planPrice - referenceAmount).abs() < 1);
       if (amountMatches) {
-        if (s.daysLeft <= 7) {
+        if (J.daysBetween(J.today, s.endDate) <= 7) {
           return _ContactSmartMatch(
             rank: 2,
             label: 'Matches renewal amount'.tr,
